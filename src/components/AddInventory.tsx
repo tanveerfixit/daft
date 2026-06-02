@@ -102,15 +102,23 @@ export default function AddInventory({
     if (e) e.preventDefault();
     if (!branchId) return alert('Please select a branch');
 
+    const filteredItems = product?.product_type === 'serialized'
+      ? items.filter(item => item.imei && item.imei.trim() !== '')
+      : [];
+
+    if (product?.product_type === 'serialized' && filteredItems.length === 0) {
+      return alert('Please enter at least one valid IMEI/Serial number.');
+    }
+
     const payload = {
       sku_id: productId,
       branch_id: parseInt(branchId),
-      quantity: product?.product_type === 'serialized' ? items.length : parseInt(quantity),
+      quantity: product?.product_type === 'serialized' ? filteredItems.length : parseInt(quantity),
       cost_price: parseFloat(costPrice),
       selling_price: parseFloat(sellingPrice),
       supplier_id: supplierId ? parseInt(supplierId) : null,
       po_number: poNumber,
-      items: product?.product_type === 'serialized' ? items : []
+      items: filteredItems
     };
 
     try {

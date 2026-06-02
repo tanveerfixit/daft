@@ -417,30 +417,30 @@ function AppInner() {
       {showAdminPortal && isAdmin && <AdminPortal onClose={() => setShowAdminPortal(false)} />}
 
       {/* Header */}
-      <header className="h-14 bg-[var(--bg-header)] flex items-center justify-between z-30 transition-colors duration-300">
-        <div className="flex h-full items-center">
-          <div className="w-16 flex items-center justify-center h-full">
+      <header className="h-14 bg-[var(--bg-header)] flex items-center justify-between z-30 transition-colors duration-300 px-2">
+        <div className="flex h-full items-center shrink-0">
+          <div className="w-10 md:w-16 flex items-center justify-center h-full">
             <button 
               onClick={() => navigate(`/${branchSlug}/home`)}
-              className="transition-all hover:scale-115 p-2 text-[var(--brand-primary)] flex items-center justify-center"
+              className="transition-all hover:scale-115 p-1 md:p-2 text-[var(--brand-primary)] flex items-center justify-center"
               title="Home Menu"
             >
-              <LayoutGrid size={24} />
+              <LayoutGrid size={20} className="md:w-[24px] md:h-[24px]" />
             </button>
           </div>
           
           <button 
             onClick={() => navigate(`/${branchSlug}/home`)} 
-            className="pl-2 flex flex-col items-start font-sans cursor-pointer hover:opacity-85 transition-opacity"
+            className="pl-1 md:pl-2 flex flex-col items-start font-sans cursor-pointer hover:opacity-85 transition-opacity"
             title="Home Menu"
           >
-            <h1 className="text-[20px] font-bold text-[var(--brand-primary)] font-sans tracking-tight leading-none uppercase">
+            <h1 className="text-[16px] md:text-[20px] font-bold text-[var(--brand-primary)] font-sans tracking-tight leading-none uppercase">
               {currentUser?.branch_name || 'EPOS'}
             </h1>
           </button>
         </div>
 
-        <div className="flex-1 max-w-xl px-12 z-[9999]">
+        <div className="hidden sm:block flex-1 max-w-md md:max-w-xl px-2 md:px-12 z-[9999] min-w-0">
           <div className="relative">
             <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${searchLoading ? 'text-blue-500 animate-pulse' : 'text-[var(--text-muted)]'}`} size={16} />
             <input 
@@ -450,7 +450,7 @@ function AppInner() {
               onKeyDown={handleSearch}
               onFocus={() => setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
-              placeholder="Search invoices by number (e.g. SA-001)..." 
+              placeholder="Search invoices..." 
               disabled={searchLoading}
               className="w-full bg-[var(--bg-card)] border border-[var(--border-base)] rounded-full py-1.5 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-[var(--text-muted)] text-[var(--text-main)] disabled:opacity-75"
             />
@@ -499,19 +499,19 @@ function AppInner() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 px-6">
+        <div className="flex items-center gap-1.5 md:gap-3 px-1 md:px-6 shrink-0">
           <button 
             onClick={() => setIsDarkMode(!isDarkMode)}
-            className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-[var(--text-main)] flex items-center justify-center"
+            className="p-1.5 md:p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-[var(--text-main)] flex items-center justify-center"
             title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
           >
-            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+            {isDarkMode ? <Sun size={18} className="md:w-[20px] md:h-[20px]" /> : <Moon size={18} className="md:w-[20px] md:h-[20px]" />}
           </button>
 
           {isAdmin && (
             <button 
               onClick={() => setShowAdminPortal(true)}
-              className="h-8 overflow-hidden group bg-transparent text-[var(--text-main)] px-3 rounded-full text-[11px] uppercase tracking-widest transition-all cursor-pointer"
+              className="h-8 overflow-hidden group bg-transparent text-[var(--text-main)] px-2 md:px-3 rounded-full text-[10px] md:text-[11px] uppercase tracking-widest transition-all cursor-pointer"
             >
               <div className="flex flex-col transition-transform duration-500 group-hover:-translate-y-8 ease-in-out">
                 <div className="h-8 flex items-center justify-center whitespace-nowrap">
@@ -529,7 +529,7 @@ function AppInner() {
               logout();
               navigate('/');
             }}
-            className="h-8 overflow-hidden group bg-[var(--bg-card)] text-[var(--text-main)] px-5 rounded-full text-[11px] uppercase tracking-widest transition-all border border-[var(--border-base)] shadow-sm cursor-pointer"
+            className="h-8 overflow-hidden group bg-[var(--bg-card)] text-[var(--text-main)] px-3 md:px-5 rounded-full text-[10px] md:text-[11px] uppercase tracking-widest transition-all border border-[var(--border-base)] shadow-sm cursor-pointer"
           >
             <div className="flex flex-col transition-transform duration-500 group-hover:-translate-y-8 ease-in-out">
               <div className="h-8 flex items-center justify-center whitespace-nowrap">
@@ -543,23 +543,25 @@ function AppInner() {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-28 bg-[var(--bg-sidebar)] text-white flex flex-col z-20 shadow-xl">
-          <nav className="flex-1 py-1 flex flex-col items-center">
+        <aside className="w-full lg:w-28 bg-white lg:bg-[var(--bg-sidebar)] text-neutral-900 lg:text-white flex flex-row lg:flex-col z-20 shadow-xl order-last lg:order-first shrink-0 overflow-x-auto lg:overflow-x-visible custom-scrollbar border-t lg:border-t-0 border-neutral-200 dark:border-neutral-800">
+          <nav className="flex-1 py-1 flex flex-row lg:flex-col items-center justify-start lg:justify-start gap-1 lg:gap-0 px-1 lg:px-0">
             {menuItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => handleSidebarNavigate(item.id)}
-                className={`group w-full flex flex-col items-center justify-center py-5 px-1 transition-all duration-200 border-l-4 ${
+                className={`group min-w-[85px] lg:min-w-0 lg:w-full flex flex-col items-center justify-center py-2 lg:py-5 px-1 transition-all duration-200 border-0 lg:border-l-4 ${
                   currentView === item.id 
-                    ? 'bg-white/10 border-[var(--brand-primary)] text-white' 
-                    : 'border-transparent text-white/60 hover:bg-white/5 hover:text-white'
+                    ? 'bg-neutral-200 lg:bg-white/10 text-blue-600 lg:text-white border-transparent lg:border-[var(--brand-primary)]' 
+                    : 'bg-neutral-100 lg:bg-transparent text-neutral-900 lg:text-white/60 hover:bg-neutral-200 lg:hover:bg-white/5 hover:text-blue-600 lg:hover:text-white'
                 }`}
               >
-                <item.icon size={30} className="transition-transform duration-200 group-hover:scale-110" />
-                <span className={`text-[11px] uppercase tracking-wider mt-2.5 text-center select-none font-bold transition-colors ${
-                  currentView === item.id ? 'text-white' : 'text-white/60 group-hover:text-white'
+                <item.icon size={22} className="lg:w-[30px] lg:h-[30px] transition-transform duration-200 group-hover:scale-110" />
+                <span className={`text-[9px] lg:text-[11px] uppercase tracking-wider mt-1 lg:mt-2.5 text-center select-none font-bold transition-colors ${
+                  currentView === item.id 
+                    ? 'text-blue-600 lg:text-white' 
+                    : 'text-neutral-900 lg:text-white/60 group-hover:text-blue-600 lg:group-hover:text-white'
                 }`}>
                   {item.label}
                 </span>

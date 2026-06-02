@@ -30,7 +30,7 @@ export const CartTable: React.FC<CartTableProps> = ({
         </span>
       </div>
       
-      <div className="overflow-y-auto flex-1 custom-scrollbar">
+      <div className="overflow-auto flex-1 custom-scrollbar">
         {cart.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center p-12 text-neutral-450 dark:text-neutral-500 font-mono italic text-base">
             <p className="font-normal uppercase tracking-widest text-[14px]">Your cart is empty</p>

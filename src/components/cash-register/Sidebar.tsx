@@ -40,7 +40,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = (props) => {
   return (
-    <div className="w-[380px] h-full flex flex-col bg-white dark:bg-black border-l border-neutral-300 dark:border-neutral-800 overflow-hidden rounded-none shadow-none">
+    <div className="w-full lg:w-[380px] h-full flex flex-col bg-white dark:bg-black border-t lg:border-t-0 lg:border-l border-neutral-300 dark:border-neutral-800 overflow-hidden rounded-none shadow-none">
       {/* Scrollable Content Area */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <div>

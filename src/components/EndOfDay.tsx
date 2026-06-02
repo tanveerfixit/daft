@@ -794,20 +794,20 @@ export default function EndOfDay() {
     <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm select-none" style={{ fontSize: '15px' }}>
       {/* Header bar */}
       <div className="sticky top-0 z-40 bg-white dark:bg-black border-b border-neutral-300 dark:border-neutral-800 shrink-0">
-        <div className="flex items-center justify-between px-4 py-1">
-          <div className="flex items-center gap-6">
-            <h1 className="text-base font-normal tracking-wider uppercase text-neutral-800 dark:text-green-400">SYS.EOD // END OF DAY REPORT</h1>
-            <div className="flex items-center bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-2 gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+            <h1 className="text-base md:text-lg font-bold tracking-wider uppercase text-black dark:text-white">END OF DAY REPORT</h1>
+            <div className="flex items-center bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 w-fit">
               <button 
                 onClick={handlePrevDay}
-                className="px-2 py-0.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 font-normal border-r border-neutral-300 dark:border-neutral-800"
+                className="px-2.5 py-1 hover:bg-neutral-200 dark:hover:bg-neutral-850 font-bold border-r border-neutral-300 dark:border-neutral-800 transition-colors"
                 title="Previous Day"
               >
                 &lt;
               </button>
               
-              <div className="relative px-3 py-0.5 flex items-center gap-1 cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-800">
-                <span className="font-normal tracking-tight">
+              <div className="relative px-3 py-1 flex items-center gap-1 cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-850 transition-colors">
+                <span className="font-bold tracking-tight text-xs md:text-sm">
                   {reportDate.split('-').reverse().join('-')}
                 </span>
                 <Calendar size={12} className="opacity-80 text-neutral-600 dark:text-neutral-400" />
@@ -821,7 +821,7 @@ export default function EndOfDay() {
 
               <button 
                 onClick={handleNextDay}
-                className="px-2 py-0.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 font-normal border-l border-neutral-300 dark:border-neutral-800"
+                className="px-2.5 py-1 hover:bg-neutral-200 dark:hover:bg-neutral-850 font-bold border-l border-neutral-300 dark:border-neutral-800 transition-colors"
                 title="Next Day"
               >
                 &gt;
@@ -829,21 +829,21 @@ export default function EndOfDay() {
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-start sm:justify-end">
             {isRefreshing && (
-              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800">
-                <div className="w-1.5 h-1.5 bg-neutral-600 dark:bg-green-500 animate-ping"></div>
-                <span className="text-[11px] font-normal text-neutral-600 dark:text-green-400 uppercase tracking-widest">SYNCING</span>
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800">
+                <div className="w-1.5 h-1.5 bg-blue-500 dark:bg-blue-400 animate-ping"></div>
+                <span className="text-[10px] font-bold text-neutral-600 dark:text-blue-400 uppercase tracking-widest">SYNCING</span>
               </div>
             )}
-            <button className="flex items-center gap-1 px-3 py-1 bg-neutral-200 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-850 text-neutral-850 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-800 font-normal">
+            <button className="flex items-center gap-1 px-3.5 py-1.5 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-850 border border-neutral-300 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 font-bold text-xs uppercase tracking-wider transition-colors shadow-sm">
               <List size={12} />
-              [LIST]
+              <span>[LIST]</span>
             </button>
             <div className="relative">
               <button 
                 onClick={() => setShowPrintOptions(!showPrintOptions)}
-                className={`flex items-center gap-1 px-3 py-1 bg-neutral-200 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-850 text-neutral-850 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-800 font-normal`}
+                className="flex items-center gap-1 px-3.5 py-1.5 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-850 border border-neutral-300 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 font-bold text-xs uppercase tracking-wider transition-colors shadow-sm"
               >
                 <Printer size={12} />
                 <span>[PRINT]</span>
@@ -958,16 +958,19 @@ export default function EndOfDay() {
               </div>
 
               {/* Calculated Cash Row */}
-              <div className="grid grid-cols-1 md:grid-cols-12 items-center py-1 bg-neutral-200/50 dark:bg-neutral-900">
-                <div className="md:col-span-4 px-3 md:text-right font-normal text-neutral-600 dark:text-green-400">CALCULATED CASH EXPECTED :</div>
-                <div className="md:col-span-3 px-3 md:text-right font-normal text-blue-600 dark:text-blue-400 flex items-center justify-end">
-                  €{calculatedCashTotal.toFixed(2)}
+              <div className="grid grid-cols-1 md:grid-cols-12 items-stretch md:items-center py-1 bg-neutral-200/50 dark:bg-neutral-900 gap-1 md:gap-0">
+                <div className="md:col-span-4 px-3 py-1 md:py-0 md:text-right font-bold md:font-normal text-neutral-600 dark:text-green-400">CALCULATED CASH EXPECTED :</div>
+                <div className="md:col-span-3 px-3 md:text-right font-normal text-blue-600 dark:text-blue-400 flex items-center justify-between md:justify-end py-1 md:py-0 border-b md:border-b-0 border-neutral-350 dark:border-neutral-800">
+                  <span className="md:hidden text-neutral-500 text-xs">Expected:</span>
+                  <span>€{calculatedCashTotal.toFixed(2)}</span>
                 </div>
-                <div className="md:col-span-3 px-3 md:text-right font-normal text-neutral-800 dark:text-neutral-200 flex items-center justify-end">
-                  €{cashCounted.toFixed(2)}
+                <div className="md:col-span-3 px-3 md:text-right font-normal text-neutral-800 dark:text-neutral-200 flex items-center justify-between md:justify-end py-1 md:py-0 border-b md:border-b-0 border-neutral-350 dark:border-neutral-800">
+                  <span className="md:hidden text-neutral-500 text-xs">Counted:</span>
+                  <span>€{cashCounted.toFixed(2)}</span>
                 </div>
-                <div className="md:col-span-2 py-1 px-3 bg-neutral-300/30 dark:bg-neutral-950 md:text-right font-normal text-neutral-800 dark:text-neutral-200 border-l border-neutral-300 dark:border-neutral-800">
-                  DIFF: {cashDifference >= 0 ? '+' : '' }€{cashDifference.toFixed(2)}
+                <div className="md:col-span-2 py-1 px-3 bg-neutral-300/30 dark:bg-neutral-950 md:text-right font-normal text-neutral-850 dark:text-neutral-200 md:border-l border-neutral-350 dark:border-neutral-800 flex justify-between md:justify-end items-center">
+                  <span className="md:hidden text-neutral-500 text-xs">Difference:</span>
+                  <span>DIFF: {cashDifference >= 0 ? '+' : '' }€{cashDifference.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -1027,8 +1030,8 @@ export default function EndOfDay() {
           </div>
 
           {/* Comments Section */}
-          <div className="flex items-start gap-4">
-            <label className="font-normal text-neutral-600 dark:text-neutral-400 pt-1 shrink-0">MANAGER NOTES :</label>
+          <div className="flex flex-col md:flex-row items-stretch md:items-start gap-2 md:gap-4">
+            <label className="font-normal text-neutral-600 dark:text-neutral-400 pt-1 shrink-0 uppercase">MANAGER NOTES :</label>
             <textarea 
               value={comments}
               onChange={(e) => setComments(e.target.value)}
@@ -1042,7 +1045,7 @@ export default function EndOfDay() {
             <button 
               onClick={handleSave}
               disabled={saving}
-              className="bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-green-700 dark:hover:bg-green-500 dark:text-black font-normal py-1 px-12 border border-neutral-400 dark:border-green-500 rounded-none uppercase tracking-widest text-xs disabled:opacity-50"
+              className="bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-700 dark:hover:bg-blue-650 font-bold py-2.5 px-16 border border-blue-700 dark:border-blue-800 rounded-none uppercase tracking-widest text-xs transition-colors duration-200 shadow-md disabled:opacity-50"
             >
               {saving ? 'SAVING DATA...' : '[ COMMIT REPORT & SAVE ]'}
             </button>
@@ -1051,7 +1054,7 @@ export default function EndOfDay() {
           {/* Payment Information Table */}
           <div className="space-y-1.5">
             <h2 className="text-base font-bold uppercase text-black dark:text-white tracking-wider">// TRANSACTION BREAKDOWN</h2>
-            <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 overflow-hidden">
+            <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 overflow-x-auto custom-scrollbar">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-sm font-bold text-black dark:text-white uppercase tracking-wider">

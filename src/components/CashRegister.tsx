@@ -37,6 +37,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   // State
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
+  const [activeMobileTab, setActiveMobileTab] = useState<'cart' | 'payment'>('cart');
 
   // Quick Add State
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -718,16 +719,42 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   }, [remainingAmount]);
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full overflow-hidden" style={{ fontSize: '17px' }}>
+    <div className="flex flex-col lg:h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full lg:overflow-hidden overflow-y-auto" style={{ fontSize: '17px' }}>
       {/* Header Area */}
       <div className="flex justify-between items-center shrink-0 mb-2 px-1 py-1">
         <h2 className="text-xl font-bold text-black dark:text-white uppercase">Register</h2>
       </div>
 
+      {/* Mobile Tab Toggles */}
+      <div className="flex lg:hidden shrink-0 border border-neutral-350 dark:border-neutral-800 mb-2 rounded-none overflow-hidden font-mono font-bold text-sm">
+        <button
+          onClick={() => setActiveMobileTab('cart')}
+          className={`flex-1 py-2.5 text-center border-r border-neutral-350 dark:border-neutral-800 transition-colors uppercase ${
+            activeMobileTab === 'cart'
+              ? 'bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white'
+              : 'bg-white dark:bg-black text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-900'
+          }`}
+        >
+          Cart ({cart.reduce((sum, item) => sum + item.quantity, 0)})
+        </button>
+        <button
+          onClick={() => setActiveMobileTab('payment')}
+          className={`flex-1 py-2.5 text-center transition-colors uppercase ${
+            activeMobileTab === 'payment'
+              ? 'bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white'
+              : 'bg-white dark:bg-black text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-900'
+          }`}
+        >
+          Payment {remainingAmount > 0 && `(€${remainingAmount.toFixed(2)})`}
+        </button>
+      </div>
+
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden gap-2">
+      <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden overflow-visible gap-2 min-h-0">
         {/* Left Side: Product Search & Cart */}
-        <div className="flex-1 flex flex-col bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 p-3 min-w-0">
+        <div className={`flex-1 flex flex-col bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 p-3 min-w-0 lg:h-full h-auto ${
+          activeMobileTab === 'cart' ? 'flex' : 'hidden lg:flex'
+        }`}>
           {/* Search Bar & Results (Floating setup) */}
           <div ref={searchContainerRef} className="shrink-0 mb-3 relative z-50">
             <ProductSearchBar 
@@ -782,42 +809,46 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
         </div>
 
         {/* Right Side: Sidebar (Customer, Totals, Payment) */}
-        <Sidebar 
-          selectedCustomer={selectedCustomer}
-          customerSearch={customerSearch}
-          setCustomerSearch={setCustomerSearch}
-          customerResults={customerResults}
-          onSelectCustomer={(c) => {
-            setSelectedCustomer(c);
-            setCustomerSearch('');
-            setCustomerResults([]);
-            addActivity('Customer Selected', `${c.name} attached to sale`, 'customer');
-          }}
-          onClearCustomer={() => setSelectedCustomer(null)}
-          onOpenNewCustomerModal={() => setShowNewCustomerModal(true)}
-          onOpenDepositModal={() => setShowDepositModal(true)}
-          
-          subtotal={subtotal}
-          tax={0}
-          discount={discountTotal}
-          total={total}
-          
-          addedPayments={addedPayments}
-          paymentMethod={paymentMethod}
-          setPaymentMethod={setPaymentMethod}
-          paymentAmount={paymentAmount}
-          setPaymentAmount={setPaymentAmount}
-          onAddPayment={handleAddPayment}
-          onRemovePayment={removePayment}
-          remainingAmount={remainingAmount}
-          
-          onCheckout={handleCheckout}
-          onQuickCheckout={handleQuickCheckout}
-          onClearCart={() => setShowDiscardConfirm(true)}
-          isCartEmpty={cart.length === 0 && !selectedCustomer && addedPayments.length === 0}
-          isPaymentComplete={isPaymentComplete}
-          availableMethods={availableMethods}
-        />
+        <div className={`shrink-0 w-full lg:w-auto lg:h-full h-auto ${
+          activeMobileTab === 'payment' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'
+        }`}>
+          <Sidebar 
+            selectedCustomer={selectedCustomer}
+            customerSearch={customerSearch}
+            setCustomerSearch={setCustomerSearch}
+            customerResults={customerResults}
+            onSelectCustomer={(c) => {
+              setSelectedCustomer(c);
+              setCustomerSearch('');
+              setCustomerResults([]);
+              addActivity('Customer Selected', `${c.name} attached to sale`, 'customer');
+            }}
+            onClearCustomer={() => setSelectedCustomer(null)}
+            onOpenNewCustomerModal={() => setShowNewCustomerModal(true)}
+            onOpenDepositModal={() => setShowDepositModal(true)}
+            
+            subtotal={subtotal}
+            tax={0}
+            discount={discountTotal}
+            total={total}
+            
+            addedPayments={addedPayments}
+            paymentMethod={paymentMethod}
+            setPaymentMethod={setPaymentMethod}
+            paymentAmount={paymentAmount}
+            setPaymentAmount={setPaymentAmount}
+            onAddPayment={handleAddPayment}
+            onRemovePayment={removePayment}
+            remainingAmount={remainingAmount}
+            
+            onCheckout={handleCheckout}
+            onQuickCheckout={handleQuickCheckout}
+            onClearCart={() => setShowDiscardConfirm(true)}
+            isCartEmpty={cart.length === 0 && !selectedCustomer && addedPayments.length === 0}
+            isPaymentComplete={isPaymentComplete}
+            availableMethods={availableMethods}
+          />
+        </div>
       </div>
 
       {/* Modals */}
