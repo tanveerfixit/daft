@@ -120,46 +120,48 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
         </div>
         
         {/* Flat Grid Filters Row */}
-        <div className="flex flex-wrap gap-2 items-center text-sm">
-          <select 
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none w-48 cursor-pointer"
-          >
-            <option value="in_stock">Devices in Inventory</option>
-            <option value="sold">Sold Devices</option>
-            <option value="repair">In Repair</option>
-          </select>
-          
-          <select 
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none w-48 cursor-pointer"
-          >
-            <option value="all">All Device Models</option>
-            {uniqueModels.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-          
-          <select 
-            value={selectedColor}
-            onChange={(e) => setSelectedColor(e.target.value)}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none w-40 cursor-pointer"
-          >
-            <option value="all">All Colors</option>
-            {uniqueColors.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          
-          <select 
-            value={selectedCondition}
-            onChange={(e) => setSelectedCondition(e.target.value)}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none w-40 cursor-pointer"
-          >
-            <option value="all">All Conditions</option>
-            {uniqueConditions.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+        <div className="flex flex-col md:flex-row flex-wrap gap-2 items-stretch md:items-center text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 flex-1">
+            <select 
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none w-full cursor-pointer"
+            >
+              <option value="in_stock">Devices in Inventory</option>
+              <option value="sold">Sold Devices</option>
+              <option value="repair">In Repair</option>
+            </select>
+            
+            <select 
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none w-full cursor-pointer"
+            >
+              <option value="all">All Device Models</option>
+              {uniqueModels.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+            
+            <select 
+              value={selectedColor}
+              onChange={(e) => setSelectedColor(e.target.value)}
+              className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none w-full cursor-pointer"
+            >
+              <option value="all">All Colors</option>
+              {uniqueColors.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            
+            <select 
+              value={selectedCondition}
+              onChange={(e) => setSelectedCondition(e.target.value)}
+              className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none w-full cursor-pointer"
+            >
+              <option value="all">All Conditions</option>
+              {uniqueConditions.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
           
           {/* Flat Search Box */}
-          <div className="relative flex-1 max-w-md ml-auto flex">
+          <div className="relative w-full md:w-80 md:ml-auto flex">
             <input
               type="text"
               placeholder="Search IMEI, Model, PO, Inv..."
@@ -185,7 +187,7 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
 
       {/* Flat monospaced list details */}
       <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none">
-        <table className="w-full text-left border-collapse font-mono text-[14px]">
+        <table className="w-full min-w-[900px] text-left border-collapse font-mono text-[14px]">
           <thead>
             <tr className="bg-neutral-100 dark:bg-neutral-955 border-b border-neutral-300 dark:border-neutral-800 text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">
               <th className="px-4 py-2 border-r border-neutral-300 dark:border-neutral-800 w-1/4">Model</th>
@@ -252,7 +254,7 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
       </div>
 
       {/* Flat Pagination Footer */}
-      <div className="p-3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 mt-2 flex justify-between items-center text-xs text-neutral-500 dark:text-neutral-400">
+      <div className="p-3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 mt-2 flex flex-col sm:flex-row gap-4 justify-between items-center text-xs text-neutral-500 dark:text-neutral-400">
         <div className="flex items-center gap-4">
           <span className="font-bold">Items per page:</span>
           <select 

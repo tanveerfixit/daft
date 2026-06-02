@@ -1011,15 +1011,15 @@ export default function EndOfDay() {
                     </tr>
                   ))}
                   {/* Total Row */}
-                  <tr className="bg-neutral-200 dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 border-t border-neutral-300 dark:border-neutral-800 font-bold text-[18px]">
-                    <td className="py-2 px-3 text-right uppercase tracking-wider font-bold text-[18px]">TOTAL SYSTEM REVENUE :</td>
-                    <td className="py-2 px-3 text-right font-bold text-[18px]">
+                  <tr className="bg-neutral-200 dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 border-t border-neutral-300 dark:border-neutral-800 font-bold text-sm sm:text-base md:text-[18px]">
+                    <td className="py-2 px-3 text-right uppercase tracking-wider font-bold text-sm sm:text-base md:text-[18px]">TOTAL SYSTEM REVENUE :</td>
+                    <td className="py-2 px-3 text-right font-bold text-sm sm:text-base md:text-[18px]">
                       €{totalSales.toFixed(2)}
                     </td>
-                    <td className="py-2 px-3 text-right font-bold text-[18px]">
+                    <td className="py-2 px-3 text-right font-bold text-sm sm:text-base md:text-[18px]">
                       €{( (cashCounted - startingBalance) + summaries.filter(s => s.payment_type !== 'Cash').reduce((sum, s) => sum + s.counted, 0) ).toFixed(2)}
                     </td>
-                    <td className="py-2 px-3 w-48 bg-neutral-300/20 dark:bg-neutral-950 text-right font-bold text-[18px] border-l border-neutral-300 dark:border-neutral-800 text-neutral-850 dark:text-neutral-200">
+                    <td className="py-2 px-3 w-48 bg-neutral-300/20 dark:bg-neutral-950 text-right font-bold text-sm sm:text-base md:text-[18px] border-l border-neutral-300 dark:border-neutral-800 text-neutral-850 dark:text-neutral-200">
                       {(( (cashCounted - startingBalance) + summaries.filter(s => s.payment_type !== 'Cash').reduce((sum, s) => sum + s.counted, 0) ) - totalSales) >= 0 ? '+' : ''}
                       €{(( (cashCounted - startingBalance) + summaries.filter(s => s.payment_type !== 'Cash').reduce((sum, s) => sum + s.counted, 0) ) - totalSales).toFixed(2)}
                     </td>

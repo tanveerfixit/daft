@@ -62,23 +62,23 @@ export default function CustomerList({ onSelectCustomer }: CustomerListProps) {
   return (
     <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full overflow-hidden" style={{ fontSize: '17px' }}>
       {/* Header bar */}
-      <div className="flex justify-between items-center px-4 py-1.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 shrink-0 mb-2 rounded-none shadow-none">
-        <h2 className="text-xl font-bold text-black dark:text-white uppercase">Customers</h2>
-        <div className="flex gap-2">
-          <div className="relative w-64">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center px-4 py-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 shrink-0 mb-2 rounded-none shadow-none gap-3 sm:gap-2">
+        <h2 className="text-lg sm:text-xl font-bold text-black dark:text-white uppercase">Customers</h2>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" size={16} />
             <input
               ref={searchInputRef}
               type="text"
               placeholder="Search name, phone or email..."
-              className="w-full pl-10 pr-4 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-base focus:outline-none text-neutral-900 dark:text-neutral-100"
+              className="w-full pl-10 pr-4 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-sm sm:text-base focus:outline-none text-neutral-900 dark:text-neutral-100"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
             />
           </div>
           <button
             onClick={() => setIsModalOpen(true)}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-3 rounded-none text-base flex items-center gap-2 transition-all"
+            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-3 rounded-none text-sm sm:text-base flex items-center gap-2 transition-all justify-center w-full sm:w-auto"
           >
             <Plus size={16} />
             Add Customer
@@ -88,7 +88,7 @@ export default function CustomerList({ onSelectCustomer }: CustomerListProps) {
 
       {/* Table — full width, no container */}
       <div className="flex-1 overflow-auto border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black">
-        <table className="w-full text-left border-collapse">
+        <table className="w-full min-w-[750px] text-left border-collapse">
           <thead className="sticky top-0 z-10 bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">
             <tr>
               <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800">Name</th>

@@ -63,10 +63,10 @@ export default function RepairList({ preSelectedCustomerId }: RepairListProps) {
   return (
     <div className="h-full flex flex-col bg-[var(--bg-app)] overflow-hidden transition-colors duration-300">
       {/* Header bar */}
-      <div className="flex justify-between items-center px-4 py-3 bg-[var(--bg-card)] border-b border-[var(--border-base)] shrink-0">
-        <h2 className="text-xl font-medium text-[var(--text-main)]">Repair Jobs</h2>
-        <div className="flex gap-2">
-          <div className="relative w-64">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center px-4 py-3 bg-[var(--bg-card)] border-b border-[var(--border-base)] shrink-0 gap-3 sm:gap-2">
+        <h2 className="text-lg sm:text-xl font-medium text-[var(--text-main)]">Repair Jobs</h2>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted-more)]" size={16} />
             <input
               type="text"
@@ -78,7 +78,7 @@ export default function RepairList({ preSelectedCustomerId }: RepairListProps) {
           </div>
           <button
             onClick={() => setIsModalOpen(true)}
-            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all"
+            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all justify-center w-full sm:w-auto"
           >
             <Plus size={16} />
             New Repair Job
@@ -88,7 +88,7 @@ export default function RepairList({ preSelectedCustomerId }: RepairListProps) {
 
       {/* Table — full width, no container box */}
       <div className="flex-1 overflow-auto">
-        <table className="w-full text-left border-collapse">
+        <table className="w-full min-w-[900px] text-left border-collapse">
           <thead className="sticky top-0 z-10">
             <tr className="bg-[var(--bg-app)] border-b border-[var(--border-base)] text-[11px] font-bold text-[var(--text-main)] uppercase tracking-wider">
               <th className="px-4 py-2 border-r border-[var(--border-base)]">Job #</th>

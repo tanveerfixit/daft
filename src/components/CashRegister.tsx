@@ -19,6 +19,7 @@ import { ImeiSelectorModal } from './cash-register/ImeiSelectorModal';
 import { DepositAmountModal } from './cash-register/DepositAmountModal';
 import { UpdateCartModal } from './cash-register/UpdateCartModal';
 import CustomerFormModal from './CustomerFormModal';
+import { BarcodeScannerModal } from './cash-register/BarcodeScannerModal';
 import { CartItem, PaymentEntry, Activity } from './cash-register/types';
 import { useThermalSettings } from '../hooks/useThermalSettings';
 import { useAuth } from '../context/AuthContext';
@@ -38,6 +39,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [activeMobileTab, setActiveMobileTab] = useState<'cart' | 'payment'>('cart');
+  const [showScanner, setShowScanner] = useState(false);
 
   // Quick Add State
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -302,6 +304,40 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       alert(err.message || 'An error occurred during quick add');
     } finally {
       setQuickAddLoading(false);
+    }
+  };
+
+  const handleScanSuccess = async (barcode: string) => {
+    setShowScanner(false);
+    addActivity('Barcode Scanned', `Scanned: ${barcode}`, 'system');
+    
+    try {
+      const response = await fetch(`/api/search?q=${encodeURIComponent(barcode)}&type=products`);
+      if (response.ok) {
+        const products = await response.json();
+        const exactMatch = products.find((p: any) => 
+          p.barcode === barcode || 
+          p.sku_code === barcode ||
+          (p.product_name && p.product_name.toLowerCase() === barcode.toLowerCase())
+        );
+
+        if (exactMatch) {
+          addToCart(exactMatch);
+          addActivity('Barcode Match', `Added: ${exactMatch.product_name}`, 'stock');
+        } else if (products.length > 0) {
+          addToCart(products[0]);
+          addActivity('Barcode Match', `Added first match: ${products[0].product_name}`, 'stock');
+        } else {
+          addActivity('Scan Failed', `No product found for barcode: ${barcode}`, 'system');
+          const addConfirm = window.confirm(`No product found with barcode "${barcode}". Would you like to quick add it?`);
+          if (addConfirm) {
+            openQuickAdd(barcode);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error searching scanned barcode:", err);
+      alert("Failed to search barcode database.");
     }
   };
 
@@ -778,6 +814,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                 }
               }}
               onQuickAddClick={() => openQuickAdd(searchQuery)}
+              onScanClick={() => setShowScanner(true)}
             />
             
             {/* Search Results (Floating) */}
@@ -852,6 +889,13 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       </div>
 
       {/* Modals */}
+      {showScanner && (
+        <BarcodeScannerModal 
+          onScanSuccess={handleScanSuccess}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
+
       {showDiscardConfirm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 font-mono text-base">
           <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-sm overflow-hidden flex flex-col rounded-none shadow-none">

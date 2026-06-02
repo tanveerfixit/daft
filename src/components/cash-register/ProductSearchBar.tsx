@@ -7,6 +7,7 @@ interface ProductSearchBarProps {
   onClear: () => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onQuickAddClick?: () => void;
+  onScanClick?: () => void;
 }
 
 export const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
@@ -14,7 +15,8 @@ export const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
   setSearchQuery,
   onClear,
   onKeyDown,
-  onQuickAddClick
+  onQuickAddClick,
+  onScanClick
 }) => {
   return (
     <div className="relative group font-sans">
@@ -39,7 +41,12 @@ export const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
             <X className="h-4 w-4" />
           </button>
         )}
-        <button className="text-blue-500 hover:text-blue-650 transition-colors bg-transparent border-0 cursor-pointer" title="Search by Lens">
+        <button 
+          type="button"
+          onClick={onScanClick}
+          className="text-blue-500 hover:text-blue-650 transition-colors bg-transparent border-0 cursor-pointer" 
+          title="Scan Barcode via Camera"
+        >
           <Camera className="h-4 w-4" />
         </button>
         {onQuickAddClick && (

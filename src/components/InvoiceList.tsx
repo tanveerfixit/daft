@@ -104,20 +104,20 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
   return (
     <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 py-2 select-none w-full" style={{ fontSize: '15px' }}>
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-white dark:bg-black border-b border-neutral-300 dark:border-neutral-800 shrink-0 flex justify-between items-center px-4 py-1">
-        <h2 className="text-base font-bold uppercase text-black dark:text-white tracking-wider">SYS.INV // SALES INVOICES</h2>
-        <button className="bg-neutral-200 hover:bg-neutral-300 text-neutral-800 border border-neutral-300 dark:bg-neutral-900 dark:hover:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-850 py-0.5 px-3 rounded-none font-normal uppercase tracking-wide text-xs">
+      <div className="sticky top-0 z-40 bg-white dark:bg-black border-b border-neutral-300 dark:border-neutral-800 shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center px-4 py-2 sm:py-1 gap-2">
+        <h2 className="text-sm font-bold uppercase text-black dark:text-white tracking-wider">SYS.INV // SALES INVOICES</h2>
+        <button className="bg-neutral-200 hover:bg-neutral-300 text-neutral-800 border border-neutral-300 dark:bg-neutral-900 dark:hover:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-850 py-0.5 px-3 rounded-none font-normal uppercase tracking-wide text-xs w-full sm:w-auto text-center">
           [CASH REGISTER]
         </button>
       </div>
 
       {/* Filters & Search */}
-      <div className="p-2 flex flex-wrap gap-2 items-center bg-white dark:bg-black border-b border-neutral-300 dark:border-neutral-800 shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="p-2 flex flex-col md:flex-row flex-wrap gap-2 items-stretch md:items-center bg-white dark:bg-black border-b border-neutral-300 dark:border-neutral-800 shrink-0">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
           <select 
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value as any)}
-            className="bg-white text-neutral-900 border border-neutral-300 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-500 dark:focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono font-bold"
+            className="bg-white text-neutral-900 border border-neutral-300 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-500 dark:focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono font-bold w-full sm:w-auto"
           >
             <option value="today">Today</option>
             <option value="yesterday">Yesterday</option>
@@ -127,29 +127,29 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
           </select>
 
           {dateRange === 'custom' && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
               <input 
                 type="date"
                 value={customStart}
                 onChange={(e) => setCustomStart(e.target.value)}
-                className="bg-white text-neutral-900 border border-neutral-300 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-500 dark:focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono"
+                className="bg-white text-neutral-900 border border-neutral-300 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-500 dark:focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono w-full"
               />
-              <span className="text-neutral-500 dark:text-neutral-400 text-xs">to</span>
+              <span className="text-neutral-500 dark:text-neutral-400 text-xs text-center">to</span>
               <input 
                 type="date"
                 value={customEnd}
                 onChange={(e) => setCustomEnd(e.target.value)}
-                className="bg-white text-neutral-900 border border-neutral-300 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-500 dark:focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono"
+                className="bg-white text-neutral-900 border border-neutral-300 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-500 dark:focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono w-full"
               />
             </div>
           )}
         </div>
 
-        <select className="bg-white text-neutral-900 border border-neutral-300 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none w-48 h-7 opacity-50 cursor-not-allowed font-mono">
+        <select className="bg-white text-neutral-900 border border-neutral-300 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none w-full md:w-48 h-7 opacity-50 cursor-not-allowed font-mono">
           <option>All Types</option>
         </select>
         
-        <div className="relative flex-1 max-w-md ml-auto">
+        <div className="relative w-full md:w-80 md:ml-auto">
           <input
             ref={searchInputRef}
             type="text"
@@ -166,7 +166,7 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
 
       {/* Table Content */}
       <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800">
-        <table className="w-full text-left border-collapse bg-white dark:bg-black">
+        <table className="w-full min-w-[950px] text-left border-collapse bg-white dark:bg-black">
           <thead>
             <tr className="bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-sm font-bold text-black dark:text-white uppercase tracking-wider">
               <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-24">Date</th>
@@ -229,7 +229,7 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
       </div>
 
       {/* Footer Pagination */}
-      <div className="p-2 bg-white dark:bg-black border-t border-neutral-300 dark:border-neutral-800 flex justify-between items-center text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
+      <div className="p-2 bg-white dark:bg-black border-t border-neutral-300 dark:border-neutral-800 flex flex-col sm:flex-row gap-2 justify-between items-center text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
         <div className="flex items-center gap-4">
           <select className="bg-white text-neutral-900 border border-neutral-300 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none font-mono">
             <option>auto</option>

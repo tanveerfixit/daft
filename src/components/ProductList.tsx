@@ -136,53 +136,55 @@ export default function ProductList({
   return (
     <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full overflow-hidden" style={{ fontSize: '17px' }}>
       {/* Header */}
-      <div className="flex justify-between items-center shrink-0 mb-2 px-1 py-1">
-        <h2 className="text-xl font-bold text-black dark:text-white uppercase">Manage Products</h2>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center shrink-0 mb-2 px-1 py-1 gap-2">
+        <h2 className="text-lg sm:text-xl font-bold text-black dark:text-white uppercase">Manage Products</h2>
         <button 
           onClick={onCreateProduct}
-          className="bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold py-1.5 px-4 rounded-none text-base flex items-center gap-2 transition-all shadow-none"
+          className="bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold py-1.5 px-4 rounded-none text-sm sm:text-base flex items-center gap-2 transition-all shadow-none w-full sm:w-auto justify-center"
         >
           <Plus size={16} />
           Create Product
         </button>
       </div>
 
-      <div className="p-4 flex flex-wrap gap-2 items-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none mb-2">
-        <select 
-          value={selectedType}
-          onChange={(e) => { setSelectedType(e.target.value); setCurrentPage(1); }}
-          className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none w-48"
-        >
-          <option value="All Products">All Types</option>
-          <option value="stock">Generic Stock</option>
-          <option value="serialized">Serialized Device</option>
-          <option value="service">Service Item</option>
-        </select>
-        <select 
-          value={selectedManufacturer}
-          onChange={(e) => { setSelectedManufacturer(e.target.value); setCurrentPage(1); }}
-          className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none w-48"
-        >
-          <option value="All Manufacturers">All Manufacturers</option>
-          {manufacturers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-        </select>
-        <select 
-          value={selectedCategory}
-          onChange={(e) => { setSelectedCategory(e.target.value); setCurrentPage(1); }}
-          className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none w-48"
-        >
-          <option value="All Categories">All Categories</option>
-          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+      <div className="p-4 flex flex-col md:flex-row flex-wrap gap-2 items-stretch md:items-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none mb-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
+          <select 
+            value={selectedType}
+            onChange={(e) => { setSelectedType(e.target.value); setCurrentPage(1); }}
+            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-sm sm:text-base text-neutral-900 dark:text-neutral-100 focus:outline-none w-full"
+          >
+            <option value="All Products">All Types</option>
+            <option value="stock">Generic Stock</option>
+            <option value="serialized">Serialized Device</option>
+            <option value="service">Service Item</option>
+          </select>
+          <select 
+            value={selectedManufacturer}
+            onChange={(e) => { setSelectedManufacturer(e.target.value); setCurrentPage(1); }}
+            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-sm sm:text-base text-neutral-900 dark:text-neutral-100 focus:outline-none w-full"
+          >
+            <option value="All Manufacturers">All Manufacturers</option>
+            {manufacturers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+          <select 
+            value={selectedCategory}
+            onChange={(e) => { setSelectedCategory(e.target.value); setCurrentPage(1); }}
+            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-sm sm:text-base text-neutral-900 dark:text-neutral-100 focus:outline-none w-full"
+          >
+            <option value="All Categories">All Categories</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
         
-        <div className="relative flex-1 max-w-md ml-auto">
+        <div className="relative w-full md:w-80 md:ml-auto">
           <input
             ref={searchInputRef}
             type="text"
             placeholder="Search Products"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full pl-3 pr-10 py-1.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-base focus:outline-none text-neutral-900 dark:text-neutral-100"
+            className="w-full pl-3 pr-10 py-1.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-sm sm:text-base focus:outline-none text-neutral-900 dark:text-neutral-100"
           />
           <div 
             onClick={() => { setSearchQuery(searchInput); setCurrentPage(1); }}
@@ -195,7 +197,7 @@ export default function ProductList({
 
       {/* Table Content */}
       <div className="flex-1 overflow-auto border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black rounded-none shadow-none">
-        <table className="w-full text-left border-collapse">
+        <table className="w-full min-w-[800px] text-left border-collapse">
           <thead>
             <tr className="bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">
               <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-1/6">Manufacturer Name</th>
@@ -253,7 +255,7 @@ export default function ProductList({
       </div>
 
       {/* Footer Pagination */}
-      <div className="p-4 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none mt-2 flex justify-between items-center text-sm text-neutral-500 dark:text-neutral-400">
+      <div className="p-4 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none mt-2 flex flex-col sm:flex-row gap-4 justify-between items-center text-sm text-neutral-500 dark:text-neutral-400">
         <div className="flex items-center gap-4">
           <select 
             value={itemsPerPage}

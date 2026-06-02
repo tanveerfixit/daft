@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Plus, Trash2, Save, Smartphone } from 'lucide-react';
 import { Product, Branch, Supplier } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 export default function AddInventory({ 
   productId, 
@@ -11,13 +12,14 @@ export default function AddInventory({
   onBack: () => void;
   onSuccess: () => void;
 }) {
+  const { currentUser } = useAuth();
   const [product, setProduct] = useState<Product | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Form State
-  const [branchId, setBranchId] = useState<string>('');
+  const [branchId, setBranchId] = useState<string>(currentUser?.branch_id?.toString() || '');
   const [supplierId, setSupplierId] = useState<string>('');
   const [poNumber, setPoNumber] = useState('');
   const [costPrice, setCostPrice] = useState('');
@@ -74,7 +76,9 @@ export default function AddInventory({
     ]).then(([prodData, branchData, supplierData]) => {
       setProduct(prodData);
       setBranches(branchData);
-      if (branchData.length > 0) {
+      if (currentUser?.branch_id) {
+        setBranchId(currentUser.branch_id.toString());
+      } else if (branchData.length > 0) {
         setBranchId(branchData[0].id.toString());
       }
       setSuppliers(supplierData);
@@ -82,7 +86,7 @@ export default function AddInventory({
       setSellingPrice(prodData.selling_price?.toString() || '');
       setLoading(false);
     });
-  }, [productId]);
+  }, [productId, currentUser]);
 
   const handleAddItem = () => {
     setItems([...items, { imei: '', color: '', gb: '', condition: 'New' }]);
@@ -203,19 +207,13 @@ export default function AddInventory({
                 </div>
               </div>
 
-              {/* Branch Selection */}
+              {/* Branch Selection (Locked to Active Branch) */}
               <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Select Branch * :</div>
+                <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Active Branch :</div>
                 <div className="md:col-span-8 px-3">
-                  <select 
-                    required
-                    value={branchId}
-                    onChange={(e) => setBranchId(e.target.value)}
-                    className="w-full max-w-md bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none"
-                  >
-                    <option value="">Choose Branch</option>
-                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
+                  <span className="inline-block bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 px-3 py-1.5 text-sm font-bold uppercase rounded-none select-none">
+                    {currentUser?.branch_name || 'Loading active branch...'}
+                  </span>
                 </div>
               </div>
 
