@@ -190,7 +190,8 @@ const createInvoiceSchema = z.object({
     quantity: z.number().or(z.string().transform(Number)),
     price: z.number().or(z.string().transform(Number)),
     total: z.number().or(z.string().transform(Number)),
-    is_deposit: z.boolean().optional()
+    is_deposit: z.boolean().optional(),
+    notes: z.string().nullable().optional()
   })).min(1, "Cart is empty"),
   payments: z.array(z.object({
     method: z.string(),
@@ -262,8 +263,8 @@ router.post('/', async (req: any, res, next) => {
       const skuId = item.id || item.sku_id;
       const productInfo = productInfoMap.get(skuId);
       
-      await conn.execute('INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,total) VALUES (?,?,?,?,?,?)',
-        [invoiceId, skuId, item.device_id || null, item.quantity, item.price, item.total]);
+      await conn.execute('INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,total,notes) VALUES (?,?,?,?,?,?,?)',
+        [invoiceId, skuId, item.device_id || null, item.quantity, item.price, item.total, item.notes || null]);
       
       if (productInfo?.product_type === 'stock') {
         await conn.execute(`

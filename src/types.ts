@@ -64,6 +64,7 @@ export interface InvoiceItem {
   product_type?: string;
   allow_overselling?: number;
   max_stock?: number;
+  notes?: string;
 }
 
 export interface InvoiceActivity {
@@ -139,6 +140,7 @@ export interface Repair {
   id: number;
   customer_id: number | null;
   customer_name?: string;
+  phone?: string;
   device_model: string;
   issue: string;
   status: 'new' | 'diagnosed' | 'repairing' | 'completed' | 'collected';

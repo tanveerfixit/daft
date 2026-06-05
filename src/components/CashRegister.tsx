@@ -616,7 +616,8 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
   const handleQuickCheckout = () => {
     if (cart.length === 0) return;
-    const amount = remainingAmount;
+    const enteredAmount = parseFloat(paymentAmount);
+    const amount = !isNaN(enteredAmount) && enteredAmount > 0 ? enteredAmount : remainingAmount;
     if (amount <= 0) return;
 
     if (paymentMethod === 'Wallet') {

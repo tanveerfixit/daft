@@ -61,8 +61,8 @@ export const ReviewCheckoutModal: React.FC<ReviewCheckoutModalProps> = ({
             
             {changeDue > 0.005 && (
               <div className="flex justify-between items-center text-lg font-bold text-red-650 dark:text-red-400 pt-2 border-t border-dashed border-neutral-300 dark:border-neutral-800 mt-2">
-                <span className="uppercase tracking-tight text-xs font-sans">Change Due</span>
-                <span className="font-mono">€{changeDue.toFixed(2)}</span>
+                <span className="uppercase tracking-tight text-xs font-sans font-bold text-red-650 dark:text-red-400">Change Due</span>
+                <span className="font-mono font-bold text-red-650 dark:text-red-400">€{changeDue.toFixed(2)}</span>
               </div>
             )}
           </div>

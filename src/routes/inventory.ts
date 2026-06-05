@@ -443,7 +443,7 @@ router.get('/repairs', async (req: any, res, next) => {
   try {
     const isSuper = req.user.role === 'superadmin';
     const sql = `
-      SELECT j.*, c.name as customer_name FROM jobs j
+      SELECT j.*, c.name as customer_name, c.phone FROM jobs j
       LEFT JOIN customers c ON j.customer_id=c.id
       WHERE j.business_id=? ${!isSuper ? 'AND j.branch_id=?' : ''}
       ORDER BY j.created_at DESC

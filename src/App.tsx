@@ -31,6 +31,7 @@ import HomeMenu from './components/HomeMenu';
 import SkuDeviceDetails from './components/SkuDeviceDetails';
 import ManageData from './components/ManageData';
 import EndOfDay from './components/EndOfDay';
+import SalesReports from './components/SalesReports';
 import ErrorBoundary from './components/ErrorBoundary';
 import CreateProduct from './components/CreateProduct';
 import ProductDetails from './components/ProductDetails';
@@ -621,6 +622,7 @@ function AppInner() {
                 <Route path="/:branchSlug/purchase-orders/:id" element={<PurchaseOrderDetailRoute />} />
                 <Route path="/:branchSlug/manage-data" element={<ManageData />} />
                 <Route path="/:branchSlug/end-of-day" element={<EndOfDay />} />
+                <Route path="/:branchSlug/sales-reports" element={<SalesReports />} />
                 <Route path="/:branchSlug/getting-started" element={<GettingStartedRoute />} />
                 <Route path="*" element={<Navigate to={`/${branchSlug}/dashboard`} replace />} />
               </Routes>

@@ -143,10 +143,21 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
               </div>
             ))}
             <div className="flex justify-between items-center px-1 pt-1 text-base">
-              <span className="font-bold text-neutral-500 uppercase tracking-wider text-xs">Remaining</span>
-              <span className={`font-mono font-bold ${remainingAmount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                €{Math.max(0, remainingAmount).toFixed(2)}
-              </span>
+              {remainingAmount < 0 ? (
+                <>
+                  <span className="font-bold text-red-650 dark:text-red-400 uppercase tracking-wider text-xs">Change Due</span>
+                  <span className="font-mono font-bold text-red-650 dark:text-red-400">
+                    €{Math.abs(remainingAmount).toFixed(2)}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="font-bold text-neutral-500 uppercase tracking-wider text-xs">Remaining</span>
+                  <span className={`font-mono font-bold ${remainingAmount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                    €{remainingAmount.toFixed(2)}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         )}

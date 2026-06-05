@@ -366,6 +366,7 @@ export async function initSchema() {
         cost DECIMAL(10,2),
         discount DECIMAL(10,2),
         total DECIMAL(10,2),
+        notes VARCHAR(255) NULL,
         FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
         FOREIGN KEY (sku_id) REFERENCES product_skus(id),
         FOREIGN KEY (device_id) REFERENCES devices(id)
@@ -770,6 +771,14 @@ export async function initSchema() {
     try {
       await conn.query('ALTER TABLE jobs ADD COLUMN notes TEXT NULL AFTER payment_method');
       console.log('[MySQL] Migration: added notes column to jobs');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
+
+    // Migration: add notes column to invoice_items if missing
+    try {
+      await conn.query('ALTER TABLE invoice_items ADD COLUMN notes VARCHAR(255) NULL AFTER total');
+      console.log('[MySQL] Migration: added notes column to invoice_items');
     } catch (e: any) {
       if (!e.message?.includes('Duplicate column')) throw e;
     }

@@ -566,6 +566,7 @@ addColumnIfNotExists("customers", "wallet_balance", "REAL DEFAULT 0");
 
 addColumnIfNotExists("invoices", "paid_amount", "REAL DEFAULT 0");
 addColumnIfNotExists("invoices", "due_amount", "REAL DEFAULT 0");
+addColumnIfNotExists("invoice_items", "notes", "TEXT");
 
 addColumnIfNotExists("payments", "customer_id", "INTEGER");
 addColumnIfNotExists("payments", "type", "TEXT");

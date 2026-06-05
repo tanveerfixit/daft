@@ -81,23 +81,23 @@ export default function SignupPage({ onGoLogin }: Props) {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-6 font-sans">
+      <div className="min-h-screen bg-[#ffffff] flex items-center justify-center p-6 font-sans text-slate-900">
         <div className="w-full max-w-md text-center">
-          <div className="bg-white rounded-[2.5rem] p-12 shadow-soft border border-slate-100">
-            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle size={40} className="text-green-500" />
+          <div className="bg-white border border-slate-200 p-10 rounded-none shadow-sm">
+            <div className="w-16 h-16 bg-[#ebf3fe] text-[#00abec] rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle size={32} />
             </div>
-            <h2 className="text-2xl font-black text-slate-900 mb-3">
+            <h2 className="text-xl font-bold text-slate-950 mb-3">
               {mode === 'business-register' ? 'Registration Complete!' : 'Request Sent!'}
             </h2>
-            <p className="text-slate-500 text-sm leading-relaxed mb-8">
+            <p className="text-slate-500 text-sm leading-relaxed mb-6">
               {mode === 'business-register' 
-                ? 'Your business has been registered successfully. You can now sign in as the administrator.'
-                : 'Your account is pending admin approval. We\'ll notify you via email as soon as an admin reviews your request.'}
+                ? 'Your registration has been submitted successfully. You can now log in to the portal.'
+                : 'Your registration request has been sent to the manager. You will receive access once approved.'}
             </p>
             <button 
               onClick={onGoLogin} 
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-2xl transition-all"
+              className="w-full bg-[#00abec] hover:bg-[#0096d2] text-white font-bold py-3 rounded-none transition-all cursor-pointer"
             >
               Sign In Now
             </button>
@@ -108,104 +108,140 @@ export default function SignupPage({ onGoLogin }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-6 font-sans">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-[#ffffff] flex flex-col items-center justify-center p-6 font-sans text-slate-900">
+      <div className="w-full max-w-md space-y-6">
         <button 
           onClick={onGoLogin} 
-          className="flex items-center gap-2 text-slate-400 hover:text-slate-900 mb-8 transition-colors group"
+          className="flex items-center gap-2 text-slate-400 hover:text-[#00abec] transition-colors group border-0 bg-transparent cursor-pointer font-bold text-xs uppercase tracking-wider"
         >
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-          <span className="text-xs font-bold uppercase tracking-widest">Back to Login</span>
+          <span>Back to Login</span>
         </button>
 
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Get Started</h1>
-          <p className="text-slate-500 font-medium mt-2">Choose how you want to join the platform</p>
+        {/* Brand Logo & Header */}
+        <div className="flex flex-col items-center text-center">
+          <div className="text-[#00abec] mb-4">
+            <UserPlus size={44} />
+          </div>
+          <h1 className="text-2xl font-extrabold text-slate-950 tracking-tight">Staff Registration</h1>
+          <p className="text-slate-500 font-medium text-sm mt-1">Join the Phone Lab portal</p>
         </div>
 
         {/* Mode Toggle */}
-        <div className="bg-slate-100 p-1.5 rounded-2xl flex items-center mb-8 shadow-inner">
+        <div className="bg-[#ebf3fe] p-1 rounded-none flex items-center border border-slate-200">
           <button 
             onClick={() => setMode('staff-join')}
-            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${mode === 'staff-join' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex-1 py-2 rounded-none text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              mode === 'staff-join' ? 'bg-[#00abec] text-white' : 'text-slate-500 hover:text-slate-700'
+            }`}
           >
-            <UserPlus size={14} />
+            <UserPlus size={13} />
             Join Branch
           </button>
           <button 
             onClick={() => setMode('business-register')}
-            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${mode === 'business-register' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex-1 py-2 rounded-none text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              mode === 'business-register' ? 'bg-[#00abec] text-white' : 'text-slate-500 hover:text-slate-700'
+            }`}
           >
-            <Building2 size={14} />
+            <Building2 size={13} />
             New Business
           </button>
         </div>
 
-        <div className="bg-white rounded-[2.5rem] p-10 shadow-soft border border-slate-100">
+        <div className="bg-white border border-slate-200 p-8 rounded-none shadow-sm">
           {error && (
-            <div className="bg-red-50 border border-red-100 text-red-600 rounded-xl p-4 mb-6 text-sm font-medium flex items-center gap-3">
+            <div className="bg-red-50 border border-red-100 text-red-600 rounded-none p-3 mb-5 text-xs font-bold flex items-center gap-2">
               <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* Common Fields */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Full Name</label>
-                <input type="text" value={form.name} onChange={set('name')} required placeholder="John Doe"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all text-sm" />
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Full Name</label>
+                <input 
+                  type="text" 
+                  value={form.name} 
+                  onChange={set('name')} 
+                  required 
+                  placeholder="John Doe"
+                  className="w-full bg-[#ebf3fe] border border-slate-200 rounded-none px-4 py-2.5 text-slate-900 focus:outline-none focus:border-[#00abec] focus:bg-white transition-all text-sm font-medium" 
+                />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Your Email</label>
-                <input type="email" value={form.email} onChange={set('email')} required placeholder="you@example.com"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all text-sm" />
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Your Email</label>
+                <input 
+                  type="email" 
+                  value={form.email} 
+                  onChange={set('email')} 
+                  required 
+                  placeholder="you@example.com"
+                  className="w-full bg-[#ebf3fe] border border-slate-200 rounded-none px-4 py-2.5 text-slate-900 focus:outline-none focus:border-[#00abec] focus:bg-white transition-all text-sm font-medium" 
+                />
               </div>
             </div>
 
             {mode === 'business-register' ? (
               <>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Business Name</label>
-                  <input type="text" value={form.business_name} onChange={set('business_name')} required placeholder="e.g. Phone Lab, iCover"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all text-sm" />
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Business Name</label>
+                  <input 
+                    type="text" 
+                    value={form.business_name} 
+                    onChange={set('business_name')} 
+                    required 
+                    placeholder="e.g. Phone Lab"
+                    className="w-full bg-[#ebf3fe] border border-slate-200 rounded-none px-4 py-2.5 text-slate-900 focus:outline-none focus:border-[#00abec] focus:bg-white transition-all text-sm font-medium" 
+                  />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">First Branch Name</label>
-                  <input type="text" value={form.branch_name} onChange={set('branch_name')} required placeholder="e.g. Manchester Central"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all text-sm" />
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">First Branch Name</label>
+                  <input 
+                    type="text" 
+                    value={form.branch_name} 
+                    onChange={set('branch_name')} 
+                    required 
+                    placeholder="e.g. Central Store"
+                    className="w-full bg-[#ebf3fe] border border-slate-200 rounded-none px-4 py-2.5 text-slate-900 focus:outline-none focus:border-[#00abec] focus:bg-white transition-all text-sm font-medium" 
+                  />
                 </div>
               </>
             ) : (
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Find Business</label>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Find Business</label>
                   <div className="relative">
                     <input 
                       type="email" 
                       value={businessEmail} 
                       onChange={(e) => setBusinessEmail(e.target.value)} 
                       placeholder="Admin email to find branches..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-5 pr-12 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all text-sm" 
+                      className="w-full bg-[#ebf3fe] border border-slate-200 rounded-none pl-4 pr-12 py-2.5 text-slate-900 focus:outline-none focus:border-[#00abec] focus:bg-white transition-all text-sm font-medium" 
                     />
                     <button 
                       type="button"
                       onClick={lookupBranches}
                       disabled={searchingBranches}
-                      className="absolute right-2 top-2 p-1.5 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all"
+                      className="absolute right-1.5 top-1.5 p-1.5 bg-[#00abec] hover:bg-[#0096d2] text-white rounded-none border-0 transition-colors flex items-center justify-center cursor-pointer"
                     >
-                      {searchingBranches ? <Loader size={16} className="animate-spin" /> : <Search size={16} />}
+                      {searchingBranches ? <Loader size={14} className="animate-spin" /> : <Search size={14} />}
                     </button>
                   </div>
-                  {branchesError && <p className="text-[10px] font-bold text-red-500 ml-1 mt-1 uppercase tracking-tight">{branchesError}</p>}
+                  {branchesError && <p className="text-[10px] font-bold text-red-500 mt-1 uppercase tracking-tight">{branchesError}</p>}
                 </div>
 
                 {branches.length > 0 && (
-                  <div className="space-y-1.5 animate-in slide-in-from-top duration-300">
-                    <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Select Branch</label>
-                    <select value={form.branch_id} onChange={set('branch_id')} required
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all appearance-none cursor-pointer text-sm font-medium">
+                  <div className="space-y-1 animate-in slide-in-from-top duration-300">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Branch</label>
+                    <select 
+                      value={form.branch_id} 
+                      onChange={set('branch_id')} 
+                      required
+                      className="w-full bg-[#ebf3fe] border border-slate-200 rounded-none px-4 py-2.5 text-slate-900 focus:outline-none focus:border-[#00abec] focus:bg-white transition-all appearance-none cursor-pointer text-sm font-medium"
+                    >
                       <option value="">Select your branch...</option>
                       {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                     </select>
@@ -215,22 +251,43 @@ export default function SignupPage({ onGoLogin }: Props) {
             )}
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Password</label>
-                <input type="password" value={form.password} onChange={set('password')} required placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all text-sm" />
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Password</label>
+                <input 
+                  type="password" 
+                  value={form.password} 
+                  onChange={set('password')} 
+                  required 
+                  placeholder="••••••••"
+                  className="w-full bg-[#ebf3fe] border border-slate-200 rounded-none px-4 py-2.5 text-slate-900 focus:outline-none focus:border-[#00abec] focus:bg-white transition-all text-sm font-medium" 
+                />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Confirm</label>
-                <input type="password" value={form.confirm} onChange={set('confirm')} required placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all text-sm" />
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Confirm</label>
+                <input 
+                  type="password" 
+                  value={form.confirm} 
+                  onChange={set('confirm')} 
+                  required 
+                  placeholder="••••••••"
+                  className="w-full bg-[#ebf3fe] border border-slate-200 rounded-none px-4 py-2.5 text-slate-900 focus:outline-none focus:border-[#00abec] focus:bg-white transition-all text-sm font-medium" 
+                />
               </div>
             </div>
 
-            <button type="submit" disabled={loading}
-              className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 mt-2 shadow-lg shadow-slate-200"
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="w-full bg-[#00abec] hover:bg-[#0096d2] disabled:bg-slate-200 text-white font-bold py-3 rounded-none transition-all flex items-center justify-center gap-2 mt-2 cursor-pointer shadow-sm text-sm"
             >
-              {loading ? <Loader size={20} className="animate-spin" /> : (mode === 'business-register' ? 'Create My Business' : 'Request Access')}
+              {loading ? (
+                <Loader size={18} className="animate-spin" />
+              ) : (
+                <>
+                  <UserPlus size={16} />
+                  {mode === 'business-register' ? 'Register Business' : 'Request Access'}
+                </>
+              )}
             </button>
           </form>
         </div>

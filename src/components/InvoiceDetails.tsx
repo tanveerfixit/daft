@@ -239,8 +239,13 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
                 <tr key={idx} className="border-b border-neutral-200 dark:border-neutral-800 text-base font-normal">
                   <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-center text-neutral-500">{idx + 1}</td>
                   <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800">
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-neutral-900 dark:text-neutral-100 font-normal">{item.product_name}</span>
+                      {item.notes && (
+                        <span className="text-neutral-500 italic text-sm">
+                          ({item.notes})
+                        </span>
+                      )}
                       {item.imei && (
                         <span className="text-blue-500 flex items-center gap-1 font-normal">
                           ({item.imei})
@@ -468,7 +473,13 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
               <tbody>
                 {invoice.items.map((item, idx) => (
                   <tr key={idx} className="border-b border-slate-100">
-                    <td className="py-2 text-slate-800">{item.product_name}{item.imei ? ` (${item.imei})` : ''}</td>
+                    <td className="py-2 text-slate-800">
+                      <div>
+                        {item.product_name}
+                        {item.notes && <span className="text-slate-500 text-xs italic ml-2">({item.notes})</span>}
+                      </div>
+                      {item.imei && <div className="text-xs text-slate-500">IMEI: {item.imei}</div>}
+                    </td>
                     <td className="py-2 text-center text-slate-600">{item.quantity}</td>
                     <td className="py-2 text-right text-slate-600">€{item.price.toFixed(2)}</td>
                     <td className="py-2 text-right font-medium text-slate-800">€{item.total.toFixed(2)}</td>

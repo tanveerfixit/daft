@@ -117,9 +117,16 @@ export default function ThermalReceipt({ invoice, settings, company }: Props) {
           <div key={idx} className="flex-between mb-3 animate-in fade-in" style={{ fontSize: '12px', alignLines: 'top' }}>
             <span style={{ width: '70%', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', flexDirection: 'column' }}>
               <span>{item.product_name?.toUpperCase()}</span>
-              <span style={{ fontSize: '12px', color: '#000', marginTop: '2px', fontFamily: 'monospace' }}>
-                SKU: {item.sku_code || 'N/A'} {item.imei && ` • IMEI: ${item.imei}`}
-              </span>
+              {item.notes && (
+                <span style={{ fontSize: '12px', color: '#000', fontStyle: 'italic', marginTop: '1px' }}>
+                  ({item.notes})
+                </span>
+              )}
+              {item.imei && (
+                <span style={{ fontSize: '12px', color: '#000', marginTop: '2px', fontFamily: 'monospace' }}>
+                  IMEI: {item.imei}
+                </span>
+              )}
               <span style={{ fontSize: '12px', color: '#000', marginTop: '1px' }}>
                 QTY: {item.quantity} x €{item.price.toFixed(2)}
               </span>

@@ -93,12 +93,10 @@ export default function RepairList({ preSelectedCustomerId }: RepairListProps) {
             <tr className="bg-[var(--bg-app)] border-b border-[var(--border-base)] text-[11px] font-bold text-[var(--text-main)] uppercase tracking-wider">
               <th className="px-4 py-2 border-r border-[var(--border-base)]">Job #</th>
               <th className="px-4 py-2 border-r border-[var(--border-base)]">Customer</th>
+              <th className="px-4 py-2 border-r border-[var(--border-base)]">Mobile number</th>
               <th className="px-4 py-2 border-r border-[var(--border-base)]">Device Model</th>
               <th className="px-4 py-2 border-r border-[var(--border-base)]">Issue</th>
               <th className="px-4 py-2 border-r border-[var(--border-base)] text-right">Quote</th>
-              <th className="px-4 py-2 border-r border-[var(--border-base)] text-right">Deposit</th>
-              <th className="px-4 py-2 border-r border-[var(--border-base)] text-right">Balance</th>
-              <th className="px-4 py-2 border-r border-[var(--border-base)]">Method</th>
               <th className="px-4 py-2 border-r border-[var(--border-base)]">Status</th>
               <th className="px-4 py-2 text-center">Actions</th>
             </tr>
@@ -119,23 +117,15 @@ export default function RepairList({ preSelectedCustomerId }: RepairListProps) {
                 <td className="px-4 py-2 border-r border-[var(--border-base)] font-bold text-[var(--text-main)]">
                   {repair.customer_name || '—'}
                 </td>
+                <td className="px-4 py-2 border-r border-[var(--border-base)] font-mono text-[var(--text-muted)]">
+                  {repair.phone || '—'}
+                </td>
                 <td className="px-4 py-2 border-r border-[var(--border-base)] text-[var(--text-main)]">{repair.device_model}</td>
                 <td className="px-4 py-2 border-r border-[var(--border-base)] text-[var(--text-muted)] max-w-[200px] truncate">
                   {repair.issue}
                 </td>
                 <td className="px-4 py-2 border-r border-[var(--border-base)] text-right text-[var(--text-main)] font-mono">
                   €{Number(repair.total_quote || 0).toFixed(2)}
-                </td>
-                <td className="px-4 py-2 border-r border-[var(--border-base)] text-right text-[var(--text-muted)] font-mono">
-                  €{Number(repair.deposit_paid || 0).toFixed(2)}
-                </td>
-                <td className="px-4 py-2 border-r border-[var(--border-base)] text-right font-bold font-mono">
-                  <span className={(repair.remaining_balance || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}>
-                    €{Number(repair.remaining_balance || 0).toFixed(2)}
-                  </span>
-                </td>
-                <td className="px-4 py-2 border-r border-[var(--border-base)] text-[var(--text-muted-more)] text-xs">
-                  {repair.payment_method || '—'}
                 </td>
                 <td className="px-4 py-2 border-r border-[var(--border-base)]">
                   <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase tracking-widest ${getStatusColor(repair.status)}`}>
@@ -154,7 +144,7 @@ export default function RepairList({ preSelectedCustomerId }: RepairListProps) {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-16 text-center text-[var(--text-muted-more)] bg-[var(--bg-card)]">
+                <td colSpan={8} className="px-4 py-16 text-center text-[var(--text-muted-more)] bg-[var(--bg-card)]">
                   {searchTerm ? `No repair jobs found for "${searchTerm}"` : 'No repair jobs yet. Create your first job.'}
                 </td>
               </tr>

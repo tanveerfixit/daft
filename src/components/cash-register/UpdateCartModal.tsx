@@ -67,120 +67,134 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4">
-      <div className="bg-[var(--bg-card)] w-full max-w-md overflow-hidden border border-[var(--border-base)]">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 font-mono text-[16px] animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-[620px] overflow-hidden flex flex-col rounded-none shadow-none text-[16px] animate-in zoom-in-95 duration-300">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-[var(--border-base)] flex justify-between items-center bg-[var(--bg-header)]">
-          <h3 className="text-sm font-black text-[var(--text-main)] uppercase tracking-widest">Update POS Cart</h3>
+        <div className="bg-neutral-200 dark:bg-neutral-900 px-4 py-2 border-b border-neutral-300 dark:border-neutral-800 rounded-none flex justify-between items-center">
+          <h3 className="text-base font-bold text-black dark:text-white uppercase tracking-wider">Update POS Cart</h3>
           <button 
             onClick={onClose}
-            className="p-1 hover:bg-[var(--bg-hover)] text-[var(--text-muted-more)]"
+            className="text-neutral-500 hover:text-neutral-750 dark:hover:text-neutral-350 transition-colors bg-transparent border-0 cursor-pointer"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-5">
-          <div className="flex items-start gap-4 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30">
-            <Info size={18} className="text-blue-500 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-bold text-blue-700 dark:text-blue-400">{item.product_name}</p>
-              <p className="text-[11px] text-blue-600 dark:text-blue-500 font-mono uppercase mt-0.5">{item.sku_code || 'No SKU'}</p>
-            </div>
+        <div className="p-5 space-y-5 bg-white dark:bg-black">
+          {/* Product Info Display (matches register styling) */}
+          <div className="bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 p-3 flex flex-col space-y-1 rounded-none shadow-none">
+            <p className="text-[15px] font-bold text-neutral-900 dark:text-neutral-100">{item.product_name}</p>
+            <p className="text-[11px] text-neutral-500 font-mono uppercase mt-0.5">{item.sku_code || 'No SKU'}</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Unit Price (€)</label>
-              <input 
-                type="text" // Using text to avoid browser-specific number input quirks with empty values
-                value={unitPrice}
-                onChange={(e) => setUnitPrice(e.target.value.replace(/[^0-9.]/g, ''))}
-                onFocus={(e) => e.target.select()}
-                className="w-full bg-[var(--bg-app)] border border-[var(--border-base)] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="0.00"
-              />
+          <div className="space-y-4">
+            {/* Unit Price Row */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+              <span className="w-full sm:w-1/3 font-bold text-neutral-900 dark:text-neutral-100">Unit Price:</span>
+              <div className="flex-1 flex justify-start">
+                <input 
+                  type="text"
+                  value={unitPrice}
+                  onChange={(e) => setUnitPrice(e.target.value.replace(/[^0-9.]/g, ''))}
+                  onFocus={(e) => e.target.select()}
+                  className="w-full sm:w-40 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1 text-[16px] text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
+                  placeholder="0.00"
+                />
+              </div>
+              <span className="w-full sm:w-1/4 text-left sm:text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                €{(parseFloat(unitPrice || '0') * parseInt(quantity || '0')).toFixed(2)}
+              </span>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
-                Quantity {item.product_type === 'serialized' ? '(Fixed)' : '(Required)'}
-              </label>
-              <input 
-                type="text"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value.replace(/[^0-9]/g, ''))}
-                onFocus={(e) => e.target.select()}
-                disabled={item.product_type === 'serialized'}
-                className={`w-full bg-[var(--bg-app)] border border-[var(--border-base)] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                  item.product_type === 'serialized' ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-slate-900' : ''
-                }`}
-                placeholder="1"
-              />
-              {item.product_type === 'serialized' && (
-                <p className="text-[10px] text-blue-500 font-medium">Unique IMEI devices are limited to qty 1</p>
-              )}
-            </div>
-          </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Discount</label>
-            <div className="flex gap-2">
-              <input 
-                type="text"
-                value={discount}
-                onChange={(e) => setDiscount(e.target.value.replace(/[^0-9.]/g, ''))}
-                onFocus={(e) => e.target.select()}
-                className="flex-1 bg-[var(--bg-app)] border border-[var(--border-base)] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="0"
-              />
-              <select 
-                value={discountType}
-                onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'fixed')}
-                className="bg-[var(--bg-app)] border border-[var(--border-base)] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="percentage">%</option>
-                <option value="fixed">€</option>
-              </select>
+            {/* QTY Row */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+              <span className="w-full sm:w-1/3 font-bold text-neutral-900 dark:text-neutral-100">
+                QTY <span className="text-red-500 font-bold">*</span>:
+              </span>
+              <div className="flex-1 flex justify-start">
+                <input 
+                  type="text"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value.replace(/[^0-9]/g, ''))}
+                  onFocus={(e) => e.target.select()}
+                  disabled={item.product_type === 'serialized'}
+                  className={`w-full sm:w-40 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1 text-[16px] text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono ${
+                    item.product_type === 'serialized' ? 'opacity-50 cursor-not-allowed bg-neutral-100 dark:bg-neutral-900' : ''
+                  }`}
+                  placeholder="0"
+                />
+              </div>
+              <span className="w-full sm:w-1/3 text-left sm:text-right font-bold text-neutral-500 dark:text-neutral-400">
+                Subtotal: <span className="font-mono text-neutral-900 dark:text-neutral-100">€{subtotal.toFixed(2)}</span>
+              </span>
             </div>
-          </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Notes</label>
-            <textarea 
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full bg-[var(--bg-app)] border border-[var(--border-base)] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 min-h-[80px]"
-              placeholder="Add any internal notes about this item..."
-            />
-          </div>
-
-          <div className="pt-2 grid grid-cols-2 gap-4 border-t border-[var(--border-base)] mt-2">
-            <div>
-              <p className="text-[10px] font-bold text-[var(--text-muted-more)] uppercase tracking-wider">Subtotal</p>
-              <p className="text-lg font-mono text-[var(--text-main)]">€{subtotal.toFixed(2)}</p>
+            {/* Discount Row */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+              <span className="w-full sm:w-1/3 font-bold text-neutral-900 dark:text-neutral-100">Discount :</span>
+              <div className="flex-1 flex justify-start items-center">
+                <div className="flex border border-neutral-300 dark:border-neutral-800 w-full sm:w-40">
+                  <input 
+                    type="text"
+                    value={discount}
+                    onChange={(e) => setDiscount(e.target.value.replace(/[^0-9.]/g, ''))}
+                    onFocus={(e) => e.target.select()}
+                    className="w-full bg-white dark:bg-black px-2 py-1 text-[16px] text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono border-0"
+                    placeholder="0.00"
+                  />
+                  <select 
+                    value={discountType}
+                    onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'fixed')}
+                    className="bg-neutral-200 dark:bg-neutral-900 px-1 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none border-l border-neutral-300 dark:border-neutral-800 font-sans"
+                  >
+                    <option value="percentage" className="bg-white dark:bg-black">%</option>
+                    <option value="fixed" className="bg-white dark:bg-black">€</option>
+                  </select>
+                </div>
+              </div>
+              <span className="w-full sm:w-1/4 text-left sm:text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                €{(discountType === 'percentage' ? (subtotal * (parseFloat(discount || '0') / 100)) : parseFloat(discount || '0')).toFixed(2)}
+              </span>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">Total</p>
-              <p className="text-lg font-mono font-black text-blue-600">€{total.toFixed(2)}</p>
+
+            <hr className="border-t border-neutral-300 dark:border-neutral-800 my-2" />
+
+            {/* Total Row */}
+            <div className="flex justify-end font-mono">
+              <span className="font-bold text-neutral-900 dark:text-neutral-100 text-lg">
+                Total: €{total.toFixed(2)}
+              </span>
+            </div>
+
+            {/* Notes / Additional Description Row */}
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-4">
+              <span className="w-full sm:w-1/3 font-bold text-neutral-900 dark:text-neutral-100 sm:pt-1">Additional Description:</span>
+              <div className="flex-1 w-full">
+                <textarea 
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-[16px] text-neutral-900 dark:text-neutral-100 focus:outline-none font-sans min-h-[60px]"
+                  placeholder=""
+                />
+              </div>
             </div>
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-4 bg-[var(--bg-app)] border-t border-[var(--border-base)] flex gap-3">
+        <div className="flex border-t border-neutral-300 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-955 p-3 justify-end gap-2 shrink-0">
           <button 
             onClick={onClose}
-            className="flex-1 py-2.5 font-bold text-[var(--text-muted)] hover:bg-[var(--bg-hover)] border border-[var(--border-base)] uppercase text-xs tracking-widest"
+            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-4 rounded-none text-[15px] transition-colors cursor-pointer"
           >
             Cancel
           </button>
           <button 
             onClick={handleSave}
-            className="flex-1 py-2.5 font-bold text-white bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
+            className="bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold py-1 px-5 rounded-none text-[15px] border border-amber-500 hover:border-amber-600 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            <Save size={16} />
-            Update Item
+            Save
           </button>
         </div>
       </div>

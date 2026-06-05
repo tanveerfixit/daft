@@ -241,4 +241,200 @@ router.get('/eod-list', async (req: any, res, next) => {
   } catch (e: any) { next(e); }
 });
 
+// GET /api/reports/sales-report
+router.get('/sales-report', async (req: any, res, next) => {
+  const { type, startDate, endDate, q } = req.query;
+  if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate are required' });
+  
+  try {
+    const isDeveloper = req.user.role === 'developer';
+    const branchId = req.user.branch_id;
+    const businessId = req.user.business_id;
+
+    let sql = '';
+    const params: any[] = [];
+
+    // Helper to add common filters (business, date, branch, search keyword)
+    const addCommonFilters = (useItemJoin = false) => {
+      let cond = ` WHERE i.business_id = ? AND DATE(i.created_at) >= ? AND DATE(i.created_at) <= ?`;
+      params.push(businessId, startDate, endDate);
+      
+      if (!isDeveloper && branchId) {
+        cond += ` AND i.branch_id = ?`;
+        params.push(branchId);
+      }
+      
+      if (q && q.trim()) {
+        if (useItemJoin) {
+          cond += ` AND (i.invoice_number LIKE ? OR c.name LIKE ? OR p.name LIKE ? OR s.sku_code LIKE ?)`;
+          params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+        } else {
+          cond += ` AND (i.invoice_number LIKE ? OR c.name LIKE ? OR u.name LIKE ?)`;
+          params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+        }
+      }
+      return cond;
+    };
+
+    if (type === 'date-daily') {
+      sql = `
+        SELECT 
+          DATE_FORMAT(i.created_at, '%d-%m-%Y') as name,
+          COALESCE(SUM(CASE WHEN i.tax_total > 0 THEN i.subtotal ELSE 0 END), 0) as taxable,
+          COALESCE(SUM(i.tax_total), 0) as taxes,
+          COALESCE(SUM(CASE WHEN i.tax_total = 0 OR i.tax_total IS NULL THEN i.grand_total ELSE 0 END), 0) as non_taxable,
+          COALESCE(SUM(i.grand_total), 0) as grand_total,
+          COALESCE(SUM(ic.cost), 0) as cost
+        FROM invoices i
+        LEFT JOIN (
+          SELECT invoice_id, SUM(quantity * cost) as cost 
+          FROM invoice_items 
+          GROUP BY invoice_id
+        ) ic ON i.id = ic.invoice_id
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN users u ON i.user_id = u.id
+      `;
+      sql += addCommonFilters();
+      sql += ` GROUP BY DATE(i.created_at) ORDER BY DATE(i.created_at) ASC`;
+    }
+    else if (type === 'date-weekly') {
+      sql = `
+        SELECT 
+          CONCAT(DATE_FORMAT(STR_TO_DATE(CONCAT(YEARWEEK(i.created_at, 1), ' Monday'), '%x%v %W'), '%d-%m-%Y'), ' - ', DATE_FORMAT(DATE_ADD(STR_TO_DATE(CONCAT(YEARWEEK(i.created_at, 1), ' Monday'), '%x%v %W'), INTERVAL 6 DAY), '%d-%m-%Y')) as name,
+          COALESCE(SUM(CASE WHEN i.tax_total > 0 THEN i.subtotal ELSE 0 END), 0) as taxable,
+          COALESCE(SUM(i.tax_total), 0) as taxes,
+          COALESCE(SUM(CASE WHEN i.tax_total = 0 OR i.tax_total IS NULL THEN i.grand_total ELSE 0 END), 0) as non_taxable,
+          COALESCE(SUM(i.grand_total), 0) as grand_total,
+          COALESCE(SUM(ic.cost), 0) as cost
+        FROM invoices i
+        LEFT JOIN (
+          SELECT invoice_id, SUM(quantity * cost) as cost 
+          FROM invoice_items 
+          GROUP BY invoice_id
+        ) ic ON i.id = ic.invoice_id
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN users u ON i.user_id = u.id
+      `;
+      sql += addCommonFilters();
+      sql += ` GROUP BY YEARWEEK(i.created_at, 1) ORDER BY YEARWEEK(i.created_at, 1) ASC`;
+    }
+    else if (type === 'date-monthly') {
+      sql = `
+        SELECT 
+          DATE_FORMAT(i.created_at, '%M %Y') as name,
+          COALESCE(SUM(CASE WHEN i.tax_total > 0 THEN i.subtotal ELSE 0 END), 0) as taxable,
+          COALESCE(SUM(i.tax_total), 0) as taxes,
+          COALESCE(SUM(CASE WHEN i.tax_total = 0 OR i.tax_total IS NULL THEN i.grand_total ELSE 0 END), 0) as non_taxable,
+          COALESCE(SUM(i.grand_total), 0) as grand_total,
+          COALESCE(SUM(ic.cost), 0) as cost
+        FROM invoices i
+        LEFT JOIN (
+          SELECT invoice_id, SUM(quantity * cost) as cost 
+          FROM invoice_items 
+          GROUP BY invoice_id
+        ) ic ON i.id = ic.invoice_id
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN users u ON i.user_id = u.id
+      `;
+      sql += addCommonFilters();
+      sql += ` GROUP BY DATE_FORMAT(i.created_at, '%Y-%m') ORDER BY DATE_FORMAT(i.created_at, '%Y-%m') ASC`;
+    }
+    else if (type === 'salesperson') {
+      sql = `
+        SELECT COALESCE(u.name, 'Unknown') as name, COUNT(i.id) as count, COALESCE(SUM(i.grand_total), 0) as total
+        FROM invoices i
+        LEFT JOIN users u ON i.user_id = u.id
+        LEFT JOIN customers c ON i.customer_id = c.id
+      `;
+      sql += addCommonFilters();
+      sql += ` GROUP BY i.user_id ORDER BY total DESC`;
+    } 
+    else if (type === 'customer') {
+      sql = `
+        SELECT COALESCE(c.name, 'Walk-in Customer') as name, COUNT(i.id) as count, COALESCE(SUM(i.grand_total), 0) as total
+        FROM invoices i
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN users u ON i.user_id = u.id
+      `;
+      sql += addCommonFilters();
+      sql += ` GROUP BY i.customer_id ORDER BY total DESC`;
+    }
+    else if (type === 'product') {
+      sql = `
+        SELECT p.name as name, s.sku_code, SUM(ii.quantity) as count, SUM(ii.total) as total
+        FROM invoice_items ii
+        JOIN invoices i ON ii.invoice_id = i.id
+        JOIN product_skus s ON ii.sku_id = s.id
+        JOIN products p ON s.product_id = p.id
+        LEFT JOIN customers c ON i.customer_id = c.id
+      `;
+      sql += addCommonFilters(true);
+      sql += ` GROUP BY ii.sku_id ORDER BY total DESC`;
+    }
+    else if (type === 'category') {
+      sql = `
+        SELECT COALESCE(cat.name, 'Uncategorized') as name, SUM(ii.quantity) as count, SUM(ii.total) as total
+        FROM invoice_items ii
+        JOIN invoices i ON ii.invoice_id = i.id
+        JOIN product_skus s ON ii.sku_id = s.id
+        JOIN products p ON s.product_id = p.id
+        LEFT JOIN categories cat ON p.category_id = cat.id
+        LEFT JOIN customers c ON i.customer_id = c.id
+      `;
+      sql += addCommonFilters(true);
+      sql += ` GROUP BY p.category_id ORDER BY total DESC`;
+    }
+    else if (type === 'payment') {
+      sql = `
+        SELECT p.method as name, COUNT(p.id) as count, COALESCE(SUM(p.amount), 0) as total
+        FROM payments p
+        JOIN invoices i ON p.invoice_id = i.id
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN users u ON i.user_id = u.id
+      `;
+      // Instead of standard search filters, we check if they selected a payment method specifically or left it as "All"
+      let cond = ` WHERE i.business_id = ? AND DATE(i.created_at) >= ? AND DATE(i.created_at) <= ?`;
+      params.push(businessId, startDate, endDate);
+      if (!isDeveloper && branchId) {
+        cond += ` AND i.branch_id = ?`;
+        params.push(branchId);
+      }
+      if (q && q.trim() && q !== 'All Payment Types') {
+        cond += ` AND p.method = ?`;
+        params.push(q);
+      }
+      sql += cond;
+      sql += ` GROUP BY p.method ORDER BY total DESC`;
+    }
+    else if (type === 'tax') {
+      sql = `
+        SELECT 'Tax Report' as name, 
+               COALESCE(SUM(i.subtotal - i.tax_total), 0) as net_sales, 
+               COALESCE(SUM(i.tax_total), 0) as tax_amount, 
+               COALESCE(SUM(i.grand_total), 0) as total
+        FROM invoices i
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN users u ON i.user_id = u.id
+      `;
+      sql += addCommonFilters();
+    }
+    else if (type === 'unpaid') {
+      sql = `
+        SELECT i.invoice_number as name, COALESCE(c.name, 'Walk-in Customer') as customer_name, i.due_amount as total, i.grand_total as amount, i.created_at
+        FROM invoices i
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN users u ON i.user_id = u.id
+      `;
+      sql += addCommonFilters();
+      sql += ` AND i.due_amount > 0.01 AND i.status != 'void' ORDER BY i.due_amount DESC`;
+    }
+    else {
+      return res.status(400).json({ error: 'Invalid report type' });
+    }
+
+    const rows = await query(sql, params);
+    res.json(rows);
+  } catch (e: any) { next(e); }
+});
+
 export default router;
