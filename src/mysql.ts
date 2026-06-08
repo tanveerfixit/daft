@@ -680,6 +680,35 @@ export async function initSchema() {
     `);
 
     await conn.query(`
+      CREATE TABLE IF NOT EXISTS b2b_device_transfers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        from_business_id INT NOT NULL,
+        from_branch_id INT NOT NULL,
+        to_business_id INT NOT NULL,
+        to_branch_id INT NULL,
+        device_id INT NOT NULL,
+        sender_sku_id INT NOT NULL,
+        receiver_sku_id INT NULL,
+        cost_price DECIMAL(10,2) NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
+        initiated_by INT,
+        accepted_by INT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP NULL,
+        FOREIGN KEY (from_business_id) REFERENCES businesses(id) ON DELETE CASCADE,
+        FOREIGN KEY (from_branch_id) REFERENCES branches(id),
+        FOREIGN KEY (to_business_id) REFERENCES businesses(id) ON DELETE CASCADE,
+        FOREIGN KEY (to_branch_id) REFERENCES branches(id),
+        FOREIGN KEY (device_id) REFERENCES devices(id),
+        FOREIGN KEY (sender_sku_id) REFERENCES product_skus(id),
+        FOREIGN KEY (receiver_sku_id) REFERENCES product_skus(id),
+        FOREIGN KEY (initiated_by) REFERENCES users(id) ON DELETE SET NULL,
+        FOREIGN KEY (accepted_by) REFERENCES users(id) ON DELETE SET NULL
+      )
+    `);
+
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS smtp_settings (
         id INT AUTO_INCREMENT PRIMARY KEY,
         business_id INT NOT NULL UNIQUE,

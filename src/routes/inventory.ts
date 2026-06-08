@@ -773,6 +773,272 @@ router.get('/search', async (req: any, res, next) => {
   } catch (e: any) { next(e); }
 });
 
+// GET /api/inventory/b2b-businesses
+router.get('/b2b-businesses', async (req: any, res, next) => {
+  try {
+    const list = await query(
+      "SELECT id, name, slug FROM businesses WHERE id != ? AND status = 'active'",
+      [req.user.business_id]
+    );
+    res.json(list);
+  } catch (e: any) { next(e); }
+});
+
+// GET /api/inventory/b2b-transfers
+router.get('/b2b-transfers', async (req: any, res, next) => {
+  try {
+    const businessId = req.user.business_id;
+    const outgoing = await query(`
+      SELECT t.*, tb.name as to_business_name, d.imei, d.color, d.gb, d.\`condition\`,
+             p.name as product_name, s.sku_code, u.name as initiated_by_name
+      FROM b2b_device_transfers t
+      LEFT JOIN businesses tb ON t.to_business_id = tb.id
+      LEFT JOIN devices d ON t.device_id = d.id
+      LEFT JOIN product_skus s ON t.sender_sku_id = s.id
+      LEFT JOIN products p ON s.product_id = p.id
+      LEFT JOIN users u ON t.initiated_by = u.id
+      WHERE t.from_business_id = ?
+      ORDER BY t.created_at DESC
+    `, [businessId]);
+
+    const incoming = await query(`
+      SELECT t.*, fb.name as from_business_name, d.imei, d.color, d.gb, d.\`condition\`,
+             p.name as product_name, s.sku_code, u.name as initiated_by_name
+      FROM b2b_device_transfers t
+      LEFT JOIN businesses fb ON t.from_business_id = fb.id
+      LEFT JOIN devices d ON t.device_id = d.id
+      LEFT JOIN product_skus s ON t.sender_sku_id = s.id
+      LEFT JOIN products p ON s.product_id = p.id
+      LEFT JOIN users u ON t.initiated_by = u.id
+      WHERE t.to_business_id = ?
+      ORDER BY t.created_at DESC
+    `, [businessId]);
+
+    res.json({ outgoing, incoming });
+  } catch (e: any) { next(e); }
+});
+
+// POST /api/inventory/b2b-transfers/initiate
+const initiateB2bTransferSchema = z.object({
+  device_id: z.number(),
+  to_business_id: z.number(),
+  notes: z.string().optional()
+});
+
+router.post('/b2b-transfers/initiate', async (req: any, res, next) => {
+  const data = initiateB2bTransferSchema.parse(req.body);
+  const { device_id, to_business_id, notes } = data;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    // Verify device belongs to user's business and is in stock
+    const [dr] = await conn.execute(
+      "SELECT * FROM devices WHERE id = ? AND business_id = ? AND status = 'in_stock'",
+      [device_id, req.user.business_id]
+    );
+    const device = (dr as any[])[0];
+    if (!device) throw new Error('Device not found or not available for transfer');
+
+    // Verify target business exists
+    const [br] = await conn.execute(
+      "SELECT id FROM businesses WHERE id = ? AND status = 'active'",
+      [to_business_id]
+    );
+    if ((br as any[]).length === 0) throw new Error('Target business not found or inactive');
+
+    // Update device status
+    await conn.execute("UPDATE devices SET status = 'transferring_b2b' WHERE id = ?", [device_id]);
+
+    // Insert B2B transfer record
+    await conn.execute(
+      `INSERT INTO b2b_device_transfers 
+        (from_business_id, from_branch_id, to_business_id, device_id, sender_sku_id, cost_price, status, initiated_by, notes) 
+       VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+      [req.user.business_id, req.user.branch_id, to_business_id, device_id, device.sku_id, device.cost_price || 0, req.userId, notes || null]
+    );
+
+    // Log device activity
+    await conn.execute(
+      'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+      [device_id, req.userId, 'B2B Transfer Initiated', `B2B Transfer initiated to business ID ${to_business_id}`]
+    );
+
+    await conn.commit();
+    res.json({ success: true });
+  } catch (e: any) {
+    await conn.rollback();
+    res.status(400).json({ error: e.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// POST /api/inventory/b2b-transfers/:id/cancel
+router.post('/b2b-transfers/:id/cancel', async (req: any, res, next) => {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [tr] = await conn.execute(
+      "SELECT * FROM b2b_device_transfers WHERE id = ? AND from_business_id = ? AND status = 'pending'",
+      [req.params.id, req.user.business_id]
+    );
+    const transfer = (tr as any[])[0];
+    if (!transfer) throw new Error('Pending transfer not found');
+
+    // Restore device status to in_stock
+    await conn.execute("UPDATE devices SET status = 'in_stock' WHERE id = ?", [transfer.device_id]);
+
+    // Update transfer status
+    await conn.execute(
+      "UPDATE b2b_device_transfers SET status = 'cancelled', completed_at = NOW() WHERE id = ?",
+      [transfer.id]
+    );
+
+    await conn.execute(
+      'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+      [transfer.device_id, req.userId, 'B2B Transfer Cancelled', 'B2B transfer cancelled by sender']
+    );
+
+    await conn.commit();
+    res.json({ success: true });
+  } catch (e: any) {
+    await conn.rollback();
+    res.status(400).json({ error: e.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// POST /api/inventory/b2b-transfers/:id/respond
+const respondB2bTransferSchema = z.object({
+  action: z.enum(['accept', 'reject']),
+  to_branch_id: z.number().optional(),
+  receiver_sku_id: z.number().optional(),
+  auto_create: z.object({
+    product_name: z.string(),
+    sku_code: z.string(),
+    selling_price: z.number()
+  }).optional()
+});
+
+router.post('/b2b-transfers/:id/respond', async (req: any, res, next) => {
+  const data = respondB2bTransferSchema.parse(req.body);
+  const { action, to_branch_id, receiver_sku_id, auto_create } = data;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [tr] = await conn.execute(
+      "SELECT * FROM b2b_device_transfers WHERE id = ? AND to_business_id = ? AND status = 'pending'",
+      [req.params.id, req.user.business_id]
+    );
+    const transfer = (tr as any[])[0];
+    if (!transfer) throw new Error('Pending transfer not found');
+
+    if (action === 'reject') {
+      // Revert device back to in_stock for the sender
+      await conn.execute("UPDATE devices SET status = 'in_stock' WHERE id = ?", [transfer.device_id]);
+      await conn.execute(
+        "UPDATE b2b_device_transfers SET status = 'rejected', completed_at = NOW(), accepted_by = ? WHERE id = ?",
+        [req.userId, transfer.id]
+      );
+      await conn.execute(
+        'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [transfer.device_id, req.userId, 'B2B Transfer Rejected', `Rejected by target business ${req.user.business_id}`]
+      );
+    } else {
+      // Action is 'accept'
+      if (!to_branch_id) throw new Error('Target branch is required to accept transfer');
+
+      let finalSkuId = receiver_sku_id;
+
+      if (!finalSkuId) {
+        if (!auto_create) throw new Error('Receiver SKU ID or auto-create details are required');
+        
+        // Auto-create product and SKU
+        // 1. Create product under receiver's business_id
+        const [prodResult] = await conn.execute(
+          `INSERT INTO products (business_id, name, product_type, allow_overselling) 
+           VALUES (?, ?, 'serialized', 1)`,
+          [req.user.business_id, auto_create.product_name]
+        );
+        const newProductId = (prodResult as any).insertId;
+
+        // 2. Create product SKU under receiver's business_id
+        const [skuResult] = await conn.execute(
+          `INSERT INTO product_skus (product_id, sku_code, cost_price, selling_price) 
+           VALUES (?, ?, ?, ?)`,
+          [newProductId, auto_create.sku_code, transfer.cost_price, auto_create.selling_price]
+        );
+        finalSkuId = (skuResult as any).insertId;
+      }
+
+      // Update the device itself: change ownership
+      await conn.execute(
+        `UPDATE devices SET 
+          business_id = ?, 
+          branch_id = ?, 
+          sku_id = ?, 
+          status = 'in_stock' 
+         WHERE id = ?`,
+        [req.user.business_id, to_branch_id, finalSkuId, transfer.device_id]
+      );
+
+      // Decrement sender branch stock (since device was physically moved out)
+      await conn.execute(
+        'INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, -1) ON DUPLICATE KEY UPDATE quantity = quantity - 1',
+        [transfer.from_branch_id, transfer.sender_sku_id]
+      );
+
+      // Increment receiver branch stock
+      await conn.execute(
+        'INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE quantity = quantity + 1',
+        [to_branch_id, finalSkuId]
+      );
+
+      // Log inventory movements for both businesses
+      // 1. Outgoing movement for Sender Business
+      await conn.execute(
+        `INSERT INTO inventory_movements (business_id, branch_id, sku_id, device_id, movement_type, quantity, unit_cost, reference_type, reference_id) 
+         VALUES (?, ?, ?, ?, 'b2b_transfer_out', -1, ?, 'b2b_device_transfers', ?)`,
+        [transfer.from_business_id, transfer.from_branch_id, transfer.sender_sku_id, transfer.device_id, transfer.cost_price, transfer.id]
+      );
+
+      // 2. Incoming movement for Receiver Business
+      await conn.execute(
+        `INSERT INTO inventory_movements (business_id, branch_id, sku_id, device_id, movement_type, quantity, unit_cost, reference_type, reference_id) 
+         VALUES (?, ?, ?, ?, 'b2b_transfer_in', 1, ?, 'b2b_device_transfers', ?)`,
+        [req.user.business_id, to_branch_id, finalSkuId, transfer.device_id, transfer.cost_price, transfer.id]
+      );
+
+      // Update transfer record
+      await conn.execute(
+        `UPDATE b2b_device_transfers SET 
+          status = 'accepted', 
+          to_branch_id = ?, 
+          receiver_sku_id = ?, 
+          accepted_by = ?, 
+          completed_at = NOW() 
+         WHERE id = ?`,
+        [to_branch_id, finalSkuId, req.userId, transfer.id]
+      );
+
+      // Log device activity
+      await conn.execute(
+        'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [transfer.device_id, req.userId, 'B2B Transfer Accepted', `Device accepted by business ID ${req.user.business_id}, branch ID ${to_branch_id}`]
+      );
+    }
+
+    await conn.commit();
+    res.json({ success: true });
+  } catch (e: any) {
+    await conn.rollback();
+    res.status(400).json({ error: e.message });
+  } finally {
+    conn.release();
+  }
+});
+
 // Payment method update is handled in invoices.ts with business isolation (FINDING-005)
 
 export default router;
