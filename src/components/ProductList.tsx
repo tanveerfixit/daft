@@ -200,12 +200,12 @@ export default function ProductList({
         <table className="w-full min-w-[800px] text-left border-collapse">
           <thead>
             <tr className="bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-1/6">Manufacturer Name</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-1/4">Product Name</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-1/6">SKU/Barcode</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-1/6">Category Name</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right w-1/12">Selling Price</th>
-              <th className="px-2 py-1 text-center w-1/6">Stock (Total)</th>
+              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 whitespace-nowrap">Manufacturer Name</th>
+              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 whitespace-nowrap w-2/5">Product Name</th>
+              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 whitespace-nowrap">SKU/Barcode</th>
+              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 whitespace-nowrap">Category Name</th>
+              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right whitespace-nowrap">Selling Price</th>
+              <th className="px-2 py-1 text-center whitespace-nowrap">Stock (Total)</th>
             </tr>
           </thead>
           <tbody>
@@ -222,11 +222,11 @@ export default function ProductList({
                   onClick={() => onSelectProduct(product.id)}
                   className={`border-b border-neutral-200 dark:border-neutral-800 text-base font-normal hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer transition-colors bg-white dark:bg-black text-neutral-900 dark:text-neutral-100`}
                 >
-                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 font-normal font-sans">{product.manufacturer_name || ''}</td>
-                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 font-normal font-sans text-neutral-900 dark:text-neutral-100">{product.product_name}</td>
-                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 font-normal font-mono text-sm">{product.sku_code || product.barcode || ''}</td>
-                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 font-normal font-sans text-neutral-600 dark:text-neutral-400">
-                    <div className="flex items-center justify-between">
+                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 font-normal font-sans whitespace-nowrap">{product.manufacturer_name || ''}</td>
+                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 font-normal font-sans text-neutral-900 dark:text-neutral-100 whitespace-nowrap">{product.product_name}</td>
+                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 font-normal font-mono text-sm whitespace-nowrap">{product.sku_code || product.barcode || ''}</td>
+                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 font-normal font-sans text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
+                    <div className="flex items-center justify-between gap-2">
                       <span>{product.category_name || ''}</span>
                       {product.category_name && (
                         <button className="p-1 bg-neutral-200 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none hover:bg-neutral-300 dark:hover:bg-neutral-800 transition-colors">
@@ -239,10 +239,10 @@ export default function ProductList({
                       )}
                     </div>
                   </td>
-                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-normal text-neutral-900 dark:text-neutral-100">
+                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-normal text-neutral-900 dark:text-neutral-100 whitespace-nowrap">
                     €{product.selling_price.toFixed(2)}
                   </td>
-                  <td className="px-2 py-1 text-center">
+                  <td className="px-2 py-1 text-center whitespace-nowrap">
                     <span className={`font-bold text-sm ${product.total_stock && product.total_stock > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                       {product.total_stock || 0}
                     </span>

@@ -510,6 +510,9 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
     setShowUpdateModal(false);
     setEditingItem(null);
+    setTimeout(() => {
+      document.getElementById('product-search-input')?.focus();
+    }, 50);
   };
 
   const removeFromCart = (productId: number, deviceId?: number) => {
@@ -754,6 +757,47 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       setPaymentAmount('');
     }
   }, [remainingAmount]);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // 1. F2 or Alt + Shift + E: Edit last item price
+      if (e.key === 'F2' || (e.altKey && e.shiftKey && e.key.toLowerCase() === 'e')) {
+        if (cart.length === 0) return;
+        e.preventDefault();
+        const lastItem = cart[cart.length - 1];
+        handleEditItem(lastItem);
+      }
+      
+      // 2. Alt + Shift + C: Select Cash payment & focus amount field
+      if (e.altKey && e.shiftKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        setPaymentMethod('Cash');
+        setTimeout(() => {
+          const amountInput = document.querySelector('input[placeholder="0.00"]') as HTMLInputElement;
+          if (amountInput) {
+            amountInput.focus();
+            amountInput.select();
+          }
+        }, 50);
+      }
+
+      // 3. Alt + Shift + K: Select Card payment
+      if (e.altKey && e.shiftKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaymentMethod('Card');
+      }
+
+      // 4. Alt + Shift + Q: Trigger Quick Checkout
+      if (e.altKey && e.shiftKey && e.key.toLowerCase() === 'q') {
+        if (cart.length === 0) return;
+        e.preventDefault();
+        handleQuickCheckout();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [cart, paymentMethod, paymentAmount, remainingAmount, selectedCustomer]);
 
   return (
     <div className="flex flex-col lg:h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full lg:overflow-hidden overflow-y-auto" style={{ fontSize: '17px' }}>

@@ -24,6 +24,7 @@ export const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
         <Search className="h-4 w-4 text-neutral-500" />
       </div>
       <input
+        id="product-search-input"
         type="text"
         className="block w-full pl-10 pr-32 py-2 border border-neutral-350 dark:border-neutral-800 rounded-none bg-white dark:bg-black transition-all text-base focus:outline-none placeholder:text-neutral-500 text-neutral-900 dark:text-neutral-100 font-sans shadow-none"
         placeholder="Search products by name, SKU or scan barcode..."

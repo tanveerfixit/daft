@@ -18,7 +18,7 @@ interface Device {
 interface Props {
   onSelectPO: (poNumber: string) => void;
   onSelectProduct: (skuId: number) => void;
-  onSelectDevice: (id: number) => void;
+  onSelectDevice: (imeiOrId: string | number) => void;
 }
 
 export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectDevice }: Props) {
@@ -212,7 +212,7 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
                 <tr key={device.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors bg-white dark:bg-black text-neutral-900 dark:text-neutral-100">
                   <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800">
                     <button 
-                      onClick={() => onSelectDevice(device.id)}
+                      onClick={() => onSelectDevice(device.imei || device.id)}
                       className="text-[#0285b5] hover:underline text-left font-bold cursor-pointer bg-transparent border-0 p-0 text-sm"
                     >
                       {device.product_name}
@@ -223,7 +223,7 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
                   <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-center text-neutral-600 dark:text-neutral-400">{device.condition || ''}</td>
                   <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800">
                     <button 
-                      onClick={() => onSelectDevice(device.id)}
+                      onClick={() => onSelectDevice(device.imei || device.id)}
                       className="text-[#0285b5] hover:underline font-bold font-mono text-xs cursor-pointer bg-transparent border-0 p-0"
                     >
                       {device.imei}

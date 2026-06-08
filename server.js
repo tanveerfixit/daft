@@ -339,6 +339,7 @@ async function initSchema() {
         cost DECIMAL(10,2),
         discount DECIMAL(10,2),
         total DECIMAL(10,2),
+        notes VARCHAR(255) NULL,
         FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
         FOREIGN KEY (sku_id) REFERENCES product_skus(id),
         FOREIGN KEY (device_id) REFERENCES devices(id)
@@ -711,6 +712,12 @@ async function initSchema() {
     try {
       await conn.query("ALTER TABLE jobs ADD COLUMN notes TEXT NULL AFTER payment_method");
       console.log("[MySQL] Migration: added notes column to jobs");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE invoice_items ADD COLUMN notes VARCHAR(255) NULL AFTER total");
+      console.log("[MySQL] Migration: added notes column to invoice_items");
     } catch (e) {
       if (!e.message?.includes("Duplicate column")) throw e;
     }
@@ -1798,22 +1805,36 @@ var init_products = __esm({
       }
     });
     router3.put("/:id", async (req, res, next) => {
-      const { product_name, category_id, manufacturer_id, sku_code, barcode, selling_price, cost_price, product_type } = req.body;
+      const { product_name, category_id, manufacturer_id, sku_code, barcode, selling_price, cost_price, product_type, allow_overselling } = req.body;
       const skuId = req.params.id;
       const businessId = req.user.business_id;
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
-        const [skuRows] = await conn.execute("SELECT s.*, p.business_id FROM product_skus s JOIN products p ON s.product_id = p.id WHERE s.id = ? AND p.business_id = ?", [skuId, businessId]);
+        const [skuRows] = await conn.execute(`
+      SELECT s.*, p.business_id, p.product_type, p.name as product_name 
+      FROM product_skus s 
+      JOIN products p ON s.product_id = p.id 
+      WHERE s.id = ? AND p.business_id = ?
+    `, [skuId, businessId]);
         const sku = skuRows[0];
         if (!sku) throw new Error("Product not found in your business catalog");
+        const isDeveloper = req.user.role === "developer" || req.user.email === "support@techinbox.ie";
+        if (sku.product_type === "serialized" && !isDeveloper) {
+          if (product_name !== sku.product_name) {
+            return res.status(403).json({ error: "Only developers can edit the name of serialized products." });
+          }
+          if (product_type !== "serialized") {
+            return res.status(403).json({ error: "Only developers can change the tracking type of serialized products." });
+          }
+        }
         await conn.execute(
           "UPDATE product_skus SET sku_code=?,barcode=?,selling_price=?,cost_price=? WHERE id=?",
           [sku_code, barcode, selling_price, cost_price, skuId]
         );
         await conn.execute(
-          "UPDATE products SET name=?,category_id=?,manufacturer_id=?,product_type=? WHERE id=?",
-          [product_name, category_id, manufacturer_id, product_type, sku.product_id]
+          "UPDATE products SET name=?,category_id=?,manufacturer_id=?,product_type=?,allow_overselling=? WHERE id=?",
+          [product_name, category_id, manufacturer_id, product_type, allow_overselling === false ? 0 : 1, sku.product_id]
         );
         const changes = [];
         if (product_name !== sku.product_name) changes.push(`Name: ${sku.product_name} -> ${product_name}`);
@@ -1966,13 +1987,28 @@ var init_products = __esm({
     });
     router3.get("/:id/activity", async (req, res, next) => {
       try {
+        const skuId = req.params.id;
+        const businessId = req.user.business_id;
         const acts = await query(`
-      SELECT a.*, u.name as user_name FROM product_activity a
+      SELECT a.id, a.sku_id, NULL as device_id, NULL as imei, a.user_id, a.activity, a.details, a.created_at, u.name as user_name 
+      FROM product_activity a
       LEFT JOIN users u ON a.user_id = u.id
       JOIN product_skus s ON a.sku_id = s.id
       JOIN products p ON s.product_id = p.id
-      WHERE a.sku_id = ? AND p.business_id = ? ORDER BY a.created_at DESC
-    `, [req.params.id, req.user.business_id]);
+      WHERE a.sku_id = ? AND p.business_id = ?
+      
+      UNION ALL
+      
+      SELECT da.id, d.sku_id, da.device_id, d.imei, da.user_id, da.activity, 
+             CONCAT(da.details, IF(d.imei IS NOT NULL AND d.imei != '', CONCAT(' (IMEI: ', d.imei, ')'), '')) as details, 
+             da.created_at, u.name as user_name 
+      FROM device_activity da
+      JOIN devices d ON da.device_id = d.id
+      LEFT JOIN users u ON da.user_id = u.id
+      WHERE d.sku_id = ? AND d.business_id = ?
+      
+      ORDER BY created_at DESC
+    `, [skuId, businessId, skuId, businessId]);
         res.json(acts);
       } catch (e) {
         next(e);
@@ -2523,7 +2559,8 @@ var init_invoices = __esm({
         quantity: z4.number().or(z4.string().transform(Number)),
         price: z4.number().or(z4.string().transform(Number)),
         total: z4.number().or(z4.string().transform(Number)),
-        is_deposit: z4.boolean().optional()
+        is_deposit: z4.boolean().optional(),
+        notes: z4.string().nullable().optional()
       })).min(1, "Cart is empty"),
       payments: z4.array(z4.object({
         method: z4.string(),
@@ -2585,8 +2622,8 @@ var init_invoices = __esm({
           const skuId = item.id || item.sku_id;
           const productInfo = productInfoMap.get(skuId);
           await conn.execute(
-            "INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,total) VALUES (?,?,?,?,?,?)",
-            [invoiceId, skuId, item.device_id || null, item.quantity, item.price, item.total]
+            "INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,total,notes) VALUES (?,?,?,?,?,?,?)",
+            [invoiceId, skuId, item.device_id || null, item.quantity, item.price, item.total, item.notes || null]
           );
           if (productInfo?.product_type === "stock") {
             await conn.execute(`
@@ -2981,6 +3018,183 @@ var init_reports = __esm({
     `;
         const params = !isSuper ? [req.user.business_id, req.user.branch_id] : [req.user.business_id];
         res.json(await query(sql, params));
+      } catch (e) {
+        next(e);
+      }
+    });
+    router6.get("/sales-report", async (req, res, next) => {
+      const { type, startDate, endDate, q } = req.query;
+      if (!startDate || !endDate) return res.status(400).json({ error: "startDate and endDate are required" });
+      try {
+        const isDeveloper = req.user.role === "developer";
+        const branchId = req.user.branch_id;
+        const businessId = req.user.business_id;
+        let sql = "";
+        const params = [];
+        const addCommonFilters = (useItemJoin = false) => {
+          let cond = ` WHERE i.business_id = ? AND DATE(i.created_at) >= ? AND DATE(i.created_at) <= ?`;
+          params.push(businessId, startDate, endDate);
+          if (!isDeveloper && branchId) {
+            cond += ` AND i.branch_id = ?`;
+            params.push(branchId);
+          }
+          if (q && q.trim()) {
+            if (useItemJoin) {
+              cond += ` AND (i.invoice_number LIKE ? OR c.name LIKE ? OR p.name LIKE ? OR s.sku_code LIKE ?)`;
+              params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+            } else {
+              cond += ` AND (i.invoice_number LIKE ? OR c.name LIKE ? OR u.name LIKE ?)`;
+              params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+            }
+          }
+          return cond;
+        };
+        if (type === "date-daily") {
+          sql = `
+        SELECT 
+          DATE_FORMAT(i.created_at, '%d-%m-%Y') as name,
+          COALESCE(SUM(CASE WHEN i.tax_total > 0 THEN i.subtotal ELSE 0 END), 0) as taxable,
+          COALESCE(SUM(i.tax_total), 0) as taxes,
+          COALESCE(SUM(CASE WHEN i.tax_total = 0 OR i.tax_total IS NULL THEN i.grand_total ELSE 0 END), 0) as non_taxable,
+          COALESCE(SUM(i.grand_total), 0) as grand_total,
+          COALESCE(SUM(ic.cost), 0) as cost
+        FROM invoices i
+        LEFT JOIN (
+          SELECT invoice_id, SUM(quantity * cost) as cost 
+          FROM invoice_items 
+          GROUP BY invoice_id
+        ) ic ON i.id = ic.invoice_id
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN users u ON i.user_id = u.id
+      `;
+          sql += addCommonFilters();
+          sql += ` GROUP BY DATE(i.created_at) ORDER BY DATE(i.created_at) ASC`;
+        } else if (type === "date-weekly") {
+          sql = `
+        SELECT 
+          CONCAT(DATE_FORMAT(STR_TO_DATE(CONCAT(YEARWEEK(i.created_at, 1), ' Monday'), '%x%v %W'), '%d-%m-%Y'), ' - ', DATE_FORMAT(DATE_ADD(STR_TO_DATE(CONCAT(YEARWEEK(i.created_at, 1), ' Monday'), '%x%v %W'), INTERVAL 6 DAY), '%d-%m-%Y')) as name,
+          COALESCE(SUM(CASE WHEN i.tax_total > 0 THEN i.subtotal ELSE 0 END), 0) as taxable,
+          COALESCE(SUM(i.tax_total), 0) as taxes,
+          COALESCE(SUM(CASE WHEN i.tax_total = 0 OR i.tax_total IS NULL THEN i.grand_total ELSE 0 END), 0) as non_taxable,
+          COALESCE(SUM(i.grand_total), 0) as grand_total,
+          COALESCE(SUM(ic.cost), 0) as cost
+        FROM invoices i
+        LEFT JOIN (
+          SELECT invoice_id, SUM(quantity * cost) as cost 
+          FROM invoice_items 
+          GROUP BY invoice_id
+        ) ic ON i.id = ic.invoice_id
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN users u ON i.user_id = u.id
+      `;
+          sql += addCommonFilters();
+          sql += ` GROUP BY YEARWEEK(i.created_at, 1) ORDER BY YEARWEEK(i.created_at, 1) ASC`;
+        } else if (type === "date-monthly") {
+          sql = `
+        SELECT 
+          DATE_FORMAT(i.created_at, '%M %Y') as name,
+          COALESCE(SUM(CASE WHEN i.tax_total > 0 THEN i.subtotal ELSE 0 END), 0) as taxable,
+          COALESCE(SUM(i.tax_total), 0) as taxes,
+          COALESCE(SUM(CASE WHEN i.tax_total = 0 OR i.tax_total IS NULL THEN i.grand_total ELSE 0 END), 0) as non_taxable,
+          COALESCE(SUM(i.grand_total), 0) as grand_total,
+          COALESCE(SUM(ic.cost), 0) as cost
+        FROM invoices i
+        LEFT JOIN (
+          SELECT invoice_id, SUM(quantity * cost) as cost 
+          FROM invoice_items 
+          GROUP BY invoice_id
+        ) ic ON i.id = ic.invoice_id
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN users u ON i.user_id = u.id
+      `;
+          sql += addCommonFilters();
+          sql += ` GROUP BY DATE_FORMAT(i.created_at, '%Y-%m') ORDER BY DATE_FORMAT(i.created_at, '%Y-%m') ASC`;
+        } else if (type === "salesperson") {
+          sql = `
+        SELECT COALESCE(u.name, 'Unknown') as name, COUNT(i.id) as count, COALESCE(SUM(i.grand_total), 0) as total
+        FROM invoices i
+        LEFT JOIN users u ON i.user_id = u.id
+        LEFT JOIN customers c ON i.customer_id = c.id
+      `;
+          sql += addCommonFilters();
+          sql += ` GROUP BY i.user_id ORDER BY total DESC`;
+        } else if (type === "customer") {
+          sql = `
+        SELECT COALESCE(c.name, 'Walk-in Customer') as name, COUNT(i.id) as count, COALESCE(SUM(i.grand_total), 0) as total
+        FROM invoices i
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN users u ON i.user_id = u.id
+      `;
+          sql += addCommonFilters();
+          sql += ` GROUP BY i.customer_id ORDER BY total DESC`;
+        } else if (type === "product") {
+          sql = `
+        SELECT p.name as name, s.sku_code, SUM(ii.quantity) as count, SUM(ii.total) as total
+        FROM invoice_items ii
+        JOIN invoices i ON ii.invoice_id = i.id
+        JOIN product_skus s ON ii.sku_id = s.id
+        JOIN products p ON s.product_id = p.id
+        LEFT JOIN customers c ON i.customer_id = c.id
+      `;
+          sql += addCommonFilters(true);
+          sql += ` GROUP BY ii.sku_id ORDER BY total DESC`;
+        } else if (type === "category") {
+          sql = `
+        SELECT COALESCE(cat.name, 'Uncategorized') as name, SUM(ii.quantity) as count, SUM(ii.total) as total
+        FROM invoice_items ii
+        JOIN invoices i ON ii.invoice_id = i.id
+        JOIN product_skus s ON ii.sku_id = s.id
+        JOIN products p ON s.product_id = p.id
+        LEFT JOIN categories cat ON p.category_id = cat.id
+        LEFT JOIN customers c ON i.customer_id = c.id
+      `;
+          sql += addCommonFilters(true);
+          sql += ` GROUP BY p.category_id ORDER BY total DESC`;
+        } else if (type === "payment") {
+          sql = `
+        SELECT p.method as name, COUNT(p.id) as count, COALESCE(SUM(p.amount), 0) as total
+        FROM payments p
+        JOIN invoices i ON p.invoice_id = i.id
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN users u ON i.user_id = u.id
+      `;
+          let cond = ` WHERE i.business_id = ? AND DATE(i.created_at) >= ? AND DATE(i.created_at) <= ?`;
+          params.push(businessId, startDate, endDate);
+          if (!isDeveloper && branchId) {
+            cond += ` AND i.branch_id = ?`;
+            params.push(branchId);
+          }
+          if (q && q.trim() && q !== "All Payment Types") {
+            cond += ` AND p.method = ?`;
+            params.push(q);
+          }
+          sql += cond;
+          sql += ` GROUP BY p.method ORDER BY total DESC`;
+        } else if (type === "tax") {
+          sql = `
+        SELECT 'Tax Report' as name, 
+               COALESCE(SUM(i.subtotal - i.tax_total), 0) as net_sales, 
+               COALESCE(SUM(i.tax_total), 0) as tax_amount, 
+               COALESCE(SUM(i.grand_total), 0) as total
+        FROM invoices i
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN users u ON i.user_id = u.id
+      `;
+          sql += addCommonFilters();
+        } else if (type === "unpaid") {
+          sql = `
+        SELECT i.invoice_number as name, COALESCE(c.name, 'Walk-in Customer') as customer_name, i.due_amount as total, i.grand_total as amount, i.created_at
+        FROM invoices i
+        LEFT JOIN customers c ON i.customer_id = c.id
+        LEFT JOIN users u ON i.user_id = u.id
+      `;
+          sql += addCommonFilters();
+          sql += ` AND i.due_amount > 0.01 AND i.status != 'void' ORDER BY i.due_amount DESC`;
+        } else {
+          return res.status(400).json({ error: "Invalid report type" });
+        }
+        const rows = await query(sql, params);
+        res.json(rows);
       } catch (e) {
         next(e);
       }
@@ -3534,13 +3748,15 @@ var init_inventory = __esm({
     });
     router8.get("/devices/:id", async (req, res, next) => {
       try {
+        const businessId = req.user.business_id;
+        const isNumeric = /^\d+$/.test(req.params.id) && req.params.id.length < 10;
         const device = await queryOne(`
       SELECT d.*, p.name as product_name, s.sku_code, s.barcode
       FROM devices d
       JOIN product_skus s ON d.sku_id=s.id
       JOIN products p ON s.product_id=p.id
-      WHERE d.id=? AND d.business_id=?
-    `, [req.params.id, req.user.business_id]);
+      WHERE ${isNumeric ? "d.id" : "d.imei"}=? AND d.business_id=?
+    `, [req.params.id, businessId]);
         if (!device) return res.status(404).json({ error: "Device not found" });
         res.json(device);
       } catch (e) {
@@ -3562,8 +3778,10 @@ var init_inventory = __esm({
       const data = updateDeviceSchema.parse(req.body);
       const { color, gb, ram, condition, cost_price, selling_price, unlocked, imei_status, carrier } = data;
       try {
-        const old = await queryOne("SELECT * FROM devices WHERE id=? AND business_id=?", [req.params.id, req.user.business_id]);
+        const isNumeric = /^\d+$/.test(req.params.id) && req.params.id.length < 10;
+        const old = await queryOne(`SELECT * FROM devices WHERE ${isNumeric ? "id" : "imei"}=? AND business_id=?`, [req.params.id, req.user.business_id]);
         if (!old) return res.status(404).json({ error: "Device not found" });
+        const realId = old.id;
         await execute(`
       UPDATE devices SET 
         color=?, gb=?, ram=?, \`condition\`=?, cost_price=?, selling_price=?, 
@@ -3579,7 +3797,7 @@ var init_inventory = __esm({
           unlocked || old.unlocked,
           imei_status || old.imei_status,
           carrier || old.carrier,
-          req.params.id,
+          realId,
           req.user.business_id
         ]);
         const changes = [];
@@ -3592,11 +3810,11 @@ var init_inventory = __esm({
         if (changes.length > 0) {
           await execute(
             "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-            [req.params.id, req.userId, "Device Updated", changes.join(", ")]
+            [realId, req.userId, "Device Updated", changes.join(", ")]
           );
           await execute(
             "INSERT INTO activity_logs (device_id, user_id, activity_type, description) VALUES (?, ?, ?, ?)",
-            [req.params.id, req.userId, "Device Updated", changes.join(", ")]
+            [realId, req.userId, "Device Updated", changes.join(", ")]
           );
         }
         res.json({ success: true });
@@ -3606,6 +3824,10 @@ var init_inventory = __esm({
     });
     router8.get("/devices/:id/activity", async (req, res, next) => {
       try {
+        const isNumeric = /^\d+$/.test(req.params.id) && req.params.id.length < 10;
+        const device = await queryOne(`SELECT id FROM devices WHERE ${isNumeric ? "id" : "imei"}=? AND business_id=?`, [req.params.id, req.user.business_id]);
+        if (!device) return res.status(404).json({ error: "Device not found" });
+        const realId = device.id;
         const activities = await query(`
       SELECT 'device' as source, a.id, a.user_id, a.activity, a.details, a.created_at, u.name as user_name 
       FROM device_activity a
@@ -3622,7 +3844,7 @@ var init_inventory = __esm({
       LEFT JOIN users u ON al.user_id=u.id
       WHERE al.device_id=? OR al.product_id = (SELECT sku_id FROM devices WHERE id=?)
       ORDER BY created_at DESC
-    `, [req.params.id, req.params.id, req.params.id, req.params.id]);
+    `, [realId, realId, realId, realId]);
         res.json(activities);
       } catch (e) {
         next(e);
@@ -3636,15 +3858,17 @@ var init_inventory = __esm({
       const data = deviceActivitySchema.parse(req.body);
       const { activity, details } = data;
       try {
-        const device = await queryOne("SELECT id FROM devices WHERE id=? AND business_id=?", [req.params.id, req.user.business_id]);
+        const isNumeric = /^\d+$/.test(req.params.id) && req.params.id.length < 10;
+        const device = await queryOne(`SELECT id FROM devices WHERE ${isNumeric ? "id" : "imei"}=? AND business_id=?`, [req.params.id, req.user.business_id]);
         if (!device) return res.status(404).json({ error: "Device not found" });
+        const realId = device.id;
         await execute(
           "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-          [req.params.id, req.userId, activity || "Note Added", details || ""]
+          [realId, req.userId, activity || "Note Added", details || ""]
         );
         await execute(
           "INSERT INTO activity_logs (device_id, user_id, activity_type, description) VALUES (?, ?, ?, ?)",
-          [req.params.id, req.userId, activity || "Note Added", details || ""]
+          [realId, req.userId, activity || "Note Added", details || ""]
         );
         res.json({ success: true });
       } catch (e) {
@@ -3653,7 +3877,8 @@ var init_inventory = __esm({
     });
     router8.delete("/devices/:id", async (req, res, next) => {
       try {
-        const result = await execute("DELETE FROM devices WHERE id=? AND business_id=?", [req.params.id, req.user.business_id]);
+        const isNumeric = /^\d+$/.test(req.params.id) && req.params.id.length < 10;
+        const result = await execute(`DELETE FROM devices WHERE ${isNumeric ? "id" : "imei"}=? AND business_id=?`, [req.params.id, req.user.business_id]);
         if (result.affectedRows === 0) return res.status(404).json({ error: "Device not found or access denied" });
         res.json({ success: true });
       } catch (e) {

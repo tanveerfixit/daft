@@ -24,6 +24,16 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
   const [total, setTotal] = useState<number>(0);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
     const p = parseFloat(unitPrice) || 0;
     const q = parseInt(quantity) || 0;
     const d = parseFloat(discount) || 0;
@@ -68,11 +78,12 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 font-mono text-[16px] animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-[620px] overflow-hidden flex flex-col rounded-none shadow-none text-[16px] animate-in zoom-in-95 duration-300">
+      <form onSubmit={(e) => { e.preventDefault(); handleSave(); }} className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-[620px] overflow-hidden flex flex-col rounded-none shadow-none text-[16px] animate-in zoom-in-95 duration-300">
         {/* Modal Header */}
         <div className="bg-neutral-200 dark:bg-neutral-900 px-4 py-2 border-b border-neutral-300 dark:border-neutral-800 rounded-none flex justify-between items-center">
           <h3 className="text-base font-bold text-black dark:text-white uppercase tracking-wider">Update POS Cart</h3>
           <button 
+            type="button"
             onClick={onClose}
             className="text-neutral-500 hover:text-neutral-750 dark:hover:text-neutral-350 transition-colors bg-transparent border-0 cursor-pointer"
           >
@@ -95,6 +106,7 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
               <div className="flex-1 flex justify-start">
                 <input 
                   type="text"
+                  autoFocus
                   value={unitPrice}
                   onChange={(e) => setUnitPrice(e.target.value.replace(/[^0-9.]/g, ''))}
                   onFocus={(e) => e.target.select()}
@@ -185,19 +197,20 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
         {/* Modal Footer */}
         <div className="flex border-t border-neutral-300 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-955 p-3 justify-end gap-2 shrink-0">
           <button 
+            type="button"
             onClick={onClose}
             className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-4 rounded-none text-[15px] transition-colors cursor-pointer"
           >
             Cancel
           </button>
           <button 
-            onClick={handleSave}
+            type="submit"
             className="bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold py-1 px-5 rounded-none text-[15px] border border-amber-500 hover:border-amber-600 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
           >
             Save
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 };

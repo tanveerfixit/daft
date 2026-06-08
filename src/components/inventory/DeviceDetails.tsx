@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 interface DeviceDetailsProps {
-  deviceId: number;
+  deviceId: string | number;
   onBack: () => void;
   onOpenPrinterSettings: () => void;
 }
@@ -531,6 +531,22 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                   onChange={e => setEditForm({...editForm, color: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {['Black', 'White', 'Silver', 'Gold'].map(col => (
+                    <button
+                      key={col}
+                      type="button"
+                      onClick={() => setEditForm(prev => ({ ...prev, color: col }))}
+                      className={`px-2 py-0.5 text-xs rounded-full border transition-all cursor-pointer font-sans font-medium ${
+                        editForm.color === col
+                          ? 'bg-amber-400 border-amber-500 text-slate-900 font-bold'
+                          : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {col}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Storage (GB)</label>
@@ -540,6 +556,22 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                   onChange={e => setEditForm({...editForm, gb: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {['64 GB', '128 GB', '256 GB', '512 GB'].map(st => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setEditForm(prev => ({ ...prev, gb: st }))}
+                      className={`px-2 py-0.5 text-xs rounded-full border transition-all cursor-pointer font-sans font-medium ${
+                        editForm.gb === st
+                          ? 'bg-amber-400 border-amber-500 text-slate-900 font-bold'
+                          : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-400 uppercase">RAM</label>
@@ -563,6 +595,22 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                   <option value="Grade C">Grade C</option>
                   <option value="Used">Used</option>
                 </select>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {['New', 'Grade A', 'Grade B'].map(cond => (
+                    <button
+                      key={cond}
+                      type="button"
+                      onClick={() => setEditForm(prev => ({ ...prev, condition: cond }))}
+                      className={`px-2 py-0.5 text-xs rounded-full border transition-all cursor-pointer font-sans font-medium ${
+                        editForm.condition === cond
+                          ? 'bg-amber-400 border-amber-500 text-slate-900 font-bold'
+                          : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {cond}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Cost Price</label>

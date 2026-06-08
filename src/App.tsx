@@ -195,7 +195,7 @@ const DeviceInventoryRoute = () => {
           });
       }}
       onSelectProduct={(skuId) => navigate(`/${branchSlug}/sku-devices/${skuId}`, { state: { from: `/${branchSlug}/devices` } })}
-      onSelectDevice={(id) => navigate(`/${branchSlug}/devices/${id}`)}
+      onSelectDevice={(imeiOrId) => navigate(`/${branchSlug}/devices/${imeiOrId}`)}
     />
   );
 };
@@ -206,7 +206,7 @@ const DeviceDetailRoute = () => {
   const branchSlug = slugify(useAuth().currentUser?.branch_name || 'branch');
   return (
     <DeviceDetailView 
-      deviceId={Number(id)} 
+      deviceId={id!} 
       onBack={() => navigate(`/${branchSlug}/devices`)} 
       onOpenPrinterSettings={() => navigate(`/${branchSlug}/getting-started?tab=manage-label-printer`)}
     />

@@ -170,13 +170,15 @@ router.get('/devices/search', async (req: any, res, next) => {
 // GET /api/devices/:id
 router.get('/devices/:id', async (req: any, res, next) => {
   try {
+    const businessId = req.user.business_id;
+    const isNumeric = /^\d+$/.test(req.params.id) && req.params.id.length < 10;
     const device = await queryOne(`
       SELECT d.*, p.name as product_name, s.sku_code, s.barcode
       FROM devices d
       JOIN product_skus s ON d.sku_id=s.id
       JOIN products p ON s.product_id=p.id
-      WHERE d.id=? AND d.business_id=?
-    `, [req.params.id, req.user.business_id]);
+      WHERE ${isNumeric ? 'd.id' : 'd.imei'}=? AND d.business_id=?
+    `, [req.params.id, businessId]);
     if (!device) return res.status(404).json({ error: 'Device not found' });
     res.json(device);
   } catch (e: any) { next(e); }
@@ -199,8 +201,10 @@ router.put('/devices/:id', async (req: any, res, next) => {
   const data = updateDeviceSchema.parse(req.body);
   const { color, gb, ram, condition, cost_price, selling_price, unlocked, imei_status, carrier } = data;
   try {
-    const old = await queryOne('SELECT * FROM devices WHERE id=? AND business_id=?', [req.params.id, req.user.business_id]);
+    const isNumeric = /^\d+$/.test(req.params.id) && req.params.id.length < 10;
+    const old = await queryOne(`SELECT * FROM devices WHERE ${isNumeric ? 'id' : 'imei'}=? AND business_id=?`, [req.params.id, req.user.business_id]);
     if (!old) return res.status(404).json({ error: 'Device not found' });
+    const realId = old.id;
 
     await execute(`
       UPDATE devices SET 
@@ -211,7 +215,7 @@ router.put('/devices/:id', async (req: any, res, next) => {
       color || old.color, gb || old.gb, ram || old.ram, condition || old.condition, 
       cost_price || old.cost_price, selling_price || old.selling_price,
       unlocked || old.unlocked, imei_status || old.imei_status, carrier || old.carrier,
-      req.params.id, req.user.business_id
+      realId, req.user.business_id
     ]);
 
     // Log what changed
@@ -225,9 +229,9 @@ router.put('/devices/:id', async (req: any, res, next) => {
 
     if (changes.length > 0) {
       await execute('INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-        [req.params.id, req.userId, 'Device Updated', changes.join(', ')]);
+        [realId, req.userId, 'Device Updated', changes.join(', ')]);
       await execute('INSERT INTO activity_logs (device_id, user_id, activity_type, description) VALUES (?, ?, ?, ?)',
-        [req.params.id, req.userId, 'Device Updated', changes.join(', ')]);
+        [realId, req.userId, 'Device Updated', changes.join(', ')]);
     }
 
     res.json({ success: true });
@@ -237,6 +241,11 @@ router.put('/devices/:id', async (req: any, res, next) => {
 // GET /api/devices/:id/activity
 router.get('/devices/:id/activity', async (req: any, res, next) => {
   try {
+    const isNumeric = /^\d+$/.test(req.params.id) && req.params.id.length < 10;
+    const device = await queryOne(`SELECT id FROM devices WHERE ${isNumeric ? 'id' : 'imei'}=? AND business_id=?`, [req.params.id, req.user.business_id]);
+    if (!device) return res.status(404).json({ error: 'Device not found' });
+    const realId = device.id;
+
     const activities = await query(`
       SELECT 'device' as source, a.id, a.user_id, a.activity, a.details, a.created_at, u.name as user_name 
       FROM device_activity a
@@ -253,7 +262,7 @@ router.get('/devices/:id/activity', async (req: any, res, next) => {
       LEFT JOIN users u ON al.user_id=u.id
       WHERE al.device_id=? OR al.product_id = (SELECT sku_id FROM devices WHERE id=?)
       ORDER BY created_at DESC
-    `, [req.params.id, req.params.id, req.params.id, req.params.id]);
+    `, [realId, realId, realId, realId]);
     res.json(activities);
   } catch (e: any) { next(e); }
 });
@@ -268,13 +277,15 @@ router.post('/devices/:id/activity', async (req: any, res, next) => {
   const data = deviceActivitySchema.parse(req.body);
   const { activity, details } = data;
   try {
-    const device = await queryOne('SELECT id FROM devices WHERE id=? AND business_id=?', [req.params.id, req.user.business_id]);
+    const isNumeric = /^\d+$/.test(req.params.id) && req.params.id.length < 10;
+    const device = await queryOne(`SELECT id FROM devices WHERE ${isNumeric ? 'id' : 'imei'}=? AND business_id=?`, [req.params.id, req.user.business_id]);
     if (!device) return res.status(404).json({ error: 'Device not found' });
+    const realId = device.id;
     
     await execute('INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-      [req.params.id, req.userId, activity || 'Note Added', details || '']);
+      [realId, req.userId, activity || 'Note Added', details || '']);
     await execute('INSERT INTO activity_logs (device_id, user_id, activity_type, description) VALUES (?, ?, ?, ?)',
-      [req.params.id, req.userId, activity || 'Note Added', details || '']);
+      [realId, req.userId, activity || 'Note Added', details || '']);
     res.json({ success: true });
   } catch (e: any) { next(e); }
 });
@@ -282,7 +293,8 @@ router.post('/devices/:id/activity', async (req: any, res, next) => {
 // DELETE /api/devices/:id
 router.delete('/devices/:id', async (req: any, res, next) => {
   try {
-    const result = await execute('DELETE FROM devices WHERE id=? AND business_id=?', [req.params.id, req.user.business_id]);
+    const isNumeric = /^\d+$/.test(req.params.id) && req.params.id.length < 10;
+    const result = await execute(`DELETE FROM devices WHERE ${isNumeric ? 'id' : 'imei'}=? AND business_id=?`, [req.params.id, req.user.business_id]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Device not found or access denied' });
     res.json({ success: true });
   } catch (e: any) { next(e); }

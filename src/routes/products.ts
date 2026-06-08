@@ -184,19 +184,35 @@ router.get('/:id', async (req: any, res, next) => {
 
 // PUT /api/products/:id
 router.put('/:id', async (req: any, res, next) => {
-  const { product_name, category_id, manufacturer_id, sku_code, barcode, selling_price, cost_price, product_type } = req.body;
+  const { product_name, category_id, manufacturer_id, sku_code, barcode, selling_price, cost_price, product_type, allow_overselling } = req.body;
   const skuId = req.params.id;
   const businessId = req.user.business_id;
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const [skuRows] = await conn.execute('SELECT s.*, p.business_id FROM product_skus s JOIN products p ON s.product_id = p.id WHERE s.id = ? AND p.business_id = ?', [skuId, businessId]);
+    const [skuRows] = await conn.execute(`
+      SELECT s.*, p.business_id, p.product_type, p.name as product_name 
+      FROM product_skus s 
+      JOIN products p ON s.product_id = p.id 
+      WHERE s.id = ? AND p.business_id = ?
+    `, [skuId, businessId]);
     const sku = (skuRows as any[])[0];
     if (!sku) throw new Error('Product not found in your business catalog');
+
+    const isDeveloper = req.user.role === 'developer' || req.user.email === 'support@techinbox.ie';
+    if (sku.product_type === 'serialized' && !isDeveloper) {
+      if (product_name !== sku.product_name) {
+        return res.status(403).json({ error: 'Only developers can edit the name of serialized products.' });
+      }
+      if (product_type !== 'serialized') {
+        return res.status(403).json({ error: 'Only developers can change the tracking type of serialized products.' });
+      }
+    }
+
     await conn.execute('UPDATE product_skus SET sku_code=?,barcode=?,selling_price=?,cost_price=? WHERE id=?',
       [sku_code, barcode, selling_price, cost_price, skuId]);
-    await conn.execute('UPDATE products SET name=?,category_id=?,manufacturer_id=?,product_type=? WHERE id=?',
-      [product_name, category_id, manufacturer_id, product_type, sku.product_id]);
+    await conn.execute('UPDATE products SET name=?,category_id=?,manufacturer_id=?,product_type=?,allow_overselling=? WHERE id=?',
+      [product_name, category_id, manufacturer_id, product_type, allow_overselling === false ? 0 : 1, sku.product_id]);
     
     const changes: string[] = [];
     if (product_name !== sku.product_name) changes.push(`Name: ${sku.product_name} -> ${product_name}`);
@@ -357,13 +373,28 @@ router.delete('/:id', async (req: any, res, next) => {
 // GET /api/products/:id/activity
 router.get('/:id/activity', async (req: any, res, next) => {
   try {
+    const skuId = req.params.id;
+    const businessId = req.user.business_id;
     const acts = await query(`
-      SELECT a.*, u.name as user_name FROM product_activity a
+      SELECT a.id, a.sku_id, NULL as device_id, NULL as imei, a.user_id, a.activity, a.details, a.created_at, u.name as user_name 
+      FROM product_activity a
       LEFT JOIN users u ON a.user_id = u.id
       JOIN product_skus s ON a.sku_id = s.id
       JOIN products p ON s.product_id = p.id
-      WHERE a.sku_id = ? AND p.business_id = ? ORDER BY a.created_at DESC
-    `, [req.params.id, req.user.business_id]);
+      WHERE a.sku_id = ? AND p.business_id = ?
+      
+      UNION ALL
+      
+      SELECT da.id, d.sku_id, da.device_id, d.imei, da.user_id, da.activity, 
+             CONCAT(da.details, IF(d.imei IS NOT NULL AND d.imei != '', CONCAT(' (IMEI: ', d.imei, ')'), '')) as details, 
+             da.created_at, u.name as user_name 
+      FROM device_activity da
+      JOIN devices d ON da.device_id = d.id
+      LEFT JOIN users u ON da.user_id = u.id
+      WHERE d.sku_id = ? AND d.business_id = ?
+      
+      ORDER BY created_at DESC
+    `, [skuId, businessId, skuId, businessId]);
     res.json(acts);
   } catch (e: any) { next(e); }
 });
