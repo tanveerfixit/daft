@@ -343,33 +343,220 @@ export default function ManageData() {
 
 function ExportDataView() {
   const exportTypes = [
-    'Customers', 'Product Inventory', 'Product Sold', 'Product Purchased', 
-    'IMEI', 'Invoices', 'Order', 'Repairs', 'Petty Cash', 'Expenses', 
-    'Payments', 'Time Clock', 'Stock Take'
+    { value: 'Product Inventory', label: 'Product Inventory' },
+    { value: 'Customers', label: 'Customers' }
   ];
 
+  const [selectedType, setSelectedType] = useState('Product Inventory');
+  const [exportLoading, setExportLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [msg, setMsg] = useState({ text: '', type: '' });
+
+  const token = localStorage.getItem('token');
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  const handleExport = async () => {
+    if (!selectedType) return alert('Please choose a data type to export');
+    setExportLoading(true);
+    setMsg({ text: '', type: '' });
+
+    try {
+      if (selectedType === 'Product Inventory') {
+        const res = await fetch('/api/products/export', { headers });
+        if (!res.ok) throw new Error('Failed to retrieve inventory data');
+        const products = await res.json();
+
+        const csvHeaders = ['Product Name', 'SKU Code', 'Barcode', 'Selling Price', 'Cost Price', 'Product Type', 'Category Name', 'Manufacturer Name', 'Current Inventory'];
+        const csvRows = [csvHeaders.join(',')];
+
+        for (const p of products) {
+          const row = [
+            `"${(p.product_name || '').replace(/"/g, '""')}"`,
+            `"${(p.sku_code || '').replace(/"/g, '""')}"`,
+            `"${(p.barcode || '').replace(/"/g, '""')}"`,
+            p.selling_price || 0,
+            p.cost_price || 0,
+            `"${(p.product_type || '').replace(/"/g, '""')}"`,
+            `"${(p.category_name || '').replace(/"/g, '""')}"`,
+            `"${(p.manufacturer_name || '').replace(/"/g, '""')}"`,
+            p.current_inventory || 0
+          ];
+          csvRows.push(row.join(','));
+        }
+
+        const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `product_inventory_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setMsg({ text: '✓ Product inventory exported successfully!', type: 'success' });
+      } else if (selectedType === 'Customers') {
+        const res = await fetch('/api/customers', { headers });
+        if (!res.ok) throw new Error('Failed to retrieve customer data');
+        const customers = await res.json();
+
+        const csvHeaders = ['Name', 'Phone', 'Email', 'Address', 'Wallet Balance'];
+        const csvRows = [csvHeaders.join(',')];
+
+        for (const c of customers) {
+          const row = [
+            `"${(c.name || '').replace(/"/g, '""')}"`,
+            `"${(c.phone || '').replace(/"/g, '""')}"`,
+            `"${(c.email || '').replace(/"/g, '""')}"`,
+            `"${(c.address || '').replace(/"/g, '""')}"`,
+            c.wallet_balance || 0
+          ];
+          csvRows.push(row.join(','));
+        }
+
+        const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `customers_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        setMsg({ text: '✓ Customer records exported successfully!', type: 'success' });
+      } else {
+        alert('Export logic for this data type is coming soon!');
+      }
+    } catch (err: any) {
+      setMsg({ text: `✗ Export error: ${err.message}`, type: 'error' });
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportLoading(true);
+    setMsg({ text: '', type: '' });
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        const lines = text.split('\n');
+        if (lines.length < 2) throw new Error('Invalid CSV file or empty data rows');
+
+        const headersList = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        const productsList = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue;
+
+          // Simple parsing of CSV lines
+          const matches = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+          const values = matches ? matches.map(v => v.trim().replace(/^"|"$/g, '')) : lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+
+          const getVal = (names: string[]) => {
+            for (const name of names) {
+              const idx = headersList.findIndex(h => h.toLowerCase() === name.toLowerCase());
+              if (idx !== -1) return values[idx];
+            }
+            return '';
+          };
+
+          const prodType = getVal(['product_type', 'product type', 'producttype']);
+          
+          productsList.push({
+            product_name: getVal(['product_name', 'product name', 'productname', 'name']),
+            sku: getVal(['sku_code', 'sku code', 'skucode', 'sku', 'barcode']),
+            barcode: getVal(['barcode', 'sku_code', 'sku']),
+            cost_price: getVal(['cost_price', 'cost price', 'costprice']),
+            selling_price: getVal(['selling_price', 'selling price', 'sellingprice']),
+            category_name: getVal(['category_name', 'category name', 'categoryname', 'category']),
+            manufacturer_name: getVal(['manufacturer_name', 'manufacturer name', 'manufacturername', 'manufacturer']),
+            current_inventory: getVal(['current_inventory', 'current inventory', 'currentinventory', 'quantity', 'inventory']),
+            product_type: prodType === 'serialized' ? 'Mobile Devices' : 'Standard',
+            branch_name: 'Main Branch'
+          });
+        }
+
+        const response = await fetch('/api/import-products', {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ products: productsList })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Failed to import products');
+        }
+
+        setMsg({ text: `✓ Successfully imported ${productsList.length} products!`, type: 'success' });
+      } catch (err: any) {
+        setMsg({ text: `✗ Import error: ${err.message}`, type: 'error' });
+      } finally {
+        setImportLoading(false);
+        // Clear file input
+        e.target.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
-    <div className="p-8 max-w-5xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-black text-slate-800 mb-2">Export Data</h1>
+    <div className="p-8 max-w-5xl font-sans text-slate-800 space-y-8">
+      <div>
+        <h1 className="text-3xl font-black mb-2">Import / Export Dashboard</h1>
         <p className="text-slate-500 max-w-3xl">
-          Export your business data for backup, reporting, or migration purposes. Download your product inventory, customer records, sales history, and other critical information in various formats for external use or analysis.
+          Export your products and customers to CSV, or import products into your catalog using a formatted CSV template.
         </p>
       </div>
 
-      <div className="bg-white rounded-md shadow-sm border border-slate-200 p-8">
-        <div className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1">
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Choose data type to Export</label>
-            <select className="w-full bg-slate-50 border border-slate-200 rounded-md px-4 py-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all appearance-none">
-              <option>Choose data type to Export</option>
-              {exportTypes.map(type => <option key={type} value={type}>{type}</option>)}
+      {msg.text && (
+        <div className={`px-4 py-3 text-sm border font-semibold ${msg.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+          {msg.text}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Export Card */}
+        <div className="bg-white rounded-md shadow-sm border border-slate-200 p-8 space-y-5">
+          <div className="flex items-center gap-2 text-slate-700 font-bold border-b pb-2 text-lg">
+            <Download size={20} className="text-blue-600" />
+            Export Data
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Select Data Type</label>
+            <select value={selectedType} onChange={e => setSelectedType(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-md px-4 py-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-semibold">
+              {exportTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
-          <button className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-8 py-3 rounded-md transition-all shadow-lg shadow-emerald-100 flex items-center gap-2">
-            <Download size={18} />
-            Export
+          <button onClick={handleExport} disabled={exportLoading}
+            className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-300 text-white font-bold py-3 rounded-md transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer">
+            {exportLoading ? <Loader size={18} className="animate-spin" /> : <Download size={18} />}
+            Download CSV Export
           </button>
+        </div>
+
+        {/* Import Card */}
+        <div className="bg-white rounded-md shadow-sm border border-slate-200 p-8 space-y-5">
+          <div className="flex items-center gap-2 text-slate-700 font-bold border-b pb-2 text-lg">
+            <Download size={20} className="text-blue-600 rotate-180" />
+            Import Products Catalog (CSV)
+          </div>
+          <p className="text-slate-500 text-xs leading-relaxed">
+            Upload a CSV containing: <span className="font-mono text-blue-600">Product Name, SKU Code, Barcode, Selling Price, Cost Price, Product Type, Category Name, Manufacturer Name, Current Inventory</span>
+          </p>
+          <div className="relative">
+            <input type="file" accept=".csv" onChange={handleImportFile} disabled={importLoading} id="csv-import-file" className="hidden" />
+            <label htmlFor="csv-import-file"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer text-center">
+              {importLoading ? <Loader size={18} className="animate-spin" /> : <Download size={18} className="rotate-180" />}
+              Upload & Import Products
+            </label>
+          </div>
         </div>
       </div>
     </div>

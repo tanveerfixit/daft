@@ -1806,6 +1806,25 @@ var init_products = __esm({
         res.status(500).json({ error: e.message || "Failed to initialize deposit product" });
       }
     });
+    router3.get("/export", async (req, res, next) => {
+      try {
+        const products = await query(`
+      SELECT p.name as product_name, s.sku_code, s.barcode,
+             s.selling_price, s.cost_price, p.product_type,
+             c.name as category_name, m.name as manufacturer_name,
+             COALESCE((SELECT SUM(quantity) FROM branch_stock WHERE sku_id = s.id), 0) as current_inventory
+      FROM product_skus s
+      JOIN products p ON s.product_id = p.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+      WHERE p.deleted_at IS NULL AND p.business_id = ?
+      ORDER BY p.created_at DESC
+    `, [req.user.business_id]);
+        res.json(products);
+      } catch (e) {
+        next(e);
+      }
+    });
     router3.get("/:id", async (req, res, next) => {
       try {
         const businessId = req.user.business_id;
