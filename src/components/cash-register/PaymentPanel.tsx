@@ -61,12 +61,12 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
   };
 
   return (
-    <div className="p-4 border-b border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black font-mono text-base">
+    <div className="p-4 border-b border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black font-mono text-lg">
       <div className="flex items-center gap-2 mb-3">
-        <CreditCard size={16} className="text-neutral-600 dark:text-neutral-400" />
-        <h3 className="font-bold text-black dark:text-white text-base uppercase">Payment</h3>
+        <CreditCard size={18} className="text-neutral-600 dark:text-neutral-400" />
+        <h3 className="font-extrabold text-black dark:text-white text-lg uppercase">Payment</h3>
         {customerBalance > 0 && (
-          <span className="ml-auto text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-white dark:bg-black px-1.5 py-0.5 rounded-none border border-neutral-300 dark:border-neutral-800">
+          <span className="ml-auto text-[13px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-white dark:bg-black px-1.5 py-0.5 rounded-none border border-neutral-300 dark:border-neutral-800">
             Wallet: €{customerBalance.toFixed(2)}
           </span>
         )}
@@ -82,7 +82,7 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
                 key={method}
                 onClick={() => setPaymentMethod(method)}
                 className={`
-                  flex-1 py-2 px-3 text-[14px] font-bold rounded-none cursor-pointer transition-all border flex items-center justify-center gap-1.5 font-sans
+                  flex-1 py-2 px-3 text-[16px] font-extrabold rounded-none cursor-pointer transition-all border flex items-center justify-center gap-1.5 font-sans
                   ${getMethodColor(method, isActive)}
                 `}
               >
@@ -97,10 +97,10 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
         <div className="space-y-3">
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 font-bold text-base">€</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 font-extrabold text-lg">€</span>
               <input 
                 type="number"
-                className="w-full pl-7 pr-4 py-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-lg font-mono font-bold focus:outline-none text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400"
+                className="w-full pl-7 pr-4 py-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-xl font-mono font-extrabold focus:outline-none text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400"
                 placeholder="0.00"
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
@@ -117,11 +117,11 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
           
           <button 
             onClick={onAddPayment}
-            className={`w-full py-3 rounded-none font-bold text-[14px] uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer border transition-all ${
+            className={`w-full py-3 rounded-none font-extrabold text-[16px] uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer border transition-all ${
               getMethodColor(paymentMethod, true)
             }`}
           >
-            <Plus size={16} strokeWidth={3} />
+            <Plus size={18} strokeWidth={3} />
             <span>Apply €{Number(paymentAmount || 0).toFixed(2)} as {paymentMethod}</span>
           </button>
         </div>
@@ -129,31 +129,31 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
         {addedPayments.length > 0 && (
           <div className="space-y-2 pt-2">
             {addedPayments.map((p, idx) => (
-              <div key={idx} className="flex justify-between items-center bg-neutral-100 dark:bg-neutral-900 p-2 border border-neutral-300 dark:border-neutral-800 text-base rounded-none">
+              <div key={idx} className="flex justify-between items-center bg-neutral-100 dark:bg-neutral-900 p-2 border border-neutral-300 dark:border-neutral-800 text-lg rounded-none">
                 <div className="flex items-center gap-2">
-                  <span className="font-bold bg-white dark:bg-black px-1.5 py-0.5 rounded-none border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 uppercase text-xs">{p.method}</span>
-                  <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">€{p.amount.toFixed(2)}</span>
+                  <span className="font-extrabold bg-white dark:bg-black px-1.5 py-0.5 rounded-none border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 uppercase text-sm">{p.method}</span>
+                  <span className="font-mono font-extrabold text-neutral-900 dark:text-neutral-100">€{p.amount.toFixed(2)}</span>
                 </div>
                 <button 
                   onClick={() => onRemovePayment(idx)}
                   className="text-neutral-400 hover:text-red-500 transition-colors cursor-pointer border-0 bg-transparent"
                 >
-                  <Trash2 size={16} />
+                  <Trash2 size={18} />
                 </button>
               </div>
             ))}
-            <div className="flex justify-between items-center px-1 pt-1 text-base">
+            <div className="flex justify-between items-center px-1 pt-1 text-lg">
               {remainingAmount < 0 ? (
                 <>
-                  <span className="font-bold text-red-650 dark:text-red-400 uppercase tracking-wider text-xs">Change Due</span>
-                  <span className="font-mono font-bold text-red-650 dark:text-red-400">
+                  <span className="font-extrabold text-red-650 dark:text-red-400 uppercase tracking-wider text-sm">Change Due</span>
+                  <span className="font-mono font-extrabold text-red-650 dark:text-red-400">
                     €{Math.abs(remainingAmount).toFixed(2)}
                   </span>
                 </>
               ) : (
                 <>
-                  <span className="font-bold text-neutral-500 uppercase tracking-wider text-xs">Remaining</span>
-                  <span className={`font-mono font-bold ${remainingAmount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                  <span className="font-extrabold text-neutral-500 uppercase tracking-wider text-sm">Remaining</span>
+                  <span className={`font-mono font-extrabold ${remainingAmount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                     €{remainingAmount.toFixed(2)}
                   </span>
                 </>

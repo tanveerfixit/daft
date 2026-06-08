@@ -22,13 +22,13 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
     if (!hasQuery || !onQuickAddClick) return null;
 
     return (
-      <div className="absolute top-full left-0 right-0 z-[60] bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 p-4 mt-1 text-base text-neutral-900 dark:text-neutral-100 font-sans rounded-none">
+      <div className="absolute top-full left-0 right-0 z-[60] bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 p-4 mt-1 text-lg text-neutral-900 dark:text-neutral-100 font-sans rounded-none">
         <div className="text-center font-mono">
           <p className="mb-2 font-sans">No products found matching "{searchQuery}"</p>
           <button
             type="button"
             onClick={() => onQuickAddClick(searchQuery)}
-            className="px-3 py-1 bg-amber-400 text-slate-900 hover:bg-amber-500 text-xs font-bold uppercase transition-colors border border-neutral-350 dark:border-neutral-800 rounded-none cursor-pointer"
+            className="px-3 py-1 bg-amber-400 text-slate-900 hover:bg-amber-500 text-sm font-bold uppercase transition-colors border border-neutral-350 dark:border-neutral-800 rounded-none cursor-pointer"
           >
             Add "{searchQuery}"
           </button>
@@ -67,7 +67,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   };
 
   return (
-    <div className="absolute top-full left-0 right-0 z-[60] bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 mt-1 shadow-none text-base text-neutral-900 dark:text-neutral-100 font-sans rounded-none">
+    <div className="absolute top-full left-0 right-0 z-[60] bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 mt-1 shadow-none text-lg text-neutral-900 dark:text-neutral-100 font-sans rounded-none">
       <div className="max-h-60 overflow-y-auto">
         {results.map((product, idx) => (
           <button
@@ -77,7 +77,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
               idx === activeIndex ? 'bg-neutral-200 dark:bg-neutral-900 text-black dark:text-white' : 'bg-white dark:bg-black text-neutral-900 dark:text-neutral-100'
             }`}
           >
-            <div className="flex-1 min-w-0 text-[15px] flex items-center gap-2">
+            <div className="flex-1 min-w-0 text-[17px] flex items-center gap-2">
               <span className="font-normal truncate">
                 {highlightText(product.product_name, searchQuery)}
               </span>
@@ -101,7 +101,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
           </button>
         ))}
       </div>
-      <div className="bg-neutral-100 dark:bg-neutral-950 px-4 py-1.5 border-t border-neutral-300 dark:border-neutral-800 text-xs text-neutral-500 font-mono">
+      <div className="bg-neutral-100 dark:bg-neutral-950 px-4 py-1.5 border-t border-neutral-300 dark:border-neutral-800 text-sm text-neutral-500 font-mono">
         Press Enter to add first result or click an item
       </div>
     </div>

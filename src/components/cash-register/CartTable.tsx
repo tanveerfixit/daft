@@ -24,8 +24,8 @@ export const CartTable: React.FC<CartTableProps> = ({
   return (
     <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 overflow-hidden flex-1 flex flex-col min-h-0 rounded-none shadow-none">
       <div className="px-4 py-1.5 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900 flex justify-between items-center rounded-none">
-        <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Current Cart</h2>
-        <span className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">
+        <h2 className="text-[15px] font-bold text-black dark:text-white uppercase tracking-wider">Current Cart</h2>
+        <span className="text-[15px] font-bold text-black dark:text-white uppercase tracking-wider">
           {cart.reduce((sum, item) => sum + item.quantity, 0)} Items
         </span>
       </div>
@@ -33,13 +33,13 @@ export const CartTable: React.FC<CartTableProps> = ({
       <div className="overflow-auto flex-1 custom-scrollbar">
         {cart.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center p-12 text-neutral-450 dark:text-neutral-500 font-mono italic text-base">
-            <p className="font-normal uppercase tracking-widest text-[14px]">Your cart is empty</p>
+            <p className="font-normal uppercase tracking-widest text-[16px]">Your cart is empty</p>
             <p className="text-sm mt-1">Search for products to add them here</p>
           </div>
         ) : (
-          <table className="w-full border-collapse text-base">
+          <table className="w-full border-collapse text-lg">
             <thead className="sticky top-0 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 z-10">
-              <tr className="bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">
+              <tr className="bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-[15px] font-bold text-black dark:text-white uppercase tracking-wider">
                 <th className="py-1 pl-2 text-center w-12 border-r border-neutral-300 dark:border-neutral-800">#</th>
                 <th className="py-1 px-2 text-left border-r border-neutral-300 dark:border-neutral-800">Description</th>
                 <th className="py-1 px-2 text-center w-32 border-r border-neutral-300 dark:border-neutral-800">Inventory</th>

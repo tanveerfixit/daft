@@ -39,7 +39,7 @@ export const CartRow: React.FC<CartRowProps> = ({
   return (
     <tr className="group border-b border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors bg-white dark:bg-black">
       {/* Index Column */}
-      <td className="py-1.5 pl-2 text-center border-r border-neutral-300 dark:border-neutral-800 font-mono text-sm text-neutral-500 font-bold">
+      <td className="py-1.5 pl-2 text-center border-r border-neutral-300 dark:border-neutral-800 font-mono text-base text-neutral-500 font-bold">
         <span>#{index + 1}</span>
       </td>
 
@@ -47,36 +47,36 @@ export const CartRow: React.FC<CartRowProps> = ({
       <td className="py-1.5 px-2.5 min-w-[250px] border-r border-neutral-300 dark:border-neutral-800 font-sans">
         <div className="flex flex-col">
           <div className="flex items-baseline gap-2 flex-wrap font-sans">
-            <span className="text-[16px] font-normal text-neutral-900 dark:text-neutral-100 leading-tight font-sans">{item.product_name}</span>
+            <span className="text-[18px] font-normal text-neutral-900 dark:text-neutral-100 leading-tight font-sans">{item.product_name}</span>
             <button 
               onClick={() => onSelectProduct?.(item.id)}
-              className="text-[11px] font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline uppercase"
+              className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline uppercase"
             >
               {item.sku_code || item.barcode || `SKU-${item.id}`}
             </button>
           </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap font-sans">
             {item.device_id && (
-              <span className="inline-flex items-center gap-1 bg-neutral-200 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 text-[10px] px-1.5 py-0.5 rounded-none border border-neutral-300 dark:border-neutral-800 font-mono">
-                <Smartphone size={10} />
+              <span className="inline-flex items-center gap-1 bg-neutral-200 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 text-xs px-1.5 py-0.5 rounded-none border border-neutral-300 dark:border-neutral-800 font-mono">
+                <Smartphone size={12} />
                 {item.imei}
               </span>
             )}
             {item.discount && (
-              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-none border border-emerald-500/20">
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-none border border-emerald-500/20">
                 -{item.discount}{item.discountType === 'percentage' ? '%' : '€'}
               </span>
             )}
           </div>
           {item.notes && (
-            <p className="text-xs text-neutral-500 italic mt-1 line-clamp-1">"{item.notes}"</p>
+            <p className="text-sm text-neutral-500 italic mt-1 line-clamp-1">"{item.notes}"</p>
           )}
         </div>
       </td>
 
       {/* Metrics Column (Need/Have/OnPO) */}
       <td className="py-1.5 px-2 text-center border-r border-neutral-300 dark:border-neutral-800">
-        <div className="flex items-center justify-center gap-2 text-sm font-mono">
+        <div className="flex items-center justify-center gap-2 text-base font-mono">
           <div className="flex flex-col items-center" title="Need">
             <span className="text-neutral-650 dark:text-neutral-400">0</span>
           </div>
@@ -97,7 +97,7 @@ export const CartRow: React.FC<CartRowProps> = ({
       <td className="py-1.5 px-2 border-r border-neutral-300 dark:border-neutral-800">
         <div className="flex items-center justify-center gap-2">
           {item.product_type === 'serialized' ? (
-            <span className="w-20 text-center font-mono font-bold text-[13px] text-blue-650 dark:text-blue-400 bg-blue-500/10 py-0.5 rounded-none border border-blue-200 dark:border-blue-800">
+            <span className="w-20 text-center font-mono font-bold text-[15px] text-blue-650 dark:text-blue-400 bg-blue-500/10 py-0.5 rounded-none border border-blue-200 dark:border-blue-800">
               QTY: 1
             </span>
           ) : (
@@ -108,7 +108,7 @@ export const CartRow: React.FC<CartRowProps> = ({
               >
                 <Minus size={12} />
               </button>
-              <span className="w-8 text-center font-mono font-bold text-[15px] text-neutral-900 dark:text-neutral-100">{item.quantity}</span>
+              <span className="w-8 text-center font-mono font-bold text-[17px] text-neutral-900 dark:text-neutral-100">{item.quantity}</span>
               <button 
                 onClick={() => onUpdateQuantity(item.id, 1, item.device_id)}
                 className="w-6 h-6 flex items-center justify-center rounded-none border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 transition-colors"
