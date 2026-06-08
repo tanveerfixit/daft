@@ -833,37 +833,15 @@ async function initSchema() {
   }
 }
 async function seedData() {
-  const [existing] = await pool.execute("SELECT id FROM businesses WHERE name='Phone Management System'");
-  if (existing.length > 0) return;
+  const [existing] = await pool.execute("SELECT id FROM businesses LIMIT 1");
+  if (existing.length > 0) {
+    console.log("[MySQL] Businesses already exist. Skipping seeding to protect data.");
+    return;
+  }
   const conn = await pool.getConnection();
   try {
-    console.log("[MySQL] Resetting database and seeding initial data...");
+    console.log("[MySQL] Seeding initial data...");
     await conn.query("SET FOREIGN_KEY_CHECKS = 0");
-    const tables = [
-      "businesses",
-      "branches",
-      "users",
-      "customers",
-      "suppliers",
-      "settings",
-      "payment_methods",
-      "smtp_settings",
-      "invoices",
-      "invoice_items",
-      "products",
-      "product_skus",
-      "branch_stock",
-      "devices",
-      "inventory_movements",
-      "jobs",
-      "device_transfers"
-    ];
-    for (const table of tables) {
-      try {
-        await conn.query(`TRUNCATE TABLE ${table}`);
-      } catch (e) {
-      }
-    }
     const [bizResult] = await conn.execute(
       "INSERT INTO businesses (name, email, slug, status) VALUES (?, ?, ?, ?)",
       ["Phone Management System", "support@techinbox.ie", "phone-management-system", "active"]

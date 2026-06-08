@@ -914,28 +914,18 @@ export async function initSchema() {
 // ─── Seed Initial Data ────────────────────────────────────────────────────────
 
 export async function seedData() {
-  const [existing] = await pool.execute("SELECT id FROM businesses WHERE name='Phone Management System'");
-  if ((existing as any[]).length > 0) return;
+  const [existing] = await pool.execute("SELECT id FROM businesses LIMIT 1");
+  if ((existing as any[]).length > 0) {
+    console.log('[MySQL] Businesses already exist. Skipping seeding to protect data.');
+    return;
+  }
 
   const conn = await pool.getConnection();
   try {
-    console.log('[MySQL] Resetting database and seeding initial data...');
+    console.log('[MySQL] Seeding initial data...');
     
-    // Disable FK checks to allow truncation
+    // Disable FK checks for seeding
     await conn.query('SET FOREIGN_KEY_CHECKS = 0');
-    
-    const tables = [
-      'businesses', 'branches', 'users', 'customers', 'suppliers', 
-      'settings', 'payment_methods', 'smtp_settings', 'invoices', 
-      'invoice_items', 'products', 'product_skus', 'branch_stock', 
-      'devices', 'inventory_movements', 'jobs', 'device_transfers'
-    ];
-    
-    for (const table of tables) {
-      try {
-        await conn.query(`TRUNCATE TABLE ${table}`);
-      } catch (e) {}
-    }
 
     // Insert Main Business
     const [bizResult] = await conn.execute(
