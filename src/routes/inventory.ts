@@ -189,16 +189,16 @@ const updateDeviceSchema = z.object({
   condition: z.string().optional(),
   cost_price: z.number().or(z.string().transform(Number)).optional(),
   selling_price: z.number().or(z.string().transform(Number)).optional(),
-  unlocked: z.boolean().or(z.number().transform(Boolean)).optional(),
+  unlocked: z.string().or(z.boolean().transform(b => b ? 'Yes' : 'No')).or(z.number().transform(n => n ? 'Yes' : 'No')).optional(),
   imei_status: z.string().optional(),
   carrier: z.string().optional()
 });
 
 // PUT /api/devices/:id
 router.put('/devices/:id', async (req: any, res, next) => {
-  const data = updateDeviceSchema.parse(req.body);
-  const { color, gb, ram, condition, cost_price, selling_price, unlocked, imei_status, carrier } = data;
   try {
+    const data = updateDeviceSchema.parse(req.body);
+    const { color, gb, ram, condition, cost_price, selling_price, unlocked, imei_status, carrier } = data;
     const old = await queryOne('SELECT * FROM devices WHERE id=? AND business_id=?', [req.params.id, req.user.business_id]);
     if (!old) return res.status(404).json({ error: 'Device not found' });
 
@@ -294,7 +294,7 @@ router.get('/devices', async (req: any, res, next) => {
   try {
     const isSuper = req.user.role === 'superadmin';
     const sql = `
-      SELECT d.id, d.sku_id, d.imei, d.color, d.gb, d.\`condition\`, d.po_number, d.status, d.created_at,
+      SELECT d.id, d.sku_id, d.imei, d.color, d.gb, d.ram, d.selling_price, d.cost_price, d.\`condition\`, d.po_number, d.status, d.created_at,
              p.name as product_name, s.sku_code, inv.invoice_number
       FROM devices d
       JOIN product_skus s ON d.sku_id=s.id

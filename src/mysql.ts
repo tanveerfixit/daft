@@ -90,6 +90,15 @@ export async function initSchema() {
       )
     `);
 
+    // Migration: add email to branches if missing
+    try {
+      await conn.query('ALTER TABLE branches ADD COLUMN email VARCHAR(255) NULL AFTER name');
+      console.log('[MySQL] Migration: added email to branches');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
+
+
     await conn.query(`
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -876,8 +885,8 @@ export async function initSchema() {
 // ─── Seed Initial Data ────────────────────────────────────────────────────────
 
 export async function seedData() {
-  const [existing] = await pool.execute("SELECT id FROM businesses WHERE name='Phone Management System'");
-  if ((existing as any[]).length > 0) return;
+  const [existing] = await pool.execute("SELECT COUNT(*) as count FROM businesses");
+  if ((existing as any[])[0]?.count > 0) return;
 
   const conn = await pool.getConnection();
   try {

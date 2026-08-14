@@ -169,15 +169,15 @@ router.get('/:id', async (req: any, res, next) => {
       JOIN products p ON s.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
-      WHERE s.id = ? AND p.business_id = ?
-    `, [req.params.id, businessId]);
+      WHERE (s.id = ? OR p.id = ?) AND p.business_id = ?
+    `, [req.params.id, req.params.id, businessId]);
     if (!product) return res.status(404).json({ error: 'Product not found' });
     const stock = await query(`
       SELECT b.name as branch_name, b.id as branch_id, COALESCE(bs.quantity,0) as quantity
       FROM branches b
       LEFT JOIN branch_stock bs ON b.id = bs.branch_id AND bs.sku_id = ?
       WHERE b.business_id = ?
-    `, [req.params.id, businessId]);
+    `, [product.id, businessId]);
     res.json({ ...product, stock });
   } catch (e: any) { next(e); }
 });
@@ -190,11 +190,11 @@ router.put('/:id', async (req: any, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const [skuRows] = await conn.execute('SELECT s.*, p.business_id FROM product_skus s JOIN products p ON s.product_id = p.id WHERE s.id = ? AND p.business_id = ?', [skuId, businessId]);
+    const [skuRows] = await conn.execute('SELECT s.*, p.business_id FROM product_skus s JOIN products p ON s.product_id = p.id WHERE (s.id = ? OR p.id = ?) AND p.business_id = ?', [skuId, skuId, businessId]);
     const sku = (skuRows as any[])[0];
     if (!sku) throw new Error('Product not found in your business catalog');
     await conn.execute('UPDATE product_skus SET sku_code=?,barcode=?,selling_price=?,cost_price=? WHERE id=?',
-      [sku_code, barcode, selling_price, cost_price, skuId]);
+      [sku_code, barcode, selling_price, cost_price, sku.id]);
     await conn.execute('UPDATE products SET name=?,category_id=?,manufacturer_id=?,product_type=? WHERE id=?',
       [product_name, category_id, manufacturer_id, product_type, sku.product_id]);
     
@@ -207,10 +207,10 @@ router.put('/:id', async (req: any, res, next) => {
     const detailMsg = changes.length > 0 ? changes.join(', ') : 'Details updated';
 
     await conn.execute('INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)',
-      [skuId, req.userId, 'Product Updated', detailMsg]);
+      [sku.id, req.userId, 'Product Updated', detailMsg]);
     
     await conn.execute('INSERT INTO activity_logs (product_id,user_id,activity_type,description) VALUES (?,?,?,?)',
-      [skuId, req.userId, 'Product Updated', detailMsg]);
+      [sku.product_id, req.userId, 'Product Updated', detailMsg]);
 
     await conn.commit();
     res.json({ success: true });
@@ -305,7 +305,7 @@ router.post('/quick-add', async (req: any, res, next) => {
     await conn.execute('INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)',
       [skuId, req.userId, 'Product Created', `Product "${name}" quick-added with SKU ${finalSku}`]);
     await conn.execute('INSERT INTO activity_logs (product_id,user_id,activity_type,description) VALUES (?,?,?,?)',
-      [skuId, req.userId, 'Product Created', `Product "${name}" quick-added with SKU ${finalSku}`]);
+      [productId, req.userId, 'Product Created', `Product "${name}" quick-added with SKU ${finalSku}`]);
 
     // 3. Add Stock if quantity > 0
     if (stockQty > 0) {

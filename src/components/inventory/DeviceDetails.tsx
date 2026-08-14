@@ -11,6 +11,7 @@ import {
   ExternalLink,
   AlertCircle
 } from 'lucide-react';
+import { printDeviceLabelDirect } from '../../utils/printLabel';
 
 interface DeviceDetailsProps {
   deviceId: number;
@@ -76,144 +77,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
   };
 
   const handlePrintLabel = () => {
-    if (!printerSettings) {
-      alert('Printer settings not loaded. Please configure them in Getting Started.');
-      return;
-    }
-
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const { 
-      label_size, margin_top, margin_left, margin_bottom, margin_right, 
-      orientation, font_size, font_family 
-    } = printerSettings;
-
-    const fontSizeMap: Record<string, string> = {
-      'Small': '8pt',
-      'Regular': '10pt',
-      'Large': '12pt'
-    };
-
-    const isLandscape = orientation === 'Landscape';
-    
-    let width = isLandscape ? '57mm' : '32mm';
-    let height = isLandscape ? '32mm' : '57mm';
-
-    if (label_size.includes('mm')) {
-      const mmMatches = label_size.match(/(\d+)mm/g);
-      if (mmMatches && mmMatches.length >= 2) {
-        const w = mmMatches[0];
-        const h = mmMatches[1];
-        width = isLandscape ? w : h;
-        height = isLandscape ? h : w;
-      }
-    }
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Device Label - ${device.imei}</title>
-          <style>
-            @page {
-              size: ${width} ${height};
-              margin: 0;
-            }
-            html, body {
-              margin: 0;
-              padding: 0;
-              width: ${width};
-              height: ${height};
-              overflow: hidden;
-              background: #fff;
-            }
-            body {
-              padding: ${margin_top}px ${margin_right}px ${margin_bottom}px ${margin_left}px;
-              font-family: ${font_family}, sans-serif;
-              font-size: ${fontSizeMap[font_size] || '10pt'};
-              box-sizing: border-box;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              text-align: center;
-              page-break-after: avoid;
-              break-after: avoid;
-            }
-            * {
-              -webkit-print-color-adjust: exact;
-              box-sizing: border-box;
-            }
-            .label-content {
-              width: 100%;
-              height: 100%;
-              display: flex;
-              flex-direction: column;
-              justify-content: space-between;
-              padding: 0px;
-              color: #000;
-            }
-            .barcode-container {
-              width: 100%;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              overflow: hidden;
-            }
-            #barcode {
-              max-width: 100% !important;
-              height: auto !important;
-              max-height: 40px !important;
-            }
-          </style>
-          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-        </head>
-        <body>
-          <div class="label-content">
-            <div style="font-weight: bold; font-size: 1.1em; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; line-height: 1.1;">
-              ${device.product_name}
-            </div>
-            
-            <div style="font-size: 0.9em; margin-top: 0px; line-height: 1;">
-              ${device.ram ? device.ram.replace(/ram/i, '').trim() : '-'} ${device.gb ? device.gb.replace(/gb/i, '').trim() + 'GB' : '-'}
-            </div>
-
-            <div style="flex-grow: 1; min-height: 2px;"></div>
-
-            <div class="barcode-container">
-              <svg id="barcode"></svg>
-            </div>
-            
-            <div style="height: 2px;"></div>
-            
-            <div style="font-size: 7.5pt; font-family: monospace; width: 100%; display: flex; justify-content: space-between; padding: 0 2px;">
-              ${device.imei.split('').map((char: string) => `<span>${char}</span>`).join('')}
-            </div>
-          </div>
-          <script>
-            try {
-              JsBarcode("#barcode", "${device.imei}", {
-                format: "CODE128",
-                width: 2,
-                height: 50,
-                displayValue: false,
-                margin: 0
-              });
-            } catch (e) {
-              console.error("Barcode generation failed", e);
-            }
-
-            window.addEventListener('load', () => {
-              setTimeout(() => {
-                window.print();
-                setTimeout(() => window.close(), 500);
-              }, 500);
-            });
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+    printDeviceLabelDirect(device, printerSettings);
   };
 
   const handleUpdateDevice = async () => {
@@ -235,15 +99,15 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
 
   const handleEditClick = () => {
     setEditForm({
-      color: device.color,
-      gb: device.gb,
-      ram: device.ram,
-      condition: device.condition,
-      cost_price: device.cost_price,
-      selling_price: device.selling_price,
-      unlocked: device.unlocked,
-      imei_status: device.imei_status,
-      carrier: device.carrier
+      color: device.color || '',
+      gb: device.gb || '',
+      ram: device.ram || '',
+      condition: device.condition || 'Grade A',
+      cost_price: device.cost_price ?? '',
+      selling_price: device.selling_price ?? '',
+      unlocked: device.unlocked || '',
+      imei_status: device.imei_status || '',
+      carrier: device.carrier || ''
     });
     setShowEditModal(true);
   };
@@ -527,7 +391,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Color</label>
                 <input 
                   type="text" 
-                  value={editForm.color} 
+                  value={editForm.color ?? ''} 
                   onChange={e => setEditForm({...editForm, color: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />
@@ -536,7 +400,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Storage (GB)</label>
                 <input 
                   type="text" 
-                  value={editForm.gb} 
+                  value={editForm.gb ?? ''} 
                   onChange={e => setEditForm({...editForm, gb: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />
@@ -545,7 +409,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <label className="text-[10px] font-bold text-slate-400 uppercase">RAM</label>
                 <input 
                   type="text" 
-                  value={editForm.ram} 
+                  value={editForm.ram ?? ''} 
                   onChange={e => setEditForm({...editForm, ram: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />
@@ -553,7 +417,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Condition</label>
                 <select 
-                  value={editForm.condition} 
+                  value={editForm.condition ?? 'Grade A'} 
                   onChange={e => setEditForm({...editForm, condition: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 >
@@ -568,7 +432,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Cost Price</label>
                 <input 
                   type="number" 
-                  value={editForm.cost_price} 
+                  value={editForm.cost_price ?? ''} 
                   onChange={e => setEditForm({...editForm, cost_price: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />
@@ -577,7 +441,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Selling Price</label>
                 <input 
                   type="number" 
-                  value={editForm.selling_price} 
+                  value={editForm.selling_price ?? ''} 
                   onChange={e => setEditForm({...editForm, selling_price: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />
@@ -586,7 +450,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Unlocked Status</label>
                 <input 
                   type="text" 
-                  value={editForm.unlocked} 
+                  value={editForm.unlocked ?? ''} 
                   onChange={e => setEditForm({...editForm, unlocked: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />
@@ -595,7 +459,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <label className="text-[10px] font-bold text-slate-400 uppercase">IMEI Status</label>
                 <input 
                   type="text" 
-                  value={editForm.imei_status} 
+                  value={editForm.imei_status ?? ''} 
                   onChange={e => setEditForm({...editForm, imei_status: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />

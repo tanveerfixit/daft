@@ -195,6 +195,7 @@ const DeviceInventoryRoute = () => {
       }}
       onSelectProduct={(skuId) => navigate(`/${branchSlug}/sku-devices/${skuId}`, { state: { from: `/${branchSlug}/devices` } })}
       onSelectDevice={(id) => navigate(`/${branchSlug}/devices/${id}`)}
+      onOpenPrinterSettings={() => navigate(`/${branchSlug}/getting-started?tab=manage-label-printer`)}
     />
   );
 };

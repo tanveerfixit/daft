@@ -81,6 +81,12 @@ async function initSchema() {
         FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
       )
     `);
+    try {
+      await conn.query("ALTER TABLE branches ADD COLUMN email VARCHAR(255) NULL AFTER name");
+      console.log("[MySQL] Migration: added email to branches");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
     await conn.query(`
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -798,8 +804,8 @@ async function initSchema() {
   }
 }
 async function seedData() {
-  const [existing] = await pool.execute("SELECT id FROM businesses WHERE name='Phone Management System'");
-  if (existing.length > 0) return;
+  const [existing] = await pool.execute("SELECT COUNT(*) as count FROM businesses");
+  if (existing[0]?.count > 0) return;
   const conn = await pool.getConnection();
   try {
     console.log("[MySQL] Resetting database and seeding initial data...");
@@ -1783,15 +1789,15 @@ var init_products = __esm({
       JOIN products p ON s.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
-      WHERE s.id = ? AND p.business_id = ?
-    `, [req.params.id, businessId]);
+      WHERE (s.id = ? OR p.id = ?) AND p.business_id = ?
+    `, [req.params.id, req.params.id, businessId]);
         if (!product) return res.status(404).json({ error: "Product not found" });
         const stock = await query(`
       SELECT b.name as branch_name, b.id as branch_id, COALESCE(bs.quantity,0) as quantity
       FROM branches b
       LEFT JOIN branch_stock bs ON b.id = bs.branch_id AND bs.sku_id = ?
       WHERE b.business_id = ?
-    `, [req.params.id, businessId]);
+    `, [product.id, businessId]);
         res.json({ ...product, stock });
       } catch (e) {
         next(e);
@@ -1804,12 +1810,12 @@ var init_products = __esm({
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
-        const [skuRows] = await conn.execute("SELECT s.*, p.business_id FROM product_skus s JOIN products p ON s.product_id = p.id WHERE s.id = ? AND p.business_id = ?", [skuId, businessId]);
+        const [skuRows] = await conn.execute("SELECT s.*, p.business_id FROM product_skus s JOIN products p ON s.product_id = p.id WHERE (s.id = ? OR p.id = ?) AND p.business_id = ?", [skuId, skuId, businessId]);
         const sku = skuRows[0];
         if (!sku) throw new Error("Product not found in your business catalog");
         await conn.execute(
           "UPDATE product_skus SET sku_code=?,barcode=?,selling_price=?,cost_price=? WHERE id=?",
-          [sku_code, barcode, selling_price, cost_price, skuId]
+          [sku_code, barcode, selling_price, cost_price, sku.id]
         );
         await conn.execute(
           "UPDATE products SET name=?,category_id=?,manufacturer_id=?,product_type=? WHERE id=?",
@@ -1823,11 +1829,11 @@ var init_products = __esm({
         const detailMsg = changes.length > 0 ? changes.join(", ") : "Details updated";
         await conn.execute(
           "INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)",
-          [skuId, req.userId, "Product Updated", detailMsg]
+          [sku.id, req.userId, "Product Updated", detailMsg]
         );
         await conn.execute(
           "INSERT INTO activity_logs (product_id,user_id,activity_type,description) VALUES (?,?,?,?)",
-          [skuId, req.userId, "Product Updated", detailMsg]
+          [sku.product_id, req.userId, "Product Updated", detailMsg]
         );
         await conn.commit();
         res.json({ success: true });
@@ -1921,7 +1927,7 @@ var init_products = __esm({
         );
         await conn.execute(
           "INSERT INTO activity_logs (product_id,user_id,activity_type,description) VALUES (?,?,?,?)",
-          [skuId, req.userId, "Product Created", `Product "${name}" quick-added with SKU ${finalSku}`]
+          [productId, req.userId, "Product Created", `Product "${name}" quick-added with SKU ${finalSku}`]
         );
         if (stockQty > 0) {
           await conn.execute(
@@ -3152,7 +3158,7 @@ var init_settings = __esm({
       margin_bottom: z6.number().or(z6.string().transform(Number)).optional(),
       margin_right: z6.number().or(z6.string().transform(Number)).optional(),
       orientation: z6.string().optional(),
-      font_size: z6.number().or(z6.string().transform(Number)).optional(),
+      font_size: z6.string().or(z6.number().transform(String)).optional(),
       font_family: z6.string().optional()
     });
     router7.post("/printer-settings", async (req, res, next) => {
@@ -3160,10 +3166,18 @@ var init_settings = __esm({
       const data = printerSettingsSchema.parse(req.body);
       const { label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family } = data;
       try {
-        await execute(
-          "UPDATE printer_settings SET label_size=?,barcode_length=?,margin_top=?,margin_left=?,margin_bottom=?,margin_right=?,orientation=?,font_size=?,font_family=? WHERE business_id=? AND branch_id=?",
-          [label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family, req.user.business_id, branchId]
-        );
+        const existing = await queryOne("SELECT id FROM printer_settings WHERE business_id=? AND branch_id=?", [req.user.business_id, branchId]);
+        if (existing) {
+          await execute(
+            "UPDATE printer_settings SET label_size=?,barcode_length=?,margin_top=?,margin_left=?,margin_bottom=?,margin_right=?,orientation=?,font_size=?,font_family=? WHERE business_id=? AND branch_id=?",
+            [label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family, req.user.business_id, branchId]
+          );
+        } else {
+          await execute(
+            "INSERT INTO printer_settings (business_id,branch_id,label_size,barcode_length,margin_top,margin_left,margin_bottom,margin_right,orientation,font_size,font_family) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            [req.user.business_id, branchId, label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family]
+          );
+        }
         res.json({ success: true });
       } catch (e) {
         next(e);
@@ -3554,14 +3568,14 @@ var init_inventory = __esm({
       condition: z7.string().optional(),
       cost_price: z7.number().or(z7.string().transform(Number)).optional(),
       selling_price: z7.number().or(z7.string().transform(Number)).optional(),
-      unlocked: z7.boolean().or(z7.number().transform(Boolean)).optional(),
+      unlocked: z7.string().or(z7.boolean().transform((b) => b ? "Yes" : "No")).or(z7.number().transform((n) => n ? "Yes" : "No")).optional(),
       imei_status: z7.string().optional(),
       carrier: z7.string().optional()
     });
     router8.put("/devices/:id", async (req, res, next) => {
-      const data = updateDeviceSchema.parse(req.body);
-      const { color, gb, ram, condition, cost_price, selling_price, unlocked, imei_status, carrier } = data;
       try {
+        const data = updateDeviceSchema.parse(req.body);
+        const { color, gb, ram, condition, cost_price, selling_price, unlocked, imei_status, carrier } = data;
         const old = await queryOne("SELECT * FROM devices WHERE id=? AND business_id=?", [req.params.id, req.user.business_id]);
         if (!old) return res.status(404).json({ error: "Device not found" });
         await execute(`
@@ -3665,7 +3679,7 @@ var init_inventory = __esm({
       try {
         const isSuper = req.user.role === "superadmin";
         const sql = `
-      SELECT d.id, d.sku_id, d.imei, d.color, d.gb, d.\`condition\`, d.po_number, d.status, d.created_at,
+      SELECT d.id, d.sku_id, d.imei, d.color, d.gb, d.ram, d.selling_price, d.cost_price, d.\`condition\`, d.po_number, d.status, d.created_at,
              p.name as product_name, s.sku_code, inv.invoice_number
       FROM devices d
       JOIN product_skus s ON d.sku_id=s.id

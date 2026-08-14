@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Settings, Building2, Percent, CreditCard, Users, Package, Printer, Save, Plus, X, ArrowUp, Upload, RotateCcw, FileText } from 'lucide-react';
-import { useRef } from 'react';
+import JsBarcode from 'jsbarcode';
+import { printDeviceLabelDirect } from '../utils/printLabel';
 
 interface SettingsData {
   currency: string;
@@ -90,16 +91,36 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
   });
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [printerSettings, setPrinterSettings] = useState<PrinterSettingsData>({
-    label_size: '2.25" (57mm) x 1.25" (32mm) Dymo 30334',
+    label_size: '2.25" (57mm) x 1.25" (32mm) Dymo 11354 Multi-Purpose (LabelWriter 450)',
     barcode_length: 20,
-    margin_top: 5,
+    margin_top: 6,
     margin_left: 3,
-    margin_bottom: 3,
+    margin_bottom: 2,
     margin_right: 3,
     orientation: 'Landscape',
     font_size: 'Regular',
     font_family: 'Arial'
   });
+  const testSvgRef = useRef<SVGSVGElement | null>(null);
+
+  useEffect(() => {
+    if (activeTab === 'manage-label-printer' && testSvgRef.current) {
+      try {
+        JsBarcode(testSvgRef.current, "350967681605412", {
+          format: "CODE128",
+          width: 1.8,
+          height: 38,
+          displayValue: false,
+          margin: 0,
+          background: "transparent",
+          lineColor: "#000000"
+        });
+      } catch (e) {
+        console.error("Test label barcode error", e);
+      }
+    }
+  }, [printerSettings, activeTab]);
+
   const [thermalSettings, setThermalSettings] = useState<ThermalPrinterSettingsData>({
     font_family: 'Arial',
     font_size: '12px',
@@ -568,118 +589,14 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
   };
 
   const handlePrintTestLabel = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const { 
-      label_size, margin_top, margin_left, margin_bottom, margin_right, 
-      orientation, font_size, font_family 
-    } = printerSettings;
-
-    const fontSizeMap: Record<string, string> = {
-      'Small': '8pt',
-      'Regular': '10pt',
-      'Large': '12pt'
-    };
-
-    const isLandscape = orientation === 'Landscape';
-    
-    // Extract dimensions from label_size string or use defaults
-    // Example: 2.25" (57mm) x 1.25" (32mm)
-    const width = isLandscape ? '57mm' : '32mm';
-    const height = isLandscape ? '32mm' : '57mm';
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Test Label</title>
-          <style>
-            @page {
-              size: ${width} ${height};
-              margin: 0;
-            }
-            html, body {
-              margin: 0;
-              padding: 0;
-              width: ${width};
-              height: ${height};
-              overflow: hidden;
-              background: #fff;
-            }
-            body {
-              padding: ${margin_top}px ${margin_right}px ${margin_bottom}px ${margin_left}px;
-              font-family: ${font_family}, sans-serif;
-              font-size: ${fontSizeMap[font_size] || '10pt'};
-              box-sizing: border-box;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              text-align: center;
-              page-break-after: avoid;
-              break-after: avoid;
-            }
-            * {
-              -webkit-print-color-adjust: exact;
-              box-sizing: border-box;
-            }
-            .label-content {
-              width: 100%;
-              height: 100%;
-              display: flex;
-              flex-direction: column;
-              justify-content: space-between;
-              padding: 0px;
-              color: #000;
-            }
-            .barcode-container {
-              width: 100%;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              overflow: hidden;
-            }
-            #barcode {
-              max-width: 100% !important;
-              height: auto !important;
-              max-height: 40px !important;
-            }
-          </style>
-          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-        </head>
-        <body>
-          <div class="label-content">
-            <div style="font-weight: bold; font-size: 1.1em; text-transform: uppercase; line-height: 1.1;">Apple iPhone 14</div>
-            <div style="font-size: 0.9em; line-height: 1;">6GB 128GB</div>
-            <div style="flex-grow: 1; min-height: 2px;"></div>
-            <div class="barcode-container">
-              <svg id="barcode"></svg>
-            </div>
-            <div style="height: 2px;"></div>
-            <div style="font-size: 7.5pt; font-family: monospace; width: 100%; display: flex; justify-content: space-between; padding: 0 2px;">
-              <span>3</span><span>5</span><span>0</span><span>9</span><span>6</span><span>7</span><span>6</span><span>8</span><span>1</span><span>6</span><span>0</span><span>5</span><span>4</span><span>1</span><span>2</span>
-            </div>
-          </div>
-          <script>
-            try {
-              JsBarcode("#barcode", "350967681605412", {
-                format: "CODE128",
-                width: 2,
-                height: 50,
-                displayValue: false,
-                margin: 0
-              });
-            } catch (e) {}
-
-            window.onload = () => {
-              window.print();
-              window.close();
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+    printDeviceLabelDirect({
+      imei: '350967681605412',
+      product_name: 'Apple iPhone 14 Pro Max',
+      ram: '6GB',
+      gb: '256GB',
+      color: 'Space Black',
+      condition: 'Grade A'
+    }, printerSettings);
   };
 
   const addPaymentMethod = () => {
@@ -1472,10 +1389,11 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <label className="text-sm font-bold text-slate-700">Label Size</label>
+                  <label className="text-sm font-bold text-slate-700">Label Size & Model</label>
                   <div className="md:col-span-2 space-y-3">
                     {[
-                      '2.25" (57mm) x 1.25" (32mm) Dymo 11354 / 30334',
+                      '2.25" (57mm) x 1.25" (32mm) Dymo 11354 Multi-Purpose (LabelWriter 450)',
+                      '2.25" (57mm) x 1.25" (32mm) Dymo 30334',
                       '2.12" (54mm) x 1" (25mm) Dymo 30336',
                       '2.4" (62mm) x 1.1" (28mm) Brother DK1209',
                       'Custom'
@@ -1488,35 +1406,35 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                           onChange={() => setPrinterSettings({ ...printerSettings, label_size: size })}
                           className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                         />
-                        <span className="text-sm text-slate-700 group-hover:text-blue-600 transition-colors">{size}</span>
+                        <span className="text-sm text-slate-700 group-hover:text-blue-600 transition-colors font-medium">{size}</span>
                       </label>
                     ))}
 
-                    <div className="bg-red-50 border border-red-100 rounded p-4 mt-4 space-y-2">
-                      <p className="text-xs font-bold text-red-800">The label-size you chose:</p>
-                      <ul className="text-[11px] text-red-700 space-y-1 ml-4 list-disc">
-                        <li>might produce tiny barcode, so please consider checking Preview with your Scanner</li>
-                        <li>might contain 6 lines of information including Barcode</li>
-                        <li>might contain 34 characters in each line</li>
+                    <div className="bg-blue-50 border border-blue-100 rounded p-4 mt-4 space-y-2">
+                      <p className="text-xs font-bold text-blue-900">Dymo LabelWriter 450 (11354) Specifications:</p>
+                      <ul className="text-[11px] text-blue-800 space-y-1 ml-4 list-disc">
+                        <li>Standard label dimensions: <strong>57mm width × 32mm height</strong> (Landscape)</li>
+                        <li>High-density Code-128 barcode optimized for thermal transfer printing</li>
+                        <li>Evenly formatted 15-digit IMEI with monospace character spacing</li>
                       </ul>
                       <div className="flex items-center gap-4 pt-2">
-                        <span className="text-xs font-bold text-red-800 whitespace-nowrap">Regular Barcode Length:</span>
+                        <span className="text-xs font-bold text-blue-900 whitespace-nowrap">Barcode Density:</span>
                         <input 
                           type="range" 
                           min="5" 
                           max="50" 
                           value={printerSettings.barcode_length}
                           onChange={(e) => setPrinterSettings({ ...printerSettings, barcode_length: parseInt(e.target.value) })}
-                          className="flex-1 h-2 bg-red-200 rounded-lg appearance-none cursor-pointer accent-red-600"
+                          className="flex-1 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                         />
-                        <span className="text-xs font-bold text-red-800 w-8">{printerSettings.barcode_length} character</span>
+                        <span className="text-xs font-bold text-blue-900 w-12">{printerSettings.barcode_length} chars</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-6">
-                  <label className="text-sm font-bold text-slate-700">Margins</label>
+                  <label className="text-sm font-bold text-slate-700">Margins (mm / px)</label>
                   <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-2">
                     {['top', 'left', 'bottom', 'right'].map(side => (
                       <div key={side} className="flex items-center">
@@ -1542,7 +1460,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                       onChange={(e) => setPrinterSettings({ ...printerSettings, orientation: e.target.value })}
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
-                      <option value="Landscape">Landscape</option>
+                      <option value="Landscape">Landscape (Recommended for Dymo 11354)</option>
                       <option value="Portrait">Portrait</option>
                     </select>
                   </div>
@@ -1556,9 +1474,9 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                       onChange={(e) => setPrinterSettings({ ...printerSettings, font_size: e.target.value })}
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
-                      <option value="Small">Small</option>
-                      <option value="Regular">Regular</option>
-                      <option value="Large">Large</option>
+                      <option value="Small">Small (Compact)</option>
+                      <option value="Regular">Regular (Standard)</option>
+                      <option value="Large">Large (High Legibility)</option>
                     </select>
                   </div>
                 </div>
@@ -1583,30 +1501,39 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                   <div className="bg-slate-50 border border-slate-200 rounded p-4 flex gap-4 text-xs text-slate-600 italic">
                     <div className="bg-slate-300 w-1 h-auto rounded-full"></div>
                     <p>
-                      This is a sample label. Please make a test print and you should be able to see all 4 sides of the border around this label. If you do not then you need to increase the margin on any side you do not see when printed until you do see it.
+                      Live preview accurately simulates Dymo 11354 label proportions on the Dymo LabelWriter 450. Use <strong>Print Test Label</strong> to test alignment.
                     </p>
                   </div>
 
-                  <div className="bg-yellow-50 border border-yellow-100 rounded p-8 flex justify-center">
+                  <div className="bg-slate-100 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded p-8 flex justify-center">
                     <div 
-                      className="bg-white border border-black p-2 flex flex-col items-center justify-center text-center shadow-sm"
+                      className="bg-white text-black border border-black shadow-md rounded-[2px] p-2 flex flex-col justify-between items-center text-center select-none"
                       style={{
-                        width: printerSettings.orientation === 'Landscape' ? '200px' : '120px',
-                        height: printerSettings.orientation === 'Landscape' ? '120px' : '200px',
-                        paddingTop: `${printerSettings.margin_top}px`,
-                        paddingLeft: `${printerSettings.margin_left}px`,
-                        paddingBottom: `${printerSettings.margin_bottom}px`,
-                        paddingRight: `${printerSettings.margin_right}px`,
-                        fontFamily: printerSettings.font_family,
-                        fontSize: printerSettings.font_size === 'Small' ? '10px' : printerSettings.font_size === 'Large' ? '14px' : '12px'
+                        width: printerSettings.orientation === 'Landscape' ? '228px' : '128px',
+                        height: printerSettings.orientation === 'Landscape' ? '128px' : '228px',
+                        paddingTop: `${printerSettings.margin_top ?? 6}px`,
+                        paddingLeft: `${printerSettings.margin_left ?? 3}px`,
+                        paddingBottom: `${printerSettings.margin_bottom ?? 2}px`,
+                        paddingRight: `${printerSettings.margin_right ?? 3}px`,
+                        fontFamily: `${printerSettings.font_family || 'Arial'}, sans-serif`
                       }}
                     >
-                      <div>Cell-Store</div>
-                      <div className="font-bold">iPhone-11</div>
-                      <div>$250.00</div>
-                      <div className="mt-1 border-t border-black pt-1 w-full text-[8px] font-mono">
-                        ||||||||||||||||||||||||||||||||||||||||||||||
-                        <div className="mt-0.5">FGR14528978563214555</div>
+                      <div className={`font-extrabold uppercase ${printerSettings.font_size === 'Small' ? 'text-[9.5px]' : printerSettings.font_size === 'Large' ? 'text-[12.5px]' : 'text-[11px]'} w-full truncate leading-tight`}>
+                        Apple iPhone 14 Pro
+                      </div>
+                      <div className={`${printerSettings.font_size === 'Small' ? 'text-[7.5px]' : printerSettings.font_size === 'Large' ? 'text-[9.5px]' : 'text-[8.5px]'} text-neutral-800 w-full truncate leading-none`}>
+                        Spec: 6/128GB • Space Gray
+                      </div>
+                      <div className={`font-black ${printerSettings.font_size === 'Small' ? 'text-[13px]' : printerSettings.font_size === 'Large' ? 'text-[16.5px]' : 'text-[14.5px]'} text-black w-full truncate leading-none mt-1 tracking-tight`}>
+                        Price: €299.00
+                      </div>
+                      <div className="w-full flex-1 flex items-end justify-center overflow-hidden mb-0 mt-0.5">
+                        <svg ref={testSvgRef} className="w-full max-h-[34px] block mb-0"></svg>
+                      </div>
+                      <div className="w-full font-mono font-bold text-[8.5px] flex justify-between tracking-wide leading-none px-0.5 mt-0">
+                        {"350967681605412".split('').map((c, i) => (
+                          <span key={i}>{c}</span>
+                        ))}
                       </div>
                     </div>
                   </div>

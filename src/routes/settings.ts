@@ -150,7 +150,7 @@ const printerSettingsSchema = z.object({
   margin_bottom: z.number().or(z.string().transform(Number)).optional(),
   margin_right: z.number().or(z.string().transform(Number)).optional(),
   orientation: z.string().optional(),
-  font_size: z.number().or(z.string().transform(Number)).optional(),
+  font_size: z.string().or(z.number().transform(String)).optional(),
   font_family: z.string().optional()
 });
 
@@ -159,8 +159,14 @@ router.post('/printer-settings', async (req: any, res, next) => {
   const data = printerSettingsSchema.parse(req.body);
   const { label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family } = data;
   try {
-    await execute('UPDATE printer_settings SET label_size=?,barcode_length=?,margin_top=?,margin_left=?,margin_bottom=?,margin_right=?,orientation=?,font_size=?,font_family=? WHERE business_id=? AND branch_id=?',
-      [label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family, req.user.business_id, branchId]);
+    const existing = await queryOne('SELECT id FROM printer_settings WHERE business_id=? AND branch_id=?', [req.user.business_id, branchId]);
+    if (existing) {
+      await execute('UPDATE printer_settings SET label_size=?,barcode_length=?,margin_top=?,margin_left=?,margin_bottom=?,margin_right=?,orientation=?,font_size=?,font_family=? WHERE business_id=? AND branch_id=?',
+        [label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family, req.user.business_id, branchId]);
+    } else {
+      await execute('INSERT INTO printer_settings (business_id,branch_id,label_size,barcode_length,margin_top,margin_left,margin_bottom,margin_right,orientation,font_size,font_family) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+        [req.user.business_id, branchId, label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family]);
+    }
     res.json({ success: true });
   } catch (e: any) { next(e); }
 });

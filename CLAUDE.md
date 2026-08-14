@@ -18,6 +18,8 @@
   - Ensure all newly created tables include `business_id` and appropriate foreign key relations.
 
 ## 3. GitHub Repository & Deployment
-- **Repository URL:** `https://github.com/tanveerfixit/data-epos`
+- **Repository URL:** `https://github.com/tanveerfixit/epos`
 - **Source Files:** All core frontend logic in `src/` and backend server logic in `server.ts` & `src/routes/`.
 - **Environment Files:** Never commit `.env` containing sensitive credentials to GitHub. Always use `.env.example` as the template.
+- **Push Policy:** **DO NOT** push commits or update the remote GitHub repository unless explicitly instructed/requested by the user.
+

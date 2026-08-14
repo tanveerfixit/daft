@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Search, ExternalLink } from 'lucide-react';
+import { Search, ExternalLink, Printer } from 'lucide-react';
+import { printDeviceLabelDirect } from '../utils/printLabel';
 
 interface Device {
   id: number;
@@ -13,17 +14,21 @@ interface Device {
   created_at: string;
   invoice_number?: string;
   status: string;
+  selling_price?: number;
+  cost_price?: number;
 }
 
 interface Props {
   onSelectPO: (poNumber: string) => void;
   onSelectProduct: (skuId: number) => void;
   onSelectDevice: (id: number) => void;
+  onOpenPrinterSettings?: () => void;
 }
 
-export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectDevice }: Props) {
+export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectDevice, onOpenPrinterSettings }: Props) {
   const [devices, setDevices] = useState<Device[]>([]);
   const [statusFilter, setStatusFilter] = useState('in_stock');
+  const [printerSettings, setPrinterSettings] = useState<any>(null);
   
   // Filtering & Pagination State
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,6 +47,11 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
         console.error('Error fetching devices:', err);
         setDevices([]);
       });
+
+    fetch('/api/printer-settings')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data) setPrinterSettings(data); })
+      .catch(() => {});
   }, [statusFilter]);
 
   // Derived unique lists for dropdown filtering options
@@ -195,13 +205,14 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
               <th className="px-4 py-2 border-r border-neutral-300 dark:border-neutral-800 w-1/6">IMEI Number</th>
               <th className="px-4 py-2 border-r border-neutral-300 dark:border-neutral-800 text-center w-24">PO #</th>
               <th className="px-4 py-2 border-r border-neutral-300 dark:border-neutral-800 w-1/6">Date Entered</th>
-              <th className="px-4 py-2 text-center w-1/6">Invoice #</th>
+              <th className="px-4 py-2 border-r border-neutral-300 dark:border-neutral-800 text-center w-1/6">Invoice #</th>
+              <th className="px-3 py-2 text-center w-16">Label</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-200 dark:divide-neutral-850">
             {paginatedDevices.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center py-8 text-neutral-400 dark:text-neutral-500 italic text-sm">
+                <td colSpan={9} className="text-center py-8 text-neutral-400 dark:text-neutral-500 italic text-sm">
                   No matching devices found in inventory.
                 </td>
               </tr>
@@ -241,8 +252,17 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
                   <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 font-mono text-xs">
                     {new Date(device.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-')}
                   </td>
-                  <td className="px-4 py-2 text-center text-neutral-500 dark:text-neutral-400 font-mono text-xs">
+                  <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-center text-neutral-500 dark:text-neutral-400 font-mono text-xs">
                     {device.invoice_number || 'In Inventory'}
+                  </td>
+                  <td className="px-2 py-1.5 text-center">
+                    <button
+                      onClick={() => printDeviceLabelDirect(device, printerSettings)}
+                      className="p-1 text-[#0285b5] hover:bg-[#0285b5]/10 rounded transition-colors inline-flex items-center justify-center cursor-pointer bg-transparent border-0"
+                      title="Print Barcode Label (Dymo 11354)"
+                    >
+                      <Printer size={15} />
+                    </button>
                   </td>
                 </tr>
               ))
