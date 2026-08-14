@@ -468,6 +468,13 @@ async function initSchema() {
         show_totals TINYINT(1) DEFAULT 1,
         show_footer TINYINT(1) DEFAULT 1,
         show_powered_by TINYINT(1) DEFAULT 1,
+        eod_show_cash_summary TINYINT(1) DEFAULT 1,
+        eod_show_payment_type TINYINT(1) DEFAULT 1,
+        eod_show_total_cash TINYINT(1) DEFAULT 1,
+        eod_show_total_card_sale TINYINT(1) DEFAULT 1,
+        eod_show_total TINYINT(1) DEFAULT 1,
+        eod_footer_type VARCHAR(50) DEFAULT 'branch',
+        eod_footer_custom_text TEXT,
         footer_text TEXT,
         FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
         FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE,
@@ -477,6 +484,42 @@ async function initSchema() {
     try {
       await conn.query("ALTER TABLE thermal_printer_settings ADD COLUMN show_powered_by TINYINT(1) DEFAULT 1 AFTER show_footer");
       console.log("[MySQL] Migration: added show_powered_by to thermal_printer_settings");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE thermal_printer_settings ADD COLUMN eod_show_cash_summary TINYINT(1) DEFAULT 1 AFTER show_powered_by");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE thermal_printer_settings ADD COLUMN eod_show_payment_type TINYINT(1) DEFAULT 1 AFTER eod_show_cash_summary");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE thermal_printer_settings ADD COLUMN eod_show_total_cash TINYINT(1) DEFAULT 1 AFTER eod_show_payment_type");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE thermal_printer_settings ADD COLUMN eod_show_total_card_sale TINYINT(1) DEFAULT 1 AFTER eod_show_total_cash");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE thermal_printer_settings ADD COLUMN eod_show_total TINYINT(1) DEFAULT 1 AFTER eod_show_total_card_sale");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE thermal_printer_settings ADD COLUMN eod_footer_type VARCHAR(50) DEFAULT 'branch' AFTER eod_show_total");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE thermal_printer_settings ADD COLUMN eod_footer_custom_text TEXT AFTER eod_footer_type");
+      console.log("[MySQL] Migration: added EOD customization columns to thermal_printer_settings");
     } catch (e) {
       if (!e.message?.includes("Duplicate column")) throw e;
     }
@@ -2300,6 +2343,109 @@ var init_invoices = __esm({
   "src/routes/invoices.ts"() {
     init_mysql();
     router5 = Router5();
+    router5.get("/suggestions", async (req, res, next) => {
+      try {
+        const { q } = req.query;
+        if (!q || q.trim().length < 1) return res.json([]);
+        const isDeveloper = req.user.role === "developer";
+        const branchId = req.user.branch_id;
+        const searchTerm = q.trim();
+        const match = searchTerm.match(/^([a-zA-Z]*)[^0-9]*(\d*)$/);
+        let sql = "";
+        let params = [];
+        if (match && match[2]) {
+          const prefix = match[1].toUpperCase();
+          const num = parseInt(match[2], 10);
+          sql = `
+        SELECT i.id, i.invoice_number, c.name as customer_name, i.grand_total, i.created_at
+        FROM invoices i
+        LEFT JOIN customers c ON i.customer_id=c.id
+        WHERE i.business_id=?
+        AND CAST(SUBSTRING_INDEX(i.invoice_number, '-', -1) AS UNSIGNED) LIKE ?
+        ${prefix ? "AND i.invoice_number LIKE ?" : ""}
+        ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
+        ORDER BY i.created_at DESC
+        LIMIT 5
+      `;
+          params.push(req.user.business_id);
+          params.push(`${num}%`);
+          if (prefix) {
+            params.push(`${prefix}-%`);
+          }
+          if (!isDeveloper && branchId) {
+            params.push(branchId);
+          }
+        } else {
+          sql = `
+        SELECT i.id, i.invoice_number, c.name as customer_name, i.grand_total, i.created_at
+        FROM invoices i
+        LEFT JOIN customers c ON i.customer_id=c.id
+        WHERE i.business_id=?
+        AND (i.invoice_number LIKE ? OR c.name LIKE ?)
+        ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
+        ORDER BY i.created_at DESC
+        LIMIT 5
+      `;
+          params.push(req.user.business_id);
+          params.push(`%${searchTerm}%`);
+          params.push(`%${searchTerm}%`);
+          if (!isDeveloper && branchId) {
+            params.push(branchId);
+          }
+        }
+        const rows = await query(sql, params);
+        res.json(rows);
+      } catch (e) {
+        next(e);
+      }
+    });
+    router5.get("/by-number/:invoiceNumber", async (req, res, next) => {
+      try {
+        const isDeveloper = req.user.role === "developer";
+        const branchId = req.user.branch_id;
+        const searchTerm = req.params.invoiceNumber.trim();
+        const match = searchTerm.match(/^([a-zA-Z]*)[^0-9]*(\d+)$/);
+        let sql = "";
+        let params = [];
+        if (match) {
+          const prefix = match[1].toUpperCase();
+          const num = parseInt(match[2], 10);
+          sql = `
+        SELECT id FROM invoices 
+        WHERE CAST(SUBSTRING_INDEX(invoice_number, '-', -1) AS UNSIGNED) = ? 
+        AND business_id=? 
+        ${prefix ? "AND invoice_number LIKE ?" : ""}
+        ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
+        ORDER BY id DESC
+        LIMIT 1
+      `;
+          params.push(num);
+          params.push(req.user.business_id);
+          if (prefix) {
+            params.push(`${prefix}-%`);
+          }
+          if (!isDeveloper && branchId) {
+            params.push(branchId);
+          }
+        } else {
+          sql = `
+        SELECT id FROM invoices 
+        WHERE invoice_number LIKE ? AND business_id=? 
+        ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
+        ORDER BY id DESC
+        LIMIT 1
+      `;
+          params = [`%${searchTerm}%`, req.user.business_id];
+          if (!isDeveloper && branchId) {
+            params.push(branchId);
+          }
+        }
+        const inv = await queryOne(sql, params);
+        res.json(inv || {});
+      } catch (e) {
+        next(e);
+      }
+    });
     router5.get("/", async (req, res, next) => {
       try {
         const { startDate, endDate } = req.query;
@@ -2603,6 +2749,124 @@ var init_reports = __esm({
   "src/routes/reports.ts"() {
     init_mysql();
     router6 = Router6();
+    router6.get("/dashboard-stats", async (req, res, next) => {
+      const { startDate, endDate } = req.query;
+      if (!startDate || !endDate) return res.status(400).json({ error: "startDate and endDate are required" });
+      try {
+        const isDeveloper = req.user.role === "developer";
+        const branchId = req.user.branch_id;
+        const businessId = req.user.business_id;
+        let salesSql = `
+      SELECT COUNT(id) as count, COALESCE(SUM(grand_total), 0) as total 
+      FROM invoices 
+      WHERE business_id=? AND DATE(created_at)>=? AND DATE(created_at)<=?
+      ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
+    `;
+        const salesParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const salesKpi = await queryOne(salesSql, salesParams);
+        let openRepairsSql = `
+      SELECT COUNT(id) as count FROM jobs 
+      WHERE business_id=? AND status != 'collected'
+      ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
+    `;
+        const openRepairsParams = !isDeveloper && branchId ? [businessId, branchId] : [businessId];
+        const openRepairsKpi = await queryOne(openRepairsSql, openRepairsParams);
+        let addedRepairsSql = `
+      SELECT COUNT(id) as count FROM jobs 
+      WHERE business_id=? AND DATE(created_at)>=? AND DATE(created_at)<=?
+      ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
+    `;
+        const addedRepairsParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const addedRepairsKpi = await queryOne(addedRepairsSql, addedRepairsParams);
+        let invoicedRepairsSql = `
+      SELECT COUNT(id) as count FROM jobs 
+      WHERE business_id=? AND status='collected' AND DATE(created_at)>=? AND DATE(created_at)<=?
+      ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
+    `;
+        const invoicedRepairsParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const invoicedRepairsKpi = await queryOne(invoicedRepairsSql, invoicedRepairsParams);
+        let addedCustomersSql = `
+      SELECT COUNT(id) as count FROM customers 
+      WHERE business_id=? AND DATE(created_at)>=? AND DATE(created_at)<=? AND deleted_at IS NULL
+      ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
+    `;
+        const addedCustomersParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const addedCustomersKpi = await queryOne(addedCustomersSql, addedCustomersParams);
+        let purchasedCustomersSql = `
+      SELECT COUNT(DISTINCT customer_id) as count FROM invoices
+      WHERE business_id=? AND DATE(created_at)>=? AND DATE(created_at)<=?
+      ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
+    `;
+        const purchasedCustomersParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const purchasedCustomersKpi = await queryOne(purchasedCustomersSql, purchasedCustomersParams);
+        let paymentsSql = `
+      SELECT p.method as payment_type, COALESCE(SUM(p.amount), 0) as total 
+      FROM payments p
+      LEFT JOIN invoices i ON p.invoice_id=i.id
+      WHERE i.business_id=? AND DATE(p.paid_at)>=? AND DATE(p.paid_at)<=?
+      ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
+      GROUP BY p.method
+    `;
+        const paymentsParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const paymentRows = await query(paymentsSql, paymentsParams);
+        const categoryRows = await query(`SELECT id, name FROM categories WHERE business_id=?`, [businessId]);
+        let purchasedSql = `
+      SELECT p.category_id, COALESCE(SUM(m.quantity), 0) as qty, COALESCE(SUM(m.quantity * m.unit_cost), 0) as cost
+      FROM inventory_movements m
+      JOIN product_skus s ON m.sku_id=s.id
+      JOIN products p ON s.product_id=p.id
+      WHERE m.business_id=? AND m.movement_type='purchase' AND DATE(m.created_at)>=? AND DATE(m.created_at)<=?
+      ${!isDeveloper && branchId ? "AND m.branch_id=?" : ""}
+      GROUP BY p.category_id
+    `;
+        const purchasedParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const purchasedRows = await query(purchasedSql, purchasedParams);
+        const purchasedMap = new Map(purchasedRows.map((r) => [r.category_id, r]));
+        let soldSql = `
+      SELECT p.category_id, COALESCE(SUM(ii.quantity), 0) as qty, COALESCE(SUM(ii.quantity * ii.price), 0) as sales
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id=i.id
+      JOIN product_skus s ON ii.sku_id=s.id
+      JOIN products p ON s.product_id=p.id
+      WHERE i.business_id=? AND DATE(i.created_at)>=? AND DATE(i.created_at)<=?
+      ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
+      GROUP BY p.category_id
+    `;
+        const soldParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const soldRows = await query(soldSql, soldParams);
+        const soldMap = new Map(soldRows.map((r) => [r.category_id, r]));
+        const categoriesReport = categoryRows.map((cat) => {
+          const p = purchasedMap.get(cat.id) || { qty: 0, cost: 0 };
+          const s = soldMap.get(cat.id) || { qty: 0, sales: 0 };
+          return {
+            name: cat.name,
+            qtyPurchased: p.qty,
+            totalCost: p.cost,
+            qtySold: s.qty,
+            totalSales: s.sales
+          };
+        });
+        res.json({
+          sales: {
+            total: salesKpi.total || 0,
+            count: salesKpi.count || 0
+          },
+          repairs: {
+            open: openRepairsKpi.count || 0,
+            added: addedRepairsKpi.count || 0,
+            invoiced: invoicedRepairsKpi.count || 0
+          },
+          customers: {
+            added: addedCustomersKpi.count || 0,
+            purchased: purchasedCustomersKpi.count || 0
+          },
+          payments: paymentRows,
+          categories: categoriesReport
+        });
+      } catch (e) {
+        next(e);
+      }
+    });
     router6.get("/eod-data", async (req, res, next) => {
       const date = req.query.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
       try {
@@ -2933,6 +3197,13 @@ var init_settings = __esm({
       show_totals: z6.boolean().optional(),
       show_footer: z6.boolean().optional(),
       show_powered_by: z6.boolean().optional(),
+      eod_show_cash_summary: z6.boolean().optional(),
+      eod_show_payment_type: z6.boolean().optional(),
+      eod_show_total_cash: z6.boolean().optional(),
+      eod_show_total_card_sale: z6.boolean().optional(),
+      eod_show_total: z6.boolean().optional(),
+      eod_footer_type: z6.string().optional(),
+      eod_footer_custom_text: z6.string().optional(),
       footer_text: z6.string().optional()
     });
     router7.post("/thermal-printer-settings", async (req, res, next) => {
@@ -2944,8 +3215,11 @@ var init_settings = __esm({
       INSERT INTO thermal_printer_settings
         (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
          show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
-         show_items_table,show_totals,show_footer,show_powered_by,footer_text)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         show_items_table,show_totals,show_footer,show_powered_by,
+         eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
+         eod_footer_type,eod_footer_custom_text,
+         footer_text)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON DUPLICATE KEY UPDATE
         branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
         show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
@@ -2953,7 +3227,12 @@ var init_settings = __esm({
         show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
         show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
         show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
-        show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),footer_text=VALUES(footer_text)`,
+        show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),
+        eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
+        eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
+        eod_show_total=VALUES(eod_show_total),
+        eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
+        footer_text=VALUES(footer_text)`,
           [
             req.user.business_id,
             branchId,
@@ -2971,6 +3250,13 @@ var init_settings = __esm({
             m.show_totals ? 1 : 0,
             m.show_footer ? 1 : 0,
             m.show_powered_by ? 1 : 0,
+            m.eod_show_cash_summary ? 1 : 0,
+            m.eod_show_payment_type ? 1 : 0,
+            m.eod_show_total_cash ? 1 : 0,
+            m.eod_show_total_card_sale ? 1 : 0,
+            m.eod_show_total ? 1 : 0,
+            m.eod_footer_type || "branch",
+            m.eod_footer_custom_text || "",
             m.footer_text || "Thank you for your business!"
           ]
         );
@@ -3541,7 +3827,7 @@ var init_inventory = __esm({
       }
     });
     createRepairSchema = z7.object({
-      customer_id: z7.number().optional(),
+      customer_id: z7.number().nullable().optional(),
       customer_name: z7.string().optional(),
       first_name: z7.string().optional(),
       last_name: z7.string().optional(),
@@ -3555,23 +3841,23 @@ var init_inventory = __esm({
       payment_method: z7.string().optional()
     });
     router8.post("/repairs", async (req, res, next) => {
-      const data = createRepairSchema.parse(req.body);
-      const {
-        customer_id,
-        customer_name,
-        phone,
-        device_model,
-        issue,
-        status,
-        total_quote,
-        deposit_paid,
-        remaining_balance,
-        payment_method,
-        first_name,
-        last_name
-      } = data;
       const conn = await pool.getConnection();
       try {
+        const data = createRepairSchema.parse(req.body);
+        const {
+          customer_id,
+          customer_name,
+          phone,
+          device_model,
+          issue,
+          status,
+          total_quote,
+          deposit_paid,
+          remaining_balance,
+          payment_method,
+          first_name,
+          last_name
+        } = data;
         await conn.beginTransaction();
         let finalCustomerId = customer_id;
         if (!finalCustomerId && phone) {

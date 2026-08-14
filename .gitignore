@@ -12,5 +12,6 @@ pos.db*
 refactor.js
 isolate.js
 check_db.ts
-verify_save.ts
 server_errors.log
+Environment.env
+
