@@ -6,9 +6,10 @@ import RepairUpdateModal from './RepairUpdateModal';
 
 interface RepairListProps {
   preSelectedCustomerId?: number | null;
+  isActive?: boolean;
 }
 
-export default function RepairList({ preSelectedCustomerId }: RepairListProps) {
+export default function RepairList({ preSelectedCustomerId, isActive = true }: RepairListProps) {
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,6 +32,20 @@ export default function RepairList({ preSelectedCustomerId }: RepairListProps) {
       setIsModalOpen(true);
     }
   }, [preSelectedCustomerId]);
+
+  useEffect(() => {
+    if (isActive) {
+      fetchRepairs();
+    }
+  }, [isActive]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      if (isActive) fetchRepairs();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [isActive]);
 
   useEffect(() => {
     if (printRepair) {

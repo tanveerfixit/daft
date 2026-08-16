@@ -6,12 +6,13 @@ coverage/
 *.log
 .env*
 !.env.example
+Environment.env
+scratch_dump.sql
 node_modules/
 .env
 pos.db*
 refactor.js
 isolate.js
 check_db.ts
+verify_save.ts
 server_errors.log
-Environment.env
-

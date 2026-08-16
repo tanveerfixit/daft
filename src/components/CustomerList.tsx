@@ -6,9 +6,10 @@ import CustomerFormModal from './CustomerFormModal';
 
 interface CustomerListProps {
   onSelectCustomer: (id: number) => void;
+  isActive?: boolean;
 }
 
-export default function CustomerList({ onSelectCustomer }: CustomerListProps) {
+export default function CustomerList({ onSelectCustomer, isActive = true }: CustomerListProps) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -24,6 +25,20 @@ export default function CustomerList({ onSelectCustomer }: CustomerListProps) {
   useEffect(() => {
     fetchCustomers();
   }, []);
+
+  useEffect(() => {
+    if (isActive) {
+      fetchCustomers();
+    }
+  }, [isActive]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      if (isActive) fetchCustomers();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [isActive]);
 
   useEffect(() => {
     if (searchInputRef.current) {

@@ -84,13 +84,14 @@ const CashRegisterRoute = () => {
   );
 };
 
-const ProductListRoute = () => {
+const ProductListRoute = ({ isActive }: { isActive?: boolean }) => {
   const navigate = useNavigate();
   const branchSlug = slugify(useAuth().currentUser?.branch_name || 'branch');
   return (
     <ProductList 
       onCreateProduct={() => navigate(`/${branchSlug}/create-product`)} 
       onSelectProduct={(id) => navigate(`/${branchSlug}/products/${id}`)}
+      isActive={isActive}
     />
   );
 };
@@ -147,12 +148,13 @@ const InvoiceDetailsRoute = () => {
   );
 };
 
-const CustomerListRoute = () => {
+const CustomerListRoute = ({ isActive }: { isActive?: boolean }) => {
   const navigate = useNavigate();
   const branchSlug = slugify(useAuth().currentUser?.branch_name || 'branch');
   return (
     <CustomerList 
       onSelectCustomer={(id) => navigate(`/${branchSlug}/customers/${id}`)} 
+      isActive={isActive}
     />
   );
 };
@@ -173,13 +175,13 @@ const CustomerDetailsRoute = () => {
   );
 };
 
-const RepairListRoute = () => {
+const RepairListRoute = ({ isActive }: { isActive?: boolean }) => {
   const location = useLocation();
   const customerId = location.state?.customerId || null;
-  return <RepairList preSelectedCustomerId={customerId} />;
+  return <RepairList preSelectedCustomerId={customerId} isActive={isActive} />;
 };
 
-const DeviceInventoryRoute = () => {
+const DeviceInventoryRoute = ({ isActive }: { isActive?: boolean }) => {
   const navigate = useNavigate();
   const branchSlug = slugify(useAuth().currentUser?.branch_name || 'branch');
   return (
@@ -195,7 +197,7 @@ const DeviceInventoryRoute = () => {
       }}
       onSelectProduct={(skuId) => navigate(`/${branchSlug}/sku-devices/${skuId}`, { state: { from: `/${branchSlug}/devices` } })}
       onSelectDevice={(id) => navigate(`/${branchSlug}/devices/${id}`)}
-      onOpenPrinterSettings={() => navigate(`/${branchSlug}/getting-started?tab=manage-label-printer`)}
+      isActive={isActive}
     />
   );
 };
@@ -227,12 +229,13 @@ const SkuDeviceDetailsRoute = () => {
   );
 };
 
-const PurchaseOrderListRoute = () => {
+const PurchaseOrderListRoute = ({ isActive }: { isActive?: boolean }) => {
   const navigate = useNavigate();
   const branchSlug = slugify(useAuth().currentUser?.branch_name || 'branch');
   return (
     <PurchaseOrderList 
       onSelectPO={(id) => navigate(`/${branchSlug}/purchase-orders/${id}`)}
+      isActive={isActive}
     />
   );
 };
@@ -583,25 +586,25 @@ function AppInner() {
               <CashRegisterRoute />
             </div>
             <div className={(!isDetailView && currentView === 'products') ? 'h-full' : 'hidden'}>
-              <ProductListRoute />
+              <ProductListRoute isActive={!isDetailView && currentView === 'products'} />
             </div>
             <div className={(!isDetailView && currentView === 'invoices') ? 'h-full' : 'hidden'}>
               <InvoiceListRoute isActive={!isDetailView && currentView === 'invoices'} />
             </div>
             <div className={(!isDetailView && currentView === 'customers') ? 'h-full' : 'hidden'}>
-              <CustomerListRoute />
+              <CustomerListRoute isActive={!isDetailView && currentView === 'customers'} />
             </div>
             <div className={(!isDetailView && currentView === 'repairs') ? 'h-full' : 'hidden'}>
-              <RepairListRoute />
+              <RepairListRoute isActive={!isDetailView && currentView === 'repairs'} />
             </div>
             <div className={(!isDetailView && currentView === 'devices') ? 'h-full' : 'hidden'}>
-              <DeviceInventoryRoute />
+              <DeviceInventoryRoute isActive={!isDetailView && currentView === 'devices'} />
             </div>
             <div className={(!isDetailView && currentView === 'transfers') ? 'h-full' : 'hidden'}>
-              <BranchTransfer />
+              <BranchTransfer isActive={!isDetailView && currentView === 'transfers'} />
             </div>
             <div className={(!isDetailView && currentView === 'purchase-orders') ? 'h-full' : 'hidden'}>
-              <PurchaseOrderListRoute />
+              <PurchaseOrderListRoute isActive={!isDetailView && currentView === 'purchase-orders'} />
             </div>
 
             {/* Standard Router Switcher for occasional Detail & Modal Sub-Pages */}

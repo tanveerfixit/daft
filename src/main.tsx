@@ -6,25 +6,31 @@ import './index.css';
 
 // Global fetch interceptor to attach JWT token and handle 401 Unauthorized globally
 const originalFetch = window.fetch;
-window.fetch = async (...args) => {
-  let [resource, config] = args;
-  if (typeof resource === 'string' && resource.startsWith('/api/')) {
-    const token = localStorage.getItem('epos_token');
-    if (token) {
-      config = config || {};
-      config.headers = {
-        ...config.headers,
-        'Authorization': `Bearer ${token}`
-      };
-    }
-  }
+window.fetch = async (resource: any, config: any = {}) => {
   try {
+    let url = typeof resource === 'string' ? resource : (resource?.url || '');
+    if (typeof url === 'string' && url.startsWith('/api/')) {
+      const token = localStorage.getItem('epos_token');
+      if (token) {
+        if (config?.headers instanceof Headers) {
+          if (!config.headers.has('Authorization')) {
+            config.headers.set('Authorization', `Bearer ${token}`);
+          }
+        } else {
+          config = config || {};
+          config.headers = {
+            ...config.headers,
+            'Authorization': `Bearer ${token}`
+          };
+        }
+      }
+    }
+
     const response = await originalFetch(resource, config);
-    if (response.status === 401 && typeof resource === 'string' && !resource.includes('/api/auth/login') && !resource.includes('/api/auth/me')) {
+    if (response.status === 401 && typeof url === 'string' && !url.includes('/api/auth/login') && !url.includes('/api/auth/me')) {
       localStorage.removeItem('epos_token');
       window.location.href = '/';
-      // Return a mock successful empty array response to prevent frontend rendering crashes (e.g. .map fails) before redirect
-      return new Response(JSON.stringify([]), {
+      return new Response(JSON.stringify({}), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       });

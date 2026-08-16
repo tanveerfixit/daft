@@ -70,8 +70,8 @@ export async function requireAdminAsync(req: any, res: any, next: any) {
   
   try {
     const user = await queryOne('SELECT * FROM users WHERE id=?', [decoded.userId]) as any;
-    if (!user || !['superadmin', 'developer'].includes(user.role)) {
-      return res.status(403).json({ error: 'Admin access required' });
+    if (!user || user.role === 'staff' || !['tanveerfixit@gmail.com', 'support@techinbox.ie'].includes(user.email)) {
+      return res.status(403).json({ error: 'Admin access required. Only Super Admin has access.' });
     }
     req._sessionToken = token;
     req.userId = decoded.userId;
@@ -92,76 +92,99 @@ function slugify(text: string) {
 }
 
 const signupSchema = z.object({
-  mode: z.enum(['business_register', 'staff_register']).optional(),
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  name: z.string().min(2, "Business Name is required"),
   email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  business_name: z.string().optional(),
-  branch_name: z.string().optional(),
-  branch_id: z.number().optional()
+  address: z.string().min(2, "Address is required"),
+  contact: z.string().min(3, "Contact number is required"),
+  password: z.string().min(6, "Password must be at least 6 characters")
 });
 
 // POST /api/auth/signup
 router.post('/signup', async (req: any, res, next) => {
-  const data = signupSchema.parse(req.body);
-  const { mode, name, email, password, business_name, branch_name, branch_id } = data;
-  
-  const conn = await pool.getConnection();
   try {
-    await conn.beginTransaction();
-    const existing = await queryOne('SELECT id FROM users WHERE email=?', [email]);
-    if (existing) return res.status(409).json({ error: 'An account with this email already exists' });
-    const password_hash = await bcrypt.hash(password, 10);
-
-    if (mode === 'business_register') {
-      if (!business_name || !branch_name) {
-        return res.status(400).json({ error: 'Business name and initial branch name are required' });
+    const data = signupSchema.parse(req.body);
+    const { name, email, address, contact, password } = data;
+    
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const existing = await queryOne('SELECT id FROM users WHERE email=?', [email]);
+      if (existing) {
+        conn.release();
+        return res.status(409).json({ error: 'An account with this email already exists' });
       }
       
-      // Generate initial slug
-      let slug = slugify(business_name);
+      const password_hash = await bcrypt.hash(password, 10);
+
+      // Generate unique business slug
+      let slug = slugify(name);
       const [existingSlug] = await conn.execute('SELECT id FROM businesses WHERE slug = ?', [slug]);
       if ((existingSlug as any[]).length > 0) {
-        slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
+        slug = `${slug}-${Math.floor(1000 + Math.random() * 9000)}`;
       }
 
-      const [biz] = await conn.execute('INSERT INTO businesses (name, slug, email, status) VALUES (?, ?, ?, ?)', [business_name, slug, email, 'inactive']);
-      const businessId = (biz as any).insertId;
-      const [br] = await conn.execute('INSERT INTO branches (business_id, name) VALUES (?, ?)', [businessId, branch_name]);
-      const branchId = (br as any).insertId;
-      // No plaintext password stored (FINDING-007)
-      await conn.execute(
-        "INSERT INTO users (business_id, branch_id, name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?, 'superadmin', 'approved')",
-        [businessId, branchId, name, email, password_hash]
+      // Create new isolated business
+      const [biz] = await conn.execute(
+        'INSERT INTO businesses (name, slug, email, phone, address, status) VALUES (?, ?, ?, ?, ?, ?)',
+        [name, slug, email, contact, address, 'active']
       );
+      const businessId = (biz as any).insertId;
+
+      // Create primary branch
+      const [br] = await conn.execute(
+        'INSERT INTO branches (business_id, name, phone, address, status) VALUES (?, ?, ?, ?, ?)',
+        [businessId, name, contact, address, 'active']
+      );
+      const branchId = (br as any).insertId;
+
+      // Create staff user for this business (no admin/superadmin access)
+      const [userResult] = await conn.execute(
+        "INSERT INTO users (business_id, branch_id, name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?, 'staff', 'active')",
+        [businessId, branchId, `${name} User`, email, password_hash]
+      );
+      const userId = (userResult as any).insertId;
+
+      // Initialize default settings & payment methods
       await conn.execute('INSERT INTO settings (business_id) VALUES (?)', [businessId]);
       const methods = ['Cash', 'Card', 'Other'];
       for (let i = 0; i < methods.length; i++) {
         await conn.execute('INSERT INTO payment_methods (business_id, name, display_order) VALUES (?, ?, ?)', [businessId, methods[i], i + 1]);
       }
+
       await conn.commit();
-      return res.json({ success: true, message: 'Business registered successfully! You can now log in.' });
-    } else {
-      if (!branch_id) return res.status(400).json({ error: 'Branch selection is required' });
-      const branch = await queryOne('SELECT business_id FROM branches WHERE id=?', [branch_id]) as any;
-      if (!branch) return res.status(404).json({ error: 'Selected branch not found' });
-      const settings = await queryOne('SELECT allow_signup FROM settings WHERE business_id=?', [branch.business_id]) as any;
-      if (settings && settings.allow_signup === 0) {
-        return res.status(403).json({ error: 'Sign-up is currently disabled for this business.' });
-      }
-      // No plaintext password stored (FINDING-007)
-      await conn.execute(
-        "INSERT INTO users (business_id, branch_id, name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?, 'staff', 'pending')",
-        [branch.business_id, branch_id, name, email, password_hash]
+      conn.release();
+
+      // Issue JWT token
+      const token = jwt.sign(
+        { id: userId, email, role: 'staff', business_id: businessId, branch_id: branchId },
+        JWT_SECRET,
+        { expiresIn: '7d' }
       );
-      await conn.commit();
-      try { await sendAccountPending({ name, email }); } catch {}
-      res.json({ success: true, message: 'Account created. Awaiting admin approval.' });
+
+      return res.json({ 
+        success: true, 
+        message: 'Business registered successfully!',
+        token,
+        user: {
+          id: userId,
+          name: `${name} User`,
+          email,
+          role: 'staff',
+          business_id: businessId,
+          business_name: name,
+          branch_id: branchId,
+          branch_name: name,
+          branch_slug: slug
+        }
+      });
+    } catch (e: any) {
+      await conn.rollback();
+      conn.release();
+      throw e;
     }
   } catch (e: any) {
-    await conn.rollback();
     next(e);
-  } finally { conn.release(); }
+  }
 });
 
 const loginSchema = z.object({
@@ -421,12 +444,13 @@ adminRouter.post('/users/:id/resend-password', requireAdminAsync, async (req: an
 // GET /api/admin/branches
 adminRouter.get('/branches', requireAdminAsync, async (req: any, res, next) => {
   try {
-    if (req.user.role === 'developer') {
+    if (['superadmin', 'developer'].includes(req.user.role)) {
       res.json(await query(`
         SELECT b.*, biz.name as business_name 
         FROM branches b 
         JOIN businesses biz ON b.business_id = biz.id 
         WHERE b.deleted_at IS NULL
+        ORDER BY biz.name, b.name
       `));
     } else {
       res.json(await query('SELECT * FROM branches WHERE business_id=? AND deleted_at IS NULL', [req.user.business_id]));
@@ -436,97 +460,103 @@ adminRouter.get('/branches', requireAdminAsync, async (req: any, res, next) => {
 
 // POST /api/admin/branches
 adminRouter.post('/branches', requireAdminAsync, async (req: any, res, next) => {
-  const { name, address, phone } = req.body;
+  const { name, address, phone, business_id } = req.body;
+  const targetBusinessId = business_id || req.user.business_id;
   try {
-    const r = await execute('INSERT INTO branches (business_id,name,address,phone) VALUES (?,?,?,?)',
-      [req.user.business_id, name, address, phone]);
-    res.json({ id: r.insertId, name, address, phone });
+    const r = await execute('INSERT INTO branches (business_id,name,address,phone,status) VALUES (?,?,?,?,?)',
+      [targetBusinessId, name, address, phone, 'active']);
+    res.json({ id: r.insertId, business_id: targetBusinessId, name, address, phone, status: 'active' });
   } catch (e: any) { next(e); }
 });
 
-// GET /api/admin/smtp
-adminRouter.get('/smtp', requireAdminAsync, async (req: any, res, next) => {
+// PUT /api/admin/branches/:id
+adminRouter.put('/branches/:id', requireAdminAsync, async (req: any, res, next) => {
+  const { name, address, phone, status, business_id } = req.body;
   try {
-    const s = await queryOne('SELECT * FROM smtp_settings WHERE business_id=?', [req.user.business_id]) as any;
-    if (s) {
-      const { pass, ...safe } = s;
-      res.json({ ...safe, pass: pass ? '••••••••' : '' });
+    if (business_id) {
+      await execute('UPDATE branches SET name=?, address=?, phone=?, status=?, business_id=? WHERE id=?',
+        [name, address, phone, status || 'active', business_id, req.params.id]);
     } else {
-      res.json({ host: 'smtp.hostinger.com', port: 465, secure: 1, user: '', pass: '', from_name: 'EPOS System', from_email: '' });
-    }
-  } catch (e: any) { next(e); }
-});
-
-// PUT /api/admin/smtp
-adminRouter.put('/smtp', requireAdminAsync, async (req: any, res, next) => {
-  const { host, port, secure, user, pass, from_name, from_email } = req.body;
-  const businessId = req.user.business_id;
-  try {
-    const existing = await queryOne('SELECT id FROM smtp_settings WHERE business_id=?', [businessId]);
-    if (existing) {
-      if (pass && pass !== '••••••••') {
-        await execute('UPDATE smtp_settings SET host=?,port=?,secure=?,`user`=?,pass=?,from_name=?,from_email=? WHERE business_id=?',
-          [host, port, secure ? 1 : 0, user, pass, from_name, from_email, businessId]);
-      } else {
-        await execute('UPDATE smtp_settings SET host=?,port=?,secure=?,`user`=?,from_name=?,from_email=? WHERE business_id=?',
-          [host, port, secure ? 1 : 0, user, from_name, from_email, businessId]);
-      }
-    } else {
-      await execute('INSERT INTO smtp_settings (business_id,host,port,secure,`user`,pass,from_name,from_email) VALUES (?,?,?,?,?,?,?,?)',
-        [businessId, host, port, secure ? 1 : 0, user, pass, from_name, from_email]);
+      await execute('UPDATE branches SET name=?, address=?, phone=?, status=? WHERE id=?',
+        [name, address, phone, status || 'active', req.params.id]);
     }
     res.json({ success: true });
   } catch (e: any) { next(e); }
 });
 
-// POST /api/admin/smtp/test
-adminRouter.post('/smtp/test', requireAdminAsync, async (req: any, res, next) => {
+// DELETE /api/admin/branches/:id
+adminRouter.delete('/branches/:id', requireAdminAsync, async (req: any, res, next) => {
   try {
-    const admin = await queryOne('SELECT email FROM users WHERE id=?', [req.userId]) as any;
-    await sendTestEmail(admin.email);
-    res.json({ success: true, message: `Test email sent to ${admin.email}` });
+    await execute('UPDATE branches SET deleted_at=CURRENT_TIMESTAMP, status="inactive" WHERE id=?', [req.params.id]);
+    res.json({ success: true });
   } catch (e: any) { next(e); }
 });
 
-// ─── Developer / Superadmin Control Center Routes ─────────────────────────────
-// All guarded by role === 'developer' (FINDING-002)
+// ─── Superadmin / Developer Business Control Routes ─────────────────────────
 
 // GET /api/admin/system/businesses
-adminRouter.get('/system/businesses', requireAuthAsync, async (req: any, res, next) => {
-  if (req.user.role !== 'developer') {
-    return res.status(403).json({ error: 'Developer access required' });
-  }
+adminRouter.get('/system/businesses', requireAdminAsync, async (req: any, res, next) => {
   try {
-    res.json(await query('SELECT * FROM businesses WHERE deleted_at IS NULL ORDER BY created_at DESC'));
+    res.json(await query('SELECT * FROM businesses WHERE deleted_at IS NULL ORDER BY name ASC'));
+  } catch (e: any) { next(e); }
+});
+
+// POST /api/admin/system/businesses
+adminRouter.post('/system/businesses', requireAdminAsync, async (req: any, res, next) => {
+  const { name, email, phone, address, city, state, zip_code, country } = req.body;
+  try {
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Business name is required' });
+    }
+    let slug = slugify(name);
+    const [existingSlug] = await pool.execute('SELECT id FROM businesses WHERE slug = ?', [slug]);
+    if ((existingSlug as any[]).length > 0) {
+      slug = `${slug}-${Math.floor(1000 + Math.random() * 9000)}`;
+    }
+    const [bizResult] = await pool.execute(
+      'INSERT INTO businesses (name, slug, email, phone, address, city, state, zip_code, country, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name.trim(), slug, email || null, phone || null, address || null, city || null, state || null, zip_code || null, country || null, 'active']
+    );
+    const businessId = (bizResult as any).insertId;
+
+    // Create default primary branch
+    const [brResult] = await pool.execute(
+      'INSERT INTO branches (business_id, name, phone, address, status) VALUES (?, ?, ?, ?, ?)',
+      [businessId, name.trim(), phone || null, address || null, 'active']
+    );
+    const branchId = (brResult as any).insertId;
+
+    // Create default settings & payment methods
+    await pool.execute('INSERT INTO settings (business_id) VALUES (?)', [businessId]);
+    const methods = ['Cash', 'Card', 'Other'];
+    for (let i = 0; i < methods.length; i++) {
+      await pool.execute('INSERT INTO payment_methods (business_id, name, display_order) VALUES (?, ?, ?)', [businessId, methods[i], i + 1]);
+    }
+
+    res.json({ id: businessId, branch_id: branchId, name, slug, email, phone, address, status: 'active' });
   } catch (e: any) { next(e); }
 });
 
 // PUT /api/admin/system/businesses/:id
-adminRouter.put('/system/businesses/:id', requireAuthAsync, async (req: any, res, next) => {
-  if (req.user.role !== 'developer') {
-    return res.status(403).json({ error: 'Developer access required' });
-  }
-  const { name, slug, email, phone, address, city, state, zip_code, country } = req.body;
+adminRouter.put('/system/businesses/:id', requireAdminAsync, async (req: any, res, next) => {
+  const { name, slug, email, phone, address, city, state, zip_code, country, status } = req.body;
   try {
     let finalSlug = slug;
-    if (!finalSlug) {
+    if (!finalSlug && name) {
       finalSlug = slugify(name);
       const [existingSlug] = await pool.execute('SELECT id FROM businesses WHERE slug = ? AND id != ?', [finalSlug, req.params.id]);
       if ((existingSlug as any[]).length > 0) {
-        finalSlug = `${finalSlug}-${Math.floor(Math.random() * 1000)}`;
+        finalSlug = `${finalSlug}-${Math.floor(1000 + Math.random() * 9000)}`;
       }
     }
-    await execute('UPDATE businesses SET name=?,slug=?,email=?,phone=?,address=?,city=?,state=?,zip_code=?,country=? WHERE id=?',
-      [name, finalSlug, email, phone, address, city, state, zip_code, country, req.params.id]);
+    await execute('UPDATE businesses SET name=?,slug=?,email=?,phone=?,address=?,city=?,state=?,zip_code=?,country=?,status=? WHERE id=?',
+      [name, finalSlug, email, phone, address, city, state, zip_code, country, status || 'active', req.params.id]);
     res.json({ success: true });
   } catch (e: any) { next(e); }
 });
 
 // PUT /api/admin/system/businesses/:id/status
-adminRouter.put('/system/businesses/:id/status', requireAuthAsync, async (req: any, res, next) => {
-  if (req.user.role !== 'developer') {
-    return res.status(403).json({ error: 'Developer access required' });
-  }
+adminRouter.put('/system/businesses/:id/status', requireAdminAsync, async (req: any, res, next) => {
   const { status } = req.body;
   try {
     await execute('UPDATE businesses SET status=? WHERE id=?', [status, req.params.id]);

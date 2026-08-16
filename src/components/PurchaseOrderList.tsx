@@ -2,7 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Search, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PurchaseOrder, Supplier } from '../types';
 
-export default function PurchaseOrderList({ onSelectPO }: { onSelectPO: (id: number) => void }) {
+export default function PurchaseOrderList({ 
+  onSelectPO,
+  isActive = true
+}: { 
+  onSelectPO: (id: number) => void;
+  isActive?: boolean;
+}) {
   const [pos, setPos] = useState<PurchaseOrder[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -10,16 +16,38 @@ export default function PurchaseOrderList({ onSelectPO }: { onSelectPO: (id: num
   const [supplierFilter, setSupplierFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  useEffect(() => {
+  const fetchPOData = (silent = true) => {
+    if (!silent && pos.length === 0) setLoading(true);
     Promise.all([
       fetch('/api/purchase-orders').then(res => res.json()),
       fetch('/api/suppliers').then(res => res.json())
     ]).then(([poData, supplierData]) => {
-      setPos(poData);
-      setSuppliers(supplierData);
+      setPos(Array.isArray(poData) ? poData : []);
+      setSuppliers(Array.isArray(supplierData) ? supplierData : []);
+    }).catch(err => {
+      console.error('Error fetching PO data:', err);
+    }).finally(() => {
       setLoading(false);
     });
+  };
+
+  useEffect(() => {
+    fetchPOData(false);
   }, []);
+
+  useEffect(() => {
+    if (isActive) {
+      fetchPOData(true);
+    }
+  }, [isActive]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      if (isActive) fetchPOData(true);
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [isActive]);
 
   const filteredPos = Array.isArray(pos) ? pos.filter(po => {
     const matchesSearch = po.po_number.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -29,7 +57,7 @@ export default function PurchaseOrderList({ onSelectPO }: { onSelectPO: (id: num
     return matchesSearch && matchesSupplier && matchesStatus;
   }) : [];
 
-  if (loading) {
+  if (loading && pos.length === 0) {
     return (
       <div className="h-full flex items-center justify-center bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 font-mono text-base p-8 text-lg">
         *** LOADING SYSTEM DATA ***

@@ -18,6 +18,7 @@ interface AuthContextType {
   token: string | null;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
+  setSession: (token: string, user: User) => void;
   logout: () => void;
   loading: boolean;
 }
@@ -58,6 +59,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentUser(data.user);
   };
 
+  const setSession = useCallback((newToken: string, newUser: User) => {
+    localStorage.setItem('epos_token', newToken);
+    setToken(newToken);
+    setCurrentUser(newUser);
+  }, []);
+
   const logout = useCallback(() => {
     const t = localStorage.getItem('epos_token');
     if (t) fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${t}` } });
@@ -95,8 +102,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [token, logout]);
 
+  const isMasterAdmin = currentUser?.email === 'tanveerfixit@gmail.com' || currentUser?.email === 'support@techinbox.ie';
+
   return (
-    <AuthContext.Provider value={{ currentUser, token, isAdmin: ['superadmin','developer'].includes(currentUser?.role || ''), login, logout, loading }}>
+    <AuthContext.Provider value={{ currentUser, token, isAdmin: Boolean(isMasterAdmin && ['superadmin','developer'].includes(currentUser?.role || '')), login, setSession, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

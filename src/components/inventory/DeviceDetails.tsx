@@ -11,7 +11,6 @@ import {
   ExternalLink,
   AlertCircle
 } from 'lucide-react';
-import { printDeviceLabelDirect } from '../../utils/printLabel';
 
 interface DeviceDetailsProps {
   deviceId: number;
@@ -77,7 +76,200 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
   };
 
   const handlePrintLabel = () => {
-    printDeviceLabelDirect(device, printerSettings);
+    if (!printerSettings) {
+      alert('Printer settings not loaded. Please configure them in Getting Started.');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const { 
+      label_size, margin_top, margin_left, margin_bottom, margin_right, 
+      orientation, font_size, font_family 
+    } = printerSettings;
+
+    const fontSizeMap: Record<string, string> = {
+      'Small': '9px',
+      'Medium': '11px',
+      'Large': '13px',
+      'Regular': '11px'
+    };
+
+    const isLandscape = orientation === 'Landscape';
+    const width = isLandscape ? '57mm' : '32mm';
+    const height = isLandscape ? '32mm' : '57mm';
+    const baseFontSize = fontSizeMap[font_size] || '11px';
+
+    const priceVal = device.selling_price || device.price;
+    const ramText = device.ram ? (device.ram.toLowerCase().includes('gb') ? device.ram : `${device.ram}GB`) : '';
+    const gbText = device.gb ? (device.gb.toLowerCase().includes('gb') ? device.gb : `${device.gb}GB`) : '';
+    const specsCombined = [ramText, gbText].filter(Boolean).join(' / ') || [device.color, device.condition].filter(Boolean).join(' • ') || 'Standard';
+    const imeiOrSerial = device.imei || device.imei_serial || device.serial_number || 'N/A';
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Device Label - ${imeiOrSerial}</title>
+          <style>
+            @page {
+              size: ${width} ${height};
+              margin: 0;
+            }
+            html, body {
+              margin: 0;
+              padding: 0;
+              width: ${width};
+              height: ${height};
+              overflow: hidden;
+              background: #fff;
+            }
+            body {
+              padding: ${margin_top}px ${margin_right}px ${margin_bottom}px ${margin_left}px;
+              font-family: ${font_family}, Arial, sans-serif;
+              font-size: ${baseFontSize};
+              box-sizing: border-box;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: space-between;
+              text-align: center;
+              page-break-after: avoid;
+              break-after: avoid;
+            }
+            * {
+              -webkit-print-color-adjust: exact;
+              box-sizing: border-box;
+            }
+            .label-content {
+              width: 100%;
+              height: 100%;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              padding: 0;
+              color: #000;
+              overflow: hidden;
+              box-sizing: border-box;
+            }
+            .device-name {
+              font-weight: 800;
+              font-size: 1.05em;
+              text-transform: uppercase;
+              line-height: 1.1;
+              word-break: break-word;
+              display: -webkit-box;
+              -webkit-line-clamp: 2;
+              -webkit-box-orient: vertical;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              max-height: 2.25em;
+              margin: 0;
+              padding: 0;
+              text-align: center;
+              width: 100%;
+            }
+            .specs {
+              font-size: 0.9em;
+              line-height: 1.1;
+              font-weight: 500;
+              margin: 0;
+              padding: 0;
+            }
+            .price {
+              font-weight: 900;
+              font-size: 1.15em;
+              line-height: 1.1;
+              margin: 1px 0;
+              padding: 0;
+            }
+            .barcode-wrapper {
+              width: 92%;
+              max-width: 175px;
+              margin: 0 auto;
+              display: flex;
+              flex-direction: column;
+              align-items: stretch;
+            }
+            .barcode-container {
+              width: 100%;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              padding: 0;
+              margin: 0;
+              line-height: 0;
+            }
+            #barcode {
+              width: 100% !important;
+              max-width: 100% !important;
+              height: 30px !important;
+              display: block !important;
+              padding: 0 !important;
+              margin: 0 !important;
+            }
+            .imei-serial {
+              width: 100%;
+              display: flex;
+              justify-content: space-between;
+              font-size: 8px;
+              font-family: monospace;
+              font-weight: 700;
+              line-height: 1;
+              margin-top: 1px;
+              padding-top: 1px;
+              margin-bottom: 0;
+              padding-bottom: 0;
+              box-sizing: border-box;
+              padding-left: 2px;
+              padding-right: 2px;
+            }
+            .imei-serial span {
+              display: inline-block;
+              text-align: center;
+            }
+          </style>
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+        </head>
+        <body>
+          <div class="label-content">
+            <div class="device-name">${device.product_name || 'DEVICE'}</div>
+            <div class="specs">${specsCombined}</div>
+            ${priceVal ? `<div class="price">€${Number(priceVal).toFixed(2)}</div>` : ''}
+            <div class="barcode-wrapper">
+              <div class="barcode-container">
+                <svg id="barcode"></svg>
+              </div>
+              <div class="imei-serial">
+                ${imeiOrSerial.split('').map((char: string) => `<span>${char}</span>`).join('')}
+              </div>
+            </div>
+          </div>
+          <script>
+            try {
+              JsBarcode("#barcode", "${imeiOrSerial}", {
+                format: "CODE128",
+                width: 1.6,
+                height: 30,
+                displayValue: false,
+                margin: 0
+              });
+            } catch (e) {
+              console.error("Barcode generation failed", e);
+            }
+
+            window.addEventListener('load', () => {
+              setTimeout(() => {
+                window.print();
+                setTimeout(() => window.close(), 500);
+              }, 500);
+            });
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   const handleUpdateDevice = async () => {
@@ -99,15 +291,15 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
 
   const handleEditClick = () => {
     setEditForm({
-      color: device.color || '',
-      gb: device.gb || '',
-      ram: device.ram || '',
-      condition: device.condition || 'Grade A',
-      cost_price: device.cost_price ?? '',
-      selling_price: device.selling_price ?? '',
-      unlocked: device.unlocked || '',
-      imei_status: device.imei_status || '',
-      carrier: device.carrier || ''
+      color: device.color,
+      gb: device.gb,
+      ram: device.ram,
+      condition: device.condition,
+      cost_price: device.cost_price,
+      selling_price: device.selling_price,
+      unlocked: device.unlocked,
+      imei_status: device.imei_status,
+      carrier: device.carrier
     });
     setShowEditModal(true);
   };
@@ -391,7 +583,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Color</label>
                 <input 
                   type="text" 
-                  value={editForm.color ?? ''} 
+                  value={editForm.color} 
                   onChange={e => setEditForm({...editForm, color: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />
@@ -400,7 +592,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Storage (GB)</label>
                 <input 
                   type="text" 
-                  value={editForm.gb ?? ''} 
+                  value={editForm.gb} 
                   onChange={e => setEditForm({...editForm, gb: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />
@@ -409,7 +601,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <label className="text-[10px] font-bold text-slate-400 uppercase">RAM</label>
                 <input 
                   type="text" 
-                  value={editForm.ram ?? ''} 
+                  value={editForm.ram} 
                   onChange={e => setEditForm({...editForm, ram: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />
@@ -417,7 +609,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Condition</label>
                 <select 
-                  value={editForm.condition ?? 'Grade A'} 
+                  value={editForm.condition} 
                   onChange={e => setEditForm({...editForm, condition: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 >
@@ -432,7 +624,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Cost Price</label>
                 <input 
                   type="number" 
-                  value={editForm.cost_price ?? ''} 
+                  value={editForm.cost_price} 
                   onChange={e => setEditForm({...editForm, cost_price: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />
@@ -441,7 +633,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Selling Price</label>
                 <input 
                   type="number" 
-                  value={editForm.selling_price ?? ''} 
+                  value={editForm.selling_price} 
                   onChange={e => setEditForm({...editForm, selling_price: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />
@@ -450,7 +642,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Unlocked Status</label>
                 <input 
                   type="text" 
-                  value={editForm.unlocked ?? ''} 
+                  value={editForm.unlocked} 
                   onChange={e => setEditForm({...editForm, unlocked: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />
@@ -459,7 +651,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <label className="text-[10px] font-bold text-slate-400 uppercase">IMEI Status</label>
                 <input 
                   type="text" 
-                  value={editForm.imei_status ?? ''} 
+                  value={editForm.imei_status} 
                   onChange={e => setEditForm({...editForm, imei_status: e.target.value})}
                   className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
                 />

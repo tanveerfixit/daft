@@ -1,77 +1,62 @@
-import { useState, useEffect } from 'react';
-import { Smartphone, Eye, EyeOff, Loader, CheckCircle, ArrowLeft, Building2, UserPlus, Search } from 'lucide-react';
+import { useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { Eye, EyeOff, Loader, Building2, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
-interface Props { onGoLogin: () => void; }
-
-type SignupMode = 'staff-join' | 'business-register';
+interface Props {
+  onGoLogin: () => void;
+}
 
 export default function SignupPage({ onGoLogin }: Props) {
-  const [mode, setMode] = useState<SignupMode>('staff-join');
-  const [branches, setBranches] = useState<any[]>([]);
-  const [businessEmail, setBusinessEmail] = useState('');
-  const [searchingBranches, setSearchingBranches] = useState(false);
-  const [branchesError, setBranchesError] = useState('');
-  
-  const [form, setForm] = useState({ 
-    name: '', 
-    email: '', 
-    password: '', 
-    confirm: '', 
-    branch_id: '',
-    business_name: '',
-    branch_name: '' 
+  const { setSession } = useAuth();
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    address: '',
+    contact: '',
+    password: ''
   });
-  
+
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const setField = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm(f => ({ ...f, [field]: e.target.value }));
-
-  const lookupBranches = async () => {
-    if (!businessEmail) return;
-    setSearchingBranches(true);
-    setBranchesError('');
-    try {
-      const res = await fetch(`/api/auth/branches-lookup?email=${encodeURIComponent(businessEmail)}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Business not found');
-      setBranches(data);
-    } catch (err: any) {
-      setBranchesError(err.message);
-      setBranches([]);
-    } finally {
-      setSearchingBranches(false);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    if (form.password !== form.confirm) return setError('Passwords do not match');
+
+    if (!form.name.trim()) return setError('Business Name is required');
+    if (!form.email.trim()) return setError('Email Address is required');
+    if (!form.address.trim()) return setError('Business Address is required');
+    if (!form.contact.trim()) return setError('Contact Number is required');
     if (form.password.length < 6) return setError('Password must be at least 6 characters');
-    
+
     setLoading(true);
     try {
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          mode: mode === 'business-register' ? 'business_register' : 'staff_join',
-          name: form.name, 
-          email: form.email, 
-          password: form.password, 
-          branch_id: mode === 'staff-join' ? Number(form.branch_id) : undefined,
-          business_name: mode === 'business-register' ? form.business_name : undefined,
-          branch_name: mode === 'business-register' ? form.branch_name : undefined
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim().toLowerCase(),
+          address: form.address.trim(),
+          contact: form.contact.trim(),
+          password: form.password
         }),
       });
+
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setSuccess(true);
+      if (!res.ok) throw new Error(data.error || 'Failed to register business');
+
+      if (data.token && data.user) {
+        setSession(data.token, data.user);
+      } else {
+        setSuccess(true);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -81,23 +66,19 @@ export default function SignupPage({ onGoLogin }: Props) {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-6 font-sans">
-        <div className="w-full max-w-md text-center">
-          <div className="bg-white rounded-[2.5rem] p-12 shadow-soft border border-slate-100">
-            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle size={40} className="text-green-500" />
+      <div className="min-h-screen bg-white flex items-center justify-center p-6 font-sans text-slate-900">
+        <div className="w-full max-w-[420px] text-center">
+          <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-xl">
+            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <CheckCircle2 size={36} strokeWidth={2.5} />
             </div>
-            <h2 className="text-2xl font-black text-slate-900 mb-3">
-              {mode === 'business-register' ? 'Registration Complete!' : 'Request Sent!'}
-            </h2>
+            <h2 className="text-2xl font-black text-slate-950 mb-2">Registration Complete!</h2>
             <p className="text-slate-500 text-sm leading-relaxed mb-8">
-              {mode === 'business-register' 
-                ? 'Your business has been registered successfully. You can now sign in as the administrator.'
-                : 'Your account is pending admin approval. We\'ll notify you via email as soon as an admin reviews your request.'}
+              Your business <span className="font-bold text-slate-800">"{form.name}"</span> has been created successfully.
             </p>
-            <button 
-              onClick={onGoLogin} 
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-2xl transition-all"
+            <button
+              onClick={onGoLogin}
+              className="w-full bg-slate-950 hover:bg-slate-800 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-slate-900/10"
             >
               Sign In Now
             </button>
@@ -108,131 +89,152 @@ export default function SignupPage({ onGoLogin }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-6 font-sans">
-      <div className="w-full max-w-md">
-        <button 
-          onClick={onGoLogin} 
-          className="flex items-center gap-2 text-slate-400 hover:text-slate-900 mb-8 transition-colors group"
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 font-sans text-slate-900">
+      <div className="w-full max-w-[440px]">
+        {/* Back to Login Button */}
+        <button
+          onClick={onGoLogin}
+          className="flex items-center gap-2 text-slate-500 hover:text-slate-900 mb-6 transition-colors group font-semibold text-xs uppercase tracking-wider"
         >
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-          <span className="text-xs font-bold uppercase tracking-widest">Back to Login</span>
+          <span>Back to Login</span>
         </button>
 
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Get Started</h1>
-          <p className="text-slate-500 font-medium mt-2">Choose how you want to join the platform</p>
-        </div>
+        {/* Card Container */}
+        <div className="bg-white rounded-3xl p-8 sm:p-10 border border-slate-200/80 shadow-xl shadow-slate-200/50">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-slate-950 text-white rounded-2xl mb-4 shadow-md shadow-slate-950/20">
+              <Building2 size={22} strokeWidth={2.5} />
+            </div>
+            <h1 className="text-2xl font-black text-slate-950 tracking-tight">Register Business</h1>
+            <p className="text-slate-500 text-xs font-medium mt-1.5">Create a new isolated business account</p>
+          </div>
 
-        {/* Mode Toggle */}
-        <div className="bg-slate-100 p-1.5 rounded-2xl flex items-center mb-8 shadow-inner">
-          <button 
-            onClick={() => setMode('staff-join')}
-            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${mode === 'staff-join' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <UserPlus size={14} />
-            Join Branch
-          </button>
-          <button 
-            onClick={() => setMode('business-register')}
-            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${mode === 'business-register' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <Building2 size={14} />
-            New Business
-          </button>
-        </div>
-
-        <div className="bg-white rounded-[2.5rem] p-10 shadow-soft border border-slate-100">
+          {/* Error Message */}
           {error && (
-            <div className="bg-red-50 border border-red-100 text-red-600 rounded-xl p-4 mb-6 text-sm font-medium flex items-center gap-3">
-              <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
-              {error}
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3.5 mb-6 text-xs font-semibold flex items-center gap-2.5">
+              <span className="w-2 h-2 bg-red-500 rounded-full shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Common Fields */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Full Name</label>
-                <input type="text" value={form.name} onChange={set('name')} required placeholder="John Doe"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all text-sm" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Your Email</label>
-                <input type="email" value={form.email} onChange={set('email')} required placeholder="you@example.com"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all text-sm" />
+          {/* Clean 5-Field Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* 1. Name */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 ml-1">
+                Name
+              </label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={setField('name')}
+                required
+                autoFocus
+                placeholder="e.g. FIXD GORT"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-950 placeholder-slate-400 font-medium focus:outline-none focus:ring-2 focus:ring-slate-950/10 focus:border-slate-950 focus:bg-white transition-all"
+              />
+            </div>
+
+            {/* 2. Email */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 ml-1">
+                Email
+              </label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={setField('email')}
+                required
+                placeholder="e.g. fixd.gort@gmail.com"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-950 placeholder-slate-400 font-medium focus:outline-none focus:ring-2 focus:ring-slate-950/10 focus:border-slate-950 focus:bg-white transition-all"
+              />
+            </div>
+
+            {/* 3. Address */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 ml-1">
+                Address
+              </label>
+              <input
+                type="text"
+                value={form.address}
+                onChange={setField('address')}
+                required
+                placeholder="e.g. 1 Bridge St, Ballyhugh, Gort, Co. Galway"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-950 placeholder-slate-400 font-medium focus:outline-none focus:ring-2 focus:ring-slate-950/10 focus:border-slate-950 focus:bg-white transition-all"
+              />
+            </div>
+
+            {/* 4. Contact */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 ml-1">
+                Contact
+              </label>
+              <input
+                type="tel"
+                value={form.contact}
+                onChange={setField('contact')}
+                required
+                placeholder="e.g. (089) 981 5157"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-950 placeholder-slate-400 font-medium focus:outline-none focus:ring-2 focus:ring-slate-950/10 focus:border-slate-950 focus:bg-white transition-all"
+              />
+            </div>
+
+            {/* 5. Password */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5 ml-1">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPass ? 'text' : 'password'}
+                  value={form.password}
+                  onChange={setField('password')}
+                  required
+                  placeholder="••••••••"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-11 text-sm text-slate-950 placeholder-slate-400 font-medium focus:outline-none focus:ring-2 focus:ring-slate-950/10 focus:border-slate-950 focus:bg-white transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass(!showPass)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors p-1"
+                >
+                  {showPass ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
               </div>
             </div>
 
-            {mode === 'business-register' ? (
-              <>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Business Name</label>
-                  <input type="text" value={form.business_name} onChange={set('business_name')} required placeholder="e.g. Phone Lab, iCover"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all text-sm" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">First Branch Name</label>
-                  <input type="text" value={form.branch_name} onChange={set('branch_name')} required placeholder="e.g. Manchester Central"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all text-sm" />
-                </div>
-              </>
-            ) : (
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Find Business</label>
-                  <div className="relative">
-                    <input 
-                      type="email" 
-                      value={businessEmail} 
-                      onChange={(e) => setBusinessEmail(e.target.value)} 
-                      placeholder="Admin email to find branches..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-5 pr-12 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all text-sm" 
-                    />
-                    <button 
-                      type="button"
-                      onClick={lookupBranches}
-                      disabled={searchingBranches}
-                      className="absolute right-2 top-2 p-1.5 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all"
-                    >
-                      {searchingBranches ? <Loader size={16} className="animate-spin" /> : <Search size={16} />}
-                    </button>
-                  </div>
-                  {branchesError && <p className="text-[10px] font-bold text-red-500 ml-1 mt-1 uppercase tracking-tight">{branchesError}</p>}
-                </div>
-
-                {branches.length > 0 && (
-                  <div className="space-y-1.5 animate-in slide-in-from-top duration-300">
-                    <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Select Branch</label>
-                    <select value={form.branch_id} onChange={set('branch_id')} required
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all appearance-none cursor-pointer text-sm font-medium">
-                      <option value="">Select your branch...</option>
-                      {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                    </select>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Password</label>
-                <input type="password" value={form.password} onChange={set('password')} required placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all text-sm" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Confirm</label>
-                <input type="password" value={form.confirm} onChange={set('confirm')} required placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all text-sm" />
-              </div>
-            </div>
-
-            <button type="submit" disabled={loading}
-              className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 mt-2 shadow-lg shadow-slate-200"
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full mt-2 bg-slate-950 hover:bg-slate-800 active:scale-[0.99] text-white font-bold py-3.5 rounded-xl transition-all shadow-md shadow-slate-950/10 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
             >
-              {loading ? <Loader size={20} className="animate-spin" /> : (mode === 'business-register' ? 'Create My Business' : 'Request Access')}
+              {loading ? (
+                <>
+                  <Loader size={18} className="animate-spin" />
+                  <span>Registering Business...</span>
+                </>
+              ) : (
+                <span>Register Business</span>
+              )}
             </button>
           </form>
+
+          {/* Bottom Login Link */}
+          <div className="mt-6 pt-5 border-t border-slate-100 text-center">
+            <p className="text-xs text-slate-500 font-medium">
+              Already have an account?{' '}
+              <button
+                onClick={onGoLogin}
+                className="text-slate-950 hover:underline font-bold transition-all ml-1 cursor-pointer"
+              >
+                Sign In
+              </button>
+            </p>
+          </div>
         </div>
       </div>
     </div>

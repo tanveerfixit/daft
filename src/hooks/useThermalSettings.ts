@@ -46,10 +46,10 @@ export function useThermalSettings() {
           fetch('/api/company')
         ]);
 
-        const settingsData = await settingsRes.json();
-        const companyData = await companyRes.json();
+        const settingsData = settingsRes.ok ? await settingsRes.json().catch(() => null) : null;
+        const companyData = companyRes.ok ? await companyRes.json().catch(() => null) : null;
 
-        if (settingsData) {
+        if (settingsData && typeof settingsData === 'object' && !Array.isArray(settingsData)) {
           setSettings({
             ...settingsData,
             show_logo: !!settingsData.show_logo,

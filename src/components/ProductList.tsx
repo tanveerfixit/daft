@@ -4,10 +4,12 @@ import { Product, Category, Manufacturer } from '../types';
 
 export default function ProductList({ 
   onCreateProduct,
-  onSelectProduct
+  onSelectProduct,
+  isActive = true
 }: { 
   onCreateProduct: () => void;
   onSelectProduct: (id: number) => void;
+  isActive?: boolean;
 }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -75,6 +77,20 @@ export default function ProductList({
   useEffect(() => {
     fetchProducts();
   }, [currentPage, itemsPerPage, searchQuery, selectedCategory, selectedManufacturer, selectedType]);
+
+  useEffect(() => {
+    if (isActive) {
+      fetchProducts();
+    }
+  }, [isActive]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      if (isActive) fetchProducts();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [isActive, currentPage, itemsPerPage, searchQuery, selectedCategory, selectedManufacturer, selectedType]);
 
   useEffect(() => {
     fetch('/api/categories').then(res => res.json()).then(setCategories);

@@ -81,12 +81,6 @@ async function initSchema() {
         FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
       )
     `);
-    try {
-      await conn.query("ALTER TABLE branches ADD COLUMN email VARCHAR(255) NULL AFTER name");
-      console.log("[MySQL] Migration: added email to branches");
-    } catch (e) {
-      if (!e.message?.includes("Duplicate column")) throw e;
-    }
     await conn.query(`
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -804,8 +798,8 @@ async function initSchema() {
   }
 }
 async function seedData() {
-  const [existing] = await pool.execute("SELECT COUNT(*) as count FROM businesses");
-  if (existing[0]?.count > 0) return;
+  const [existing] = await pool.execute("SELECT id FROM businesses WHERE name='Phone Management System'");
+  if (existing.length > 0) return;
   const conn = await pool.getConnection();
   try {
     console.log("[MySQL] Resetting database and seeding initial data...");
@@ -990,15 +984,6 @@ async function sendMail(to, subject, html) {
   const from = await getFromAddress();
   await transporter.sendMail({ from, to, subject, html });
 }
-async function sendAccountPending(user) {
-  const html = `<div style="${baseStyle}">
-    <h2 style="color:#2c3e50;">Hi ${user.name},</h2>
-    <p>Your account has been created and is currently <strong>pending approval</strong> by an administrator.</p>
-    <p>You will receive an email once your account has been reviewed.</p>
-    <p style="color:#7f8c8d;font-size:13px;">If you did not request this account, please ignore this email.</p>
-  </div>`;
-  await sendMail(user.email, "Account Pending Approval", html);
-}
 async function sendAccountApproved(user) {
   const html = `<div style="${baseStyle}">
     <h2 style="color:#27ae60;">Hi ${user.name}, your account is approved! \u2713</h2>
@@ -1042,14 +1027,6 @@ async function sendGeneratedPassword(user, password) {
     <p style="color:#7f8c8d;font-size:13px;">If you did not expect this email, contact your administrator.</p>
   </div>`;
   await sendMail(user.email, "Your EPOS Account Password", html);
-}
-async function sendTestEmail(toEmail) {
-  const html = `<div style="${baseStyle}">
-    <h2 style="color:#2980b9;">\u2713 SMTP Test Successful</h2>
-    <p>Your Hostinger SMTP email settings are configured correctly and working.</p>
-    <p style="color:#7f8c8d;font-size:13px;">Sent from your EPOS Admin Portal.</p>
-  </div>`;
-  await sendMail(toEmail, "EPOS SMTP Test Email", html);
 }
 var baseStyle;
 var init_mailer = __esm({
@@ -1117,8 +1094,8 @@ async function requireAdminAsync(req, res, next) {
   if (!decoded) return res.status(401).json({ error: "Unauthorized" });
   try {
     const user = await queryOne("SELECT * FROM users WHERE id=?", [decoded.userId]);
-    if (!user || !["superadmin", "developer"].includes(user.role)) {
-      return res.status(403).json({ error: "Admin access required" });
+    if (!user || user.role === "staff" || !["tanveerfixit@gmail.com", "support@techinbox.ie"].includes(user.email)) {
+      return res.status(403).json({ error: "Admin access required. Only Super Admin has access." });
     }
     req._sessionToken = token;
     req.userId = decoded.userId;
@@ -1145,71 +1122,80 @@ var init_auth = __esm({
     if (typeof _cleanup.unref === "function") _cleanup.unref();
     router = Router();
     signupSchema = z.object({
-      mode: z.enum(["business_register", "staff_register"]).optional(),
-      name: z.string().min(2, "Name must be at least 2 characters"),
+      name: z.string().min(2, "Business Name is required"),
       email: z.string().email("Invalid email address"),
-      password: z.string().min(8, "Password must be at least 8 characters"),
-      business_name: z.string().optional(),
-      branch_name: z.string().optional(),
-      branch_id: z.number().optional()
+      address: z.string().min(2, "Address is required"),
+      contact: z.string().min(3, "Contact number is required"),
+      password: z.string().min(6, "Password must be at least 6 characters")
     });
     router.post("/signup", async (req, res, next) => {
-      const data = signupSchema.parse(req.body);
-      const { mode, name, email, password, business_name, branch_name, branch_id } = data;
-      const conn = await pool.getConnection();
       try {
-        await conn.beginTransaction();
-        const existing = await queryOne("SELECT id FROM users WHERE email=?", [email]);
-        if (existing) return res.status(409).json({ error: "An account with this email already exists" });
-        const password_hash = await bcrypt.hash(password, 10);
-        if (mode === "business_register") {
-          if (!business_name || !branch_name) {
-            return res.status(400).json({ error: "Business name and initial branch name are required" });
+        const data = signupSchema.parse(req.body);
+        const { name, email, address, contact, password } = data;
+        const conn = await pool.getConnection();
+        try {
+          await conn.beginTransaction();
+          const existing = await queryOne("SELECT id FROM users WHERE email=?", [email]);
+          if (existing) {
+            conn.release();
+            return res.status(409).json({ error: "An account with this email already exists" });
           }
-          let slug = slugify(business_name);
+          const password_hash = await bcrypt.hash(password, 10);
+          let slug = slugify(name);
           const [existingSlug] = await conn.execute("SELECT id FROM businesses WHERE slug = ?", [slug]);
           if (existingSlug.length > 0) {
-            slug = `${slug}-${Math.floor(Math.random() * 1e3)}`;
+            slug = `${slug}-${Math.floor(1e3 + Math.random() * 9e3)}`;
           }
-          const [biz] = await conn.execute("INSERT INTO businesses (name, slug, email, status) VALUES (?, ?, ?, ?)", [business_name, slug, email, "inactive"]);
-          const businessId = biz.insertId;
-          const [br] = await conn.execute("INSERT INTO branches (business_id, name) VALUES (?, ?)", [businessId, branch_name]);
-          const branchId = br.insertId;
-          await conn.execute(
-            "INSERT INTO users (business_id, branch_id, name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?, 'superadmin', 'approved')",
-            [businessId, branchId, name, email, password_hash]
+          const [biz] = await conn.execute(
+            "INSERT INTO businesses (name, slug, email, phone, address, status) VALUES (?, ?, ?, ?, ?, ?)",
+            [name, slug, email, contact, address, "active"]
           );
+          const businessId = biz.insertId;
+          const [br] = await conn.execute(
+            "INSERT INTO branches (business_id, name, phone, address, status) VALUES (?, ?, ?, ?, ?)",
+            [businessId, name, contact, address, "active"]
+          );
+          const branchId = br.insertId;
+          const [userResult] = await conn.execute(
+            "INSERT INTO users (business_id, branch_id, name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?, 'staff', 'active')",
+            [businessId, branchId, `${name} User`, email, password_hash]
+          );
+          const userId = userResult.insertId;
           await conn.execute("INSERT INTO settings (business_id) VALUES (?)", [businessId]);
           const methods = ["Cash", "Card", "Other"];
           for (let i = 0; i < methods.length; i++) {
             await conn.execute("INSERT INTO payment_methods (business_id, name, display_order) VALUES (?, ?, ?)", [businessId, methods[i], i + 1]);
           }
           await conn.commit();
-          return res.json({ success: true, message: "Business registered successfully! You can now log in." });
-        } else {
-          if (!branch_id) return res.status(400).json({ error: "Branch selection is required" });
-          const branch = await queryOne("SELECT business_id FROM branches WHERE id=?", [branch_id]);
-          if (!branch) return res.status(404).json({ error: "Selected branch not found" });
-          const settings = await queryOne("SELECT allow_signup FROM settings WHERE business_id=?", [branch.business_id]);
-          if (settings && settings.allow_signup === 0) {
-            return res.status(403).json({ error: "Sign-up is currently disabled for this business." });
-          }
-          await conn.execute(
-            "INSERT INTO users (business_id, branch_id, name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?, 'staff', 'pending')",
-            [branch.business_id, branch_id, name, email, password_hash]
+          conn.release();
+          const token = jwt.sign(
+            { id: userId, email, role: "staff", business_id: businessId, branch_id: branchId },
+            JWT_SECRET,
+            { expiresIn: "7d" }
           );
-          await conn.commit();
-          try {
-            await sendAccountPending({ name, email });
-          } catch {
-          }
-          res.json({ success: true, message: "Account created. Awaiting admin approval." });
+          return res.json({
+            success: true,
+            message: "Business registered successfully!",
+            token,
+            user: {
+              id: userId,
+              name: `${name} User`,
+              email,
+              role: "staff",
+              business_id: businessId,
+              business_name: name,
+              branch_id: branchId,
+              branch_name: name,
+              branch_slug: slug
+            }
+          });
+        } catch (e) {
+          await conn.rollback();
+          conn.release();
+          throw e;
         }
       } catch (e) {
-        await conn.rollback();
         next(e);
-      } finally {
-        conn.release();
       }
     });
     loginSchema = z.object({
@@ -1482,12 +1468,13 @@ var init_auth = __esm({
     });
     adminRouter.get("/branches", requireAdminAsync, async (req, res, next) => {
       try {
-        if (req.user.role === "developer") {
+        if (["superadmin", "developer"].includes(req.user.role)) {
           res.json(await query(`
         SELECT b.*, biz.name as business_name 
         FROM branches b 
         JOIN businesses biz ON b.business_id = biz.id 
         WHERE b.deleted_at IS NULL
+        ORDER BY biz.name, b.name
       `));
         } else {
           res.json(await query("SELECT * FROM branches WHERE business_id=? AND deleted_at IS NULL", [req.user.business_id]));
@@ -1497,51 +1484,30 @@ var init_auth = __esm({
       }
     });
     adminRouter.post("/branches", requireAdminAsync, async (req, res, next) => {
-      const { name, address, phone } = req.body;
+      const { name, address, phone, business_id } = req.body;
+      const targetBusinessId = business_id || req.user.business_id;
       try {
         const r = await execute(
-          "INSERT INTO branches (business_id,name,address,phone) VALUES (?,?,?,?)",
-          [req.user.business_id, name, address, phone]
+          "INSERT INTO branches (business_id,name,address,phone,status) VALUES (?,?,?,?,?)",
+          [targetBusinessId, name, address, phone, "active"]
         );
-        res.json({ id: r.insertId, name, address, phone });
+        res.json({ id: r.insertId, business_id: targetBusinessId, name, address, phone, status: "active" });
       } catch (e) {
         next(e);
       }
     });
-    adminRouter.get("/smtp", requireAdminAsync, async (req, res, next) => {
+    adminRouter.put("/branches/:id", requireAdminAsync, async (req, res, next) => {
+      const { name, address, phone, status, business_id } = req.body;
       try {
-        const s = await queryOne("SELECT * FROM smtp_settings WHERE business_id=?", [req.user.business_id]);
-        if (s) {
-          const { pass, ...safe } = s;
-          res.json({ ...safe, pass: pass ? "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" : "" });
-        } else {
-          res.json({ host: "smtp.hostinger.com", port: 465, secure: 1, user: "", pass: "", from_name: "EPOS System", from_email: "" });
-        }
-      } catch (e) {
-        next(e);
-      }
-    });
-    adminRouter.put("/smtp", requireAdminAsync, async (req, res, next) => {
-      const { host, port, secure, user, pass, from_name, from_email } = req.body;
-      const businessId = req.user.business_id;
-      try {
-        const existing = await queryOne("SELECT id FROM smtp_settings WHERE business_id=?", [businessId]);
-        if (existing) {
-          if (pass && pass !== "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022") {
-            await execute(
-              "UPDATE smtp_settings SET host=?,port=?,secure=?,`user`=?,pass=?,from_name=?,from_email=? WHERE business_id=?",
-              [host, port, secure ? 1 : 0, user, pass, from_name, from_email, businessId]
-            );
-          } else {
-            await execute(
-              "UPDATE smtp_settings SET host=?,port=?,secure=?,`user`=?,from_name=?,from_email=? WHERE business_id=?",
-              [host, port, secure ? 1 : 0, user, from_name, from_email, businessId]
-            );
-          }
+        if (business_id) {
+          await execute(
+            "UPDATE branches SET name=?, address=?, phone=?, status=?, business_id=? WHERE id=?",
+            [name, address, phone, status || "active", business_id, req.params.id]
+          );
         } else {
           await execute(
-            "INSERT INTO smtp_settings (business_id,host,port,secure,`user`,pass,from_name,from_email) VALUES (?,?,?,?,?,?,?,?)",
-            [businessId, host, port, secure ? 1 : 0, user, pass, from_name, from_email]
+            "UPDATE branches SET name=?, address=?, phone=?, status=? WHERE id=?",
+            [name, address, phone, status || "active", req.params.id]
           );
         }
         res.json({ success: true });
@@ -1549,52 +1515,73 @@ var init_auth = __esm({
         next(e);
       }
     });
-    adminRouter.post("/smtp/test", requireAdminAsync, async (req, res, next) => {
+    adminRouter.delete("/branches/:id", requireAdminAsync, async (req, res, next) => {
       try {
-        const admin = await queryOne("SELECT email FROM users WHERE id=?", [req.userId]);
-        await sendTestEmail(admin.email);
-        res.json({ success: true, message: `Test email sent to ${admin.email}` });
+        await execute('UPDATE branches SET deleted_at=CURRENT_TIMESTAMP, status="inactive" WHERE id=?', [req.params.id]);
+        res.json({ success: true });
       } catch (e) {
         next(e);
       }
     });
-    adminRouter.get("/system/businesses", requireAuthAsync, async (req, res, next) => {
-      if (req.user.role !== "developer") {
-        return res.status(403).json({ error: "Developer access required" });
-      }
+    adminRouter.get("/system/businesses", requireAdminAsync, async (req, res, next) => {
       try {
-        res.json(await query("SELECT * FROM businesses WHERE deleted_at IS NULL ORDER BY created_at DESC"));
+        res.json(await query("SELECT * FROM businesses WHERE deleted_at IS NULL ORDER BY name ASC"));
       } catch (e) {
         next(e);
       }
     });
-    adminRouter.put("/system/businesses/:id", requireAuthAsync, async (req, res, next) => {
-      if (req.user.role !== "developer") {
-        return res.status(403).json({ error: "Developer access required" });
+    adminRouter.post("/system/businesses", requireAdminAsync, async (req, res, next) => {
+      const { name, email, phone, address, city, state, zip_code, country } = req.body;
+      try {
+        if (!name || !name.trim()) {
+          return res.status(400).json({ error: "Business name is required" });
+        }
+        let slug = slugify(name);
+        const [existingSlug] = await pool.execute("SELECT id FROM businesses WHERE slug = ?", [slug]);
+        if (existingSlug.length > 0) {
+          slug = `${slug}-${Math.floor(1e3 + Math.random() * 9e3)}`;
+        }
+        const [bizResult] = await pool.execute(
+          "INSERT INTO businesses (name, slug, email, phone, address, city, state, zip_code, country, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          [name.trim(), slug, email || null, phone || null, address || null, city || null, state || null, zip_code || null, country || null, "active"]
+        );
+        const businessId = bizResult.insertId;
+        const [brResult] = await pool.execute(
+          "INSERT INTO branches (business_id, name, phone, address, status) VALUES (?, ?, ?, ?, ?)",
+          [businessId, name.trim(), phone || null, address || null, "active"]
+        );
+        const branchId = brResult.insertId;
+        await pool.execute("INSERT INTO settings (business_id) VALUES (?)", [businessId]);
+        const methods = ["Cash", "Card", "Other"];
+        for (let i = 0; i < methods.length; i++) {
+          await pool.execute("INSERT INTO payment_methods (business_id, name, display_order) VALUES (?, ?, ?)", [businessId, methods[i], i + 1]);
+        }
+        res.json({ id: businessId, branch_id: branchId, name, slug, email, phone, address, status: "active" });
+      } catch (e) {
+        next(e);
       }
-      const { name, slug, email, phone, address, city, state, zip_code, country } = req.body;
+    });
+    adminRouter.put("/system/businesses/:id", requireAdminAsync, async (req, res, next) => {
+      const { name, slug, email, phone, address, city, state, zip_code, country, status } = req.body;
       try {
         let finalSlug = slug;
-        if (!finalSlug) {
+        if (!finalSlug && name) {
           finalSlug = slugify(name);
           const [existingSlug] = await pool.execute("SELECT id FROM businesses WHERE slug = ? AND id != ?", [finalSlug, req.params.id]);
           if (existingSlug.length > 0) {
-            finalSlug = `${finalSlug}-${Math.floor(Math.random() * 1e3)}`;
+            finalSlug = `${finalSlug}-${Math.floor(1e3 + Math.random() * 9e3)}`;
           }
         }
         await execute(
-          "UPDATE businesses SET name=?,slug=?,email=?,phone=?,address=?,city=?,state=?,zip_code=?,country=? WHERE id=?",
-          [name, finalSlug, email, phone, address, city, state, zip_code, country, req.params.id]
+          "UPDATE businesses SET name=?,slug=?,email=?,phone=?,address=?,city=?,state=?,zip_code=?,country=?,status=? WHERE id=?",
+          [name, finalSlug, email, phone, address, city, state, zip_code, country, status || "active", req.params.id]
         );
         res.json({ success: true });
       } catch (e) {
         next(e);
       }
     });
-    adminRouter.put("/system/businesses/:id/status", requireAuthAsync, async (req, res, next) => {
-      if (req.user.role !== "developer") {
-        return res.status(403).json({ error: "Developer access required" });
-      }
+    adminRouter.put("/system/businesses/:id/status", requireAdminAsync, async (req, res, next) => {
       const { status } = req.body;
       try {
         await execute("UPDATE businesses SET status=? WHERE id=?", [status, req.params.id]);
@@ -1789,15 +1776,15 @@ var init_products = __esm({
       JOIN products p ON s.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
-      WHERE (s.id = ? OR p.id = ?) AND p.business_id = ?
-    `, [req.params.id, req.params.id, businessId]);
+      WHERE s.id = ? AND p.business_id = ?
+    `, [req.params.id, businessId]);
         if (!product) return res.status(404).json({ error: "Product not found" });
         const stock = await query(`
       SELECT b.name as branch_name, b.id as branch_id, COALESCE(bs.quantity,0) as quantity
       FROM branches b
       LEFT JOIN branch_stock bs ON b.id = bs.branch_id AND bs.sku_id = ?
       WHERE b.business_id = ?
-    `, [product.id, businessId]);
+    `, [req.params.id, businessId]);
         res.json({ ...product, stock });
       } catch (e) {
         next(e);
@@ -1810,12 +1797,12 @@ var init_products = __esm({
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
-        const [skuRows] = await conn.execute("SELECT s.*, p.business_id FROM product_skus s JOIN products p ON s.product_id = p.id WHERE (s.id = ? OR p.id = ?) AND p.business_id = ?", [skuId, skuId, businessId]);
+        const [skuRows] = await conn.execute("SELECT s.*, p.business_id FROM product_skus s JOIN products p ON s.product_id = p.id WHERE s.id = ? AND p.business_id = ?", [skuId, businessId]);
         const sku = skuRows[0];
         if (!sku) throw new Error("Product not found in your business catalog");
         await conn.execute(
           "UPDATE product_skus SET sku_code=?,barcode=?,selling_price=?,cost_price=? WHERE id=?",
-          [sku_code, barcode, selling_price, cost_price, sku.id]
+          [sku_code, barcode, selling_price, cost_price, skuId]
         );
         await conn.execute(
           "UPDATE products SET name=?,category_id=?,manufacturer_id=?,product_type=? WHERE id=?",
@@ -1829,11 +1816,11 @@ var init_products = __esm({
         const detailMsg = changes.length > 0 ? changes.join(", ") : "Details updated";
         await conn.execute(
           "INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)",
-          [sku.id, req.userId, "Product Updated", detailMsg]
+          [skuId, req.userId, "Product Updated", detailMsg]
         );
         await conn.execute(
           "INSERT INTO activity_logs (product_id,user_id,activity_type,description) VALUES (?,?,?,?)",
-          [sku.product_id, req.userId, "Product Updated", detailMsg]
+          [skuId, req.userId, "Product Updated", detailMsg]
         );
         await conn.commit();
         res.json({ success: true });
@@ -1927,7 +1914,7 @@ var init_products = __esm({
         );
         await conn.execute(
           "INSERT INTO activity_logs (product_id,user_id,activity_type,description) VALUES (?,?,?,?)",
-          [productId, req.userId, "Product Created", `Product "${name}" quick-added with SKU ${finalSku}`]
+          [skuId, req.userId, "Product Created", `Product "${name}" quick-added with SKU ${finalSku}`]
         );
         if (stockQty > 0) {
           await conn.execute(
@@ -3158,7 +3145,7 @@ var init_settings = __esm({
       margin_bottom: z6.number().or(z6.string().transform(Number)).optional(),
       margin_right: z6.number().or(z6.string().transform(Number)).optional(),
       orientation: z6.string().optional(),
-      font_size: z6.string().or(z6.number().transform(String)).optional(),
+      font_size: z6.number().or(z6.string().transform(Number)).optional(),
       font_family: z6.string().optional()
     });
     router7.post("/printer-settings", async (req, res, next) => {
@@ -3166,18 +3153,10 @@ var init_settings = __esm({
       const data = printerSettingsSchema.parse(req.body);
       const { label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family } = data;
       try {
-        const existing = await queryOne("SELECT id FROM printer_settings WHERE business_id=? AND branch_id=?", [req.user.business_id, branchId]);
-        if (existing) {
-          await execute(
-            "UPDATE printer_settings SET label_size=?,barcode_length=?,margin_top=?,margin_left=?,margin_bottom=?,margin_right=?,orientation=?,font_size=?,font_family=? WHERE business_id=? AND branch_id=?",
-            [label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family, req.user.business_id, branchId]
-          );
-        } else {
-          await execute(
-            "INSERT INTO printer_settings (business_id,branch_id,label_size,barcode_length,margin_top,margin_left,margin_bottom,margin_right,orientation,font_size,font_family) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            [req.user.business_id, branchId, label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family]
-          );
-        }
+        await execute(
+          "UPDATE printer_settings SET label_size=?,barcode_length=?,margin_top=?,margin_left=?,margin_bottom=?,margin_right=?,orientation=?,font_size=?,font_family=? WHERE business_id=? AND branch_id=?",
+          [label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family, req.user.business_id, branchId]
+        );
         res.json({ success: true });
       } catch (e) {
         next(e);
@@ -3531,13 +3510,14 @@ var init_inventory = __esm({
     `;
         const params = [req.user.business_id];
         if (searchVal && String(searchVal).trim() !== "") {
-          sql += " AND (d.imei LIKE ? OR p.name LIKE ? OR s.sku_code LIKE ?)";
+          sql += " AND (d.imei LIKE ? OR p.name LIKE ? OR s.sku_code LIKE ? OR d.imei_serial LIKE ?)";
           const term = `%${String(searchVal).trim()}%`;
-          params.push(term, term, term);
+          params.push(term, term, term, term);
         }
-        if (branch_id && String(branch_id).trim() !== "" && String(branch_id) !== "undefined") {
+        const activeBranchId = branch_id ? parseInt(branch_id) : req.user.branch_id;
+        if (activeBranchId && String(activeBranchId) !== "undefined") {
           sql += " AND d.branch_id=?";
-          params.push(parseInt(branch_id));
+          params.push(activeBranchId);
         }
         sql += " LIMIT 20";
         res.json(await query(sql, params));
@@ -3568,14 +3548,14 @@ var init_inventory = __esm({
       condition: z7.string().optional(),
       cost_price: z7.number().or(z7.string().transform(Number)).optional(),
       selling_price: z7.number().or(z7.string().transform(Number)).optional(),
-      unlocked: z7.string().or(z7.boolean().transform((b) => b ? "Yes" : "No")).or(z7.number().transform((n) => n ? "Yes" : "No")).optional(),
+      unlocked: z7.boolean().or(z7.number().transform(Boolean)).optional(),
       imei_status: z7.string().optional(),
       carrier: z7.string().optional()
     });
     router8.put("/devices/:id", async (req, res, next) => {
+      const data = updateDeviceSchema.parse(req.body);
+      const { color, gb, ram, condition, cost_price, selling_price, unlocked, imei_status, carrier } = data;
       try {
-        const data = updateDeviceSchema.parse(req.body);
-        const { color, gb, ram, condition, cost_price, selling_price, unlocked, imei_status, carrier } = data;
         const old = await queryOne("SELECT * FROM devices WHERE id=? AND business_id=?", [req.params.id, req.user.business_id]);
         if (!old) return res.status(404).json({ error: "Device not found" });
         await execute(`
@@ -3679,7 +3659,7 @@ var init_inventory = __esm({
       try {
         const isSuper = req.user.role === "superadmin";
         const sql = `
-      SELECT d.id, d.sku_id, d.imei, d.color, d.gb, d.ram, d.selling_price, d.cost_price, d.\`condition\`, d.po_number, d.status, d.created_at,
+      SELECT d.id, d.sku_id, d.imei, d.color, d.gb, d.\`condition\`, d.po_number, d.status, d.created_at,
              p.name as product_name, s.sku_code, inv.invoice_number
       FROM devices d
       JOIN product_skus s ON d.sku_id=s.id
@@ -3695,43 +3675,201 @@ var init_inventory = __esm({
         next(e);
       }
     });
+    router8.get("/transfers/destinations", async (req, res, next) => {
+      try {
+        const sql = `
+      SELECT b.id as branch_id, b.name as branch_name, b.business_id,
+             bz.name as business_name, bz.city as business_city
+      FROM branches b
+      JOIN businesses bz ON b.business_id = bz.id
+      WHERE b.deleted_at IS NULL AND bz.deleted_at IS NULL
+      ORDER BY bz.name ASC, b.name ASC
+    `;
+        const rows = await query(sql);
+        res.json(rows);
+      } catch (e) {
+        next(e);
+      }
+    });
     transferSchema = z7.object({
-      device_id: z7.number().optional(),
-      sku_id: z7.number().optional(),
-      quantity: z7.number().or(z7.string().transform(Number)).optional(),
       to_branch_id: z7.number().or(z7.string().transform(Number)),
-      notes: z7.string().optional()
+      device_id: z7.number().or(z7.string().transform(Number)).optional().nullable(),
+      sku_id: z7.number().or(z7.string().transform(Number)).optional().nullable(),
+      product_name: z7.string().optional().nullable(),
+      sku_code: z7.string().optional().nullable(),
+      imei: z7.string().optional().nullable(),
+      serial_number: z7.string().optional().nullable(),
+      quantity: z7.number().or(z7.string().transform(Number)).optional().default(1),
+      cost_price: z7.number().or(z7.string().transform(Number)).optional().nullable(),
+      selling_price: z7.number().or(z7.string().transform(Number)).optional().nullable(),
+      color: z7.string().optional().nullable(),
+      gb: z7.string().optional().nullable(),
+      condition: z7.string().optional().nullable(),
+      notes: z7.string().optional().nullable()
     });
     router8.post("/transfers", async (req, res, next) => {
       const data = transferSchema.parse(req.body);
-      const { device_id, sku_id, quantity, to_branch_id, notes } = data;
+      const {
+        to_branch_id,
+        device_id: rawDeviceId,
+        sku_id: rawSkuId,
+        product_name,
+        sku_code,
+        imei,
+        serial_number,
+        quantity: rawQty,
+        cost_price,
+        selling_price,
+        color,
+        gb,
+        condition,
+        notes
+      } = data;
+      const quantity = rawQty || 1;
+      const sourceBranchId = req.user.branch_id;
+      const sourceBusinessId = req.user.business_id;
       if (!to_branch_id) return res.status(400).json({ error: "Destination branch is required" });
+      if (Number(to_branch_id) === Number(sourceBranchId)) {
+        return res.status(400).json({ error: "Source and destination branches must be different" });
+      }
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
-        let from_branch_id;
-        if (device_id) {
-          const [dr] = await conn.execute("SELECT * FROM devices WHERE id=? AND business_id=?", [device_id, req.user.business_id]);
-          const device = dr[0];
-          if (!device) throw new Error("Device not found or access denied");
-          if (device.status !== "in_stock") throw new Error("Device is not available for transfer");
-          from_branch_id = device.branch_id;
-          await conn.execute("UPDATE devices SET status='transfer' WHERE id=?", [device_id]);
-        } else {
-          const [sr] = await conn.execute("SELECT * FROM branch_stock WHERE sku_id=? AND quantity>=? AND branch_id=?", [sku_id, quantity || 1, req.user.branch_id]);
-          const stock = sr[0];
-          if (!stock) throw new Error("Insufficient stock for transfer in your branch");
-          from_branch_id = stock.branch_id;
-        }
-        if (String(from_branch_id) === String(to_branch_id)) throw new Error("Source and destination branches must be different");
-        const [tr] = await conn.execute(
-          "INSERT INTO device_transfers (business_id,from_branch_id,to_branch_id,device_id,sku_id,quantity,status,initiated_by,notes) VALUES (?,?,?,?,?,?,'in_transit',?,?)",
-          [req.user.business_id, from_branch_id, to_branch_id, device_id || null, sku_id || null, quantity || 1, req.userId, notes || null]
+        const [destBranchRows] = await conn.execute(
+          "SELECT b.id, b.business_id, b.name as branch_name, bz.name as business_name FROM branches b JOIN businesses bz ON b.business_id=bz.id WHERE b.id=?",
+          [to_branch_id]
         );
+        const destBranch = destBranchRows[0];
+        if (!destBranch) throw new Error("Destination branch does not exist");
+        let finalSkuId = rawSkuId;
+        let finalDeviceId = rawDeviceId;
+        let isSerialized = !!(imei?.trim() || serial_number?.trim() || rawDeviceId);
+        let sourceProductId = null;
+        const cleanProductName = product_name?.trim();
+        const cleanSkuCode = sku_code?.trim() || (cleanProductName ? cleanProductName.replace(/[^a-zA-Z0-9]/g, "-").toUpperCase().substring(0, 30) : "SKU-ITEM");
+        if (cleanProductName) {
+          const [prodRows] = await conn.execute(
+            "SELECT id, product_type FROM products WHERE business_id=? AND name=?",
+            [sourceBusinessId, cleanProductName]
+          );
+          if (prodRows.length > 0) {
+            sourceProductId = prodRows[0].id;
+            if (prodRows[0].product_type === "serialized") isSerialized = true;
+          } else {
+            const [prodIns] = await conn.execute(
+              "INSERT INTO products (business_id, name, product_type, allow_overselling) VALUES (?, ?, ?, 1)",
+              [sourceBusinessId, cleanProductName, isSerialized ? "serialized" : "stock"]
+            );
+            sourceProductId = prodIns.insertId;
+          }
+          const [skuRows] = await conn.execute(
+            "SELECT id FROM product_skus WHERE product_id=? AND (sku_code=? OR ? IS NULL)",
+            [sourceProductId, cleanSkuCode, cleanSkuCode]
+          );
+          if (skuRows.length > 0) {
+            finalSkuId = skuRows[0].id;
+          } else {
+            const [globalSkuRows] = await conn.execute(
+              "SELECT id FROM product_skus WHERE sku_code=?",
+              [cleanSkuCode]
+            );
+            if (globalSkuRows.length > 0) {
+              finalSkuId = globalSkuRows[0].id;
+            } else {
+              const [skuIns] = await conn.execute(
+                "INSERT INTO product_skus (product_id, sku_code, cost_price, selling_price) VALUES (?, ?, ?, ?)",
+                [sourceProductId, cleanSkuCode, cost_price || 0, selling_price || 0]
+              );
+              finalSkuId = skuIns.insertId;
+            }
+          }
+        }
+        if (isSerialized) {
+          const cleanImei = imei?.trim() || null;
+          const cleanSerial = serial_number?.trim() || null;
+          if (finalDeviceId) {
+            const [dr] = await conn.execute(
+              "SELECT * FROM devices WHERE id=? AND business_id=?",
+              [finalDeviceId, sourceBusinessId]
+            );
+            const dev = dr[0];
+            if (!dev) throw new Error("Selected device not found");
+            if (dev.status !== "in_stock" && dev.status !== "available") {
+              throw new Error(`Device (${dev.imei || dev.id}) is not available (current status: ${dev.status})`);
+            }
+            await conn.execute("UPDATE devices SET status='transfer' WHERE id=?", [finalDeviceId]);
+          } else {
+            if (cleanImei) {
+              const [existDev] = await conn.execute(
+                "SELECT * FROM devices WHERE imei=? AND business_id=?",
+                [cleanImei, sourceBusinessId]
+              );
+              if (existDev.length > 0) {
+                finalDeviceId = existDev[0].id;
+                await conn.execute("UPDATE devices SET status='transfer' WHERE id=?", [finalDeviceId]);
+              }
+            }
+            if (!finalDeviceId && finalSkuId) {
+              const [newDev] = await conn.execute(
+                "INSERT INTO devices (business_id, branch_id, sku_id, imei, imei_serial, color, gb, `condition`, cost_price, selling_price, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'transfer')",
+                [
+                  sourceBusinessId,
+                  sourceBranchId,
+                  finalSkuId,
+                  cleanImei,
+                  cleanSerial || cleanImei,
+                  color || null,
+                  gb || null,
+                  condition || "Grade A",
+                  cost_price || 0,
+                  selling_price || 0
+                ]
+              );
+              finalDeviceId = newDev.insertId;
+            }
+          }
+          if (finalSkuId) {
+            await conn.execute(
+              "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE quantity=GREATEST(0, quantity - 1)",
+              [sourceBranchId, finalSkuId]
+            );
+          }
+        } else {
+          if (finalSkuId) {
+            await conn.execute(
+              "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE quantity=GREATEST(0, quantity - ?)",
+              [sourceBranchId, finalSkuId, quantity]
+            );
+          }
+        }
+        const [tr] = await conn.execute(
+          `INSERT INTO device_transfers 
+       (business_id, from_branch_id, to_branch_id, device_id, sku_id, quantity, status, initiated_by, notes) 
+       VALUES (?, ?, ?, ?, ?, ?, 'in_transit', ?, ?)`,
+          [
+            sourceBusinessId,
+            sourceBranchId,
+            to_branch_id,
+            finalDeviceId || null,
+            finalSkuId || null,
+            quantity,
+            req.userId,
+            notes || null
+          ]
+        );
+        if (finalSkuId) {
+          await conn.execute(
+            `INSERT INTO inventory_movements 
+         (business_id, branch_id, sku_id, movement_type, quantity, unit_cost, reference_type, reference_id) 
+         VALUES (?, ?, ?, 'transfer_out', ?, ?, 'device_transfers', ?)`,
+            [sourceBusinessId, sourceBranchId, finalSkuId, quantity, cost_price || 0, tr.insertId]
+          );
+        }
         await conn.commit();
         res.json({ success: true, id: tr.insertId });
       } catch (e) {
         await conn.rollback();
+        console.error("[POST /api/transfers] Error:", e.message);
         res.status(400).json({ error: e.message });
       } finally {
         conn.release();
@@ -3739,22 +3877,32 @@ var init_inventory = __esm({
     });
     router8.get("/transfers", async (req, res, next) => {
       try {
-        const isSuper = req.user.role === "superadmin";
+        const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
         const sql = `
-      SELECT t.*, fb.name as from_branch_name, tb.name as to_branch_name,
-             d.imei, d.color, d.gb, d.\`condition\`,
-             p.name as product_name, s.sku_code, u.name as initiated_by_name
+      SELECT t.*,
+             fb.name as from_branch_name, fb.business_id as from_business_id,
+             fbz.name as from_business_name,
+             tb.name as to_branch_name, tb.business_id as to_business_id,
+             tbz.name as to_business_name,
+             d.imei, d.imei_serial, d.color, d.gb, d.\`condition\`, d.cost_price, d.selling_price,
+             COALESCE(p.name, 'Stock Item') as product_name,
+             COALESCE(s.sku_code, '') as sku_code,
+             u.name as initiated_by_name
       FROM device_transfers t
       LEFT JOIN branches fb ON t.from_branch_id=fb.id
+      LEFT JOIN businesses fbz ON fb.business_id=fbz.id
       LEFT JOIN branches tb ON t.to_branch_id=tb.id
+      LEFT JOIN businesses tbz ON tb.business_id=tbz.id
       LEFT JOIN devices d ON t.device_id=d.id
       LEFT JOIN product_skus s ON COALESCE(d.sku_id, t.sku_id)=s.id
       LEFT JOIN products p ON s.product_id=p.id
       LEFT JOIN users u ON t.initiated_by=u.id
-      WHERE t.business_id=? ${!isSuper ? "AND (t.from_branch_id=? OR t.to_branch_id=?)" : ""}
+      WHERE (
+        ${isSuper ? "1=1" : "(fb.business_id = ? OR tb.business_id = ?)"}
+      )
       ORDER BY t.created_at DESC
     `;
-        const params = !isSuper ? [req.user.business_id, req.user.branch_id, req.user.branch_id] : [req.user.business_id];
+        const params = isSuper ? [] : [req.user.business_id, req.user.business_id];
         res.json(await query(sql, params));
       } catch (e) {
         next(e);
@@ -3764,25 +3912,107 @@ var init_inventory = __esm({
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
-        const [tr] = await conn.execute("SELECT * FROM device_transfers WHERE id=? AND business_id=?", [req.params.id, req.user.business_id]);
+        const [tr] = await conn.execute(
+          `SELECT t.*, fb.business_id as from_business_id, tb.business_id as to_business_id,
+              d.imei, d.imei_serial, d.color, d.gb, d.\`condition\`, d.cost_price, d.selling_price,
+              p.name as product_name, s.sku_code
+       FROM device_transfers t
+       JOIN branches fb ON t.from_branch_id=fb.id
+       JOIN branches tb ON t.to_branch_id=tb.id
+       LEFT JOIN devices d ON t.device_id=d.id
+       LEFT JOIN product_skus s ON COALESCE(d.sku_id, t.sku_id)=s.id
+       LEFT JOIN products p ON s.product_id=p.id
+       WHERE t.id=?`,
+          [req.params.id]
+        );
         const transfer = tr[0];
-        if (!transfer) throw new Error("Transfer not found or access denied");
+        if (!transfer) throw new Error("Transfer not found");
         if (transfer.status === "completed") throw new Error("Transfer already completed");
-        await conn.execute("UPDATE device_transfers SET status='completed',completed_at=NOW() WHERE id=?", [transfer.id]);
-        if (transfer.device_id) {
-          await conn.execute("UPDATE devices SET branch_id=?,status='in_stock' WHERE id=?", [transfer.to_branch_id, transfer.device_id]);
-          const [dr] = await conn.execute("SELECT sku_id FROM devices WHERE id=?", [transfer.device_id]);
-          const dsku = dr[0]?.sku_id;
-          await conn.execute("INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,-1) ON DUPLICATE KEY UPDATE quantity=quantity-1", [transfer.from_branch_id, dsku]);
-          await conn.execute("INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,1) ON DUPLICATE KEY UPDATE quantity=quantity+1", [transfer.to_branch_id, dsku]);
-        } else if (transfer.sku_id) {
-          await conn.execute("INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,-?) ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)", [transfer.from_branch_id, transfer.sku_id, transfer.quantity]);
-          await conn.execute("INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,?) ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)", [transfer.to_branch_id, transfer.sku_id, transfer.quantity]);
+        if (transfer.status === "cancelled") throw new Error("Cannot complete a cancelled transfer");
+        const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
+        if (!isSuper && Number(transfer.to_business_id) !== Number(req.user.business_id)) {
+          return res.status(403).json({ error: "Access denied: Only the destination business can receive this transfer." });
         }
+        const destBusinessId = transfer.to_business_id;
+        const destBranchId = transfer.to_branch_id;
+        const isCrossBusiness = Number(transfer.from_business_id) !== Number(destBusinessId);
+        let destSkuId = transfer.sku_id;
+        let destProductId = null;
+        if (transfer.product_name) {
+          const [destProdRows] = await conn.execute(
+            "SELECT id, product_type FROM products WHERE business_id=? AND name=?",
+            [destBusinessId, transfer.product_name]
+          );
+          if (destProdRows.length > 0) {
+            destProductId = destProdRows[0].id;
+          } else {
+            const [pIns] = await conn.execute(
+              "INSERT INTO products (business_id, name, product_type, allow_overselling) VALUES (?, ?, ?, 1)",
+              [destBusinessId, transfer.product_name, transfer.device_id ? "serialized" : "stock"]
+            );
+            destProductId = pIns.insertId;
+          }
+          const cleanSku = transfer.sku_code || transfer.product_name.replace(/[^a-zA-Z0-9]/g, "-").toUpperCase().substring(0, 30);
+          const [destSkuRows] = await conn.execute(
+            "SELECT id FROM product_skus WHERE product_id=? AND (sku_code=? OR ? IS NULL)",
+            [destProductId, cleanSku, cleanSku]
+          );
+          if (destSkuRows.length > 0) {
+            destSkuId = destSkuRows[0].id;
+          } else {
+            const [globalSkuRows] = await conn.execute(
+              "SELECT id FROM product_skus WHERE sku_code=?",
+              [cleanSku]
+            );
+            if (globalSkuRows.length > 0) {
+              destSkuId = globalSkuRows[0].id;
+            } else {
+              const [sIns] = await conn.execute(
+                "INSERT INTO product_skus (product_id, sku_code, cost_price, selling_price) VALUES (?, ?, ?, ?)",
+                [destProductId, cleanSku, transfer.cost_price || 0, transfer.selling_price || 0]
+              );
+              destSkuId = sIns.insertId;
+            }
+          }
+        }
+        if (transfer.device_id) {
+          if (isCrossBusiness) {
+            await conn.execute(
+              "UPDATE devices SET business_id=?, branch_id=?, sku_id=?, status='in_stock' WHERE id=?",
+              [destBusinessId, destBranchId, destSkuId || transfer.sku_id, transfer.device_id]
+            );
+          } else {
+            await conn.execute(
+              "UPDATE devices SET branch_id=?, status='in_stock' WHERE id=?",
+              [destBranchId, transfer.device_id]
+            );
+          }
+          if (destSkuId) {
+            await conn.execute(
+              "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE quantity=quantity+1",
+              [destBranchId, destSkuId]
+            );
+          }
+        } else if (destSkuId) {
+          await conn.execute(
+            "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)",
+            [destBranchId, destSkuId, transfer.quantity || 1]
+          );
+        }
+        if (destSkuId) {
+          await conn.execute(
+            `INSERT INTO inventory_movements 
+         (business_id, branch_id, sku_id, movement_type, quantity, unit_cost, reference_type, reference_id) 
+         VALUES (?, ?, ?, 'transfer_in', ?, ?, 'device_transfers', ?)`,
+            [destBusinessId, destBranchId, destSkuId, transfer.quantity || 1, transfer.cost_price || 0, transfer.id]
+          );
+        }
+        await conn.execute("UPDATE device_transfers SET status='completed', completed_at=NOW() WHERE id=?", [transfer.id]);
         await conn.commit();
-        res.json({ success: true });
+        res.json({ success: true, message: "Transfer received and inventory synchronized" });
       } catch (e) {
         await conn.rollback();
+        console.error("[PUT /api/transfers/:id/complete] Error:", e.message);
         next(e);
       } finally {
         conn.release();
@@ -3792,14 +4022,39 @@ var init_inventory = __esm({
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
-        const [tr] = await conn.execute("SELECT * FROM device_transfers WHERE id=? AND business_id=?", [req.params.id, req.user.business_id]);
+        const [tr] = await conn.execute(
+          `SELECT t.*, fb.business_id as from_business_id, tb.business_id as to_business_id
+       FROM device_transfers t
+       JOIN branches fb ON t.from_branch_id=fb.id
+       JOIN branches tb ON t.to_branch_id=tb.id
+       WHERE t.id=?`,
+          [req.params.id]
+        );
         const transfer = tr[0];
-        if (!transfer) throw new Error("Transfer not found or access denied");
+        if (!transfer) throw new Error("Transfer not found");
         if (transfer.status === "completed") throw new Error("Cannot cancel a completed transfer");
+        if (transfer.status === "cancelled") throw new Error("Transfer is already cancelled");
+        const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
+        if (!isSuper && Number(transfer.from_business_id) !== Number(req.user.business_id)) {
+          return res.status(403).json({ error: "Access denied: Only the dispatching business can cancel this transfer." });
+        }
         await conn.execute("UPDATE device_transfers SET status='cancelled' WHERE id=?", [transfer.id]);
-        if (transfer.device_id) await conn.execute("UPDATE devices SET status='in_stock' WHERE id=?", [transfer.device_id]);
+        if (transfer.device_id) {
+          await conn.execute("UPDATE devices SET status='in_stock' WHERE id=?", [transfer.device_id]);
+          if (transfer.sku_id) {
+            await conn.execute(
+              "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE quantity=quantity+1",
+              [transfer.from_branch_id, transfer.sku_id]
+            );
+          }
+        } else if (transfer.sku_id) {
+          await conn.execute(
+            "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)",
+            [transfer.from_branch_id, transfer.sku_id, transfer.quantity || 1]
+          );
+        }
         await conn.commit();
-        res.json({ success: true });
+        res.json({ success: true, message: "Transfer cancelled and stock restored to origin branch" });
       } catch (e) {
         await conn.rollback();
         next(e);
@@ -3809,17 +4064,26 @@ var init_inventory = __esm({
     });
     router8.get("/transfers/device/:imei", async (req, res, next) => {
       try {
-        const device = await queryOne("SELECT * FROM devices WHERE imei=? AND business_id=?", [req.params.imei, req.user.business_id]);
-        if (!device) return res.status(404).json({ error: "No device found with this IMEI" });
+        const q = req.params.imei;
+        const device = await queryOne(
+          "SELECT * FROM devices WHERE (imei=? OR imei_serial=?) AND business_id=?",
+          [q, q, req.user.business_id]
+        );
+        if (!device) return res.status(404).json({ error: "No device found with this IMEI or Serial" });
         const transfers = await query(`
-      SELECT t.*, fb.name as from_branch_name, tb.name as to_branch_name, u.name as initiated_by_name
+      SELECT t.*,
+             fb.name as from_branch_name, fbz.name as from_business_name,
+             tb.name as to_branch_name, tbz.name as to_business_name,
+             u.name as initiated_by_name
       FROM device_transfers t
       LEFT JOIN branches fb ON t.from_branch_id=fb.id
+      LEFT JOIN businesses fbz ON fb.business_id=fbz.id
       LEFT JOIN branches tb ON t.to_branch_id=tb.id
+      LEFT JOIN businesses tbz ON tb.business_id=tbz.id
       LEFT JOIN users u ON t.initiated_by=u.id
       WHERE t.device_id=? ORDER BY t.created_at DESC
     `, [device.id]);
-        const currentBranch = await queryOne("SELECT * FROM branches WHERE id=?", [device.branch_id]);
+        const currentBranch = await queryOne("SELECT b.*, bz.name as business_name FROM branches b JOIN businesses bz ON b.business_id=bz.id WHERE b.id=?", [device.branch_id]);
         res.json({ device, currentBranch, transfers });
       } catch (e) {
         next(e);

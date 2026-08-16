@@ -1,25 +1,31 @@
-# Project Guidelines & Critical Rules
+# Project Guidelines & Safety Rules
 
-## 1. Database Configuration & Remote Database Importance
-- **Primary Database Engine:** MySQL / MariaDB (managed via `src/mysql.ts` and `mysql2`).
-- **Production Hostinger Database:** `u583652021_clare`
-- **Database User:** `u583652021_clare_user`
-- **Host:** `srv2113.hstgr.io` (remote) / `127.0.0.1` (on server)
-- **CRITICAL:** The remote database contains live, essential business data.
-  - **NEVER** drop production databases or truncate tables.
-  - **NEVER** overwrite production credentials or remove environment variable bindings.
-  - Keep all schema modifications backwards-compatible using safe `IF NOT EXISTS` / `ALTER TABLE` migrations.
+## ⚠️ CRITICAL DATABASE RULES
 
-## 2. Multi-Tenant & Branch Scoping Integrity (`business_id` & `branch_id`)
-- **Strict Isolation:** Every query dealing with business resources (users, products, inventory, invoices, settings, customers, branches, etc.) **MUST** include and respect `business_id` and/or `branch_id`.
-- **CRITICAL:** 
-  - **DO NOT** change, hardcode, or bypass `business_id` and `branch_id` validation.
-  - **DO NOT** remove multi-tenant filters from SQL queries.
-  - Ensure all newly created tables include `business_id` and appropriate foreign key relations.
+1. **NEVER DELETE THE DATABASE OR TABLES**:
+   - Do NOT run `DROP DATABASE`, `DROP TABLE`, `TRUNCATE TABLE`, or any command that deletes existing tables or wipe out database records.
+   - Preserving existing database data and schema is strictly required at all times.
 
-## 3. GitHub Repository & Deployment
-- **Repository URL:** `https://github.com/tanveerfixit/epos`
-- **Source Files:** All core frontend logic in `src/` and backend server logic in `server.ts` & `src/routes/`.
-- **Environment Files:** Never commit `.env` containing sensitive credentials to GitHub. Always use `.env.example` as the template.
-- **Push Policy:** **DO NOT** push commits or update the remote GitHub repository unless explicitly instructed/requested by the user.
+2. **ALWAYS CONFIRM BEFORE CREATING OR MODIFYING TABLES**:
+   - Before creating any new database tables or executing schema migrations/modifications, you MUST first confirm with the user.
+   - State the table name, schema definition, and purpose, and obtain explicit confirmation before creating it.
 
+---
+
+## 🔄 AUTO-REFRESH & SMOOTH UI RULES
+
+1. **ALL PAGES MUST AUTO-REFRESH DATA WHEN LOADED / ACTIVATED**:
+   - Whenever any page, tab, or view is navigated to or activated, it MUST automatically refresh its data in the background from the API so users never have to refresh manually.
+
+2. **DO NOT BLINK OR FLICKER THE PAGE**:
+   - Data refreshing must be smooth and silent in the background.
+   - Do NOT unmount components, wipe out existing data from view, or show jarring full-screen loading spinners during background refreshes.
+   - Keep current data displayed while fresh data is retrieved and updated seamlessly in place.
+
+---
+
+## 🛠️ Tech Stack & Environment
+- **Backend / API**: Express.js with TypeScript (`server.ts`) / Node.js
+- **Database**: MySQL 8.x / MariaDB (`mysql2/promise`)
+- **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS
+- **Dev Server**: `npm run dev` (starts backend + Vite middleware on `http://localhost:3000`)

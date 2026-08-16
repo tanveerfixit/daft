@@ -41,7 +41,8 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
   const [showPass, setShowPass] = useState(false);
   const [smtpLoading, setSmtpLoading] = useState(false);
   const [smtpMsg, setSmtpMsg] = useState('');
-  const [newBranch, setNewBranch] = useState({ name: '', address: '', phone: '' });
+  const [newBranch, setNewBranch] = useState({ name: '', address: '', phone: '', business_id: '' });
+  const [editBranch, setEditBranch] = useState<any>(null);
   const [editUser, setEditUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState('');
@@ -49,6 +50,8 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
   const [accessLoading, setAccessLoading] = useState(false);
   const [accessMsg, setAccessMsg] = useState('');
   const [businesses, setBusinesses] = useState<any[]>([]);
+  const [newBusiness, setNewBusiness] = useState({ name: '', email: '', phone: '', address: '', city: '', state: '', zip_code: '', country: 'Ireland' });
+  const [showAddBusiness, setShowAddBusiness] = useState(false);
   const [editBusiness, setEditBusiness] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -59,11 +62,9 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
     if (s) setAccessSettings({ allow_signup: s.allow_signup !== 0, allow_signin: s.allow_signin !== 0 });
   });
   const loadBusinesses = () => {
-    if (currentUser?.role === 'developer') {
-      fetch('/api/admin/system/businesses', { headers })
-        .then(r => r.json())
-        .then(d => Array.isArray(d) ? setBusinesses(d) : null);
-    }
+    fetch('/api/admin/system/businesses', { headers })
+      .then(r => r.json())
+      .then(d => Array.isArray(d) ? setBusinesses(d) : null);
   };
 
   useEffect(() => { loadUsers(); loadBranches(); loadSmtp(); loadAccess(); loadBusinesses(); }, []);
@@ -107,9 +108,67 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
 
   const createBranch = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch('/api/admin/branches', { method: 'POST', headers, body: JSON.stringify(newBranch) });
-    setNewBranch({ name: '', address: '', phone: '' });
-    loadBranches();
+    if (!newBranch.name.trim()) return;
+    const res = await fetch('/api/admin/branches', { 
+      method: 'POST', 
+      headers, 
+      body: JSON.stringify({
+        ...newBranch,
+        business_id: newBranch.business_id ? Number(newBranch.business_id) : currentUser?.business_id
+      }) 
+    });
+    if (res.ok) {
+      setNewBranch({ name: '', address: '', phone: '', business_id: '' });
+      showMsg('✓ Branch created successfully');
+      loadBranches();
+    }
+  };
+
+  const saveBranch = async () => {
+    if (!editBranch) return;
+    setLoading(true);
+    const res = await fetch(`/api/admin/branches/${editBranch.id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(editBranch)
+    });
+    if (res.ok) {
+      setEditBranch(null);
+      showMsg('✓ Branch updated successfully');
+      loadBranches();
+    }
+    setLoading(false);
+  };
+
+  const deleteBranch = async (branchId: number) => {
+    if (!confirm('Deactivate this branch?')) return;
+    const res = await fetch(`/api/admin/branches/${branchId}`, { method: 'DELETE', headers });
+    if (res.ok) {
+      showMsg('✓ Branch deactivated');
+      loadBranches();
+    }
+  };
+
+  const createBusiness = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBusiness.name.trim()) return;
+    setLoading(true);
+    const res = await fetch('/api/admin/system/businesses', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(newBusiness)
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setNewBusiness({ name: '', email: '', phone: '', address: '', city: '', state: '', zip_code: '', country: 'Ireland' });
+      setShowAddBusiness(false);
+      showMsg('✓ Business created successfully');
+      loadBusinesses();
+      loadBranches();
+    } else {
+      showMsg(`✗ ${data.error || 'Failed to create business'}`);
+    }
+    setLoading(false);
   };
 
   const saveSmtp = async (e: React.FormEvent) => {
@@ -174,10 +233,9 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             {[
               { id: 'users', label: 'Staff', icon: Users, badge: pendingCount },
               { id: 'branches', label: 'Branches', icon: GitBranch },
+              { id: 'businesses', label: 'Businesses', icon: Building, badge: pendingBusinessCount },
               { id: 'smtp', label: 'Email', icon: Mail },
               { id: 'access', label: 'Security', icon: Shield },
-              ...(currentUser?.role === 'developer'
-                ? [{ id: 'businesses', label: 'Businesses', icon: Building, badge: pendingBusinessCount }] : []),
             ].map(t => (
               <button 
                 key={t.id} 
@@ -200,120 +258,114 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
           </nav>
         </div>
 
-        <div className="mt-auto p-6 border-t border-slate-100">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-2 h-2 bg-emerald-500 rounded-full" />
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">System Online</span>
-          </div>
+        <div className="p-4 border-t border-slate-100 mt-auto">
           <button 
             onClick={onClose}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors text-sm font-medium"
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-400 hover:text-slate-900 rounded-md transition-colors"
           >
-            <LogOut size={16} />
-            <span>Logout</span>
+            <LogOut size={14} /> Exit Admin
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 bg-slate-50">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
-          <h2 className="text-lg font-bold text-slate-900 capitalize">
-            {tab}
-          </h2>
-          
+      <main className="flex-1 overflow-y-auto flex flex-col min-w-0 bg-slate-50">
+        <header className="h-16 border-b border-slate-200 bg-white px-8 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
+            <h2 className="font-bold text-slate-900 capitalize">{tab} Management</h2>
             {actionMsg && (
-              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded">
+              <span className="text-xs bg-slate-900 text-white px-2 py-1 rounded animate-fade-in font-medium">
                 {actionMsg}
               </span>
             )}
-            <div className="text-right">
-              <div className="text-sm font-bold text-slate-900">{currentUser?.name}</div>
-              <div className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">{currentUser?.role}</div>
-            </div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="p-8 flex-1 min-w-0">
           <div className="max-w-5xl mx-auto">
             {/* USERS TAB */}
             {tab === 'users' && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between gap-4">
                   <div className="relative flex-1 max-w-sm">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input 
-                      type="text" 
-                      placeholder="Search..."
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <input
+                      type="text"
+                      placeholder="Search staff members..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-md text-sm focus:outline-none focus:border-slate-400 transition-colors"
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-md text-xs outline-none focus:border-slate-400 font-medium"
                     />
                   </div>
                 </div>
 
                 {editUser && (
                   <div className="bg-white rounded-lg p-6 border border-slate-200 shadow-sm mb-6">
-                    <h3 className="font-bold text-slate-900 mb-4">Edit User</h3>
-                    <div className="grid grid-cols-2 gap-4 mb-6">
+                    <h4 className="font-bold mb-4">Edit Staff Member</h4>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
                       <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-500">Name</label>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Name</label>
                         <input value={editUser.name} onChange={e => setEditUser({ ...editUser, name: e.target.value })}
                           className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-500">Branch</label>
-                        <select value={editUser.branch_id} onChange={e => setEditUser({ ...editUser, branch_id: e.target.value })}
-                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Branch</label>
+                        <select value={editUser.branch_id || ''} onChange={e => setEditUser({ ...editUser, branch_id: Number(e.target.value) })}
+                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400 bg-white">
+                          <option value="">Select Branch</option>
                           {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                         </select>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-500">Role</label>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Role</label>
                         <select value={editUser.role} onChange={e => setEditUser({ ...editUser, role: e.target.value })}
-                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none">
+                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400 bg-white">
                           <option value="staff">Staff</option>
-                          <option value="admin">Admin</option>
-                          <option value="superadmin">Super Admin</option>
+                          <option value="superadmin">Superadmin</option>
+                          <option value="developer">Developer</option>
                         </select>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-500">New Password</label>
-                        <input type="password" placeholder="••••••••"
-                          onChange={e => setEditUser({ ...editUser, newPassword: e.target.value })}
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Set New Password</label>
+                        <input type="password" value={editUser.newPassword || ''} onChange={e => setEditUser({ ...editUser, newPassword: e.target.value })}
+                          placeholder="Leave blank to keep current"
                           className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
                       </div>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={saveUser} disabled={loading} className="bg-slate-900 text-white px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2">
-                        {loading && <Loader size={14} className="animate-spin" />} Save
+                        {loading && <Loader size={14} className="animate-spin" />} Save Changes
                       </button>
                       <button onClick={() => setEditUser(null)} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-md text-sm font-bold">Cancel</button>
                     </div>
                   </div>
                 )}
 
-                <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200">
-                        <th className="px-6 py-3 font-bold text-slate-500 text-[11px] uppercase">Name</th>
-                        <th className="px-6 py-3 font-bold text-slate-500 text-[11px] uppercase">Branch</th>
-                        <th className="px-6 py-3 font-bold text-slate-500 text-[11px] uppercase">Status</th>
-                        <th className="px-6 py-3 font-bold text-slate-500 text-[11px] uppercase text-right">Actions</th>
+                <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
+                      <tr>
+                        <th className="px-6 py-3">Staff</th>
+                        <th className="px-6 py-3">Role</th>
+                        <th className="px-6 py-3">Branch</th>
+                        <th className="px-6 py-3">Status</th>
+                        <th className="px-6 py-3 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredUsers.map(u => (
-                        <tr key={u.id} className="hover:bg-slate-50 transition-colors group">
+                        <tr key={u.id} className="hover:bg-slate-50 transition-colors">
                           <td className="px-6 py-4">
                             <div className="font-bold text-slate-900">{u.name}</div>
-                            <div className="text-xs text-slate-400">{u.email}</div>
+                            <div className="text-[11px] text-slate-400">{u.email}</div>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="text-slate-600">{u.branch_name}</div>
-                            <div className="text-[10px] font-bold text-slate-400 uppercase">{u.role}</div>
+                            <span className="capitalize px-2 py-0.5 bg-slate-100 rounded text-[10px] font-bold text-slate-600">
+                              {u.role}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 font-medium text-slate-600">
+                            {u.branch_name || '—'}
                           </td>
                           <td className="px-6 py-4">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${statusColors[u.status] || statusColors.inactive}`}>
@@ -321,22 +373,22 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
+                            <div className="flex items-center justify-end gap-2">
                               {u.status === 'pending' && (
                                 <>
-                                  <button onClick={() => updateStatus(u.id, 'approved')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded" title="Approve"><CheckCircle size={16} /></button>
-                                  <button onClick={() => updateStatus(u.id, 'rejected')} className="p-1.5 text-rose-600 hover:bg-rose-50 rounded" title="Reject"><XCircle size={16} /></button>
+                                  <button onClick={() => updateStatus(u.id, 'approved')} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><CheckCircle size={16} /></button>
+                                  <button onClick={() => updateStatus(u.id, 'rejected')} className="p-1 text-rose-600 hover:bg-rose-50 rounded"><XCircle size={16} /></button>
                                 </>
                               )}
-                              {(u.status === 'inactive' || u.status === 'rejected') && (
-                                <button onClick={() => updateStatus(u.id, 'approved')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded" title="Reactivate"><CheckCircle size={16} /></button>
+                              {u.status === 'approved' && (
+                                <button onClick={() => updateStatus(u.id, 'inactive')} className="p-1 text-amber-600 hover:bg-amber-50 rounded" title="Deactivate"><UserX size={16} /></button>
                               )}
-                              {u.status === 'approved' && u.email !== 'support@techinbox.ie' && (
-                                <button onClick={() => updateStatus(u.id, 'inactive')} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded" title="Deactivate"><UserX size={16} /></button>
+                              {u.status === 'inactive' && (
+                                <button onClick={() => updateStatus(u.id, 'approved')} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded" title="Reactivate"><CheckCircle size={16} /></button>
                               )}
-                              <button onClick={() => setEditUser({ ...u, newPassword: '' })} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded" title="Edit"><Edit2 size={16} /></button>
-                              <button onClick={() => resetUserPassword(u.id, u.name)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded" title="Reset Password"><Key size={16} /></button>
-                              <button onClick={() => deleteUser(u.id)} className="p-1.5 text-rose-600 hover:bg-rose-50 rounded" title="Delete"><Trash2 size={16} /></button>
+                              <button onClick={() => resetUserPassword(u.id, u.name)} className="p-1 text-slate-400 hover:text-slate-900 rounded" title="Reset Password"><Key size={16} /></button>
+                              <button onClick={() => setEditUser(u)} className="p-1 text-slate-400 hover:text-slate-900 rounded" title="Edit"><Edit2 size={16} /></button>
+                              <button onClick={() => deleteUser(u.id)} className="p-1 text-rose-400 hover:text-rose-600 rounded" title="Delete"><Trash2 size={16} /></button>
                             </div>
                           </td>
                         </tr>
@@ -350,34 +402,233 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             {/* BRANCHES TAB */}
             {tab === 'branches' && (
               <div className="space-y-6">
+                {editBranch && (
+                  <div className="bg-white rounded-lg p-6 border border-slate-200 shadow-sm mb-6">
+                    <h4 className="font-bold mb-4">Edit Branch</h4>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Branch Name</label>
+                        <input value={editBranch.name || ''} onChange={e => setEditBranch({ ...editBranch, name: e.target.value })}
+                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Assigned Business</label>
+                        <select value={editBranch.business_id || ''} onChange={e => setEditBranch({ ...editBranch, business_id: Number(e.target.value) })}
+                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400 bg-white">
+                          {businesses.map(b => <option key={b.id} value={b.id}>{b.name} (ID: {b.id})</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Phone</label>
+                        <input value={editBranch.phone || ''} onChange={e => setEditBranch({ ...editBranch, phone: e.target.value })}
+                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Status</label>
+                        <select value={editBranch.status || 'active'} onChange={e => setEditBranch({ ...editBranch, status: e.target.value })}
+                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400 bg-white">
+                          <option value="active">Active</option>
+                          <option value="inactive">Inactive</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2 space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Address</label>
+                        <input value={editBranch.address || ''} onChange={e => setEditBranch({ ...editBranch, address: e.target.value })}
+                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={saveBranch} disabled={loading} className="bg-slate-900 text-white px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2">
+                        {loading && <Loader size={14} className="animate-spin" />} Save Changes
+                      </button>
+                      <button onClick={() => setEditBranch(null)} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-md text-sm font-bold">Cancel</button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-white border border-slate-200 rounded-lg p-6">
                     <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2"><Plus size={16} /> Add Branch</h3>
                     <form onSubmit={createBranch} className="space-y-3">
+                      {businesses.length > 0 && (
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Business</label>
+                          <select 
+                            value={newBranch.business_id} 
+                            onChange={e => setNewBranch({ ...newBranch, business_id: e.target.value })}
+                            className="w-full border border-slate-200 rounded-md px-3 py-2 text-xs outline-none focus:border-slate-400 bg-white"
+                          >
+                            <option value="">Current Business ({currentUser?.business_name || 'Primary'})</option>
+                            {businesses.map(b => (
+                              <option key={b.id} value={b.id}>{b.name} (ID: {b.id})</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                       <input value={newBranch.name} onChange={e => setNewBranch({ ...newBranch, name: e.target.value })} required 
-                        placeholder="Name" className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
+                        placeholder="Branch Name" className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
                       <input value={newBranch.address} onChange={e => setNewBranch({ ...newBranch, address: e.target.value })}
                         placeholder="Address" className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
                       <input value={newBranch.phone} onChange={e => setNewBranch({ ...newBranch, phone: e.target.value })}
                         placeholder="Phone" className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
-                      <button type="submit" className="w-full bg-slate-900 text-white font-bold py-2 rounded-md text-sm mt-2">Save</button>
+                      <button type="submit" className="w-full bg-slate-900 text-white font-bold py-2 rounded-md text-sm mt-2">Save Branch</button>
                     </form>
                   </div>
 
                   {branches.map(b => (
-                    <div key={b.id} className="bg-white border border-slate-200 rounded-lg p-6 flex flex-col">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="w-8 h-8 bg-slate-100 text-slate-600 rounded flex items-center justify-center font-bold">{b.name.charAt(0)}</div>
-                        <span className="text-[10px] font-bold text-slate-300">ID {b.id}</span>
-                      </div>
-                      <h4 className="font-bold text-slate-900">{b.name}</h4>
-                      {b.business_name && (
-                        <div className="text-[10px] font-bold text-blue-600 uppercase mt-0.5 tracking-wider">
-                          Business: {b.business_name}
+                    <div key={b.id} className="bg-white border border-slate-200 rounded-lg p-6 flex flex-col justify-between group">
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="w-8 h-8 bg-slate-100 text-slate-600 rounded flex items-center justify-center font-bold">{b.name.charAt(0)}</div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${statusColors[b.status] || statusColors.active}`}>
+                              {b.status || 'active'}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-300">ID {b.id}</span>
+                          </div>
                         </div>
-                      )}
-                      <p className="text-xs text-slate-500 mt-2 flex-1">{b.address}</p>
-                      <div className="text-xs font-bold text-slate-900 mt-4">{b.phone}</div>
+                        <h4 className="font-bold text-slate-900">{b.name}</h4>
+                        {b.business_name && (
+                          <div className="text-[10px] font-bold text-blue-600 uppercase mt-0.5 tracking-wider">
+                            Business: {b.business_name}
+                          </div>
+                        )}
+                        <p className="text-xs text-slate-500 mt-2">{b.address || 'No address provided'}</p>
+                        <div className="text-xs font-bold text-slate-900 mt-3">{b.phone || 'No phone'}</div>
+                      </div>
+                      <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-4">
+                        <button onClick={() => setEditBranch(b)} className="p-1.5 text-slate-400 hover:text-slate-900 rounded"><Edit2 size={15} /></button>
+                        <button onClick={() => deleteBranch(b.id)} className="p-1.5 text-rose-400 hover:text-rose-600 rounded"><Trash2 size={15} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* BUSINESSES TAB */}
+            {tab === 'businesses' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-900">Manage Businesses</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Register, update, and manage all business accounts</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {pendingBusinessCount > 0 && (
+                      <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2.5 py-1 rounded-md">
+                        {pendingBusinessCount} PENDING APPROVAL
+                      </span>
+                    )}
+                    <button
+                      onClick={() => setShowAddBusiness(!showAddBusiness)}
+                      className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-md text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                    >
+                      <Plus size={14} /> Add Business
+                    </button>
+                  </div>
+                </div>
+
+                {showAddBusiness && (
+                  <div className="bg-white rounded-lg p-6 border border-slate-200 shadow-sm mb-6">
+                    <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2"><Plus size={16} /> New Business Registration</h4>
+                    <form onSubmit={createBusiness} className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase">Business Name *</label>
+                          <input value={newBusiness.name} onChange={e => setNewBusiness({ ...newBusiness, name: e.target.value })} required
+                            placeholder="e.g. FIXD GORT"
+                            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase">Email</label>
+                          <input type="email" value={newBusiness.email} onChange={e => setNewBusiness({ ...newBusiness, email: e.target.value })}
+                            placeholder="e.g. fixd.gort@gmail.com"
+                            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase">Phone / Contact</label>
+                          <input value={newBusiness.phone} onChange={e => setNewBusiness({ ...newBusiness, phone: e.target.value })}
+                            placeholder="e.g. (089) 981 5157"
+                            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase">City</label>
+                          <input value={newBusiness.city} onChange={e => setNewBusiness({ ...newBusiness, city: e.target.value })}
+                            placeholder="e.g. Gort"
+                            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
+                        </div>
+                        <div className="col-span-2 space-y-1">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase">Address</label>
+                          <input value={newBusiness.address} onChange={e => setNewBusiness({ ...newBusiness, address: e.target.value })}
+                            placeholder="e.g. 1 Bridge St, Ballyhugh, Gort, Co. Galway"
+                            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="submit" disabled={loading} className="bg-slate-900 text-white font-bold px-4 py-2 rounded-md text-sm flex items-center gap-2">
+                          {loading && <Loader size={14} className="animate-spin" />} Save Business
+                        </button>
+                        <button type="button" onClick={() => setShowAddBusiness(false)} className="bg-slate-100 text-slate-600 font-bold px-4 py-2 rounded-md text-sm">Cancel</button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {editBusiness && (
+                  <div className="bg-white rounded-lg p-6 border border-slate-200 shadow-sm mb-6">
+                    <h4 className="font-bold mb-4">Edit Business</h4>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Name</label>
+                        <input value={editBusiness.name || ''} onChange={e => setEditBusiness({ ...editBusiness, name: e.target.value })}
+                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Phone</label>
+                        <input value={editBusiness.phone || ''} onChange={e => setEditBusiness({ ...editBusiness, phone: e.target.value })}
+                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
+                      </div>
+                      <div className="col-span-2 space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Address</label>
+                        <input value={editBusiness.address || ''} onChange={e => setEditBusiness({ ...editBusiness, address: e.target.value })}
+                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={saveBusiness} disabled={loading} className="bg-slate-900 text-white px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2">
+                        {loading && <Loader size={14} className="animate-spin" />} Save Changes
+                      </button>
+                      <button onClick={() => setEditBusiness(null)} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-md text-sm font-bold">Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 gap-3">
+                  {businesses.map(b => (
+                    <div key={b.id} className="bg-white border border-slate-200 rounded-lg p-4 flex items-center justify-between group hover:border-slate-300 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-slate-100 rounded-md flex items-center justify-center font-bold text-slate-600">{b.name.charAt(0)}</div>
+                        <div>
+                          <div className="flex items-center gap-3 mb-1">
+                            <span className="font-bold text-slate-900">{b.name}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${statusColors[b.status] || statusColors.inactive}`}>{b.status}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">ID: {b.id}</span>
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            {b.email || 'No email'} {b.phone ? `• ${b.phone}` : ''} {b.address ? `• ${b.address}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {(b.status === 'inactive' || b.status === 'pending') && (
+                          <button onClick={() => updateBusinessStatus(b.id, 'active')} className="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-bold uppercase rounded transition-colors hover:bg-emerald-700">Approve / Activate</button>
+                        )}
+                        {b.status === 'active' && (
+                          <button onClick={() => updateBusinessStatus(b.id, 'inactive')} className="px-3 py-1.5 bg-slate-100 text-slate-600 text-[10px] font-bold uppercase rounded transition-colors hover:bg-rose-50 hover:text-rose-600">Deactivate</button>
+                        )}
+                        <button onClick={() => setEditBusiness(b)} className="p-2 text-slate-400 hover:text-slate-900 rounded"><Edit2 size={16} /></button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -452,86 +703,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                     {smtpMsg}
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* BUSINESSES TAB */}
-            {tab === 'businesses' && currentUser?.role === 'developer' && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-slate-900">Manage Businesses</h3>
-                  {pendingBusinessCount > 0 && (
-                    <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-1 rounded">
-                      {pendingBusinessCount} PENDING APPROVAL
-                    </span>
-                  )}
-                </div>
-
-                {editBusiness && (
-                  <div className="bg-white rounded-lg p-8 border border-slate-200 shadow-sm mb-6">
-                    <h4 className="font-bold mb-6">Edit Business</h4>
-                    <div className="grid grid-cols-2 gap-4 mb-6">
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-500 uppercase">Name</label>
-                        <input value={editBusiness.name || ''} onChange={e => setEditBusiness({ ...editBusiness, name: e.target.value })}
-                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-500 uppercase">Slug (Public URL)</label>
-                        <input value={editBusiness.slug || ''} onChange={e => setEditBusiness({ ...editBusiness, slug: e.target.value })}
-                          placeholder="business-name"
-                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-500 uppercase">Email</label>
-                        <input type="email" value={editBusiness.email || ''} onChange={e => setEditBusiness({ ...editBusiness, email: e.target.value })}
-                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-500 uppercase">Phone</label>
-                        <input value={editBusiness.phone || ''} onChange={e => setEditBusiness({ ...editBusiness, phone: e.target.value })}
-                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-500 uppercase">Address</label>
-                        <input value={editBusiness.address || ''} onChange={e => setEditBusiness({ ...editBusiness, address: e.target.value })}
-                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={saveBusiness} disabled={loading} className="bg-slate-900 text-white px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2">
-                        {loading && <Loader size={14} className="animate-spin" />} Save Changes
-                      </button>
-                      <button onClick={() => setEditBusiness(null)} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-md text-sm font-bold">Cancel</button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 gap-3">
-                  {businesses.map(b => (
-                    <div key={b.id} className="bg-white border border-slate-200 rounded-lg p-4 flex items-center justify-between group">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-slate-100 rounded flex items-center justify-center font-bold text-slate-400">{b.name.charAt(0)}</div>
-                        <div>
-                          <div className="flex items-center gap-3 mb-1">
-                            <span className="font-bold text-slate-900">{b.name}</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${statusColors[b.status] || statusColors.inactive}`}>{b.status}</span>
-                          </div>
-                          <div className="text-xs text-slate-500 mt-0.5">{b.email} • ID: {b.id}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {(b.status === 'inactive' || b.status === 'pending') && (
-                          <button onClick={() => updateBusinessStatus(b.id, 'active')} className="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-bold uppercase rounded transition-colors hover:bg-emerald-700">Approve</button>
-                        )}
-                        {b.status === 'active' && (
-                          <button onClick={() => updateBusinessStatus(b.id, 'inactive')} className="px-3 py-1.5 bg-slate-100 text-slate-600 text-[10px] font-bold uppercase rounded transition-colors hover:bg-rose-50 hover:text-rose-600">Deactivate</button>
-                        )}
-                        <button onClick={() => setEditBusiness(b)} className="p-2 text-slate-400 hover:text-slate-900"><Edit2 size={16} /></button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
 
