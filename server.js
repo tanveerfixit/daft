@@ -936,10 +936,10 @@ var init_mysql = __esm({
       throw new Error("[SECURITY FATAL] DB_PASS is not set in the .env file. Refusing to start with insecure credentials.");
     }
     pool = mysql.createPool({
-      host: process.env.DB_HOST || "srv2113.hstgr.io",
+      host: process.env.DB_HOST || "127.0.0.1",
       port: Number(process.env.DB_PORT) || 3306,
-      database: process.env.DB_NAME || "u583652021_clare",
-      user: process.env.DB_USER || "u583652021_clare_user",
+      database: process.env.DB_NAME || "u583652021_clarelab",
+      user: process.env.DB_USER || "u583652021_phpclarelab",
       password: process.env.DB_PASS,
       waitForConnections: true,
       connectionLimit: 10,

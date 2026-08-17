@@ -26,7 +26,9 @@ You can use these settings in your Hostinger Node.js dashboard (Environment Vari
 | Key | Value |
 |-----|-------|
 | `NODE_ENV` | `production` |
-| `PORT` | `3000` (or whatever Hostinger assigns) |
+| `PORT` | `3000` |
+| `JWT_SECRET` | `supersecretjwtkey_epos_clarelab_2026` |
+| `DEV_PASS` | `admin123` |
 
 ---
 
