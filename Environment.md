@@ -7,9 +7,9 @@ You can use these settings in your Hostinger Node.js dashboard (Environment Vari
 |-----|-------|
 | `DB_HOST` | `127.0.0.1` |
 | `DB_PORT` | `3306` |
-| `DB_NAME` | `u583652021_clare` |
-| `DB_USER` | `u583652021_clare_user` |
-| `DB_PASS` | `Tani@8877!!` |
+| `DB_NAME` | `u123456789_epos_db` |
+| `DB_USER` | `u123456789_db_user` |
+| `DB_PASS` | `YourDatabasePasswordHere` |
 
 ### SMTP Email Settings
 | Key | Value |
@@ -17,17 +17,17 @@ You can use these settings in your Hostinger Node.js dashboard (Environment Vari
 | `SMTP_HOST` | `smtp.hostinger.com` |
 | `SMTP_PORT` | `465` |
 | `SMTP_SECURE` | `true` |
-| `SMTP_USER` | `noreply@daft.pk` |
-| `SMTP_PASS` | `Tani$8877!!` |
-| `SMTP_FROM_NAME` | `Clare epos` |
-| `SMTP_FROM_EMAIL` | `noreply@daft.pk` |
+| `SMTP_USER` | `noreply@yourdomain.com` |
+| `SMTP_PASS` | `YourEmailPasswordHere` |
+| `SMTP_FROM_NAME` | `Your Store EPOS` |
+| `SMTP_FROM_EMAIL` | `noreply@yourdomain.com` |
 
 ### Application Settings
 | Key | Value |
 |-----|-------|
 | `NODE_ENV` | `production` |
 | `PORT` | `3000` |
-| `JWT_SECRET` | `supersecretjwtkey_epos_clarelab_2026` |
+| `JWT_SECRET` | `generate_a_random_secure_32_plus_char_secret_here` |
 | `DEV_PASS` | `admin123` |
 
 ---
@@ -36,5 +36,5 @@ You can use these settings in your Hostinger Node.js dashboard (Environment Vari
 1. Log in to your Hostinger hPanel.
 2. Go to **Websites** -> **Manage** -> **Node.js**.
 3. Under **Environment variables**, click **Edit**.
-4. Add each key and value from the tables above.
+4. Add each key and value from the tables above with your real credentials.
 5. Click **Save** and **Restart** your application.
