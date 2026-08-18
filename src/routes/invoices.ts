@@ -470,7 +470,7 @@ router.post('/import', async (req: any, res, next) => {
           }
         } else if (paidAmount > 0) {
           await conn.execute(
-            "INSERT INTO payments (customer_id, invoice_id, type, method, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO payments (customer_id, invoice_id, type, method, amount, paid_at) VALUES (?, ?, ?, ?, ?, ?)",
             [
               customerId,
               invoiceId,

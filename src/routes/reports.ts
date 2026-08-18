@@ -148,7 +148,7 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
 router.get('/eod-data', async (req: any, res, next) => {
   const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
   try {
-    const isSuper = req.user.role === 'superadmin';
+    const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
     const branchId = req.user.branch_id;
 
     const invoicePayments = await query(`
@@ -158,23 +158,26 @@ router.get('/eod-data', async (req: any, res, next) => {
       LEFT JOIN users u ON i.user_id=u.id
       LEFT JOIN customers c ON p.customer_id=c.id
       WHERE DATE(p.paid_at)=? AND i.business_id=? 
-      ${!isSuper ? 'AND i.branch_id=?' : ''}
-    `, !isSuper ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
+      ${(!isSuper && branchId) ? 'AND (i.branch_id=? OR i.branch_id IS NULL)' : ''}
+    `, (!isSuper && branchId) ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
 
     const otherMovements = await query(`
       SELECT p.*, 'System' as user_name, c.name as customer_name 
       FROM payments p
       LEFT JOIN customers c ON p.customer_id=c.id
-      WHERE DATE(p.paid_at)=? AND p.invoice_id IS NULL AND c.business_id=?
-      ${!isSuper ? 'AND c.branch_id=?' : ''}
-    `, !isSuper ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
+      WHERE DATE(p.paid_at)=? AND p.invoice_id IS NULL AND (c.business_id=? OR c.business_id IS NULL)
+      ${(!isSuper && branchId) ? 'AND (c.branch_id=? OR c.branch_id IS NULL)' : ''}
+    `, (!isSuper && branchId) ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
 
     const summary = await query(`
-      SELECT method, type, SUM(amount) as total FROM payments p
-      JOIN customers c ON p.customer_id=c.id
-      WHERE DATE(p.paid_at)=? AND c.business_id=? ${!isSuper ? 'AND c.branch_id=?' : ''}
-      GROUP BY method, type
-    `, !isSuper ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
+      SELECT p.method, p.type, SUM(p.amount) as total 
+      FROM payments p
+      LEFT JOIN invoices i ON p.invoice_id=i.id
+      LEFT JOIN customers c ON p.customer_id=c.id
+      WHERE DATE(p.paid_at)=? AND (i.business_id=? OR c.business_id=?)
+      ${(!isSuper && branchId) ? 'AND (i.branch_id=? OR i.branch_id IS NULL OR c.branch_id=?)' : ''}
+      GROUP BY p.method, p.type
+    `, (!isSuper && branchId) ? [date, req.user.business_id, req.user.business_id, branchId, branchId] : [date, req.user.business_id, req.user.business_id]);
 
     res.json({ invoicePayments, otherMovements, summary, date });
   } catch (e: any) { next(e); }
