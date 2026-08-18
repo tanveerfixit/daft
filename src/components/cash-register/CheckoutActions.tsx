@@ -40,7 +40,7 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
   const typedAmount = parseFloat(paymentAmount) || 0;
 
   return (
-    <div className="space-y-3 font-mono">
+    <div className="space-y-3">
       {isPaymentComplete ? (
         <button 
           onClick={onCheckout}

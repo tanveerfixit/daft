@@ -58,12 +58,12 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
   };
 
   return (
-    <div className="p-4 border-b border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black font-mono text-base">
+    <div className="p-4 border-b border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black text-base">
       <div className="flex items-center gap-2 mb-3">
         <CreditCard size={16} className="text-neutral-600 dark:text-neutral-400" />
-        <h3 className="font-bold text-black dark:text-white text-base uppercase">Payment</h3>
+        <h3 className="font-bold text-black dark:text-white text-sm uppercase tracking-wider">Payment</h3>
         {customerBalance > 0 && (
-          <span className="ml-auto text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-white dark:bg-black px-1.5 py-0.5 rounded-none border border-neutral-300 dark:border-neutral-800">
+          <span className="ml-auto text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-white dark:bg-black px-2 py-0.5 rounded-none border border-neutral-300 dark:border-neutral-800 font-mono">
             Wallet: €{(Number(customerBalance) || 0).toFixed(2)}
           </span>
         )}
