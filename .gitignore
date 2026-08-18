@@ -16,3 +16,4 @@ isolate.js
 check_db.ts
 verify_save.ts
 server_errors.log
+.claude/

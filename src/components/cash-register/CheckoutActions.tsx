@@ -10,6 +10,7 @@ interface CheckoutActionsProps {
   remainingAmount: number;
   paymentMethod: string;
   addedPaymentsCount: number;
+  paymentAmount?: string;
 }
 
 export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
@@ -20,7 +21,8 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
   isPaymentComplete,
   remainingAmount,
   paymentMethod,
-  addedPaymentsCount
+  addedPaymentsCount,
+  paymentAmount = ''
 }) => {
   const getMethodColorClass = (method: string) => {
     switch (method.toLowerCase()) {
@@ -35,37 +37,41 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
     }
   };
 
+  const typedAmount = parseFloat(paymentAmount) || 0;
+
   return (
     <div className="space-y-3 font-mono">
       {isPaymentComplete ? (
         <button 
           onClick={onCheckout}
           disabled={isCartEmpty}
-          className="w-full py-3.5 rounded-none font-bold text-[15px] uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-500 bg-amber-400 text-slate-900 hover:bg-amber-500 disabled:bg-neutral-200 dark:disabled:bg-neutral-900 disabled:text-neutral-500 disabled:cursor-not-allowed disabled:border-neutral-300 dark:disabled:border-neutral-800 disabled:opacity-50 cursor-pointer transition-colors"
+          className="w-full py-3.5 rounded-none font-bold text-base uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-500 bg-amber-400 text-slate-900 hover:bg-amber-500 disabled:bg-neutral-200 dark:disabled:bg-neutral-900 disabled:text-neutral-500 disabled:cursor-not-allowed disabled:border-neutral-300 dark:disabled:border-neutral-800 disabled:opacity-50 cursor-pointer transition-colors shadow-sm"
         >
-          <Check size={18} strokeWidth={3} />
-          Complete Checkout
+          <Check size={20} strokeWidth={3} />
+          <span>Complete Checkout</span>
         </button>
       ) : (
         <button 
           onClick={onQuickCheckout}
           disabled={isCartEmpty}
-          className={`w-full py-3.5 rounded-none font-bold text-[15px] uppercase tracking-wider flex items-center justify-center gap-2 border cursor-pointer transition-all disabled:bg-neutral-200 dark:disabled:bg-neutral-900 disabled:text-neutral-500 disabled:cursor-not-allowed disabled:border-neutral-300 dark:disabled:border-neutral-800 disabled:opacity-50 ${
+          className={`w-full py-3.5 rounded-none font-bold text-base uppercase tracking-wider flex items-center justify-center gap-2 border cursor-pointer transition-all disabled:bg-neutral-200 dark:disabled:bg-neutral-900 disabled:text-neutral-500 disabled:cursor-not-allowed disabled:border-neutral-300 dark:disabled:border-neutral-800 disabled:opacity-50 shadow-sm ${
             isCartEmpty ? '' : getMethodColorClass(paymentMethod)
           }`}
         >
-          <Zap size={18} strokeWidth={3} className="animate-pulse" />
+          <Zap size={20} strokeWidth={3} className="animate-pulse" />
           <span>
             {addedPaymentsCount > 0 
-              ? `Pay €${remainingAmount.toFixed(2)} & Finish` 
-              : `Quick Checkout (${paymentMethod})`}
+              ? `Pay €${Math.max(0, remainingAmount).toFixed(2)} & Finish` 
+              : (typedAmount > 0 
+                  ? `Quick Pay €${typedAmount.toFixed(2)} (${paymentMethod})` 
+                  : `Quick Checkout (${paymentMethod})`)}
           </span>
         </button>
       )}
       
       <button 
         onClick={onClearCart}
-        className="w-full py-3 rounded-none font-bold text-base uppercase tracking-wider flex items-center justify-center gap-2 border border-red-600 bg-red-600 hover:bg-red-700 text-white cursor-pointer transition-colors"
+        className="w-full py-3 rounded-none font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2 border border-red-600 bg-red-600 hover:bg-red-700 text-white cursor-pointer transition-colors"
       >
         <Trash2 size={16} />
         Discard Transaction
@@ -73,4 +79,3 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
     </div>
   );
 };
-

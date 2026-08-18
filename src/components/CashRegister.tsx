@@ -579,7 +579,8 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
   const handleQuickCheckout = () => {
     if (cart.length === 0) return;
-    const amount = remainingAmount;
+    const inputAmount = parseFloat(paymentAmount);
+    const amount = (!isNaN(inputAmount) && inputAmount > 0) ? inputAmount : remainingAmount;
     if (amount <= 0) return;
 
     if (paymentMethod === 'Wallet') {
@@ -707,6 +708,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const total = Math.max(0, subtotal - discountTotal);
   const paidAmount = addedPayments.reduce((sum, p) => sum + p.amount, 0);
   const remainingAmount = total - paidAmount;
+  const changeDue = Math.max(0, paidAmount - total);
   const isPaymentComplete = remainingAmount <= 0.01;
 
   useEffect(() => {

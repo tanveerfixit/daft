@@ -147,9 +147,9 @@ export default function PurchaseOrderList({
                 </td>
                 <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 font-sans">{po.lot_ref_no || po.po_number}</td>
                 <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 font-sans">{po.supplier_name}</td>
-                <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-mono">€{po.sales_tax.toFixed(2)}</td>
-                <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-mono">€{po.shipping_cost.toFixed(2)}</td>
-                <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-mono font-bold">€{po.total.toFixed(2)}</td>
+                <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-mono">€{(Number(po.sales_tax) || 0).toFixed(2)}</td>
+                <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-mono">€{(Number(po.shipping_cost) || 0).toFixed(2)}</td>
+                <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-mono font-bold">€{(Number(po.total) || 0).toFixed(2)}</td>
                 <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 font-mono">{po.expected_at ? new Date(po.expected_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-') : ''}</td>
                 <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800"></td>
                 <td className="px-2 py-1">

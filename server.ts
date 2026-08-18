@@ -26,7 +26,7 @@ async function startServer() {
   }
 
   const app = express();
-  const PORT = process.env.PORT || 3000;
+  const PORT = Number(process.env.PORT) || 3000;
   app.use(express.json({ limit: '10mb' }));
 
   // ─── Import Route Modules ─────────────────────────────────────────────────
@@ -151,7 +151,7 @@ async function startServer() {
   // ─── Global Error Handler ─────────────────────────────────────────────────
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (err instanceof ZodError) {
-      return res.status(400).json({ error: 'Validation Error', details: err.errors });
+      return res.status(400).json({ error: 'Validation Error', details: (err as any).errors || (err as any).issues });
     }
     
     logError('Unhandled API Error', err);

@@ -137,7 +137,7 @@ export default function PurchaseOrderDetail({ poId, onBack }: Props) {
                 </div>
                 <div className="flex border-b border-neutral-150 dark:border-neutral-850 pb-1">
                   <span className="w-36 font-bold text-neutral-900 dark:text-neutral-100 font-mono">Shipping Cost :</span>
-                  <span className="text-neutral-605 dark:text-neutral-400 font-mono">€{po.shipping_cost.toFixed(2)}</span>
+                  <span className="text-neutral-605 dark:text-neutral-400 font-mono">€{(Number(po.shipping_cost) || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex">
                   <span className="w-36 font-bold text-neutral-900 dark:text-neutral-100 font-mono">Lot Ref. No. :</span>
@@ -185,8 +185,8 @@ export default function PurchaseOrderDetail({ poId, onBack }: Props) {
                   </td>
                   <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-center font-mono">{item.ordered_qty}</td>
                   <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-center font-mono">{item.received_qty}</td>
-                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-mono">€{item.unit_cost.toFixed(2)}</td>
-                  <td className="px-2 py-1 text-right font-mono font-bold">€{item.total.toFixed(2)}</td>
+                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-mono">€{(Number(item.unit_cost) || 0).toFixed(2)}</td>
+                  <td className="px-2 py-1 text-right font-mono font-bold">€{(Number(item.total) || 0).toFixed(2)}</td>
                 </tr>
               ))}
               {/* Totals Row */}
@@ -195,7 +195,7 @@ export default function PurchaseOrderDetail({ poId, onBack }: Props) {
                 <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-center font-mono">{po.items.reduce((sum, item) => sum + item.ordered_qty, 0)}</td>
                 <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-center font-mono">{po.items.reduce((sum, item) => sum + item.received_qty, 0)}</td>
                 <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-mono uppercase text-xs">Total :</td>
-                <td className="px-2 py-1 text-right font-mono text-lg">€{po.total.toFixed(2)}</td>
+                <td className="px-2 py-1 text-right font-mono text-lg">€{(Number(po.total) || 0).toFixed(2)}</td>
               </tr>
             </tbody>
           </table>

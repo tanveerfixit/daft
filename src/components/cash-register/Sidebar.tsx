@@ -92,6 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
           remainingAmount={props.remainingAmount}
           paymentMethod={props.paymentMethod}
           addedPaymentsCount={props.addedPayments.length}
+          paymentAmount={props.paymentAmount}
         />
       </div>
     </div>

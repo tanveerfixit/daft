@@ -254,7 +254,7 @@ export default function ProductDetails({
                     {/* Selling Price */}
                     <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
                       <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Selling Price :</div>
-                      <div className="md:col-span-8 px-3 font-bold text-neutral-900 dark:text-neutral-100">€{product.selling_price.toFixed(2)}</div>
+                      <div className="md:col-span-8 px-3 font-bold text-neutral-900 dark:text-neutral-100">€{(Number(product.selling_price) || 0).toFixed(2)}</div>
                     </div>
 
                     {/* Min Selling Price */}

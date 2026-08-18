@@ -254,7 +254,7 @@ export default function ProductList({
                     </div>
                   </td>
                   <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-normal text-neutral-900 dark:text-neutral-100">
-                    €{product.selling_price.toFixed(2)}
+                    €{(Number(product.selling_price) || 0).toFixed(2)}
                   </td>
                   <td className="px-2 py-1 text-center">
                     <span className={`font-bold text-sm ${product.total_stock && product.total_stock > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>

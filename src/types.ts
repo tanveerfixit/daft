@@ -13,6 +13,8 @@ export interface Product {
   category_name?: string;
   manufacturer_name?: string;
   total_stock?: number;
+  allow_overselling?: boolean | number;
+  device_id?: number;
 }
 
 export interface Branch {
@@ -35,7 +37,7 @@ export interface Customer {
   secondary_phone?: string;
   fax?: string;
   email: string;
-  offers_email?: boolean;
+  offers_email?: boolean | number;
   company?: string;
   customer_type?: string;
   address_line1?: string;
@@ -64,6 +66,7 @@ export interface InvoiceItem {
   product_type?: string;
   allow_overselling?: number;
   max_stock?: number;
+  notes?: string;
 }
 
 export interface InvoiceActivity {
@@ -139,6 +142,7 @@ export interface Repair {
   id: number;
   customer_id: number | null;
   customer_name?: string;
+  phone?: string;
   device_model: string;
   issue: string;
   status: 'new' | 'diagnosed' | 'repairing' | 'completed' | 'collected';

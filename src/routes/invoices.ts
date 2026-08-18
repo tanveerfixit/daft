@@ -115,6 +115,403 @@ router.get('/by-number/:invoiceNumber', async (req: any, res, next) => {
   } catch (e: any) { next(e); }
 });
 
+router.get('/export-count', async (req: any, res, next) => {
+  try {
+    const { startDate, endDate, branch_id } = req.query;
+    const isDeveloper = req.user.role === 'developer';
+    const branchId = branch_id || req.user.branch_id;
+    let whereSql = 'WHERE i.business_id=?';
+    const params: any[] = [req.user.business_id];
+
+    if (!isDeveloper && branchId) {
+      whereSql += ' AND i.branch_id=?';
+      params.push(branchId);
+    } else if (branch_id) {
+      whereSql += ' AND i.branch_id=?';
+      params.push(branch_id);
+    }
+
+    if (startDate) {
+      whereSql += ' AND DATE(i.created_at) >= DATE(?)';
+      params.push(startDate);
+    }
+    if (endDate) {
+      whereSql += ' AND DATE(i.created_at) <= DATE(?)';
+      params.push(endDate);
+    }
+
+    const rows: any[] = await query(`
+      SELECT COUNT(*) as total_invoices, COALESCE(SUM(i.grand_total), 0) as total_amount
+      FROM invoices i
+      ${whereSql}
+    `, params);
+
+    const countRow = rows[0] || { total_invoices: 0, total_amount: 0 };
+    res.json({
+      total_invoices: Number(countRow.total_invoices) || 0,
+      total_amount: Number(countRow.total_amount) || 0
+    });
+  } catch (e: any) { next(e); }
+});
+
+router.get('/export', async (req: any, res, next) => {
+  try {
+    const { startDate, endDate, branch_id, format = 'json' } = req.query;
+    const isDeveloper = req.user.role === 'developer';
+    const branchId = branch_id || req.user.branch_id;
+    let whereSql = 'WHERE i.business_id=?';
+    const params: any[] = [req.user.business_id];
+
+    if (!isDeveloper && branchId) {
+      whereSql += ' AND i.branch_id=?';
+      params.push(branchId);
+    } else if (branch_id) {
+      whereSql += ' AND i.branch_id=?';
+      params.push(branch_id);
+    }
+
+    if (startDate) {
+      whereSql += ' AND DATE(i.created_at) >= DATE(?)';
+      params.push(startDate);
+    }
+    if (endDate) {
+      whereSql += ' AND DATE(i.created_at) <= DATE(?)';
+      params.push(endDate);
+    }
+
+    // 1. Fetch invoices
+    const invoices: any[] = await query(`
+      SELECT i.id, i.invoice_number, i.business_id, i.branch_id, b.name as branch_name,
+             i.customer_id, c.name as customer_name, c.phone as customer_phone, c.email as customer_email,
+             i.subtotal, i.tax_total, i.discount_total, i.grand_total, i.paid_amount, i.due_amount,
+             i.status, i.created_at, u.name as created_by_name
+      FROM invoices i
+      LEFT JOIN branches b ON i.branch_id=b.id
+      LEFT JOIN customers c ON i.customer_id=c.id
+      LEFT JOIN users u ON i.user_id=u.id
+      ${whereSql}
+      ORDER BY i.id ASC
+    `, params);
+
+    if (invoices.length === 0) {
+      if (format === 'csv') {
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="invoices_export_${startDate || 'all'}.csv"`);
+        return res.send('Invoice Number,Date,Customer Name,Customer Phone,Customer Email,Subtotal,Tax Total,Discount Total,Grand Total,Paid Amount,Due Amount,Status,Branch Name,Created By,Item Summary,Payment Summary\n');
+      }
+      return res.json({
+        export_version: '1.0',
+        business_id: req.user.business_id,
+        generated_at: new Date().toISOString(),
+        filter: { startDate, endDate, branch_id },
+        total_count: 0,
+        invoices: []
+      });
+    }
+
+    const invoiceIds = invoices.map((inv: any) => inv.id);
+
+    // 2. Fetch invoice items
+    const items: any[] = await query(`
+      SELECT ii.invoice_id, ii.sku_id, s.sku_code, s.barcode, p.name as product_name,
+             ii.device_id, d.imei, ii.quantity, ii.price, ii.cost, ii.discount, ii.total, ii.notes
+      FROM invoice_items ii
+      LEFT JOIN product_skus s ON ii.sku_id=s.id
+      LEFT JOIN products p ON s.product_id=p.id
+      LEFT JOIN devices d ON ii.device_id=d.id
+      WHERE ii.invoice_id IN (?)
+    `, [invoiceIds]);
+
+    // 3. Fetch payments
+    const payments: any[] = await query(`
+      SELECT p.invoice_id, p.method, p.amount, p.type, p.created_at
+      FROM payments p
+      WHERE p.invoice_id IN (?)
+    `, [invoiceIds]);
+
+    // Group items and payments by invoice_id
+    const itemsMap = new Map<number, any[]>();
+    for (const item of items) {
+      if (!itemsMap.has(item.invoice_id)) itemsMap.set(item.invoice_id, []);
+      itemsMap.get(item.invoice_id)!.push(item);
+    }
+
+    const paymentsMap = new Map<number, any[]>();
+    for (const p of payments) {
+      if (!paymentsMap.has(p.invoice_id)) paymentsMap.set(p.invoice_id, []);
+      paymentsMap.get(p.invoice_id)!.push(p);
+    }
+
+    const fullInvoices = invoices.map((inv: any) => ({
+      ...inv,
+      items: itemsMap.get(inv.id) || [],
+      payments: paymentsMap.get(inv.id) || []
+    }));
+
+    if (format === 'csv') {
+      const escapeCsv = (val: any) => {
+        if (val === null || val === undefined) return '""';
+        const str = String(val).replace(/"/g, '""');
+        return `"${str}"`;
+      };
+
+      const headers = [
+        'Invoice Number',
+        'Date',
+        'Customer Name',
+        'Customer Phone',
+        'Customer Email',
+        'Subtotal',
+        'Tax Total',
+        'Discount Total',
+        'Grand Total',
+        'Paid Amount',
+        'Due Amount',
+        'Status',
+        'Branch Name',
+        'Created By',
+        'Item Summary',
+        'Payment Summary'
+      ];
+
+      const rows = fullInvoices.map((inv: any) => {
+        const itemSummary = (inv.items || []).map((it: any) => `${it.quantity}x ${it.product_name || 'Item'} (SKU: ${it.sku_code || 'N/A'}${it.imei ? `, IMEI: ${it.imei}` : ''}${it.notes ? `, Note: ${it.notes}` : ''}) @ €${(Number(it.price) || 0).toFixed(2)} = €${(Number(it.total) || 0).toFixed(2)}`).join(' | ');
+        const paymentSummary = (inv.payments || []).map((p: any) => `${p.method}: €${(Number(p.amount) || 0).toFixed(2)}`).join(' | ');
+
+        return [
+          escapeCsv(inv.invoice_number),
+          escapeCsv(new Date(inv.created_at).toISOString().split('T')[0]),
+          escapeCsv(inv.customer_name || 'Walk-in Customer'),
+          escapeCsv(inv.customer_phone || ''),
+          escapeCsv(inv.customer_email || ''),
+          (Number(inv.subtotal) || 0).toFixed(2),
+          (Number(inv.tax_total) || 0).toFixed(2),
+          (Number(inv.discount_total) || 0).toFixed(2),
+          (Number(inv.grand_total) || 0).toFixed(2),
+          (Number(inv.paid_amount) || 0).toFixed(2),
+          (Number(inv.due_amount) || 0).toFixed(2),
+          escapeCsv(inv.status),
+          escapeCsv(inv.branch_name || ''),
+          escapeCsv(inv.created_by_name || ''),
+          escapeCsv(itemSummary),
+          escapeCsv(paymentSummary)
+        ].join(',');
+      });
+
+      const csvContent = [headers.join(','), ...rows].join('\n');
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="invoices_export_${startDate || 'all'}_to_${endDate || 'now'}.csv"`);
+      return res.send(csvContent);
+    }
+
+    // Default: JSON backup
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="invoices_backup_${startDate || 'all'}_to_${endDate || 'now'}.json"`);
+    res.json({
+      export_version: '1.0',
+      business_id: req.user.business_id,
+      generated_at: new Date().toISOString(),
+      filter: { startDate, endDate, branch_id },
+      total_count: fullInvoices.length,
+      invoices: fullInvoices
+    });
+  } catch (e: any) { next(e); }
+});
+
+router.post('/import', async (req: any, res, next) => {
+  const conn = await pool.getConnection();
+  try {
+    const { invoices, duplicateHandling = 'skip' } = req.body;
+    if (!Array.isArray(invoices) || invoices.length === 0) {
+      return res.status(400).json({ error: 'No valid invoices array found in payload' });
+    }
+
+    await conn.beginTransaction();
+
+    let importedCount = 0;
+    let skippedCount = 0;
+    let errorCount = 0;
+    const errors: string[] = [];
+
+    // Cache walk-in customer id
+    const [wRows] = await conn.execute(
+      "SELECT id FROM customers WHERE name='Walk-in Customer' AND business_id=? LIMIT 1",
+      [req.user.business_id]
+    );
+    let defaultCustomerId = (wRows as any[])[0]?.id || null;
+    if (!defaultCustomerId) {
+      const [newWalkin] = await conn.execute(
+        "INSERT INTO customers (business_id, name, first_name, last_name) VALUES (?, 'Walk-in Customer', 'Walk-in', 'Customer')",
+        [req.user.business_id]
+      );
+      defaultCustomerId = (newWalkin as any).insertId;
+    }
+
+    // Fetch existing invoice numbers for this business
+    const [existingInvRows] = await conn.query(
+      "SELECT id, invoice_number FROM invoices WHERE business_id=?",
+      [req.user.business_id]
+    );
+    const existingMap = new Map<string, number>((existingInvRows as any[]).map((r: any) => [r.invoice_number, r.id]));
+
+    for (const inv of invoices) {
+      try {
+        const invNum = inv.invoice_number || `IMP-${Date.now()}-${Math.floor(Math.random()*1000)}`;
+
+        if (existingMap.has(invNum)) {
+          if (duplicateHandling === 'skip') {
+            skippedCount++;
+            continue;
+          } else if (duplicateHandling === 'overwrite') {
+            const existingId = existingMap.get(invNum);
+            await conn.execute("DELETE FROM payments WHERE invoice_id=?", [existingId]);
+            await conn.execute("DELETE FROM invoice_items WHERE invoice_id=?", [existingId]);
+            await conn.execute("DELETE FROM invoice_activity WHERE invoice_id=?", [existingId]);
+            await conn.execute("DELETE FROM invoices WHERE id=?", [existingId]);
+          }
+        }
+
+        // Match or resolve customer
+        let customerId = defaultCustomerId;
+        if (inv.customer_name && inv.customer_name !== 'Walk-in Customer') {
+          const [custRows] = await conn.execute(
+            "SELECT id FROM customers WHERE business_id=? AND (name=? OR (phone IS NOT NULL AND phone=? AND phone != '')) LIMIT 1",
+            [req.user.business_id, inv.customer_name, inv.customer_phone || '']
+          );
+          if ((custRows as any[]).length > 0) {
+            customerId = (custRows as any[])[0].id;
+          } else {
+            const [newCust] = await conn.execute(
+              "INSERT INTO customers (business_id, name, phone, email) VALUES (?, ?, ?, ?)",
+              [req.user.business_id, inv.customer_name, inv.customer_phone || null, inv.customer_email || null]
+            );
+            customerId = (newCust as any).insertId;
+          }
+        }
+
+        const subtotal = Number(inv.subtotal) || 0;
+        const taxTotal = Number(inv.tax_total) || 0;
+        const discountTotal = Number(inv.discount_total) || 0;
+        const grandTotal = Number(inv.grand_total) || 0;
+        const paidAmount = Number(inv.paid_amount) || 0;
+        const dueAmount = Number(inv.due_amount) || 0;
+        const status = inv.status || (dueAmount > 0.01 ? (paidAmount > 0 ? 'partial' : 'credit') : 'paid');
+        const createdAt = inv.created_at ? new Date(inv.created_at) : new Date();
+
+        const [invR] = await conn.execute(
+          `INSERT INTO invoices 
+           (business_id, branch_id, user_id, customer_id, invoice_number, subtotal, tax_total, discount_total, grand_total, paid_amount, due_amount, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            req.user.business_id,
+            req.user.branch_id || null,
+            req.userId,
+            customerId,
+            invNum,
+            subtotal,
+            taxTotal,
+            discountTotal,
+            grandTotal,
+            paidAmount,
+            dueAmount,
+            status,
+            createdAt
+          ]
+        );
+        const invoiceId = (invR as any).insertId;
+
+        // Insert items
+        if (Array.isArray(inv.items)) {
+          for (const item of inv.items) {
+            let skuId = item.sku_id || null;
+            if (!skuId && item.sku_code) {
+              const [skuRows] = await conn.execute(
+                "SELECT s.id FROM product_skus s JOIN products p ON s.product_id=p.id WHERE s.sku_code=? AND p.business_id=? LIMIT 1",
+                [item.sku_code, req.user.business_id]
+              );
+              skuId = (skuRows as any[])[0]?.id || null;
+            }
+
+            await conn.execute(
+              `INSERT INTO invoice_items 
+               (invoice_id, sku_id, device_id, quantity, price, cost, discount, total, notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                invoiceId,
+                skuId,
+                item.device_id || null,
+                Number(item.quantity) || 1,
+                Number(item.price) || 0,
+                Number(item.cost) || 0,
+                Number(item.discount) || 0,
+                Number(item.total) || 0,
+                item.notes || null
+              ]
+            );
+          }
+        }
+
+        // Insert payments
+        if (Array.isArray(inv.payments) && inv.payments.length > 0) {
+          for (const p of inv.payments) {
+            await conn.execute(
+              "INSERT INTO payments (customer_id, invoice_id, type, method, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+              [
+                customerId,
+                invoiceId,
+                p.type || 'sale_payment',
+                p.method || 'Cash',
+                Number(p.amount) || 0,
+                p.created_at ? new Date(p.created_at) : createdAt
+              ]
+            );
+          }
+        } else if (paidAmount > 0) {
+          await conn.execute(
+            "INSERT INTO payments (customer_id, invoice_id, type, method, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            [
+              customerId,
+              invoiceId,
+              'sale_payment',
+              inv.payment_method || 'Cash',
+              paidAmount,
+              createdAt
+            ]
+          );
+        }
+
+        // Invoice activity
+        await conn.execute(
+          "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+          [invoiceId, req.userId, 'Invoice Imported', `Imported via Backup/Restore for €${grandTotal.toFixed(2)}`]
+        );
+
+        existingMap.set(invNum, invoiceId);
+        importedCount++;
+      } catch (itemError: any) {
+        errorCount++;
+        errors.push(`Error on invoice ${inv.invoice_number || 'Unknown'}: ${itemError.message}`);
+      }
+    }
+
+    await conn.commit();
+
+    res.json({
+      success: true,
+      total: invoices.length,
+      imported: importedCount,
+      skipped: skippedCount,
+      errorsCount: errorCount,
+      errors: errors.slice(0, 10)
+    });
+  } catch (e: any) {
+    if (conn) await conn.rollback().catch(() => {});
+    next(e);
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 router.get('/', async (req: any, res, next) => {
   try {
     const { startDate, endDate } = req.query;
@@ -190,7 +587,8 @@ const createInvoiceSchema = z.object({
     quantity: z.number().or(z.string().transform(Number)),
     price: z.number().or(z.string().transform(Number)),
     total: z.number().or(z.string().transform(Number)),
-    is_deposit: z.boolean().optional()
+    is_deposit: z.boolean().optional(),
+    notes: z.string().optional().nullable()
   })).min(1, "Cart is empty"),
   payments: z.array(z.object({
     method: z.string(),
@@ -262,8 +660,8 @@ router.post('/', async (req: any, res, next) => {
       const skuId = item.id || item.sku_id;
       const productInfo = productInfoMap.get(skuId);
       
-      await conn.execute('INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,total) VALUES (?,?,?,?,?,?)',
-        [invoiceId, skuId, item.device_id || null, item.quantity, item.price, item.total]);
+      await conn.execute('INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,total,notes) VALUES (?,?,?,?,?,?,?)',
+        [invoiceId, skuId, item.device_id || null, item.quantity, item.price, item.total, item.notes || null]);
       
       if (productInfo?.product_type === 'stock') {
         await conn.execute(`

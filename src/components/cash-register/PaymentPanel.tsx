@@ -47,13 +47,10 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
     }
     switch (method.toLowerCase()) {
       case 'cash':
-        // Vibrant flat emerald-green for Cash selection
         return 'bg-emerald-600 border-emerald-600 dark:bg-emerald-700 dark:border-emerald-700 text-white';
       case 'card':
-        // Vibrant flat royal-blue for Card selection
         return 'bg-blue-600 border-blue-600 dark:bg-blue-700 dark:border-blue-700 text-white';
       case 'wallet':
-        // Vibrant flat purple for Wallet selection
         return 'bg-purple-600 border-purple-600 dark:bg-purple-700 dark:border-purple-700 text-white';
       default:
         return 'bg-neutral-200 dark:bg-neutral-900 text-black dark:text-white border-neutral-450 dark:border-neutral-700';
@@ -67,13 +64,13 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
         <h3 className="font-bold text-black dark:text-white text-base uppercase">Payment</h3>
         {customerBalance > 0 && (
           <span className="ml-auto text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-white dark:bg-black px-1.5 py-0.5 rounded-none border border-neutral-300 dark:border-neutral-800">
-            Wallet: €{customerBalance.toFixed(2)}
+            Wallet: €{(Number(customerBalance) || 0).toFixed(2)}
           </span>
         )}
       </div>
 
       <div className="space-y-4">
-        {/* Simplified Payment Method Buttons */}
+        {/* Payment Method Buttons */}
         <div className="flex gap-2 w-full font-sans">
           {paymentMethods.map((method) => {
             const isActive = paymentMethod === method;
@@ -94,13 +91,13 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
         </div>
 
         {/* Amount Input and Action Button */}
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           <div className="flex gap-2">
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 font-bold text-base">€</span>
               <input 
                 type="number"
-                className="w-full pl-7 pr-4 py-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-lg font-mono font-bold focus:outline-none text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400"
+                className="w-full pl-7 pr-4 py-2.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-lg font-mono font-bold focus:outline-none text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400"
                 placeholder="0.00"
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
@@ -132,7 +129,7 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
               <div key={idx} className="flex justify-between items-center bg-neutral-100 dark:bg-neutral-900 p-2 border border-neutral-300 dark:border-neutral-800 text-base rounded-none">
                 <div className="flex items-center gap-2">
                   <span className="font-bold bg-white dark:bg-black px-1.5 py-0.5 rounded-none border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 uppercase text-xs">{p.method}</span>
-                  <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">€{p.amount.toFixed(2)}</span>
+                  <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">€{(Number(p.amount) || 0).toFixed(2)}</span>
                 </div>
                 <button 
                   onClick={() => onRemovePayment(idx)}
@@ -142,6 +139,7 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
                 </button>
               </div>
             ))}
+
             <div className="flex justify-between items-center px-1 pt-1 text-base">
               <span className="font-bold text-neutral-500 uppercase tracking-wider text-xs">Remaining</span>
               <span className={`font-mono font-bold ${remainingAmount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>

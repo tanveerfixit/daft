@@ -271,13 +271,13 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
             {Number(printRepair.deposit_paid || 0) > 0 && (
               <div className="flex justify-between text-xs">
                 <span>Deposit Paid:</span>
-                <span>€{Number(printRepair.deposit_paid).toFixed(2)}</span>
+                <span>€{Number(printRepair.deposit_paid || 0).toFixed(2)}</span>
               </div>
             )}
             {Number(printRepair.remaining_balance || 0) > 0 && (
               <div className="flex justify-between text-xs font-bold">
                 <span>Remaining:</span>
-                <span>€{Number(printRepair.remaining_balance).toFixed(2)}</span>
+                <span>€{Number(printRepair.remaining_balance || 0).toFixed(2)}</span>
               </div>
             )}
             <div className="border-t border-dashed border-black pt-2 mt-4 text-center text-[10px] text-neutral-500">

@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Settings, Building2, Percent, CreditCard, Users, Package, Printer, Save, Plus, X, ArrowUp, Upload, RotateCcw, FileText } from 'lucide-react';
-import { useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Settings, Building2, Percent, CreditCard, Users, Package, Printer, Save, 
+  Plus, X, ArrowUp, Upload, RotateCcw, FileText, Download, FileSpreadsheet, 
+  Calendar, CheckCircle2, AlertCircle, RefreshCw, FileJson, ArrowDownToLine, 
+  ArrowUpFromLine, Check, ShieldCheck, Database
+} from 'lucide-react';
 
 interface SettingsData {
   currency: string;
@@ -128,6 +132,224 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  // ─── Invoice Export & Import State ──────────────────────────────────────────
+  const getTodayISO = () => new Date().toISOString().split('T')[0];
+  const [exportPreset, setExportPreset] = useState<'today' | 'yesterday' | 'last7' | 'last30' | 'this_month' | 'custom'>('today');
+  const [exportStartDate, setExportStartDate] = useState<string>(getTodayISO());
+  const [exportEndDate, setExportEndDate] = useState<string>(getTodayISO());
+  const [exportStats, setExportStats] = useState<{ total_invoices: number; total_amount: number }>({ total_invoices: 0, total_amount: 0 });
+  const [isLoadingStats, setIsLoadingStats] = useState<boolean>(false);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importRawText, setImportRawText] = useState<string>('');
+  const [importDuplicateMode, setImportDuplicateMode] = useState<'skip' | 'overwrite'>('skip');
+  const [isImporting, setIsImporting] = useState<boolean>(false);
+  const [importResult, setImportResult] = useState<{
+    success: boolean;
+    total: number;
+    imported: number;
+    skipped: number;
+    errorsCount: number;
+    errors?: string[];
+  } | null>(null);
+  const invoiceFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleApplyPreset = (preset: 'today' | 'yesterday' | 'last7' | 'last30' | 'this_month' | 'custom') => {
+    setExportPreset(preset);
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+
+    if (preset === 'today') {
+      setExportStartDate(today);
+      setExportEndDate(today);
+    } else if (preset === 'yesterday') {
+      const y = new Date(now);
+      y.setDate(y.getDate() - 1);
+      const yStr = y.toISOString().split('T')[0];
+      setExportStartDate(yStr);
+      setExportEndDate(yStr);
+    } else if (preset === 'last7') {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 7);
+      setExportStartDate(d.toISOString().split('T')[0]);
+      setExportEndDate(today);
+    } else if (preset === 'last30') {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 30);
+      setExportStartDate(d.toISOString().split('T')[0]);
+      setExportEndDate(today);
+    } else if (preset === 'this_month') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      setExportStartDate(firstDay);
+      setExportEndDate(today);
+    }
+  };
+
+  const fetchInvoiceExportStats = async () => {
+    setIsLoadingStats(true);
+    try {
+      const params = new URLSearchParams();
+      if (exportStartDate) params.append('startDate', exportStartDate);
+      if (exportEndDate) params.append('endDate', exportEndDate);
+      const res = await fetch(`/api/invoices/export-count?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setExportStats({
+          total_invoices: Number(data.total_invoices) || 0,
+          total_amount: Number(data.total_amount) || 0
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching export stats:', err);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'manage-invoices') {
+      fetchInvoiceExportStats();
+    }
+  }, [activeTab, exportStartDate, exportEndDate]);
+
+  const handleDownloadInvoiceExport = (format: 'json' | 'csv') => {
+    setIsExporting(true);
+    const params = new URLSearchParams();
+    if (exportStartDate) params.append('startDate', exportStartDate);
+    if (exportEndDate) params.append('endDate', exportEndDate);
+    params.append('format', format);
+
+    const downloadUrl = `/api/invoices/export?${params.toString()}`;
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `invoices_export_${exportStartDate}_to_${exportEndDate}.${format}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    setTimeout(() => {
+      setIsExporting(false);
+    }, 1000);
+  };
+
+  const handleInvoiceFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFile(file);
+    setImportResult(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      setImportRawText(text);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportInvoicesSubmit = async () => {
+    const textToProcess = importRawText.trim();
+    if (!textToProcess) {
+      alert('Please upload an export file (.json or .csv) or paste invoice backup data.');
+      return;
+    }
+
+    setIsImporting(true);
+    setImportResult(null);
+
+    try {
+      let invoicesToImport: any[] = [];
+
+      // Check if JSON
+      if (textToProcess.startsWith('{') || textToProcess.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(textToProcess);
+          if (Array.isArray(parsed)) {
+            invoicesToImport = parsed;
+          } else if (parsed && Array.isArray(parsed.invoices)) {
+            invoicesToImport = parsed.invoices;
+          } else {
+            throw new Error('JSON backup must contain an "invoices" array.');
+          }
+        } catch (jsonErr: any) {
+          throw new Error(`Invalid JSON format: ${jsonErr.message}`);
+        }
+      } else {
+        // Parse CSV format
+        const lines = textToProcess.split('\n');
+        if (lines.length < 2) throw new Error('CSV file is empty or missing headers.');
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue;
+          const matches = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+          const values = matches ? matches.map(v => v.trim().replace(/^"|"$/g, '')) : lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+
+          const getVal = (name: string) => {
+            const idx = headers.findIndex(h => h.toLowerCase() === name.toLowerCase());
+            return idx !== -1 ? values[idx] : '';
+          };
+
+          const invNum = getVal('Invoice Number');
+          if (!invNum) continue;
+
+          invoicesToImport.push({
+            invoice_number: invNum,
+            created_at: getVal('Date'),
+            customer_name: getVal('Customer Name'),
+            customer_phone: getVal('Customer Phone'),
+            customer_email: getVal('Customer Email'),
+            subtotal: parseFloat(getVal('Subtotal')) || 0,
+            tax_total: parseFloat(getVal('Tax Total')) || 0,
+            discount_total: parseFloat(getVal('Discount Total')) || 0,
+            grand_total: parseFloat(getVal('Grand Total')) || 0,
+            paid_amount: parseFloat(getVal('Paid Amount')) || 0,
+            due_amount: parseFloat(getVal('Due Amount')) || 0,
+            status: getVal('Status') || 'paid',
+            items: [],
+            payments: []
+          });
+        }
+      }
+
+      if (invoicesToImport.length === 0) {
+        throw new Error('No valid invoice records could be parsed from the provided data.');
+      }
+
+      const response = await fetch('/api/invoices/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoices: invoicesToImport,
+          duplicateHandling: importDuplicateMode
+        })
+      });
+
+      const resData = await response.json();
+      if (!response.ok) {
+        throw new Error(resData.error || 'Failed to import invoices');
+      }
+
+      setImportResult(resData);
+      setImportRawText('');
+      setImportFile(null);
+      if (invoiceFileInputRef.current) invoiceFileInputRef.current.value = '';
+      fetchInvoiceExportStats();
+    } catch (err: any) {
+      console.error('Invoice import error:', err);
+      setImportResult({
+        success: false,
+        total: 0,
+        imported: 0,
+        skipped: 0,
+        errorsCount: 1,
+        errors: [err.message]
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -776,6 +998,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
   };
 
   const tabs = [
+    { id: 'manage-invoices', label: 'Import / Export Invoices', icon: FileSpreadsheet },
     { id: 'manage-thermal-printer', label: 'Manage Thermal Printer', icon: Printer },
     { id: 'manage-eod-report', label: 'End of Day Report', icon: FileText },
     { id: 'account-setup', label: 'Account Setup', icon: Settings },
@@ -814,7 +1037,300 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
 
         {/* Content Area */}
         <div className="flex-1 bg-white border border-slate-200 rounded shadow-sm p-8 overflow-auto">
-          {activeTab === 'account-setup' ? (
+          {activeTab === 'manage-invoices' ? (
+            <div className="max-w-5xl space-y-8">
+              <div>
+                <h3 className="text-2xl font-bold text-slate-800 mb-2 flex items-center gap-2.5">
+                  <Database className="text-blue-600" size={26} />
+                  Import & Export Invoices
+                </h3>
+                <p className="text-sm text-slate-500">
+                  Export local invoice records and backups for today or any specific date range, and easily upload/restore them back to your business anytime.
+                </p>
+              </div>
+
+              {/* Grid with 2 columns: Export on left, Import on right */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                {/* 1. EXPORT INVOICES CARD */}
+                <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-xs flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-5">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-blue-50 text-blue-600 rounded-md">
+                          <ArrowDownToLine size={20} />
+                        </div>
+                        <div>
+                          <h4 className="text-base font-bold text-slate-800">Export Invoices</h4>
+                          <p className="text-xs text-slate-500">Download local offline records & backups</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={fetchInvoiceExportStats}
+                        disabled={isLoadingStats}
+                        title="Refresh Count"
+                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded transition-colors"
+                      >
+                        <RefreshCw size={16} className={isLoadingStats ? 'animate-spin' : ''} />
+                      </button>
+                    </div>
+
+                    {/* Presets */}
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-600 block mb-2">
+                          Quick Date Presets
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { id: 'today', label: 'Today' },
+                            { id: 'yesterday', label: 'Yesterday' },
+                            { id: 'last7', label: 'Last 7 Days' },
+                            { id: 'last30', label: 'Last 30 Days' },
+                            { id: 'this_month', label: 'This Month' },
+                            { id: 'custom', label: 'Custom Range' },
+                          ].map((btn) => (
+                            <button
+                              key={btn.id}
+                              onClick={() => handleApplyPreset(btn.id as any)}
+                              className={`py-1.5 px-2 text-xs font-semibold rounded border transition-colors ${
+                                exportPreset === btn.id
+                                  ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                              }`}
+                            >
+                              {btn.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Custom Date Inputs */}
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">
+                            Start Date
+                          </label>
+                          <div className="relative">
+                            <input 
+                              type="date"
+                              value={exportStartDate}
+                              onChange={(e) => {
+                                setExportPreset('custom');
+                                setExportStartDate(e.target.value);
+                              }}
+                              className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">
+                            End Date
+                          </label>
+                          <div className="relative">
+                            <input 
+                              type="date"
+                              value={exportEndDate}
+                              onChange={(e) => {
+                                setExportPreset('custom');
+                                setExportEndDate(e.target.value);
+                              }}
+                              className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Live Invoices Summary Badge */}
+                      <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-md flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Invoices in Range</span>
+                          <span className="text-xl font-bold font-mono text-slate-900">
+                            {isLoadingStats ? '...' : exportStats.total_invoices} Invoices
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Total Volume</span>
+                          <span className="text-xl font-bold font-mono text-emerald-600">
+                            €{isLoadingStats ? '0.00' : exportStats.total_amount.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Download Action Buttons */}
+                  <div className="pt-5 border-t border-slate-100 mt-6 space-y-2.5">
+                    <button
+                      onClick={() => handleDownloadInvoiceExport('json')}
+                      disabled={isExporting || exportStats.total_invoices === 0}
+                      className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      <FileJson size={16} />
+                      Download JSON (Full Data Backup)
+                    </button>
+                    <button
+                      onClick={() => handleDownloadInvoiceExport('csv')}
+                      disabled={isExporting || exportStats.total_invoices === 0}
+                      className="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 border border-slate-300 disabled:opacity-50 text-slate-700 rounded font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      <FileSpreadsheet size={16} />
+                      Download CSV (Spreadsheet)
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. IMPORT INVOICES CARD */}
+                <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-xs flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 pb-3 border-b border-slate-200 mb-5">
+                      <div className="p-2 bg-emerald-50 text-emerald-600 rounded-md">
+                        <ArrowUpFromLine size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-base font-bold text-slate-800">Import & Restore</h4>
+                        <p className="text-xs text-slate-500">Upload JSON or CSV invoice backup</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {/* File Upload Box */}
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-600 block mb-2">
+                          Select Backup File (.json / .csv)
+                        </label>
+                        <input 
+                          type="file" 
+                          ref={invoiceFileInputRef}
+                          onChange={handleInvoiceFileUpload}
+                          accept=".json,.csv,application/json,text/csv"
+                          className="hidden"
+                        />
+                        <div 
+                          onClick={() => invoiceFileInputRef.current?.click()}
+                          className="border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50/60 hover:bg-blue-50/30 rounded-lg p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-colors"
+                        >
+                          <Upload size={24} className="text-slate-400 mb-2" />
+                          <p className="text-sm font-semibold text-slate-700">
+                            {importFile ? importFile.name : 'Click to browse or drop file here'}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            {importFile ? `${(importFile.size / 1024).toFixed(1)} KB` : 'Supports exported JSON backup or CSV files'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Duplicate Conflict Handling */}
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-600 block mb-2">
+                          Duplicate Invoice Numbers
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setImportDuplicateMode('skip')}
+                            className={`py-2 px-3 text-xs font-semibold rounded border text-left transition-colors ${
+                              importDuplicateMode === 'skip'
+                                ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              {importDuplicateMode === 'skip' && <Check size={14} className="text-blue-600" />}
+                              <span>Skip Existing</span>
+                            </div>
+                            <p className="text-[11px] font-normal opacity-80">Keep current invoices unchanged</p>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setImportDuplicateMode('overwrite')}
+                            className={`py-2 px-3 text-xs font-semibold rounded border text-left transition-colors ${
+                              importDuplicateMode === 'overwrite'
+                                ? 'bg-amber-50 border-amber-500 text-amber-800 font-bold'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              {importDuplicateMode === 'overwrite' && <Check size={14} className="text-amber-600" />}
+                              <span>Overwrite</span>
+                            </div>
+                            <p className="text-[11px] font-normal opacity-80">Replace duplicate invoice records</p>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Or Raw Paste Area */}
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-600 block mb-1">
+                          Or Paste Raw Content
+                        </label>
+                        <textarea
+                          value={importRawText}
+                          onChange={(e) => {
+                            setImportRawText(e.target.value);
+                            setImportResult(null);
+                          }}
+                          placeholder='Paste JSON or CSV invoice backup text here...'
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-xs font-mono h-20 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 bg-slate-50"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Import Button & Result Feedback */}
+                  <div className="pt-4 border-t border-slate-100 mt-5 space-y-3">
+                    <button
+                      onClick={handleImportInvoicesSubmit}
+                      disabled={isImporting || !importRawText.trim()}
+                      className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white rounded font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      <Save size={16} />
+                      {isImporting ? 'Restoring Invoices...' : 'Import & Restore Invoices'}
+                    </button>
+
+                    {importResult && (
+                      <div className={`p-3.5 rounded-md text-xs border ${
+                        importResult.success && importResult.errorsCount === 0
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : 'bg-amber-50 text-amber-800 border-amber-200'
+                      }`}>
+                        <div className="flex items-center gap-1.5 font-bold text-sm mb-1">
+                          {importResult.success && importResult.errorsCount === 0 ? (
+                            <CheckCircle2 size={16} className="text-emerald-600" />
+                          ) : (
+                            <AlertCircle size={16} className="text-amber-600" />
+                          )}
+                          <span>Import Summary</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 mt-2 font-mono text-center">
+                          <div className="bg-white/80 p-1.5 rounded border border-slate-200">
+                            <span className="text-[10px] uppercase font-sans text-slate-500 block">Total</span>
+                            <span className="font-bold text-slate-900">{importResult.total}</span>
+                          </div>
+                          <div className="bg-white/80 p-1.5 rounded border border-slate-200">
+                            <span className="text-[10px] uppercase font-sans text-emerald-600 block">Imported</span>
+                            <span className="font-bold text-emerald-700">{importResult.imported}</span>
+                          </div>
+                          <div className="bg-white/80 p-1.5 rounded border border-slate-200">
+                            <span className="text-[10px] uppercase font-sans text-amber-600 block">Skipped</span>
+                            <span className="font-bold text-amber-700">{importResult.skipped}</span>
+                          </div>
+                        </div>
+                        {importResult.errors && importResult.errors.length > 0 && (
+                          <div className="mt-2 text-red-600 space-y-0.5">
+                            {importResult.errors.map((err, i) => (
+                              <p key={i}>• {err}</p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          ) : activeTab === 'account-setup' ? (
             <div className="max-w-4xl">
               <h3 className="text-2xl font-bold text-slate-800 mb-2">Accounts Setup</h3>
               <p className="text-sm text-slate-500 mb-8">

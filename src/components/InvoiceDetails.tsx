@@ -72,7 +72,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
       return;
     }
     const subject = encodeURIComponent(`Invoice ${invoice.invoice_number}`);
-    const body = encodeURIComponent(`Dear ${invoice.customer?.name || 'Customer'},\n\nPlease find your invoice ${invoice.invoice_number} attached.\n\nTotal: €${invoice.grand_total.toFixed(2)}\n\nThank you for your business!`);
+    const body = encodeURIComponent(`Dear ${invoice.customer?.name || 'Customer'},\n\nPlease find your invoice ${invoice.invoice_number} attached.\n\nTotal: €${(Number(invoice.grand_total) || 0).toFixed(2)}\n\nThank you for your business!`);
     window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
   };
 
@@ -239,19 +239,26 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
                 <tr key={idx} className="border-b border-neutral-200 dark:border-neutral-800 text-base font-normal">
                   <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-center text-neutral-500">{idx + 1}</td>
                   <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800">
-                    <div className="flex items-center gap-1">
-                      <span className="text-neutral-900 dark:text-neutral-100 font-normal">{item.product_name}</span>
-                      {item.imei && (
-                        <span className="text-blue-500 flex items-center gap-1 font-normal">
-                          ({item.imei})
-                          <ExternalLink size={12} />
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-1">
+                        <span className="text-neutral-900 dark:text-neutral-100 font-normal">{item.product_name}</span>
+                        {item.imei && (
+                          <span className="text-blue-500 flex items-center gap-1 font-normal">
+                            ({item.imei})
+                            <ExternalLink size={12} />
+                          </span>
+                        )}
+                      </div>
+                      {item.notes && (
+                        <span className="text-xs text-neutral-500 italic mt-0.5 font-normal">
+                          Note: {item.notes}
                         </span>
                       )}
                     </div>
                   </td>
                   <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-center text-neutral-600 dark:text-neutral-400">{item.quantity}</td>
-                  <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-right text-neutral-600 dark:text-neutral-400">€{item.price.toFixed(2)}</td>
-                  <td className="px-4 py-2 text-right text-neutral-900 dark:text-neutral-100 font-normal">€{item.total.toFixed(2)}</td>
+                  <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-right text-neutral-600 dark:text-neutral-400">€{(Number(item.price) || 0).toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right text-neutral-900 dark:text-neutral-100 font-normal">€{(Number(item.total) || 0).toFixed(2)}</td>
                 </tr>
               ))}
               
@@ -259,17 +266,17 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
               <tr className="bg-white dark:bg-black text-base">
                 <td colSpan={3} className="border-r border-neutral-200 dark:border-neutral-800"></td>
                 <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-black dark:text-white">Taxable Total :</td>
-                <td className="px-4 py-2 text-right font-bold text-black dark:text-white">€{invoice.subtotal.toFixed(2)}</td>
+                <td className="px-4 py-2 text-right font-bold text-black dark:text-white">€{(Number(invoice.subtotal) || 0).toFixed(2)}</td>
               </tr>
               <tr className="bg-white dark:bg-black text-base">
                 <td colSpan={3} className="border-r border-neutral-200 dark:border-neutral-800"></td>
                 <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-black dark:text-white">Vat0 (0%) :</td>
-                <td className="px-4 py-2 text-right font-bold text-black dark:text-white">€{invoice.tax_total.toFixed(2)}</td>
+                <td className="px-4 py-2 text-right font-bold text-black dark:text-white">€{(Number(invoice.tax_total) || 0).toFixed(2)}</td>
               </tr>
               <tr className="bg-white dark:bg-black text-base">
                 <td colSpan={3} className="border-r border-neutral-200 dark:border-neutral-800"></td>
                 <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-black dark:text-white">Grand Total :</td>
-                <td className="px-4 py-2 text-right font-bold text-black dark:text-white">€{invoice.grand_total.toFixed(2)}</td>
+                <td className="px-4 py-2 text-right font-bold text-black dark:text-white">€{(Number(invoice.grand_total) || 0).toFixed(2)}</td>
               </tr>
               
               {/* Payment Info */}
@@ -280,7 +287,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
                     <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-right font-normal">
                       {formatDate(payment.paid_at)} {formatTime(payment.paid_at)} {payment.method} Payment
                     </td>
-                    <td className="px-4 py-2 text-right font-normal">€{payment.amount.toFixed(2)}</td>
+                    <td className="px-4 py-2 text-right font-normal">€{(Number(payment.amount) || 0).toFixed(2)}</td>
                   </tr>
                 ))
               ) : (
@@ -289,9 +296,24 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
                   <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-right font-normal">
                     {formatDate(invoice.created_at)} {formatTime(invoice.created_at)} {invoice.payment_method} Payment
                   </td>
-                  <td className="px-4 py-2 text-right font-normal">€{invoice.grand_total.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-right font-normal">€{(Number(invoice.grand_total) || 0).toFixed(2)}</td>
                 </tr>
               )}
+
+              {(() => {
+                const totalPaid = (invoice.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                const changeDue = Math.max(0, totalPaid - (Number(invoice.grand_total) || 0));
+                if (changeDue > 0.005) {
+                  return (
+                    <tr className="bg-white dark:bg-black text-base font-bold text-red-650 dark:text-red-400">
+                      <td colSpan={3} className="border-r border-neutral-200 dark:border-neutral-800"></td>
+                      <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-right">Change Due :</td>
+                      <td className="px-4 py-2 text-right font-mono">€{changeDue.toFixed(2)}</td>
+                    </tr>
+                  );
+                }
+                return null;
+              })()}
             </tbody>
           </table>
         </div>
@@ -384,7 +406,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
             <div className="p-6 space-y-4 bg-white dark:bg-black">
               <p className="text-base text-neutral-900 dark:text-neutral-100 font-normal">Are you sure you want to create a refund for invoice <span className="font-bold text-black dark:text-white">{invoice.invoice_number}</span>?</p>
               <div className="text-3xl font-bold text-center text-red-600 dark:text-red-400">
-                €{invoice.grand_total.toFixed(2)}
+                €{(Number(invoice.grand_total) || 0).toFixed(2)}
               </div>
               <div className="space-y-2">
                 <label className="text-base font-bold text-black dark:text-white uppercase">Refund Method</label>
@@ -468,10 +490,17 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
               <tbody>
                 {invoice.items.map((item, idx) => (
                   <tr key={idx} className="border-b border-slate-100">
-                    <td className="py-2 text-slate-800">{item.product_name}{item.imei ? ` (${item.imei})` : ''}</td>
+                    <td className="py-2 text-slate-800">
+                      <div>{item.product_name}{item.imei ? ` (${item.imei})` : ''}</div>
+                      {item.notes && (
+                        <div className="text-xs text-slate-500 italic mt-0.5">
+                          Note: {item.notes}
+                        </div>
+                      )}
+                    </td>
                     <td className="py-2 text-center text-slate-600">{item.quantity}</td>
-                    <td className="py-2 text-right text-slate-600">€{item.price.toFixed(2)}</td>
-                    <td className="py-2 text-right font-medium text-slate-800">€{item.total.toFixed(2)}</td>
+                    <td className="py-2 text-right text-slate-600">€{(Number(item.price) || 0).toFixed(2)}</td>
+                    <td className="py-2 text-right font-medium text-slate-800">€{(Number(item.total) || 0).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -479,11 +508,24 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
 
             <div className="flex justify-end">
               <div className="w-56 space-y-1 text-sm">
-                <div className="flex justify-between"><span className="text-slate-600">Subtotal:</span><span>€{invoice.subtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-slate-600">Tax (0%):</span><span>€{invoice.tax_total.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-600">Subtotal:</span><span>€{(Number(invoice.subtotal) || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-600">Tax (0%):</span><span>€{(Number(invoice.tax_total) || 0).toFixed(2)}</span></div>
                 <div className="flex justify-between font-bold text-base border-t border-slate-300 pt-2 mt-2">
-                  <span>Grand Total:</span><span>€{invoice.grand_total.toFixed(2)}</span>
+                  <span>Grand Total:</span><span>€{(Number(invoice.grand_total) || 0).toFixed(2)}</span>
                 </div>
+                {(() => {
+                  const totalPaid = (invoice.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                  const changeDue = Math.max(0, totalPaid - (Number(invoice.grand_total) || 0));
+                  if (changeDue > 0.005) {
+                    return (
+                      <div className="flex justify-between font-bold text-sm text-red-600 pt-1">
+                        <span>Change Due:</span>
+                        <span>€{changeDue.toFixed(2)}</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             </div>
 

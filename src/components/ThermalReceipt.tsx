@@ -114,18 +114,23 @@ export default function ThermalReceipt({ invoice, settings, company }: Props) {
 
         {/* Dynamic Item Rows - Regular weight */}
         {(invoice.items || []).map((item, idx) => (
-          <div key={idx} className="flex-between mb-3 animate-in fade-in" style={{ fontSize: '12px', alignLines: 'top' }}>
+          <div key={idx} className="flex-between mb-3 animate-in fade-in" style={{ fontSize: '12px', alignItems: 'flex-start' }}>
             <span style={{ width: '70%', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', flexDirection: 'column' }}>
               <span>{item.product_name?.toUpperCase()}</span>
+              {item.notes && (
+                <span style={{ fontSize: '11px', color: '#111', fontStyle: 'italic', marginTop: '1px', wordBreak: 'break-word' }}>
+                  Note: {item.notes}
+                </span>
+              )}
               <span style={{ fontSize: '12px', color: '#000', marginTop: '2px', fontFamily: 'monospace' }}>
                 SKU: {item.sku_code || 'N/A'} {item.imei && ` • IMEI: ${item.imei}`}
               </span>
               <span style={{ fontSize: '12px', color: '#000', marginTop: '1px' }}>
-                QTY: {item.quantity} x €{item.price.toFixed(2)}
+                QTY: {item.quantity} x €{(Number(item.price) || 0).toFixed(2)}
               </span>
             </span>
             <span style={{ width: '30%', textAlign: 'right', display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end' }}>
-              €{(item.total || 0).toFixed(2)}
+              €{(Number(item.total) || 0).toFixed(2)}
             </span>
           </div>
         ))}
@@ -139,19 +144,19 @@ export default function ThermalReceipt({ invoice, settings, company }: Props) {
           {/* Taxable Total */}
           <div className="flex-between">
             <span style={{ paddingLeft: '20%' }}>TAXABLE TOTAL:</span>
-            <span>€{(invoice.subtotal - (invoice.tax_total || 0)).toFixed(2)}</span>
+            <span>€{((Number(invoice.subtotal) || 0) - (Number(invoice.tax_total) || 0)).toFixed(2)}</span>
           </div>
 
           {/* Tax */}
           <div className="flex-between">
             <span style={{ paddingLeft: '20%' }}>TAX (23%):</span>
-            <span>€{(invoice.tax_total || 0).toFixed(2)}</span>
+            <span>€{(Number(invoice.tax_total) || 0).toFixed(2)}</span>
           </div>
 
           {/* Grand Total - Bold heading */}
           <div className="flex-between text-bold" style={{ fontSize: '12px', padding: '3px 0' }}>
             <span style={{ paddingLeft: '20%' }}>GRAND TOTAL:</span>
-            <span>€{invoice.grand_total.toFixed(2)}</span>
+            <span>€{(Number(invoice.grand_total) || 0).toFixed(2)}</span>
           </div>
 
           {/* Payment Ledger Line - Regular weight */}
@@ -159,23 +164,40 @@ export default function ThermalReceipt({ invoice, settings, company }: Props) {
             invoice.payments.map((p, idx) => (
               <div key={idx} className="flex-between" style={{ color: '#000' }}>
                 <span style={{ paddingLeft: '20%' }}>{p.method?.toUpperCase()}:</span>
-                <span>€{(p.amount || 0).toFixed(2)}</span>
+                <span>€{(Number(p.amount) || 0).toFixed(2)}</span>
               </div>
             ))
           ) : (
             <div className="flex-between" style={{ color: '#000' }}>
               <span style={{ paddingLeft: '20%' }}>{invoice.payment_method?.toUpperCase() || 'CASH'}:</span>
-              <span>€{invoice.grand_total.toFixed(2)}</span>
+              <span>€{(Number(invoice.grand_total) || 0).toFixed(2)}</span>
             </div>
           )}
 
           {/* Remaining Due (if any) - Regular weight */}
-          {(invoice.due_amount || 0) > 0 && (
+          {(Number(invoice.due_amount) || 0) > 0 && (
             <div className="flex-between text-red-600" style={{ fontSize: '12px' }}>
               <span style={{ paddingLeft: '20%' }}>DUE:</span>
-              <span>€{invoice.due_amount.toFixed(2)}</span>
+              <span>€{(Number(invoice.due_amount) || 0).toFixed(2)}</span>
             </div>
           )}
+
+          {/* Change Due (if any) */}
+          {(() => {
+            const totalPaid = (invoice.payments && invoice.payments.length > 0)
+              ? invoice.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+              : Number(invoice.grand_total) || 0;
+            const changeDue = Math.max(0, totalPaid - (Number(invoice.grand_total) || 0));
+            if (changeDue > 0.005) {
+              return (
+                <div className="flex-between text-bold" style={{ fontSize: '12px', color: '#000', padding: '2px 0' }}>
+                  <span style={{ paddingLeft: '20%' }}>CHANGE DUE:</span>
+                  <span>€{changeDue.toFixed(2)}</span>
+                </div>
+              );
+            }
+            return null;
+          })()}
         </div>
       </div>
       

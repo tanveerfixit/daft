@@ -217,10 +217,10 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
                     )}
                   </td>
                   <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">PHONE LAB</td>
-                  <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right text-neutral-900 dark:text-neutral-100 font-mono">€{invoice.subtotal.toFixed(2)}</td>
-                  <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right text-neutral-900 dark:text-neutral-100 font-mono">€{invoice.tax_total.toFixed(2)}</td>
+                  <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right text-neutral-900 dark:text-neutral-100 font-mono">€{(Number(invoice.subtotal) || 0).toFixed(2)}</td>
+                  <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right text-neutral-900 dark:text-neutral-100 font-mono">€{(Number(invoice.tax_total) || 0).toFixed(2)}</td>
                   <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right text-neutral-900 dark:text-neutral-100 font-mono">€0.00</td>
-                  <td className="px-2 py-1 text-right text-neutral-900 dark:text-neutral-100 font-mono">€{invoice.grand_total.toFixed(2)}</td>
+                  <td className="px-2 py-1 text-right text-neutral-900 dark:text-neutral-100 font-mono">€{(Number(invoice.grand_total) || 0).toFixed(2)}</td>
                 </tr>
               ))
             )}

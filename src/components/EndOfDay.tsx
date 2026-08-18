@@ -436,7 +436,7 @@ const EndOfDayA4: React.FC<PrintProps> = ({
                   <td>
                     <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[9px] font-bold uppercase">{p.method}</span>
                   </td>
-                  <td className="text-right font-bold text-gray-900">€{p.amount.toFixed(2)}</td>
+                  <td className="text-right font-bold text-gray-900">€{(Number(p.amount) || 0).toFixed(2)}</td>
                 </tr>
               ))
             )}
@@ -445,19 +445,19 @@ const EndOfDayA4: React.FC<PrintProps> = ({
             {settings.eod_show_total_cash && (
               <tr className="bg-gray-100 text-gray-900 font-bold border-t border-gray-300">
                 <td colSpan={5} className="text-right py-2 uppercase text-[10px] tracking-widest">Total Cash</td>
-                <td className="text-right py-2 text-md">€{allPayments.filter(p => p.method.toLowerCase().includes('cash')).reduce((sum, p) => sum + p.amount, 0).toFixed(2)}</td>
+                <td className="text-right py-2 text-md">€{allPayments.filter(p => p.method.toLowerCase().includes('cash')).reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}</td>
               </tr>
             )}
             {settings.eod_show_total_card_sale && (
               <tr className="bg-gray-100 text-gray-900 font-bold border-t border-gray-300">
                 <td colSpan={5} className="text-right py-2 uppercase text-[10px] tracking-widest">Total Card Sale</td>
-                <td className="text-right py-2 text-md">€{allPayments.filter(p => p.method.toLowerCase().includes('card')).reduce((sum, p) => sum + p.amount, 0).toFixed(2)}</td>
+                <td className="text-right py-2 text-md">€{allPayments.filter(p => p.method.toLowerCase().includes('card')).reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}</td>
               </tr>
             )}
             {settings.eod_show_total && (
               <tr className="bg-gray-900 text-white font-bold">
                 <td colSpan={5} className="text-right py-3 uppercase text-[10px] tracking-widest">Total Sales for Period</td>
-                <td className="text-right py-3 text-lg">€{totalSales.toFixed(2)}</td>
+                <td className="text-right py-3 text-lg">€{(Number(totalSales) || 0).toFixed(2)}</td>
               </tr>
             )}
           </tfoot>
@@ -1101,7 +1101,7 @@ export default function EndOfDay() {
                             </select>
                           </td>
                           <td className="py-1 px-3 text-right font-normal text-neutral-955 dark:text-neutral-100">
-                            €{payment.amount.toFixed(2)}
+                            €{(Number(payment.amount) || 0).toFixed(2)}
                           </td>
                         </tr>
                       ))}
@@ -1111,7 +1111,7 @@ export default function EndOfDay() {
                           TOTAL REGISTERED PAYMENTS :
                         </td>
                         <td className="py-2 px-3 text-right text-blue-600 dark:text-blue-400 font-bold text-[18px]">
-                          €{allPayments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}
+                          €{allPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}
                         </td>
                       </tr>
                     </>

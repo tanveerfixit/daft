@@ -54,9 +54,9 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
               </p>
               <div className="flex items-center gap-2 mt-0.5">
                 <p className="text-xs text-neutral-600 dark:text-neutral-400 font-normal">{selectedCustomer.phone}</p>
-                {selectedCustomer.wallet_balance !== undefined && (
+                {selectedCustomer.wallet_balance !== undefined && selectedCustomer.wallet_balance !== null && (
                   <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-white dark:bg-black px-1.5 py-0.5 rounded-none border border-neutral-300 dark:border-neutral-800 font-mono">
-                    Wallet: €{selectedCustomer.wallet_balance.toFixed(2)}
+                    Wallet: €{(Number(selectedCustomer.wallet_balance) || 0).toFixed(2)}
                   </span>
                 )}
               </div>

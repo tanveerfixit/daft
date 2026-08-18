@@ -335,15 +335,15 @@ export default function CustomerDetails({
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-neutral-250 dark:bg-neutral-900 p-4 rounded-none border border-neutral-300 dark:border-neutral-800">
                   <p className="text-[12px] font-bold text-black dark:text-white uppercase mb-1">Total Spent</p>
-                  <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">€{invoices.reduce((sum, inv) => sum + inv.grand_total, 0).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">€{invoices.reduce((sum, inv) => sum + (Number(inv.grand_total) || 0), 0).toFixed(2)}</p>
                 </div>
                 <div className="bg-neutral-250 dark:bg-neutral-900 p-4 rounded-none border border-neutral-300 dark:border-neutral-800">
                   <p className="text-[12px] font-bold text-black dark:text-white uppercase mb-1">Outstanding</p>
-                  <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">€{invoices.filter(i => i.status !== 'paid').reduce((sum, inv) => sum + inv.grand_total, 0).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">€{invoices.filter(i => i.status !== 'paid').reduce((sum, inv) => sum + (Number(inv.grand_total) || 0), 0).toFixed(2)}</p>
                 </div>
                 <div className="bg-neutral-250 dark:bg-neutral-900 p-4 rounded-none border border-neutral-300 dark:border-neutral-800">
                   <p className="text-[12px] font-bold text-black dark:text-white uppercase mb-1">Wallet Balance</p>
-                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">€{(customer.wallet_balance || 0).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">€{(Number(customer.wallet_balance) || 0).toFixed(2)}</p>
                 </div>
               </div>
 
@@ -384,7 +384,7 @@ export default function CustomerDetails({
                                 {inv.status}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right font-normal text-neutral-900 dark:text-neutral-100">€{inv.grand_total.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-right font-normal text-neutral-900 dark:text-neutral-100">€{(Number(inv.grand_total) || 0).toFixed(2)}</td>
                           </tr>
                         ))
                       )}
@@ -422,7 +422,7 @@ export default function CustomerDetails({
                             <td className="px-4 py-3 font-normal">
                               <span className="bg-neutral-200 dark:bg-neutral-800 px-2 py-0.5 rounded-none text-[10px] font-normal text-neutral-750 dark:text-neutral-200">{p.method}</span>
                             </td>
-                            <td className="px-4 py-3 text-right font-normal text-emerald-600 dark:text-emerald-400">€{p.amount.toFixed(2)}</td>
+                            <td className="px-4 py-3 text-right font-normal text-emerald-600 dark:text-emerald-400">€{(Number(p.amount) || 0).toFixed(2)}</td>
                           </tr>
                         ))
                       )}
@@ -473,7 +473,7 @@ export default function CustomerDetails({
               <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-250 dark:border-emerald-900/50 p-6 rounded-none flex items-center justify-between">
                 <div>
                   <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 uppercase mb-1">Available Balance</p>
-                  <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">€{(customer.wallet_balance || 0).toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">€{(Number(customer.wallet_balance) || 0).toFixed(2)}</p>
                 </div>
                 <button 
                   onClick={() => onDeposit?.()}
@@ -515,7 +515,7 @@ export default function CustomerDetails({
                           <td className="px-4 py-3 text-neutral-600 dark:text-neutral-400 font-normal">{p.method}</td>
                           <td className="px-4 py-3 text-neutral-600 dark:text-neutral-400 font-normal">{p.invoice_number || '-'}</td>
                           <td className={`px-4 py-3 text-right font-normal ${p.type === 'wallet_use' ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                            {p.type === 'wallet_use' ? '-' : '+'}€{p.amount.toFixed(2)}
+                            {p.type === 'wallet_use' ? '-' : '+'}€{(Number(p.amount) || 0).toFixed(2)}
                           </td>
                         </tr>
                       ))
