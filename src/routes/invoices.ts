@@ -226,7 +226,7 @@ router.get('/export', async (req: any, res, next) => {
 
     // 3. Fetch payments
     const payments: any[] = await query(`
-      SELECT p.invoice_id, p.method, p.amount, p.type, p.created_at
+      SELECT p.invoice_id, p.method, p.amount, p.type, p.paid_at, p.paid_at as created_at
       FROM payments p
       WHERE p.invoice_id IN (${placeholders})
     `, invoiceIds);
@@ -457,14 +457,14 @@ router.post('/import', async (req: any, res, next) => {
         if (Array.isArray(inv.payments) && inv.payments.length > 0) {
           for (const p of inv.payments) {
             await conn.execute(
-              "INSERT INTO payments (customer_id, invoice_id, type, method, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+              "INSERT INTO payments (customer_id, invoice_id, type, method, amount, paid_at) VALUES (?, ?, ?, ?, ?, ?)",
               [
                 customerId,
                 invoiceId,
                 p.type || 'sale_payment',
                 p.method || 'Cash',
                 Number(p.amount) || 0,
-                p.created_at ? new Date(p.created_at) : createdAt
+                p.paid_at ? new Date(p.paid_at) : (p.created_at ? new Date(p.created_at) : createdAt)
               ]
             );
           }
