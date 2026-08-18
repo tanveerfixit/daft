@@ -15,6 +15,12 @@ export interface Product {
   total_stock?: number;
   allow_overselling?: boolean | number;
   device_id?: number;
+  min_stock_level?: number;
+  min_sales_price?: number;
+  is_taxable?: boolean | number;
+  require_note?: boolean | number;
+  additional_description?: string;
+  alert_message?: string;
 }
 
 export interface Branch {
@@ -62,6 +68,9 @@ export interface InvoiceItem {
   sku_code?: string;
   quantity: number;
   price: number;
+  cost?: number;
+  discount?: number;
+  discount_type?: string;
   total: number;
   product_type?: string;
   allow_overselling?: number;

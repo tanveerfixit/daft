@@ -1,29 +1,50 @@
 import nodemailer from 'nodemailer';
 import { queryOne } from '../mysql.js';
 
+let cachedTransporter: nodemailer.Transporter | null = null;
+let cachedKey: string = '';
+
+export function invalidateMailTransporter() {
+  cachedTransporter = null;
+  cachedKey = '';
+}
+
 async function getTransporter() {
   const settings = await queryOne('SELECT * FROM smtp_settings WHERE business_id = 1') as any;
-  if (!settings || !settings.user || !settings.pass) {
-    // Fallback to env vars or default Hostinger configuration
-    const user = process.env.SMTP_USER || 'noreply@clarelab.com';
-    const pass = process.env.SMTP_PASS || 'Tani!!8877';
-    const host = process.env.SMTP_HOST || 'smtp.hostinger.com';
-    const port = Number(process.env.SMTP_PORT) || 465;
-    const secure = process.env.SMTP_SECURE !== 'false';
+  let user = process.env.SMTP_USER || 'noreply@clarelab.com';
+  let pass = process.env.SMTP_PASS || 'Tani!!8877';
+  let host = process.env.SMTP_HOST || 'smtp.hostinger.com';
+  let port = Number(process.env.SMTP_PORT) || 465;
+  let secure = process.env.SMTP_SECURE !== 'false';
 
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass },
-    });
+  if (settings && settings.user && settings.pass) {
+    user = settings.user;
+    pass = settings.pass;
+    host = settings.host || 'smtp.hostinger.com';
+    port = Number(settings.port) || 465;
+    secure = settings.secure === 1;
   }
-  return nodemailer.createTransport({
-    host: settings.host || 'smtp.hostinger.com',
-    port: settings.port || 465,
-    secure: settings.secure === 1,
-    auth: { user: settings.user, pass: settings.pass },
+
+  const currentKey = `${host}:${port}:${user}:${secure}`;
+  if (cachedTransporter && cachedKey === currentKey) {
+    return cachedTransporter;
+  }
+
+  cachedKey = currentKey;
+  cachedTransporter = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    pool: true,
+    maxConnections: 5,
+    maxMessages: 100,
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 10000,
+    auth: { user, pass },
   });
+
+  return cachedTransporter;
 }
 
 async function getFromAddress() {

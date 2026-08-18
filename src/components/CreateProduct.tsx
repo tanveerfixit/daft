@@ -47,6 +47,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
   const [showNewManufacturerModal, setShowNewManufacturerModal] = useState(false);
   const [newItemName, setNewItemName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleQuickAddCategory = async () => {
     if (!newItemName.trim()) return;
@@ -90,6 +91,8 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isSaving) return false;
+    setIsSaving(true);
     
     // Determine product type based on tracking selection
     let productType = formData.tracking_type;
@@ -104,11 +107,17 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
       category_id: formData.category_id ? Number(formData.category_id) : null,
       manufacturer_id: formData.manufacturer_id ? Number(formData.manufacturer_id) : null,
       selling_price: Number(formData.selling_price) || 0,
-      cost_price: 0, // Default cost price
+      cost_price: Number(formData.cost_price) || 0,
       product_type: productType,
       sku_code: formData.sku_code,
       barcode: formData.sku_code || '',
-      allow_overselling: formData.allow_overselling
+      allow_overselling: formData.allow_overselling,
+      min_stock_level: Number(formData.min_stock_level) || 0,
+      is_taxable: formData.is_taxable,
+      require_note: formData.require_note,
+      min_sales_price: Number(formData.min_sales_price) || 0,
+      additional_description: formData.additional_description,
+      alert_message: formData.alert_message
     };
 
     try {
@@ -131,6 +140,8 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
       console.error('Failed to save product:', error);
       alert('Failed to connect to the server');
       return false;
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -492,15 +503,17 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
           <button
             type="button"
             onClick={handleSaveAndAddAnother}
+            disabled={isSaving}
             className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1.5 px-4 rounded-none text-base transition-colors"
           >
-            Save & Add Another
+            {isSaving ? 'Saving...' : 'Save & Add Another'}
           </button>
           <button
             type="submit"
+            disabled={isSaving}
             className="bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold py-1.5 px-6 rounded-none text-base transition-colors"
           >
-            Save Product
+            {isSaving ? 'Saving...' : 'Save Product'}
           </button>
         </div>
       </form>

@@ -22,8 +22,8 @@ export const CartTable: React.FC<CartTableProps> = ({
   onSelectProduct
 }) => {
   return (
-    <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 overflow-hidden flex-1 flex flex-col min-h-0 rounded-none shadow-none">
-      <div className="px-4 py-1.5 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900 flex justify-between items-center rounded-none">
+    <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 overflow-hidden flex-1 flex flex-col min-h-0 rounded-md shadow-xs">
+      <div className="px-4 py-1.5 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900 flex justify-between items-center">
         <h2 className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">Current Cart</h2>
         <span className="text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">
           {cart.reduce((sum, item) => sum + item.quantity, 0)} Items

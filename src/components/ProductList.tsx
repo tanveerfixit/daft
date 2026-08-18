@@ -14,6 +14,8 @@ export default function ProductList({
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -39,6 +41,8 @@ export default function ProductList({
   }, [searchInput]);
 
   const fetchProducts = () => {
+    setIsLoading(true);
+    setFetchError('');
     let url = `/api/products?page=${currentPage}&limit=${itemsPerPage}`;
     if (searchQuery.trim() !== '') {
       url += `&search=${encodeURIComponent(searchQuery.trim())}`;
@@ -66,11 +70,14 @@ export default function ProductList({
           setProducts([]);
           setTotalItems(0);
         }
+        setIsLoading(false);
       })
       .catch(err => {
         console.error('Error fetching products:', err);
         setProducts([]);
         setTotalItems(0);
+        setFetchError('Failed to load products');
+        setIsLoading(false);
       });
   };
 
@@ -210,7 +217,9 @@ export default function ProductList({
       </div>
 
       {/* Table Content */}
-      <div className="flex-1 overflow-auto border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black rounded-none shadow-none">
+      {isLoading && <div className="flex items-center justify-center py-12 text-neutral-500"><span>Loading products...</span></div>}
+      {fetchError && <div className="flex items-center justify-center py-12 text-red-500"><span>{fetchError}</span></div>}
+      <div className="flex-1 overflow-auto border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black rounded-none shadow-none" style={{ display: (isLoading || fetchError) ? 'none' : 'block' }}>
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">

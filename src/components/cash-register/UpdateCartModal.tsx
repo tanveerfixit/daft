@@ -68,7 +68,7 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/65 flex items-center justify-center z-[110] p-2 sm:p-4 animate-in fade-in duration-150">
-      <div className="bg-[var(--bg-card)] w-full max-w-lg overflow-hidden border border-[var(--border-base)] shadow-2xl">
+      <div className="bg-[var(--bg-card)] w-full max-w-lg overflow-hidden border border-[var(--border-base)] rounded-lg shadow-2xl">
         {/* Modal Header */}
         <div className="px-5 py-3 border-b border-[var(--border-base)] flex justify-between items-center bg-[var(--bg-header)]">
           <h3 className="text-base font-black text-[var(--text-main)] uppercase tracking-wider">
@@ -76,7 +76,7 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
           </h3>
           <button 
             onClick={onClose}
-            className="p-1.5 hover:bg-[var(--bg-hover)] text-[var(--text-muted-more)] hover:text-[var(--text-main)] transition-colors"
+            className="p-1.5 hover:bg-[var(--bg-hover)] text-[var(--text-muted-more)] hover:text-[var(--text-main)] transition-colors rounded-sm"
           >
             <X size={22} />
           </button>
@@ -85,14 +85,14 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
         {/* Modal Body */}
         <div className="p-4 sm:p-5 space-y-3.5">
           {/* Product Banner */}
-          <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50">
+          <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-md">
             <Info size={20} className="text-blue-600 dark:text-blue-400 shrink-0" />
             <div className="min-w-0 flex-1">
               <p className="text-base font-bold text-blue-900 dark:text-blue-200 truncate">{item.product_name}</p>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-xs text-blue-700 dark:text-blue-400 font-mono font-semibold uppercase">{item.sku_code || 'No SKU'}</span>
                 {item.imei && (
-                  <span className="text-xs text-blue-800 dark:text-blue-300 font-mono font-bold bg-blue-100 dark:bg-blue-900/50 px-1.5 py-0.2">
+                  <span className="text-xs text-blue-800 dark:text-blue-300 font-mono font-bold bg-blue-100 dark:bg-blue-900/50 px-1.5 py-0.2 rounded-xs">
                     IMEI: {item.imei}
                   </span>
                 )}
@@ -110,7 +110,7 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
                 value={unitPrice}
                 onChange={(e) => setUnitPrice(e.target.value.replace(/[^0-9.]/g, ''))}
                 onFocus={(e) => e.target.select()}
-                className="w-full bg-[var(--bg-app)] border border-[var(--border-base)] px-3.5 py-2.5 text-base font-mono font-bold text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-none"
+                className="w-full bg-[var(--bg-app)] border border-[var(--border-base)] px-3.5 py-2.5 text-base font-mono font-bold text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
                 placeholder="0.00"
               />
             </div>
@@ -124,7 +124,7 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
                 onChange={(e) => setQuantity(e.target.value.replace(/[^0-9]/g, ''))}
                 onFocus={(e) => e.target.select()}
                 disabled={item.product_type === 'serialized'}
-                className={`w-full bg-[var(--bg-app)] border border-[var(--border-base)] px-3.5 py-2.5 text-base font-mono font-bold text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-none ${
+                className={`w-full bg-[var(--bg-app)] border border-[var(--border-base)] px-3.5 py-2.5 text-base font-mono font-bold text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 rounded ${
                   item.product_type === 'serialized' ? 'opacity-50 cursor-not-allowed bg-neutral-200 dark:bg-neutral-900' : ''
                 }`}
                 placeholder="1"
@@ -145,13 +145,13 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
                 value={discount}
                 onChange={(e) => setDiscount(e.target.value.replace(/[^0-9.]/g, ''))}
                 onFocus={(e) => e.target.select()}
-                className="flex-1 bg-[var(--bg-app)] border border-[var(--border-base)] px-3.5 py-2.5 text-base font-mono font-bold text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-none"
+                className="flex-1 bg-[var(--bg-app)] border border-[var(--border-base)] px-3.5 py-2.5 text-base font-mono font-bold text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
                 placeholder="0"
               />
               <select 
                 value={discountType}
                 onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'fixed')}
-                className="bg-[var(--bg-app)] border border-[var(--border-base)] px-4 py-2.5 text-base font-bold text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-none font-mono"
+                className="bg-[var(--bg-app)] border border-[var(--border-base)] px-4 py-2.5 text-base font-bold text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 rounded font-mono"
               >
                 <option value="percentage">%</option>
                 <option value="fixed">€</option>
@@ -166,7 +166,7 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
             <textarea 
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full bg-[var(--bg-app)] border border-[var(--border-base)] px-3.5 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[70px] rounded-none placeholder:text-[var(--text-muted-more)]"
+              className="w-full bg-[var(--bg-app)] border border-[var(--border-base)] px-3.5 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[70px] rounded placeholder:text-[var(--text-muted-more)]"
               placeholder="e.g., Replacement screen warranty, customer request notes..."
             />
           </div>
@@ -188,13 +188,13 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
         <div className="px-5 py-3 bg-[var(--bg-app)] border-t border-[var(--border-base)] flex gap-3">
           <button 
             onClick={onClose}
-            className="flex-1 py-3 font-bold text-[var(--text-main)] hover:bg-[var(--bg-hover)] border border-[var(--border-base)] uppercase text-xs tracking-widest transition-colors rounded-none"
+            className="flex-1 py-3 font-bold text-[var(--text-main)] hover:bg-[var(--bg-hover)] border border-[var(--border-base)] uppercase text-xs tracking-widest transition-colors rounded"
           >
             Cancel
           </button>
           <button 
             onClick={handleSave}
-            className="flex-1 py-3 font-bold text-white bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2 uppercase text-xs tracking-widest transition-colors rounded-none shadow-sm"
+            className="flex-1 py-3 font-bold text-white bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2 uppercase text-xs tracking-widest transition-colors rounded shadow-sm"
           >
             <Save size={18} />
             Update Item

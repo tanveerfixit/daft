@@ -28,7 +28,7 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ activities }) => {
   };
 
   return (
-    <div className={`bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden flex flex-col transition-all duration-300 ${isCollapsed ? 'h-[40px]' : 'h-[200px]'} font-mono`}>
+    <div className={`bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-md shadow-xs overflow-hidden flex flex-col transition-all duration-300 ${isCollapsed ? 'h-[40px]' : 'h-[200px]'} font-mono`}>
       <div 
         className="px-4 py-1.5 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900 flex items-center justify-between cursor-pointer hover:bg-neutral-250 dark:hover:bg-neutral-850 transition-colors"
         onClick={() => setIsCollapsed(!isCollapsed)}
@@ -37,7 +37,7 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ activities }) => {
           <History size={16} className="text-neutral-600 dark:text-neutral-400" />
           <h2 className="font-bold text-black dark:text-white text-[13px] uppercase tracking-wider">Recent Activity</h2>
           {activities.length > 0 && (
-            <span className="bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 text-[10px] px-1.5 py-0.5 rounded-none font-bold border border-neutral-300 dark:border-neutral-800">
+            <span className="bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 text-[10px] px-1.5 py-0.5 rounded-sm font-bold border border-neutral-300 dark:border-neutral-800">
               {activities.length}
             </span>
           )}
@@ -52,8 +52,8 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ activities }) => {
             </div>
           ) : (
             activities.map((activity) => (
-              <div key={activity.id} className="flex gap-3 p-2 rounded-none hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors group border-b border-neutral-200 dark:border-neutral-800 last:border-0">
-                <div className={`mt-0.5 w-6 h-6 rounded-none flex items-center justify-center shrink-0 border border-neutral-300 dark:border-neutral-800 ${getActivityBg(activity.type)}`}>
+              <div key={activity.id} className="flex gap-3 p-2 rounded-sm hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors group border-b border-neutral-200 dark:border-neutral-800 last:border-0">
+                <div className={`mt-0.5 w-6 h-6 rounded-sm flex items-center justify-center shrink-0 border border-neutral-300 dark:border-neutral-800 ${getActivityBg(activity.type)}`}>
                   {getActivityIcon(activity.type)}
                 </div>
                 <div className="min-w-0 font-sans">

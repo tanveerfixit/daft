@@ -63,7 +63,7 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
         <CreditCard size={16} className="text-neutral-600 dark:text-neutral-400" />
         <h3 className="font-bold text-black dark:text-white text-sm uppercase tracking-wider">Payment</h3>
         {customerBalance > 0 && (
-          <span className="ml-auto text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-white dark:bg-black px-2 py-0.5 rounded-none border border-neutral-300 dark:border-neutral-800 font-mono">
+          <span className="ml-auto text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-white dark:bg-black px-2 py-0.5 rounded-sm border border-neutral-300 dark:border-neutral-800 font-mono">
             Wallet: €{(Number(customerBalance) || 0).toFixed(2)}
           </span>
         )}
@@ -79,7 +79,7 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
                 key={method}
                 onClick={() => setPaymentMethod(method)}
                 className={`
-                  flex-1 py-2 px-3 text-[14px] font-bold rounded-none cursor-pointer transition-all border flex items-center justify-center gap-1.5 font-sans
+                  flex-1 py-2 px-3 text-[14px] font-bold rounded cursor-pointer transition-all border flex items-center justify-center gap-1.5 font-sans
                   ${getMethodColor(method, isActive)}
                 `}
               >
@@ -97,7 +97,7 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 font-bold text-base">€</span>
               <input 
                 type="number"
-                className="w-full pl-7 pr-4 py-2.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-lg font-mono font-bold focus:outline-none text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400"
+                className="w-full pl-7 pr-4 py-2.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded text-lg font-mono font-bold focus:outline-none text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400"
                 placeholder="0.00"
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
@@ -114,7 +114,7 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
           
           <button 
             onClick={onAddPayment}
-            className={`w-full py-3 rounded-none font-bold text-[14px] uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer border transition-all ${
+            className={`w-full py-3 rounded font-bold text-[14px] uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer border transition-all ${
               getMethodColor(paymentMethod, true)
             }`}
           >
@@ -126,9 +126,9 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
         {addedPayments.length > 0 && (
           <div className="space-y-2 pt-2">
             {addedPayments.map((p, idx) => (
-              <div key={idx} className="flex justify-between items-center bg-neutral-100 dark:bg-neutral-900 p-2 border border-neutral-300 dark:border-neutral-800 text-base rounded-none">
+              <div key={idx} className="flex justify-between items-center bg-neutral-100 dark:bg-neutral-900 p-2 border border-neutral-300 dark:border-neutral-800 text-base rounded">
                 <div className="flex items-center gap-2">
-                  <span className="font-bold bg-white dark:bg-black px-1.5 py-0.5 rounded-none border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 uppercase text-xs">{p.method}</span>
+                  <span className="font-bold bg-white dark:bg-black px-1.5 py-0.5 rounded-sm border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 uppercase text-xs">{p.method}</span>
                   <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">€{(Number(p.amount) || 0).toFixed(2)}</span>
                 </div>
                 <button 

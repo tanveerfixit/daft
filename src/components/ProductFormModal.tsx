@@ -63,7 +63,7 @@ export default function ProductFormModal({ onClose, onSave, initialData }: Produ
               <select
                 className="w-2/3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none"
                 value={formData.category_id || ''}
-                onChange={e => setFormData({ ...formData, category_id: e.target.value ? parseInt(e.target.value) : undefined })}
+                onChange={e => setFormData({ ...formData, category_id: e.target.value ? parseInt(e.target.value) || 0 : undefined })}
               >
                 <option value="">Select Category</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -75,7 +75,7 @@ export default function ProductFormModal({ onClose, onSave, initialData }: Produ
               <select
                 className="w-2/3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none"
                 value={formData.manufacturer_id || ''}
-                onChange={e => setFormData({ ...formData, manufacturer_id: e.target.value ? parseInt(e.target.value) : undefined })}
+                onChange={e => setFormData({ ...formData, manufacturer_id: e.target.value ? parseInt(e.target.value) || 0 : undefined })}
               >
                 <option value="">Select Manufacturer</option>
                 {manufacturers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -111,7 +111,7 @@ export default function ProductFormModal({ onClose, onSave, initialData }: Produ
                   step="0.01"
                   className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none pl-7 pr-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none"
                   value={formData.selling_price}
-                  onChange={e => setFormData({ ...formData, selling_price: parseFloat(e.target.value) })}
+                  onChange={e => setFormData({ ...formData, selling_price: parseFloat(e.target.value) || 0 })}
                 />
               </div>
             </div>
@@ -125,7 +125,7 @@ export default function ProductFormModal({ onClose, onSave, initialData }: Produ
                   step="0.01"
                   className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none pl-7 pr-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none"
                   value={formData.cost_price}
-                  onChange={e => setFormData({ ...formData, cost_price: parseFloat(e.target.value) })}
+                  onChange={e => setFormData({ ...formData, cost_price: parseFloat(e.target.value) || 0 })}
                 />
               </div>
             </div>

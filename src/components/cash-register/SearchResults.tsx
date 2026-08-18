@@ -22,13 +22,13 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
     if (!hasQuery || !onQuickAddClick) return null;
 
     return (
-      <div className="absolute top-full left-0 right-0 z-[60] bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 p-4 mt-1 text-base text-neutral-900 dark:text-neutral-100 font-sans rounded-none">
+      <div className="absolute top-full left-0 right-0 z-[60] bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 p-4 mt-1 text-base text-neutral-900 dark:text-neutral-100 font-sans rounded-md shadow-lg">
         <div className="text-center font-mono">
           <p className="mb-2 font-sans">No products found matching "{searchQuery}"</p>
           <button
             type="button"
             onClick={() => onQuickAddClick(searchQuery)}
-            className="px-3 py-1 bg-amber-400 text-slate-900 hover:bg-amber-500 text-xs font-bold uppercase transition-colors border border-neutral-350 dark:border-neutral-800 rounded-none cursor-pointer"
+            className="px-3 py-1 bg-amber-400 text-slate-900 hover:bg-amber-500 text-xs font-bold uppercase transition-colors border border-neutral-350 dark:border-neutral-800 rounded-sm cursor-pointer"
           >
             Add "{searchQuery}"
           </button>
@@ -53,7 +53,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
         regex.test(part) ? (
           <mark 
             key={i} 
-            className="bg-amber-200 dark:bg-amber-900/50 text-black dark:text-white px-0.5 rounded-none"
+            className="bg-amber-200 dark:bg-amber-900/50 text-black dark:text-white px-0.5 rounded-xs"
           >
             {part}
           </mark>
@@ -67,7 +67,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   };
 
   return (
-    <div className="absolute top-full left-0 right-0 z-[60] bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 mt-1 shadow-none text-base text-neutral-900 dark:text-neutral-100 font-sans rounded-none">
+    <div className="absolute top-full left-0 right-0 z-[60] bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 mt-1 shadow-lg text-base text-neutral-900 dark:text-neutral-100 font-sans rounded-md overflow-hidden">
       <div className="max-h-60 overflow-y-auto">
         {results.map((product, idx) => (
           <button

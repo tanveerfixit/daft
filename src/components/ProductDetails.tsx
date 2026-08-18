@@ -248,7 +248,7 @@ export default function ProductDetails({
                     {/* Minimum Stock */}
                     <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
                       <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Minimum Stock :</div>
-                      <div className="md:col-span-8 px-3 text-neutral-850 dark:text-neutral-200">0</div>
+                      <div className="md:col-span-8 px-3 text-neutral-850 dark:text-neutral-200">{product.min_stock_level ?? 0}</div>
                     </div>
 
                     {/* Selling Price */}
@@ -260,13 +260,13 @@ export default function ProductDetails({
                     {/* Min Selling Price */}
                     <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
                       <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Min Selling Price :</div>
-                      <div className="md:col-span-8 px-3 text-neutral-850 dark:text-neutral-200">€0.00</div>
+                      <div className="md:col-span-8 px-3 text-neutral-850 dark:text-neutral-200">€{(Number(product.min_sales_price) || 0).toFixed(2)}</div>
                     </div>
 
                     {/* Taxable */}
                     <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
                       <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Taxable :</div>
-                      <div className="md:col-span-8 px-3 text-neutral-850 dark:text-neutral-200 uppercase">YES</div>
+                      <div className="md:col-span-8 px-3 text-neutral-850 dark:text-neutral-200 uppercase">{product.is_taxable === false || product.is_taxable === 0 ? 'NO' : 'YES'}</div>
                     </div>
                   </div>
                 </div>

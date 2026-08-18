@@ -229,20 +229,32 @@ const createProductSchema = z.object({
   product_type: z.string().optional(),
   sku_code: z.string().optional(),
   barcode: z.string().optional(),
-  allow_overselling: z.boolean().optional()
+  allow_overselling: z.boolean().optional(),
+  min_stock_level: z.number().or(z.string().transform(Number)).optional(),
+  is_taxable: z.boolean().optional(),
+  require_note: z.boolean().optional(),
+  min_sales_price: z.number().or(z.string().transform(Number)).optional(),
+  additional_description: z.string().optional(),
+  alert_message: z.string().optional()
 });
 
 // POST /api/products
 router.post('/', async (req: any, res, next) => {
   const data = createProductSchema.parse(req.body);
-  const { name, category_id, manufacturer_id, selling_price, cost_price, product_type, sku_code, barcode, allow_overselling } = data;
+  const { 
+    name, category_id, manufacturer_id, selling_price, cost_price, product_type, sku_code, barcode, allow_overselling,
+    min_stock_level, is_taxable, require_note, min_sales_price, additional_description, alert_message 
+  } = data;
   const businessId = req.user.business_id;
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
     const [pr] = await conn.execute(
-      'INSERT INTO products (business_id,name,category_id,manufacturer_id,product_type,allow_overselling) VALUES (?,?,?,?,?,?)',
-      [businessId, name, category_id, manufacturer_id, product_type, allow_overselling === false ? 0 : 1]
+      'INSERT INTO products (business_id,name,category_id,manufacturer_id,product_type,allow_overselling,min_stock_level,is_taxable,require_note,min_sales_price,additional_description,alert_message) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+      [
+        businessId, name, category_id, manufacturer_id, product_type, allow_overselling === false ? 0 : 1,
+        min_stock_level ?? null, is_taxable ? 1 : 0, require_note ? 1 : 0, min_sales_price ?? null, additional_description ?? null, alert_message ?? null
+      ]
     );
     const productId = (pr as any).insertId;
     let finalSku = sku_code?.trim() || ('SKU-' + Math.random().toString(36).substring(2, 9).toUpperCase());
@@ -259,6 +271,9 @@ router.post('/', async (req: any, res, next) => {
     res.json({ id: skuId });
   } catch (e: any) {
     await conn.rollback();
+    if (e.code === 'ER_DUP_ENTRY' || e.message?.includes('Duplicate entry')) {
+      return res.status(400).json({ error: 'A product with this SKU code already exists' });
+    }
     next(e);
   } finally { conn.release(); }
 });

@@ -45,7 +45,7 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
         <button 
           onClick={onCheckout}
           disabled={isCartEmpty}
-          className="w-full py-3.5 rounded-none font-bold text-base uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-500 bg-amber-400 text-slate-900 hover:bg-amber-500 disabled:bg-neutral-200 dark:disabled:bg-neutral-900 disabled:text-neutral-500 disabled:cursor-not-allowed disabled:border-neutral-300 dark:disabled:border-neutral-800 disabled:opacity-50 cursor-pointer transition-colors shadow-sm"
+          className="w-full py-3.5 rounded font-bold text-base uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-500 bg-amber-400 text-slate-900 hover:bg-amber-500 disabled:bg-neutral-200 dark:disabled:bg-neutral-900 disabled:text-neutral-500 disabled:cursor-not-allowed disabled:border-neutral-300 dark:disabled:border-neutral-800 disabled:opacity-50 cursor-pointer transition-colors shadow-sm"
         >
           <Check size={20} strokeWidth={3} />
           <span>Complete Checkout</span>
@@ -54,7 +54,7 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
         <button 
           onClick={onQuickCheckout}
           disabled={isCartEmpty}
-          className={`w-full py-3.5 rounded-none font-bold text-base uppercase tracking-wider flex items-center justify-center gap-2 border cursor-pointer transition-all disabled:bg-neutral-200 dark:disabled:bg-neutral-900 disabled:text-neutral-500 disabled:cursor-not-allowed disabled:border-neutral-300 dark:disabled:border-neutral-800 disabled:opacity-50 shadow-sm ${
+          className={`w-full py-3.5 rounded font-bold text-base uppercase tracking-wider flex items-center justify-center gap-2 border cursor-pointer transition-all disabled:bg-neutral-200 dark:disabled:bg-neutral-900 disabled:text-neutral-500 disabled:cursor-not-allowed disabled:border-neutral-300 dark:disabled:border-neutral-800 disabled:opacity-50 shadow-sm ${
             isCartEmpty ? '' : getMethodColorClass(paymentMethod)
           }`}
         >
@@ -71,7 +71,7 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
       
       <button 
         onClick={onClearCart}
-        className="w-full py-3 rounded-none font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2 border border-red-600 bg-red-600 hover:bg-red-700 text-white cursor-pointer transition-colors"
+        className="w-full py-3 rounded font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2 border border-red-600 bg-red-600 hover:bg-red-700 text-white cursor-pointer transition-colors"
       >
         <Trash2 size={16} />
         Discard Transaction

@@ -833,6 +833,51 @@ export async function initSchema() {
       if (!e.message?.includes('Duplicate column') && !e.message?.includes('Duplicate key')) throw e;
     }
 
+    // 4. Ensure invoice_items has notes and discount_type columns
+    try {
+      await conn.query('ALTER TABLE invoice_items ADD COLUMN notes TEXT NULL AFTER total');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE invoice_items ADD COLUMN discount_type VARCHAR(20) DEFAULT 'percentage' AFTER discount");
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
+
+    // 5. Ensure products table has additional detail columns
+    try {
+      await conn.query('ALTER TABLE products ADD COLUMN min_stock_level INT DEFAULT 0 AFTER allow_overselling');
+      console.log('[MySQL] Migration: added min_stock_level to products');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
+    try {
+      await conn.query('ALTER TABLE products ADD COLUMN is_taxable TINYINT(1) DEFAULT 1 AFTER min_stock_level');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
+    try {
+      await conn.query('ALTER TABLE products ADD COLUMN require_note TINYINT(1) DEFAULT 0 AFTER is_taxable');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
+    try {
+      await conn.query('ALTER TABLE products ADD COLUMN min_sales_price DECIMAL(10,2) DEFAULT 0 AFTER require_note');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
+    try {
+      await conn.query('ALTER TABLE products ADD COLUMN additional_description TEXT NULL AFTER min_sales_price');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
+    try {
+      await conn.query('ALTER TABLE products ADD COLUMN alert_message TEXT NULL AFTER additional_description');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
+
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');
 
     // Migration: Clean up customer names containing literal "null" string
@@ -930,13 +975,13 @@ export async function seedData() {
       },
       {
         name: 'iPear Ennis',
-        email: 'technomore.irl@gmail.com',
+        email: 'ipear.ennis@gmail.com',
         address: '6 Parnell St, Clonroad Beg, Ennis, Co. Clare, V95 X073',
         phone: '(065) 682 2900'
       },
       {
         name: 'iPear in Tesco',
-        email: 'ipear.ennis@gmail.com',
+        email: 'ipear.clare@gmail.com',
         address: 'Unit 20, Francis St, Clonroad Beg, Ennis, Co. Clare, V95 EP8K',
         phone: '(065) 672 4446'
       }

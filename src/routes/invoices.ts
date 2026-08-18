@@ -588,6 +588,9 @@ const createInvoiceSchema = z.object({
     device_id: z.number().nullable().optional(),
     quantity: z.number().or(z.string().transform(Number)),
     price: z.number().or(z.string().transform(Number)),
+    cost: z.number().or(z.string().transform(Number)).optional(),
+    discount: z.number().or(z.string().transform(Number)).optional(),
+    discount_type: z.string().optional().nullable(),
     total: z.number().or(z.string().transform(Number)),
     is_deposit: z.boolean().optional(),
     notes: z.string().optional().nullable()
@@ -618,7 +621,7 @@ router.post('/', async (req: any, res, next) => {
     let productInfoMap = new Map();
     if (skuIds.length > 0) {
       const [allProductInfo] = await conn.query(`
-        SELECT s.id as sku_id, p.product_type, p.allow_overselling
+        SELECT s.id as sku_id, s.cost_price, p.product_type, p.allow_overselling
         FROM product_skus s JOIN products p ON s.product_id=p.id 
         WHERE s.id IN (?)
       `, [skuIds]);
@@ -662,8 +665,11 @@ router.post('/', async (req: any, res, next) => {
       const skuId = item.id || item.sku_id;
       const productInfo = productInfoMap.get(skuId);
       
-      await conn.execute('INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,total,notes) VALUES (?,?,?,?,?,?,?)',
-        [invoiceId, skuId, item.device_id || null, item.quantity, item.price, item.total, item.notes || null]);
+      const itemCost = productInfo?.cost_price || item.cost || 0;
+      await conn.execute(
+        'INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,cost,discount,total,notes) VALUES (?,?,?,?,?,?,?,?,?)',
+        [invoiceId, skuId, item.device_id || null, item.quantity, item.price, itemCost, item.discount || 0, item.total, item.notes || null]
+      );
       
       if (productInfo?.product_type === 'stock') {
         await conn.execute(`
@@ -838,14 +844,23 @@ router.post('/:id/send-email', async (req: any, res, next) => {
 
     const emailSubject = subject || `Invoice ${invoice.invoice_number} from ${company?.name || 'PhoneLab'}`;
 
-    await sendInvoiceEmail(email.trim(), emailSubject, invoice, company, message);
+    // Dispatch email asynchronously so UI modal returns instantly
+    sendInvoiceEmail(email.trim(), emailSubject, invoice, company, message)
+      .then(async () => {
+        await execute(
+          'INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+          [invoice.id, req.userId, 'Invoice Emailed', `Invoice emailed to ${email.trim()}`]
+        ).catch(() => {});
+      })
+      .catch((err) => {
+        console.error('[send-email background] error:', err.message);
+        execute(
+          'INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+          [invoice.id, req.userId, 'Invoice Email Failed', `Failed sending email to ${email.trim()}: ${err.message}`]
+        ).catch(() => {});
+      });
 
-    await execute(
-      'INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-      [invoice.id, req.userId, 'Invoice Emailed', `Invoice emailed to ${email.trim()}`]
-    );
-
-    res.json({ success: true, message: `Invoice successfully sent to ${email.trim()}` });
+    res.json({ success: true, message: `Invoice email successfully queued for ${email.trim()}` });
   } catch (e: any) { 
     console.error('[send-email] error:', e.message);
     res.status(400).json({ error: `Email Delivery Failed: ${e.message}` });

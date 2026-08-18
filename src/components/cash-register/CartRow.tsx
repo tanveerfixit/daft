@@ -57,13 +57,13 @@ export const CartRow: React.FC<CartRowProps> = ({
           </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap font-sans">
             {item.device_id && (
-              <span className="inline-flex items-center gap-1 bg-neutral-200 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 text-[10px] px-1.5 py-0.5 rounded-none border border-neutral-300 dark:border-neutral-800 font-mono">
+              <span className="inline-flex items-center gap-1 bg-neutral-200 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 text-[10px] px-1.5 py-0.5 rounded-sm border border-neutral-300 dark:border-neutral-800 font-mono">
                 <Smartphone size={10} />
                 {item.imei}
               </span>
             )}
             {item.discount && (
-              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-none border border-emerald-500/20">
+              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-sm border border-emerald-500/20">
                 -{item.discount}{item.discountType === 'percentage' ? '%' : '€'}
               </span>
             )}
@@ -97,21 +97,21 @@ export const CartRow: React.FC<CartRowProps> = ({
       <td className="py-1.5 px-2 border-r border-neutral-300 dark:border-neutral-800">
         <div className="flex items-center justify-center gap-2">
           {item.product_type === 'serialized' ? (
-            <span className="w-20 text-center font-mono font-bold text-[13px] text-blue-650 dark:text-blue-400 bg-blue-500/10 py-0.5 rounded-none border border-blue-200 dark:border-blue-800">
+            <span className="w-20 text-center font-mono font-bold text-[13px] text-blue-650 dark:text-blue-400 bg-blue-500/10 py-0.5 rounded-sm border border-blue-200 dark:border-blue-800">
               QTY: 1
             </span>
           ) : (
             <>
               <button 
                 onClick={() => onUpdateQuantity(item.id, -1, item.device_id)}
-                className="w-6 h-6 flex items-center justify-center rounded-none border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 transition-colors"
+                className="w-6 h-6 flex items-center justify-center rounded-sm border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 transition-colors"
               >
                 <Minus size={12} />
               </button>
               <span className="w-8 text-center font-mono font-bold text-[15px] text-neutral-900 dark:text-neutral-100">{item.quantity}</span>
               <button 
                 onClick={() => onUpdateQuantity(item.id, 1, item.device_id)}
-                className="w-6 h-6 flex items-center justify-center rounded-none border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 transition-colors"
+                className="w-6 h-6 flex items-center justify-center rounded-sm border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 transition-colors"
               >
                 <Plus size={12} />
               </button>
@@ -135,14 +135,14 @@ export const CartRow: React.FC<CartRowProps> = ({
         <div className="flex items-center justify-center gap-1">
           <button 
             onClick={() => onEdit(item)}
-            className="p-1 text-neutral-600 hover:text-blue-500 hover:bg-neutral-200 dark:hover:bg-neutral-900 rounded-none transition-colors"
+            className="p-1 text-neutral-600 hover:text-blue-500 hover:bg-neutral-200 dark:hover:bg-neutral-900 rounded-sm transition-colors"
             title="Edit Item"
           >
             <Pencil size={14} />
           </button>
           <button 
             onClick={() => onRemove(item.id, item.device_id)}
-            className="p-1 text-neutral-650 hover:text-red-500 hover:bg-neutral-200 dark:hover:bg-neutral-900 rounded-none transition-colors"
+            className="p-1 text-neutral-650 hover:text-red-500 hover:bg-neutral-200 dark:hover:bg-neutral-900 rounded-sm transition-colors"
             title="Remove Item"
           >
             <Trash2 size={14} className="text-red-500" />

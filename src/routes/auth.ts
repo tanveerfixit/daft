@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { pool, query, queryOne, execute } from '../mysql.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { sendAccountPending, sendAccountApproved, sendAccountRejected, sendAccountDeactivated, sendOtpCode, sendGeneratedPassword, sendTestEmail } from '../services/mailer.js';
+import { sendAccountPending, sendAccountApproved, sendAccountRejected, sendAccountDeactivated, sendOtpCode, sendGeneratedPassword, sendTestEmail, invalidateMailTransporter } from '../services/mailer.js';
 
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
@@ -342,11 +342,16 @@ const adminRouter = Router();
 // GET /api/admin/users
 adminRouter.get('/users', requireAdminAsync, async (req: any, res, next) => {
   try {
-    res.json(await query(`
-      SELECT u.id,u.name,u.email,u.role,u.status,u.last_login,u.created_at,b.name as branch_name,b.id as branch_id
-      FROM users u LEFT JOIN branches b ON u.branch_id=b.id
-      WHERE u.business_id=? AND u.deleted_at IS NULL ORDER BY u.created_at DESC
-    `, [req.user.business_id]));
+    const isMaster = ['developer', 'superadmin'].includes(req.user.role);
+    const sql = isMaster 
+      ? `SELECT u.id,u.name,u.email,u.role,u.status,u.last_login,u.created_at,u.business_id,b.name as branch_name,b.id as branch_id
+         FROM users u LEFT JOIN branches b ON u.branch_id=b.id
+         WHERE u.deleted_at IS NULL ORDER BY u.created_at DESC`
+      : `SELECT u.id,u.name,u.email,u.role,u.status,u.last_login,u.created_at,u.business_id,b.name as branch_name,b.id as branch_id
+         FROM users u LEFT JOIN branches b ON u.branch_id=b.id
+         WHERE u.business_id=? AND u.deleted_at IS NULL ORDER BY u.created_at DESC`;
+    const params = isMaster ? [] : [req.user.business_id];
+    res.json(await query(sql, params));
   } catch (e: any) { next(e); }
 });
 
@@ -357,18 +362,18 @@ adminRouter.put('/users/:id/status', requireAdminAsync, async (req: any, res, ne
     return res.status(400).json({ error: 'Invalid status' });
   }
   try {
-    // Scope to same business (FINDING-006)
-    const user = await queryOne('SELECT * FROM users WHERE id=? AND business_id=?',
-      [req.params.id, req.user.business_id]) as any;
+    const isMaster = ['developer', 'superadmin'].includes(req.user.role);
+    const user = isMaster
+      ? await queryOne('SELECT * FROM users WHERE id=? AND deleted_at IS NULL', [req.params.id])
+      : await queryOne('SELECT * FROM users WHERE id=? AND business_id=? AND deleted_at IS NULL', [req.params.id, req.user.business_id]);
     if (!user) return res.status(404).json({ error: 'User not found or access denied' });
     
-    // Prevent deactivating the master developer account
-    if (user.email === 'support@techinbox.ie' && status !== 'approved') {
-      return res.status(400).json({ error: 'This developer account cannot be deactivated' });
+    // Prevent deactivating master accounts
+    if (['support@techinbox.ie', 'tanveerfixit@gmail.com'].includes(user.email) && status !== 'approved') {
+      return res.status(400).json({ error: 'Master admin accounts cannot be deactivated' });
     }
 
-    await execute('UPDATE users SET status=? WHERE id=? AND business_id=?',
-      [status, req.params.id, req.user.business_id]);
+    await execute('UPDATE users SET status=? WHERE id=?', [status, req.params.id]);
     try {
       if (status === 'approved') await sendAccountApproved({ name: user.name, email: user.email });
       else if (status === 'rejected') await sendAccountRejected({ name: user.name, email: user.email });
@@ -380,20 +385,30 @@ adminRouter.put('/users/:id/status', requireAdminAsync, async (req: any, res, ne
 
 // PUT /api/admin/users/:id
 adminRouter.put('/users/:id', requireAdminAsync, async (req: any, res, next) => {
-  const { name, branch_id, role, password } = req.body;
+  const { name, email, branch_id, role, password } = req.body;
   try {
-    // Scope to same business (FINDING-004)
-    const existing = await queryOne('SELECT id FROM users WHERE id=? AND business_id=?',
-      [req.params.id, req.user.business_id]);
+    const isMaster = ['developer', 'superadmin'].includes(req.user.role);
+    const existing = isMaster
+      ? await queryOne('SELECT id, email FROM users WHERE id=? AND deleted_at IS NULL', [req.params.id])
+      : await queryOne('SELECT id, email FROM users WHERE id=? AND business_id=? AND deleted_at IS NULL', [req.params.id, req.user.business_id]);
     if (!existing) return res.status(404).json({ error: 'User not found or access denied' });
-    if (password) {
-      const password_hash = await bcrypt.hash(password, 10);
-      // No plaintext stored (FINDING-007)
-      await execute("UPDATE users SET name=?,branch_id=?,role=?,password='',password_hash=? WHERE id=? AND business_id=?",
-        [name, branch_id, role, password_hash, req.params.id, req.user.business_id]);
+
+    if (email && email.trim() !== '' && email.trim() !== existing.email) {
+      const emailCheck = await queryOne('SELECT id FROM users WHERE email=? AND id!=? AND deleted_at IS NULL', [email.trim(), req.params.id]);
+      if (emailCheck) {
+        return res.status(400).json({ error: 'This email address is already in use by another account' });
+      }
+    }
+
+    const updatedEmail = email && email.trim() !== '' ? email.trim() : existing.email;
+
+    if (password && password.trim() !== '') {
+      const password_hash = await bcrypt.hash(password.trim(), 10);
+      await execute("UPDATE users SET name=?,email=?,branch_id=?,role=?,password='',password_hash=? WHERE id=?",
+        [name, updatedEmail, branch_id, role, password_hash, req.params.id]);
     } else {
-      await execute('UPDATE users SET name=?,branch_id=?,role=? WHERE id=? AND business_id=?',
-        [name, branch_id, role, req.params.id, req.user.business_id]);
+      await execute('UPDATE users SET name=?,email=?,branch_id=?,role=? WHERE id=?',
+        [name, updatedEmail, branch_id, role, req.params.id]);
     }
     res.json({ success: true });
   } catch (e: any) { next(e); }
@@ -402,9 +417,12 @@ adminRouter.put('/users/:id', requireAdminAsync, async (req: any, res, next) => 
 // DELETE /api/admin/users/:id
 adminRouter.delete('/users/:id', requireAdminAsync, async (req: any, res, next) => {
   try {
-    // Scope to same business (FINDING-004)
-    const r = await execute('UPDATE users SET deleted_at=NOW() WHERE id=? AND business_id=?',
-      [req.params.id, req.user.business_id]);
+    const isMaster = ['developer', 'superadmin'].includes(req.user.role);
+    const sql = isMaster
+      ? 'UPDATE users SET deleted_at=NOW() WHERE id=?'
+      : 'UPDATE users SET deleted_at=NOW() WHERE id=? AND business_id=?';
+    const params = isMaster ? [req.params.id] : [req.params.id, req.user.business_id];
+    const r = await execute(sql, params);
     if (r.affectedRows === 0) return res.status(404).json({ error: 'User not found or access denied' });
     res.json({ success: true });
   } catch (e: any) { next(e); }
@@ -490,6 +508,61 @@ adminRouter.delete('/branches/:id', requireAdminAsync, async (req: any, res, nex
     await execute('UPDATE branches SET deleted_at=CURRENT_TIMESTAMP, status="inactive" WHERE id=?', [req.params.id]);
     res.json({ success: true });
   } catch (e: any) { next(e); }
+});
+
+// GET /api/admin/smtp
+adminRouter.get('/smtp', requireAdminAsync, async (req: any, res, next) => {
+  try {
+    const settings = await queryOne('SELECT * FROM smtp_settings WHERE business_id = 1') as any;
+    if (settings) {
+      res.json({
+        ...settings,
+        pass: settings.pass ? '••••••••' : ''
+      });
+    } else {
+      res.json({
+        host: process.env.SMTP_HOST || 'smtp.hostinger.com',
+        port: Number(process.env.SMTP_PORT) || 465,
+        secure: 1,
+        user: process.env.SMTP_USER || 'noreply@clarelab.com',
+        pass: '••••••••',
+        from_name: process.env.SMTP_FROM_NAME || 'PhoneLab EPOS',
+        from_email: process.env.SMTP_USER || 'noreply@clarelab.com'
+      });
+    }
+  } catch (e: any) { next(e); }
+});
+
+// PUT /api/admin/smtp
+adminRouter.put('/smtp', requireAdminAsync, async (req: any, res, next) => {
+  const { host, port, secure, user, pass, from_name, from_email } = req.body;
+  try {
+    const existing = await queryOne('SELECT * FROM smtp_settings WHERE business_id = 1') as any;
+    const updatedPass = (pass && pass !== '••••••••' && pass !== '********') 
+      ? pass 
+      : (existing?.pass || process.env.SMTP_PASS || 'Tani!!8877');
+
+    if (existing) {
+      await execute('UPDATE smtp_settings SET host=?, port=?, secure=?, user=?, pass=?, from_name=?, from_email=? WHERE business_id = 1',
+        [host, port, secure ? 1 : 0, user, updatedPass, from_name, from_email]);
+    } else {
+      await execute('INSERT INTO smtp_settings (business_id, host, port, secure, user, pass, from_name, from_email) VALUES (1, ?, ?, ?, ?, ?, ?, ?)',
+        [host, port, secure ? 1 : 0, user, updatedPass, from_name, from_email]);
+    }
+    invalidateMailTransporter();
+    res.json({ success: true });
+  } catch (e: any) { next(e); }
+});
+
+// POST /api/admin/smtp/test
+adminRouter.post('/smtp/test', requireAdminAsync, async (req: any, res, next) => {
+  try {
+    const userEmail = req.user?.email || 'noreply@clarelab.com';
+    await sendTestEmail(userEmail);
+    res.json({ success: true, message: `Test email sent to ${userEmail}` });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 // ─── Superadmin / Developer Business Control Routes ─────────────────────────

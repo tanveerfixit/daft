@@ -191,8 +191,9 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
   useEffect(() => {
     if (searchQuery.length >= 2) {
+      const q = searchQuery;
       const delayDebounceFn = setTimeout(() => {
-        fetchProducts();
+        fetchProducts(q);
       }, 300);
       return () => clearTimeout(delayDebounceFn);
     } else {
@@ -216,8 +217,9 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
   useEffect(() => {
     if (customerSearch.length >= 2) {
+      const q = customerSearch;
       const delayDebounceFn = setTimeout(() => {
-        fetchCustomers();
+        fetchCustomers(q);
       }, 300);
       return () => clearTimeout(delayDebounceFn);
     } else {
@@ -304,14 +306,16 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     }
   };
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (queryTerm: string) => {
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&type=products`);
+      const response = await fetch(`/api/search?q=${encodeURIComponent(queryTerm)}&type=products`);
       if (response.ok) {
         const data = await response.json();
-        setSearchResults(Array.isArray(data) ? data : []);
-        setActiveSearchIndex(0);
-      } else {
+        if (searchQuery.trim() === queryTerm.trim()) {
+          setSearchResults(Array.isArray(data) ? data : []);
+          setActiveSearchIndex(0);
+        }
+      } else if (searchQuery.trim() === queryTerm.trim()) {
         setSearchResults([]);
         setActiveSearchIndex(0);
       }
@@ -320,13 +324,15 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     }
   };
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = async (queryTerm: string) => {
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(customerSearch)}&type=customers`);
+      const response = await fetch(`/api/search?q=${encodeURIComponent(queryTerm)}&type=customers`);
       if (response.ok) {
         const data = await response.json();
-        setCustomerResults(Array.isArray(data) ? data : []);
-      } else {
+        if (customerSearch.trim() === queryTerm.trim()) {
+          setCustomerResults(Array.isArray(data) ? data : []);
+        }
+      } else if (customerSearch.trim() === queryTerm.trim()) {
         setCustomerResults([]);
       }
     } catch (error) {
@@ -512,28 +518,35 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       const newCart = [...cart];
       newCart[existingIndex] = {
         ...newCart[existingIndex],
-        price: newCart[existingIndex].price + amount,
         selling_price: (newCart[existingIndex].selling_price || 0) + amount,
-        customPrice: (newCart[existingIndex].customPrice || 0) + amount,
-        total: newCart[existingIndex].total + amount
+        customPrice: (newCart[existingIndex].customPrice || 0) + amount
       };
       setCart(newCart);
     } else {
-      setCart(prev => [{
+      const depositItem: CartItem = {
         id: depositProductInfo.sku_id,
+        product_id: depositProductInfo.product_id || depositProductInfo.sku_id,
+        category_id: null,
+        manufacturer_id: null,
         name: depositProductInfo.product_name,
-        category: 'Service',
-        price: amount,
+        product_name: depositProductInfo.product_name,
+        sku_code: depositProductInfo.sku_code || 'DEPOSIT',
+        barcode: null,
+        cost_price: 0,
         selling_price: amount,
         customPrice: amount,
+        category_name: 'Service',
+        product_type: 'service',
+        allow_overselling: true,
+        total_stock: 999,
         quantity: 1,
-        total: amount,
         is_deposit: true
-      }, ...prev]);
+      };
+      setCart(prev => [depositItem, ...prev]);
     }
     
     setShowDepositModal(false);
-    addActivity('Item Added', `Wallet Deposit for €${amount.toFixed(2)}`, 'item');
+    addActivity('Item Added', `Wallet Deposit for €${amount.toFixed(2)}`, 'stock');
   };
 
   const handleOpenImeiSelector = async (product: Product) => {
@@ -602,7 +615,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       customer_id: selectedCustomer?.id || null,
       subtotal,
       tax_total: 0,
-      discount_total: 0,
+      discount_total: discountTotal,
       grand_total: total,
       items: cart.map(item => {
         const itemPrice = item.customPrice ?? item.selling_price;
@@ -701,7 +714,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     if (item.discountType === 'percentage') {
       return sum + (itemSubtotal * (item.discount / 100));
     } else {
-      return sum + item.discount;
+      return sum + Math.min(item.discount, itemSubtotal);
     }
   }, 0);
 
@@ -795,7 +808,10 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
             setCustomerResults([]);
             addActivity('Customer Selected', `${c.name} attached to sale`, 'customer');
           }}
-          onClearCustomer={() => setSelectedCustomer(null)}
+          onClearCustomer={() => {
+            setSelectedCustomer(null);
+            setAddedPayments(prev => prev.filter(p => p.method !== 'Wallet'));
+          }}
           onOpenNewCustomerModal={() => setShowNewCustomerModal(true)}
           onOpenDepositModal={() => setShowDepositModal(true)}
           
@@ -816,7 +832,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
           onCheckout={handleCheckout}
           onQuickCheckout={handleQuickCheckout}
           onClearCart={() => setShowDiscardConfirm(true)}
-          isCartEmpty={cart.length === 0 && !selectedCustomer && addedPayments.length === 0}
+          isCartEmpty={cart.length === 0}
           isPaymentComplete={isPaymentComplete}
           availableMethods={availableMethods}
         />
@@ -825,8 +841,8 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       {/* Modals */}
       {showDiscardConfirm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 font-mono text-base">
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-sm overflow-hidden flex flex-col rounded-none shadow-none">
-            <div className="bg-red-600 dark:bg-red-750 px-4 py-2 border-b border-red-700 dark:border-red-800 rounded-none">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-sm overflow-hidden flex flex-col rounded-lg shadow-xl">
+            <div className="bg-red-600 dark:bg-red-750 px-4 py-2 border-b border-red-700 dark:border-red-800">
               <h3 className="text-white font-bold text-base uppercase">Discard Sale?</h3>
             </div>
             <div className="p-4 space-y-4 text-center">
@@ -836,7 +852,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
               <div className="flex gap-2 justify-center pt-2">
                 <button 
                   onClick={() => setShowDiscardConfirm(false)}
-                  className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-4 rounded-none text-base transition-colors"
+                  className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-4 rounded text-base transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -845,7 +861,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                     resetRegister();
                     setShowDiscardConfirm(false);
                   }}
-                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-4 rounded-none text-base border border-red-750 dark:border-red-800 transition-colors"
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-4 rounded text-base border border-red-750 dark:border-red-800 transition-colors cursor-pointer"
                 >
                   Discard
                 </button>
@@ -910,9 +926,9 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
       {showQuickAdd && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 font-mono text-base">
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-md overflow-hidden flex flex-col rounded-none shadow-none text-base">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-md overflow-hidden flex flex-col rounded-lg shadow-2xl text-base">
             {/* Modal Header */}
-            <div className="bg-neutral-200 dark:bg-neutral-900 px-4 py-2 border-b border-neutral-300 dark:border-neutral-800 rounded-none flex justify-between items-center">
+            <div className="bg-neutral-200 dark:bg-neutral-900 px-4 py-2.5 border-b border-neutral-300 dark:border-neutral-800 flex justify-between items-center">
               <h3 className="text-base font-bold text-black dark:text-white uppercase">⚡ Quick Add Product</h3>
               <button
                 type="button"
@@ -931,7 +947,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                   type="text"
                   required
                   placeholder="e.g. iPhone 13 Pro Case"
-                  className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none font-sans"
+                  className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none font-sans"
                   value={quickName}
                   onChange={(e) => setQuickName(e.target.value)}
                   autoFocus
@@ -944,7 +960,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                   <input
                     type="text"
                     placeholder="e.g. SKU12345"
-                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
+                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
                     value={quickBarcode}
                     onChange={(e) => setQuickBarcode(e.target.value)}
                   />
@@ -953,7 +969,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                   <label className="block text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">Category *</label>
                   <select
                     required
-                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none bg-transparent font-sans"
+                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none bg-transparent font-sans"
                     value={quickCategoryId}
                     onChange={(e) => setQuickCategoryId(e.target.value)}
                   >
@@ -974,7 +990,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                     type="number"
                     step="0.01"
                     placeholder="0.00"
-                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
+                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
                     value={quickCost}
                     onChange={(e) => setQuickCost(e.target.value)}
                   />
@@ -986,7 +1002,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                     step="0.01"
                     required
                     placeholder="0.00"
-                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
+                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
                     value={quickSelling}
                     onChange={(e) => setQuickSelling(e.target.value)}
                   />
@@ -996,25 +1012,25 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                   <input
                     type="number"
                     min="0"
-                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
+                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
                     value={quickStock}
                     onChange={(e) => setQuickStock(e.target.value)}
                   />
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-neutral-300 dark:border-neutral-800 flex gap-2 justify-end bg-neutral-100 dark:bg-neutral-950 p-3 -mx-4 -mb-4 shrink-0 rounded-none">
+              <div className="pt-4 border-t border-neutral-300 dark:border-neutral-800 flex gap-2 justify-end bg-neutral-100 dark:bg-neutral-950 p-3 -mx-4 -mb-4 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowQuickAdd(false)}
-                  className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1.5 px-4 rounded-none text-base transition-colors cursor-pointer"
+                  className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1.5 px-4 rounded text-base transition-colors cursor-pointer"
                   disabled={quickAddLoading}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-5 rounded-none text-base border border-emerald-500 hover:border-emerald-600 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-5 rounded text-base border border-emerald-500 hover:border-emerald-600 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   disabled={quickAddLoading}
                 >
                   {quickAddLoading ? (

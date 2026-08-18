@@ -90,10 +90,18 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
   const saveUser = async () => {
     if (!editUser) return;
     setLoading(true);
-    await fetch(`/api/admin/users/${editUser.id}`, {
+    const r = await fetch(`/api/admin/users/${editUser.id}`, {
       method: 'PUT', headers,
-      body: JSON.stringify({ name: editUser.name, branch_id: editUser.branch_id, role: editUser.role, password: editUser.newPassword || undefined }),
+      body: JSON.stringify({ 
+        name: editUser.name, 
+        email: editUser.email, 
+        branch_id: editUser.branch_id, 
+        role: editUser.role, 
+        password: editUser.newPassword || undefined 
+      }),
     });
+    const data = await r.json();
+    showMsg(r.ok ? '✓ Staff member updated successfully' : `✗ ${data.error || 'Failed to update staff member'}`);
     setEditUser(null); setLoading(false); loadUsers();
   };
 
@@ -309,6 +317,12 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                           className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
                       </div>
                       <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Login Email Address</label>
+                        <input type="email" value={editUser.email || ''} onChange={e => setEditUser({ ...editUser, email: e.target.value })}
+                          placeholder="e.g. staff@gmail.com"
+                          className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
+                      </div>
+                      <div className="space-y-1">
                         <label className="text-[11px] font-bold text-slate-500 uppercase">Branch</label>
                         <select value={editUser.branch_id || ''} onChange={e => setEditUser({ ...editUser, branch_id: Number(e.target.value) })}
                           className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400 bg-white">
@@ -325,10 +339,10 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                           <option value="developer">Developer</option>
                         </select>
                       </div>
-                      <div className="space-y-1">
+                      <div className="col-span-2 space-y-1">
                         <label className="text-[11px] font-bold text-slate-500 uppercase">Set New Password</label>
                         <input type="password" value={editUser.newPassword || ''} onChange={e => setEditUser({ ...editUser, newPassword: e.target.value })}
-                          placeholder="Leave blank to keep current"
+                          placeholder="Leave blank to keep current password"
                           className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-slate-400" />
                       </div>
                     </div>
