@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool, query, queryOne, execute } from '../mysql.js';
 import { z } from 'zod';
+import { sendInvoiceEmail } from '../services/mailer.js';
 
 const router = Router();
 
@@ -789,6 +790,65 @@ router.post('/:id/refund', async (req: any, res, next) => {
     res.json({ success: true });
   } catch (e: any) { await conn.rollback(); next(e); }
   finally { conn.release(); }
+});
+
+router.post('/:id/send-email', async (req: any, res, next) => {
+  try {
+    const { email, subject, message } = req.body;
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ error: 'A valid email address is required' });
+    }
+
+    const isDeveloper = req.user.role === 'developer';
+    const branchId = req.user.branch_id;
+    const invRows = await query(`
+      SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email,
+             b.name as branch_name, b.address as branch_address
+      FROM invoices i
+      LEFT JOIN customers c ON i.customer_id=c.id
+      LEFT JOIN branches b ON i.branch_id=b.id
+      WHERE i.id=? AND i.business_id=? ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
+      LIMIT 1
+    `, (!isDeveloper && branchId) ? [req.params.id, req.user.business_id, branchId] : [req.params.id, req.user.business_id]) as any[];
+
+    const invoice = invRows[0];
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found or access denied' });
+
+    // Fetch items
+    const items = await query(`
+      SELECT ii.*, s.sku_code, p.name as product_name, d.imei
+      FROM invoice_items ii
+      LEFT JOIN product_skus s ON ii.sku_id=s.id
+      LEFT JOIN products p ON s.product_id=p.id
+      LEFT JOIN devices d ON ii.device_id=d.id
+      WHERE ii.invoice_id=?
+    `, [req.params.id]);
+
+    // Fetch payments
+    const payments = await query(`
+      SELECT * FROM payments WHERE invoice_id=?
+    `, [req.params.id]);
+
+    // Fetch company / business info
+    const company = await queryOne('SELECT * FROM businesses WHERE id=? LIMIT 1', [req.user.business_id]) as any;
+
+    invoice.items = items;
+    invoice.payments = payments;
+
+    const emailSubject = subject || `Invoice ${invoice.invoice_number} from ${company?.name || 'PhoneLab'}`;
+
+    await sendInvoiceEmail(email.trim(), emailSubject, invoice, company, message);
+
+    await execute(
+      'INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+      [invoice.id, req.userId, 'Invoice Emailed', `Invoice emailed to ${email.trim()}`]
+    );
+
+    res.json({ success: true, message: `Invoice successfully sent to ${email.trim()}` });
+  } catch (e: any) { 
+    console.error('[send-email] error:', e.message);
+    next(e); 
+  }
 });
 
 router.put('/payments/:id', async (req: any, res, next) => {

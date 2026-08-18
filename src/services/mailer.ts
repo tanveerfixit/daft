@@ -4,13 +4,18 @@ import { queryOne } from '../mysql.js';
 async function getTransporter() {
   const settings = await queryOne('SELECT * FROM smtp_settings WHERE business_id = 1') as any;
   if (!settings || !settings.user || !settings.pass) {
-    // Fallback to env vars
-    if (!process.env.SMTP_USER) throw new Error('SMTP not configured. Please set up email settings in Admin Portal.');
+    // Fallback to env vars or default Hostinger configuration
+    const user = process.env.SMTP_USER || 'noreply@clarelab.com';
+    const pass = process.env.SMTP_PASS || 'Tani!!8877';
+    const host = process.env.SMTP_HOST || 'smtp.hostinger.com';
+    const port = Number(process.env.SMTP_PORT) || 465;
+    const secure = process.env.SMTP_SECURE !== 'false';
+
     return nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.hostinger.com',
-      port: Number(process.env.SMTP_PORT) || 465,
-      secure: process.env.SMTP_SECURE !== 'false',
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      host,
+      port,
+      secure,
+      auth: { user, pass },
     });
   }
   return nodemailer.createTransport({
@@ -23,8 +28,8 @@ async function getTransporter() {
 
 async function getFromAddress() {
   const settings = await queryOne('SELECT * FROM smtp_settings WHERE business_id = 1') as any;
-  const name = settings?.from_name || process.env.SMTP_FROM_NAME || 'iCover EPOS';
-  const email = settings?.from_email || settings?.user || process.env.SMTP_USER || 'noreply@example.com';
+  const name = settings?.from_name || process.env.SMTP_FROM_NAME || 'PhoneLab EPOS';
+  const email = settings?.from_email || settings?.user || process.env.SMTP_USER || 'noreply@clarelab.com';
   return `"${name}" <${email}>`;
 }
 
@@ -115,3 +120,116 @@ export async function sendTestEmail(toEmail: string) {
   </div>`;
   await sendMail(toEmail, 'EPOS SMTP Test Email', html);
 }
+
+export async function sendInvoiceEmail(to: string, subject: string, invoice: any, company: any, customNote?: string) {
+  const itemsHtml = (invoice.items || []).map((item: any) => `
+    <tr style="border-bottom: 1px solid #e5e7eb;">
+      <td style="padding: 10px 8px; font-size: 13px; color: #1f2937;">
+        <strong>${item.product_name || 'Item'}</strong>
+        ${item.notes ? `<div style="font-size: 11px; color: #6b7280; font-style: italic;">Note: ${item.notes}</div>` : ''}
+        ${item.imei ? `<div style="font-size: 11px; color: #3b82f6;">IMEI: ${item.imei}</div>` : ''}
+      </td>
+      <td style="padding: 10px 8px; font-size: 13px; text-align: center; color: #4b5563;">${item.quantity}</td>
+      <td style="padding: 10px 8px; font-size: 13px; text-align: right; color: #4b5563;">€${(Number(item.price) || 0).toFixed(2)}</td>
+      <td style="padding: 10px 8px; font-size: 13px; text-align: right; font-weight: bold; color: #111827;">€${(Number(item.total) || 0).toFixed(2)}</td>
+    </tr>
+  `).join('');
+
+  const html = `
+    <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 650px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+      <!-- Header -->
+      <div style="background: #1e293b; color: #ffffff; padding: 24px; text-align: center;">
+        <h1 style="margin: 0; font-size: 24px; font-weight: bold; letter-spacing: 1px;">${company?.name || 'INVOICE'}</h1>
+        <p style="margin: 4px 0 0 0; font-size: 12px; color: #94a3b8;">${company?.address ? `${company.address}, ` : ''}${company?.city || ''} ${company?.phone ? `• Tel: ${company.phone}` : ''}</p>
+      </div>
+
+      <!-- Invoice Info -->
+      <div style="padding: 24px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="vertical-align: top;">
+              <span style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: bold; display: block;">Billed To</span>
+              <strong style="font-size: 15px; color: #0f172a;">${invoice.customer?.name || invoice.customer_name || 'Valued Customer'}</strong>
+              ${invoice.customer?.phone ? `<div style="font-size: 13px; color: #475569;">${invoice.customer.phone}</div>` : ''}
+              ${invoice.customer?.email ? `<div style="font-size: 13px; color: #475569;">${invoice.customer.email}</div>` : ''}
+            </td>
+            <td style="vertical-align: top; text-align: right;">
+              <div style="font-size: 18px; font-weight: bold; color: #0f172a; margin-bottom: 4px;">${invoice.invoice_number}</div>
+              <div style="font-size: 13px; color: #64748b;">Date: ${new Date(invoice.created_at).toLocaleDateString('en-GB')}</div>
+              <div style="font-size: 12px; font-weight: bold; text-transform: uppercase; margin-top: 4px; color: ${invoice.status === 'paid' ? '#16a34a' : '#ea580c'};">
+                Status: ${invoice.status || 'Paid'}
+              </div>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      ${customNote ? `
+        <div style="padding: 16px 24px; background: #eff6ff; border-left: 4px solid #3b82f6; margin: 16px 24px; font-size: 13px; color: #1e40af;">
+          ${customNote.replace(/\n/g, '<br/>')}
+        </div>
+      ` : ''}
+
+      <!-- Items Table -->
+      <div style="padding: 24px;">
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <thead>
+            <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+              <th style="padding: 10px 8px; text-align: left; font-size: 11px; text-transform: uppercase; color: #475569;">Item</th>
+              <th style="padding: 10px 8px; text-align: center; font-size: 11px; text-transform: uppercase; color: #475569; width: 60px;">Qty</th>
+              <th style="padding: 10px 8px; text-align: right; font-size: 11px; text-transform: uppercase; color: #475569; width: 90px;">Price</th>
+              <th style="padding: 10px 8px; text-align: right; font-size: 11px; text-transform: uppercase; color: #475569; width: 100px;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <!-- Totals -->
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="width: 50%;"></td>
+            <td style="width: 50%;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b;">Subtotal:</td>
+                  <td style="padding: 6px 0; text-align: right; font-weight: 500; color: #1e293b;">€${(Number(invoice.subtotal) || 0).toFixed(2)}</td>
+                </tr>
+                ${Number(invoice.discount_total) > 0 ? `
+                  <tr>
+                    <td style="padding: 6px 0; color: #16a34a;">Discount:</td>
+                    <td style="padding: 6px 0; text-align: right; font-weight: 500; color: #16a34a;">-€${(Number(invoice.discount_total) || 0).toFixed(2)}</td>
+                  </tr>
+                ` : ''}
+                <tr style="border-top: 2px solid #e2e8f0; font-size: 16px; font-weight: bold;">
+                  <td style="padding: 10px 0; color: #0f172a;">Grand Total:</td>
+                  <td style="padding: 10px 0; text-align: right; color: #0f172a;">€${(Number(invoice.grand_total) || 0).toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b;">Amount Paid:</td>
+                  <td style="padding: 6px 0; text-align: right; font-weight: 500; color: #16a34a;">€${(Number(invoice.paid_amount) || Number(invoice.grand_total) || 0).toFixed(2)}</td>
+                </tr>
+                ${Number(invoice.due_amount) > 0 ? `
+                  <tr>
+                    <td style="padding: 6px 0; color: #dc2626; font-weight: bold;">Balance Due:</td>
+                    <td style="padding: 6px 0; text-align: right; font-weight: bold; color: #dc2626;">€${(Number(invoice.due_amount) || 0).toFixed(2)}</td>
+                  </tr>
+                ` : ''}
+              </table>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Footer -->
+      <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 16px 24px; text-align: center; font-size: 12px; color: #64748b;">
+        <p style="margin: 0;">Thank you for your business!</p>
+        ${company?.email ? `<p style="margin: 4px 0 0 0;">Questions? Contact us at <a href="mailto:${company.email}" style="color: #2563eb; text-decoration: none;">${company.email}</a></p>` : ''}
+      </div>
+    </div>
+  `;
+
+  await sendMail(to, subject, html);
+}
+
