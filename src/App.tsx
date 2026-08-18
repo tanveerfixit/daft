@@ -45,6 +45,7 @@ import ForgotPassword from './components/auth/ForgotPassword';
 import ResetPassword from './components/auth/ResetPassword';
 import AdminLoginPage from './components/auth/AdminLoginPage';
 import PublicProfile from './components/PublicProfile';
+import { StartingCashModal } from './components/StartingCashModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const slugify = (text: string) => {
@@ -267,6 +268,7 @@ function AppInner() {
   const [searchParams] = useSearchParams();
   
   const [showAdminPortal, setShowAdminPortal] = useState(false);
+  const [showStartingCashModal, setShowStartingCashModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchError, setSearchError] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
@@ -276,6 +278,34 @@ function AppInner() {
     const saved = localStorage.getItem('theme');
     return saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
   });
+
+  // Check if starting cash has been recorded for today
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const checkStartingCash = async () => {
+      try {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json'
+        };
+        const token = localStorage.getItem('token');
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const today = new Date().toISOString().split('T')[0];
+        const res = await fetch(`/api/reports/starting-cash?date=${today}`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          if (!data.hasStartingCash) {
+            setShowStartingCashModal(true);
+          }
+        }
+      } catch (e) {
+        console.error('Error checking starting cash on login:', e);
+      }
+    };
+
+    checkStartingCash();
+  }, [currentUser?.id]);
 
   useEffect(() => {
     if (searchError) {
@@ -630,6 +660,15 @@ function AppInner() {
           </ErrorBoundary>
         </main>
       </div>
+
+      {/* Starting Cash Login Modal Prompt */}
+      <StartingCashModal 
+        isOpen={showStartingCashModal}
+        onClose={() => setShowStartingCashModal(false)}
+        onSaved={() => {
+          setShowStartingCashModal(false);
+        }}
+      />
     </div>
   );
 }

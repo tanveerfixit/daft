@@ -522,32 +522,41 @@ const CashCounter: React.FC<CashCounterProps> = ({ onClose, onConfirm }) => {
   const total = Object.entries(counts).reduce((sum, [val, count]) => sum + (Number(val) * count), 0);
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 font-mono">
-      <div className="bg-white dark:bg-neutral-950 w-full max-w-sm flex flex-col max-h-[90vh] border border-neutral-400 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-none shadow-none">
-        <div className="p-2 border-b border-neutral-400 dark:border-neutral-700 flex justify-between items-center bg-neutral-100 dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200">
-          <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-            <Calculator size={14} />
-            CASH DRAWER COUNTER
-          </h3>
-          <button onClick={onClose} className="text-neutral-600 hover:text-red-600 dark:text-neutral-400 dark:hover:text-red-400 px-2 py-0.5">
-            [X]
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-md flex flex-col max-h-[85vh] rounded-xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 shadow-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+              <Calculator size={18} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Cash Drawer Calculator</h3>
+              <p className="text-xs text-slate-500">Count denominations</p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose} 
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <X size={16} />
           </button>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+        <div className="flex-1 overflow-y-auto p-4 space-y-1.5 divide-y divide-slate-100 dark:divide-slate-800/50">
           {denominations.map((d) => (
-            <div key={d.value} className="flex items-center justify-between py-0.5 px-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 border-b border-neutral-100 dark:border-neutral-900">
-              <span className="text-xs font-bold w-16">{d.label}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] opacity-70">x</span>
+            <div key={d.value} className="flex items-center justify-between pt-1.5 pb-0.5 first:pt-0">
+              <span className="text-sm font-semibold w-16 text-slate-800 dark:text-slate-200">{d.label}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-400">×</span>
                 <input 
                   type="number" 
                   min="0"
                   value={counts[d.value] || ''}
                   onChange={(e) => setCounts(prev => ({ ...prev, [d.value]: parseInt(e.target.value) || 0 }))}
-                  className="w-16 px-1 py-0.5 bg-white border border-neutral-300 dark:bg-neutral-900 dark:border-neutral-800 rounded-none text-right text-xs outline-none text-neutral-900 dark:text-neutral-100 focus:bg-neutral-50 dark:focus:bg-neutral-800 focus:border-neutral-500"
+                  className="w-20 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-right text-sm outline-none text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 font-mono font-medium"
+                  placeholder="0"
                 />
-                <span className="text-xs font-bold w-20 text-right">
+                <span className="text-sm font-mono font-bold w-24 text-right text-slate-900 dark:text-slate-100">
                   €{(counts[d.value] * d.value).toFixed(2)}
                 </span>
               </div>
@@ -555,16 +564,16 @@ const CashCounter: React.FC<CashCounterProps> = ({ onClose, onConfirm }) => {
           ))}
         </div>
 
-        <div className="p-2 bg-neutral-100 dark:bg-neutral-900 border-t border-neutral-400 dark:border-neutral-700 flex justify-between items-center">
+        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
           <div>
-            <p className="text-[9px] uppercase tracking-wider text-neutral-500">TOTAL COUNTED</p>
-            <p className="text-lg font-black">€{total.toFixed(2)}</p>
+            <p className="text-xs uppercase tracking-wider font-semibold text-slate-500">Total Counted</p>
+            <p className="text-xl font-mono font-bold text-slate-900 dark:text-white">€{total.toFixed(2)}</p>
           </div>
           <button 
             onClick={() => onConfirm(total)}
-            className="px-4 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-neutral-100 dark:hover:bg-neutral-200 dark:text-black font-bold rounded-none text-xs uppercase"
+            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm shadow-sm transition-all cursor-pointer"
           >
-            [APPLY TOTAL]
+            Apply Total
           </button>
         </div>
       </div>
@@ -645,6 +654,12 @@ export default function EndOfDay() {
       const data = await response.json();
       setInvoicePayments(data.invoicePayments || []);
       setOtherMovements(data.otherMovements || []);
+      if (data.startingBalance !== null && data.startingBalance !== undefined) {
+        setStartingBalance(Number(data.startingBalance));
+      }
+      if (data.comments) {
+        setComments(data.comments);
+      }
     } catch (error) {
       console.error('Error fetching EOD data:', error);
     } finally {
@@ -781,36 +796,43 @@ export default function EndOfDay() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center bg-white dark:bg-black text-neutral-900 dark:text-green-500 font-mono">
-        <div className="border border-neutral-400 dark:border-green-500 p-6 text-center">
-          <div className="text-sm font-normal uppercase tracking-widest animate-pulse">*** LOADING SYSTEM DATA ***</div>
-          <div className="text-[10px] mt-2 text-neutral-500 dark:text-green-600">PLEASE WAIT...</div>
+      <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-sm font-medium tracking-wide">Loading End of Day Report...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm select-none" style={{ fontSize: '15px' }}>
-      {/* Header bar */}
-      <div className="sticky top-0 z-40 bg-white dark:bg-black border-b border-neutral-300 dark:border-neutral-800 shrink-0">
-        <div className="flex items-center justify-between px-4 py-1">
-          <div className="flex items-center gap-6">
-            <h1 className="text-base font-normal tracking-wider uppercase text-neutral-800 dark:text-green-400">SYS.EOD // END OF DAY REPORT</h1>
-            <div className="flex items-center bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">
+    <div className="flex flex-col h-full bg-slate-100/60 dark:bg-slate-950 text-slate-800 dark:text-slate-200 text-sm">
+      {/* Header Bar */}
+      <div className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 px-6 py-3 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* Title & Date Selector */}
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <FileText size={20} className="text-blue-600 dark:text-blue-400" />
+                End of Day Closing Report
+              </h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Daily cash drawer reconciliation & revenue audit</p>
+            </div>
+
+            {/* Date Navigator */}
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 border border-slate-200 dark:border-slate-700">
               <button 
                 onClick={handlePrevDay}
-                className="px-2 py-0.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 font-normal border-r border-neutral-300 dark:border-neutral-800"
+                className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-md text-slate-600 dark:text-slate-300 transition-colors"
                 title="Previous Day"
               >
-                &lt;
+                <ChevronLeft size={16} />
               </button>
               
-              <div className="relative px-3 py-0.5 flex items-center gap-1 cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-800">
-                <span className="font-normal tracking-tight">
-                  {reportDate.split('-').reverse().join('-')}
-                </span>
-                <Calendar size={12} className="opacity-80 text-neutral-600 dark:text-neutral-400" />
+              <div className="relative px-3 py-1 flex items-center gap-2 cursor-pointer font-medium text-xs text-slate-700 dark:text-slate-200">
+                <Calendar size={14} className="text-blue-600 dark:text-blue-400" />
+                <span>{reportDate.split('-').reverse().join('-')}</span>
                 <input 
                   type="date"
                   value={reportDate}
@@ -821,302 +843,392 @@ export default function EndOfDay() {
 
               <button 
                 onClick={handleNextDay}
-                className="px-2 py-0.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 font-normal border-l border-neutral-300 dark:border-neutral-800"
+                className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-md text-slate-600 dark:text-slate-300 transition-colors"
                 title="Next Day"
               >
-                &gt;
+                <ChevronRight size={16} />
               </button>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          {/* Top Actions */}
+          <div className="flex items-center gap-3">
             {isRefreshing && (
-              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800">
-                <div className="w-1.5 h-1.5 bg-neutral-600 dark:bg-green-500 animate-ping"></div>
-                <span className="text-[11px] font-normal text-neutral-600 dark:text-green-400 uppercase tracking-widest">SYNCING</span>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-medium">
+                <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full animate-ping"></div>
+                <span>Syncing</span>
               </div>
             )}
-            <button className="flex items-center gap-1 px-3 py-1 bg-neutral-200 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-850 text-neutral-850 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-800 font-normal">
-              <List size={12} />
-              [LIST]
-            </button>
+
+            {/* Print Options */}
             <div className="relative">
               <button 
                 onClick={() => setShowPrintOptions(!showPrintOptions)}
-                className={`flex items-center gap-1 px-3 py-1 bg-neutral-200 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-850 text-neutral-850 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-800 font-normal`}
+                className="flex items-center gap-2 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 font-medium text-xs rounded-lg shadow-xs transition-colors"
               >
-                <Printer size={12} />
-                <span>[PRINT]</span>
-                <ChevronDown size={12} />
+                <Printer size={15} />
+                <span>Print Report</span>
+                <ChevronDown size={14} className="text-slate-400" />
               </button>
 
               {showPrintOptions && (
                 <>
-                  <div 
-                    className="fixed inset-0 z-40" 
-                    onClick={() => setShowPrintOptions(false)}
-                  />
-                  <div 
-                    className="absolute right-0 mt-1 w-48 bg-white dark:bg-black border border-neutral-400 dark:border-neutral-700 z-50 py-0.5"
-                  >
-                    <div className="px-2 py-1 text-[9px] font-normal text-neutral-500 dark:text-green-600 uppercase border-b border-neutral-200 dark:border-neutral-800 mb-0.5">
-                      SELECT FORMAT
-                    </div>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowPrintOptions(false)} />
+                  <div className="absolute right-0 mt-1.5 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 p-1.5">
                     <button 
-                      onClick={() => {
-                        setPrintLayout('a4');
-                        setShowPrintOptions(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 hover:text-black dark:hover:text-green-400 text-left font-normal"
+                      onClick={() => { setPrintLayout('a4'); setShowPrintOptions(false); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-colors text-left"
                     >
-                      <FileText size={12} />
-                      <span>FULL PAGE (A4)</span>
+                      <FileText size={14} />
+                      <span>Full Page (A4 PDF)</span>
                     </button>
-                    
                     <button 
-                      onClick={() => {
-                        setPrintLayout('thermal');
-                        setShowPrintOptions(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 hover:text-black dark:hover:text-green-400 text-left font-normal"
+                      onClick={() => { setPrintLayout('thermal'); setShowPrintOptions(false); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-colors text-left"
                     >
-                      <Printer size={12} />
-                      <span>THERMAL (80MM)</span>
+                      <Printer size={14} />
+                      <span>Thermal Slip (80mm)</span>
                     </button>
                   </div>
                 </>
               )}
             </div>
+
+            {/* Save Button */}
+            <button 
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+            >
+              <Save size={15} />
+              <span>{saving ? 'Saving...' : 'Save Report'}</span>
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto">
-        <div className="w-full px-2 py-2 space-y-3">
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-auto p-6 space-y-6">
+        <div className="max-w-7xl mx-auto space-y-6">
           {message && (
-            <div className={`p-2 flex items-center gap-2 border ${
-              message.type === 'success' ? 'bg-green-100/50 text-green-800 border-green-300 dark:bg-green-950/50 dark:text-green-400 dark:border-green-800' : 'bg-red-100/50 text-red-800 border-red-300 dark:bg-red-950/50 dark:text-red-400 dark:border-red-800'
+            <div className={`p-4 rounded-xl flex items-center gap-3 border shadow-xs ${
+              message.type === 'success' 
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' 
+                : 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
             }`}>
-              {message.type === 'success' ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
-              <span className="font-normal text-xs uppercase">{message.text}</span>
-              <button onClick={() => setMessage(null)} className="ml-auto underline text-[10px] hover:text-neutral-900 dark:hover:text-white">[DISMISS]</button>
+              {message.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+              <span className="font-medium text-sm">{message.text}</span>
+              <button onClick={() => setMessage(null)} className="ml-auto text-xs underline font-semibold cursor-pointer">Dismiss</button>
             </div>
           )}
 
-          {/* Reconciliation Table */}
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800">
-            <div className="divide-y divide-neutral-350 dark:divide-neutral-800">
-              {/* Cash Counted Row */}
-              <div className="grid grid-cols-1 md:grid-cols-12 items-center py-1 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                <div className="md:col-span-4 px-3 md:text-right font-normal text-neutral-600 dark:text-green-400">CASH DRAWER COUNTED :</div>
-                <div className="md:col-span-3 px-3"></div>
-                <div className="md:col-span-5 px-3 py-1 flex gap-2 justify-start md:justify-end items-center">
-                  <div className="relative w-full md:w-36">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500 dark:text-green-600 text-sm">€</span>
+          {/* KPI Metrics Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* Total Sales */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Sales</p>
+              <p className="text-2xl font-mono font-bold text-blue-600 dark:text-blue-400 mt-1">€{totalSales.toFixed(2)}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">{allPayments.length} recorded payments</p>
+            </div>
+
+            {/* Opening Balance */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Opening Balance</p>
+              <p className="text-2xl font-mono font-bold text-slate-800 dark:text-slate-100 mt-1">€{startingBalance.toFixed(2)}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Starting drawer float</p>
+            </div>
+
+            {/* Expected Cash */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Expected Cash</p>
+              <p className="text-2xl font-mono font-bold text-slate-800 dark:text-slate-100 mt-1">€{calculatedCashTotal.toFixed(2)}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Opening + Cash Sales</p>
+            </div>
+
+            {/* Cash Counted */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cash Counted</p>
+              <p className="text-2xl font-mono font-bold text-slate-900 dark:text-white mt-1">€{cashCounted.toFixed(2)}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Actual drawer total</p>
+            </div>
+
+            {/* Cash Difference */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cash Difference</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className={`text-2xl font-mono font-bold ${
+                  Math.abs(cashDifference) < 0.01 
+                    ? 'text-emerald-600 dark:text-emerald-400' 
+                    : cashDifference > 0 
+                      ? 'text-emerald-600 dark:text-emerald-400' 
+                      : 'text-rose-600 dark:text-rose-400'
+                }`}>
+                  {cashDifference >= 0 ? '+' : ''}€{cashDifference.toFixed(2)}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {Math.abs(cashDifference) < 0.01 ? '✓ Balanced' : cashDifference > 0 ? 'Surplus' : 'Shortage'}
+              </p>
+            </div>
+          </div>
+
+          {/* Cash Reconciliation Form & Payment Methods Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left: Drawer Cash Count Form */}
+            <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-5 space-y-5">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <Euro size={16} />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">Cash Drawer Entry</h2>
+                  <p className="text-xs text-slate-500">Record cash counted and starting float</p>
+                </div>
+              </div>
+
+              {/* Cash Drawer Counted */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Cash Drawer Counted
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">€</span>
                     <input 
                       ref={cashInputRef}
                       type="number" 
-                      value={countedValues['Cash']}
+                      value={countedValues['Cash'] || ''}
                       onChange={(e) => setCountedValues(prev => ({ ...prev, 'Cash': parseFloat(e.target.value) || 0 }))}
-                      className="w-full pl-5 pr-2 py-0.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 font-normal text-right outline-none focus:border-neutral-500 dark:focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 rounded-none"
+                      className="w-full pl-7 pr-3 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono font-bold text-base outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 transition-colors"
                       placeholder="0.00"
                     />
                   </div>
                   <button 
                     onClick={() => setShowCashCounter('counted')}
-                    className="px-2 py-1 bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-[10px] font-normal uppercase tracking-wider flex items-center gap-1 rounded-none text-neutral-800 dark:text-neutral-300"
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Open Denomination Calculator"
                   >
-                    <Calculator size={12} />
-                    [COUNTER]
+                    <Calculator size={15} />
+                    <span>Count</span>
                   </button>
                 </div>
               </div>
 
-              {/* Starting Balance Row */}
-              <div className="grid grid-cols-1 md:grid-cols-12 items-center py-1 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                <div className="md:col-span-4 px-3 md:text-right font-normal text-neutral-600 dark:text-green-400">STARTING BAL (OPENING) :</div>
-                <div className="md:col-span-3 px-3"></div>
-                <div className="md:col-span-5 px-3 py-1 flex gap-2 justify-start md:justify-end items-center">
-                  <div className="relative w-full md:w-36">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500 dark:text-green-600 text-xs">€</span>
+              {/* Starting Balance */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Starting Balance (Opening Float)
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">€</span>
                     <input 
                       type="number" 
-                      value={startingBalance}
+                      value={startingBalance || ''}
                       onChange={(e) => setStartingBalance(parseFloat(e.target.value) || 0)}
-                      className="w-full pl-5 pr-2 py-0.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 font-normal text-right outline-none focus:border-neutral-500 dark:focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 rounded-none"
+                      className="w-full pl-7 pr-3 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono font-bold text-base outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 transition-colors"
                       placeholder="0.00"
                     />
                   </div>
                   <button 
                     onClick={() => setShowCashCounter('starting')}
-                    className="px-2 py-1 bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-[10px] font-normal uppercase tracking-wider flex items-center gap-1 rounded-none text-neutral-800 dark:text-neutral-300"
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Open Denomination Calculator"
                   >
-                    <Calculator size={12} />
-                    [COUNTER]
+                    <Calculator size={15} />
+                    <span>Count</span>
                   </button>
                 </div>
               </div>
 
-              {/* Calculated Cash Row */}
-              <div className="grid grid-cols-1 md:grid-cols-12 items-center py-1 bg-neutral-200/50 dark:bg-neutral-900">
-                <div className="md:col-span-4 px-3 md:text-right font-normal text-neutral-600 dark:text-green-400">CALCULATED CASH EXPECTED :</div>
-                <div className="md:col-span-3 px-3 md:text-right font-normal text-blue-600 dark:text-blue-400 flex items-center justify-end">
-                  €{calculatedCashTotal.toFixed(2)}
-                </div>
-                <div className="md:col-span-3 px-3 md:text-right font-normal text-neutral-800 dark:text-neutral-200 flex items-center justify-end">
-                  €{cashCounted.toFixed(2)}
-                </div>
-                <div className="md:col-span-2 py-1 px-3 bg-neutral-300/30 dark:bg-neutral-950 md:text-right font-normal text-neutral-800 dark:text-neutral-200 border-l border-neutral-300 dark:border-neutral-800">
-                  DIFF: {cashDifference >= 0 ? '+' : '' }€{cashDifference.toFixed(2)}
-                </div>
+              {/* Manager Notes */}
+              <div className="space-y-1.5 pt-2">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Closing Notes & Remarks
+                </label>
+                <textarea 
+                  value={comments}
+                  onChange={(e) => setComments(e.target.value)}
+                  className="w-full min-h-[80px] p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 transition-colors"
+                  placeholder="Add any discrepancies, drawer notes, or comments..."
+                />
               </div>
             </div>
 
-            {/* Payment Summaries Sub-Header */}
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-sm font-bold text-black dark:text-white uppercase tracking-wider">
-                    <th className="py-1.5 px-3 text-left w-1/3">PAYMENT TYPE</th>
-                    <th className="py-1.5 px-3 text-right w-1/6 text-blue-600 dark:text-blue-400">CALCULATED</th>
-                    <th className="py-1.5 px-3 text-right w-1/6 text-neutral-700 dark:text-neutral-300">COUNTED</th>
-                    <th className="py-1.5 px-3 text-right w-1/6">DIFFERENCE</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-900">
-                  {summaries.filter(s => s.payment_type !== 'Cash').map((s, idx) => (
-                    <tr key={idx} className="bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                      <td className="py-1 px-3 font-normal">{s.payment_type.toUpperCase()}</td>
-                      <td className="py-1 px-3 text-right font-normal text-blue-600 dark:text-blue-400">
-                        €{s.calculated.toFixed(2)}
-                      </td>
-                      <td className="py-1 px-3 text-right">
-                        <div className="relative inline-block w-36">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500 dark:text-green-600 text-[10px]">€</span>
-                          <input 
-                            type="number" 
-                            value={s.counted || ''}
-                            onChange={(e) => setCountedValues(prev => ({ ...prev, [s.payment_type]: parseFloat(e.target.value) || 0 }))}
-                            className="w-full pl-5 pr-2 py-0.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-750 text-neutral-900 dark:text-neutral-100 text-right outline-none focus:border-neutral-500 dark:focus:border-neutral-450 focus:bg-neutral-50 dark:focus:bg-neutral-900 rounded-none font-normal"
-                            placeholder="0.00"
-                          />
-                        </div>
-                      </td>
-                      <td className="py-1 px-3 w-48 bg-neutral-200/20 dark:bg-neutral-950 text-right font-normal text-neutral-800 dark:text-neutral-200 border-l border-neutral-300 dark:border-neutral-800">
-                        {s.difference >= 0 ? '+' : '' }€{s.difference.toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                  {/* Total Row */}
-                  <tr className="bg-neutral-200 dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 border-t border-neutral-300 dark:border-neutral-800 font-bold text-[18px]">
-                    <td className="py-2 px-3 text-right uppercase tracking-wider font-bold text-[18px]">TOTAL SYSTEM REVENUE :</td>
-                    <td className="py-2 px-3 text-right font-bold text-[18px]">
-                      €{totalSales.toFixed(2)}
-                    </td>
-                    <td className="py-2 px-3 text-right font-bold text-[18px]">
-                      €{( (cashCounted - startingBalance) + summaries.filter(s => s.payment_type !== 'Cash').reduce((sum, s) => sum + s.counted, 0) ).toFixed(2)}
-                    </td>
-                    <td className="py-2 px-3 w-48 bg-neutral-300/20 dark:bg-neutral-950 text-right font-bold text-[18px] border-l border-neutral-300 dark:border-neutral-800 text-neutral-850 dark:text-neutral-200">
-                      {(( (cashCounted - startingBalance) + summaries.filter(s => s.payment_type !== 'Cash').reduce((sum, s) => sum + s.counted, 0) ) - totalSales) >= 0 ? '+' : ''}
-                      €{(( (cashCounted - startingBalance) + summaries.filter(s => s.payment_type !== 'Cash').reduce((sum, s) => sum + s.counted, 0) ) - totalSales).toFixed(2)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+            {/* Right: Payment Breakdown Table */}
+            <div className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col justify-between">
+              <div>
+                <div className="p-5 pb-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-white">Payment Method Summary</h2>
+                    <p className="text-xs text-slate-500">Reconcile calculated system receipts with counted totals</p>
+                  </div>
+                </div>
 
-          {/* Comments Section */}
-          <div className="flex items-start gap-4">
-            <label className="font-normal text-neutral-600 dark:text-neutral-400 pt-1 shrink-0">MANAGER NOTES :</label>
-            <textarea 
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
-              className="flex-1 min-h-[48px] p-2 bg-white border border-neutral-300 text-neutral-900 dark:bg-black dark:border-neutral-800 dark:text-neutral-100 outline-none focus:border-neutral-500 focus:bg-neutral-50 dark:focus:bg-neutral-900 rounded-none font-mono font-normal"
-              placeholder="ENTER CLOSING MEMO..."
-            />
-          </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-50/70 dark:bg-slate-800/40 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                        <th className="py-1.5 px-3">Method</th>
+                        <th className="py-1.5 px-3 text-right">System Calculated</th>
+                        <th className="py-1.5 px-3 text-right">Counted / Confirmed</th>
+                        <th className="py-1.5 px-3 text-right">Difference</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                      {/* Cash Row */}
+                      <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="py-1.5 px-3 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                          Cash Sales
+                        </td>
+                        <td className="py-1.5 px-3 text-right font-mono font-semibold text-slate-800 dark:text-slate-200">
+                          €{totalCashSales.toFixed(2)}
+                        </td>
+                        <td className="py-1.5 px-3 text-right font-mono font-semibold text-slate-800 dark:text-slate-200">
+                          €{((cashCounted - startingBalance) > 0 ? (cashCounted - startingBalance) : 0).toFixed(2)}
+                        </td>
+                        <td className="py-1.5 px-3 text-right font-mono font-semibold">
+                          <span className={`px-1.5 py-0.5 rounded text-xs ${
+                            Math.abs(cashDifference) < 0.01 
+                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400' 
+                              : cashDifference > 0 
+                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400' 
+                                : 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400'
+                          }`}>
+                            {cashDifference >= 0 ? '+' : ''}€{cashDifference.toFixed(2)}
+                          </span>
+                        </td>
+                      </tr>
 
-          {/* Save Button */}
-          <div className="flex justify-center">
-            <button 
-              onClick={handleSave}
-              disabled={saving}
-              className="bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-green-700 dark:hover:bg-green-500 dark:text-black font-normal py-1 px-12 border border-neutral-400 dark:border-green-500 rounded-none uppercase tracking-widest text-xs disabled:opacity-50"
-            >
-              {saving ? 'SAVING DATA...' : '[ COMMIT REPORT & SAVE ]'}
-            </button>
-          </div>
-
-          {/* Payment Information Table */}
-          <div className="space-y-1.5">
-            <h2 className="text-base font-bold uppercase text-black dark:text-white tracking-wider">// TRANSACTION BREAKDOWN</h2>
-            <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 overflow-hidden">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-sm font-bold text-black dark:text-white uppercase tracking-wider">
-                    <th className="py-1 px-2 border-r border-neutral-300 dark:border-neutral-800">OPERATOR</th>
-                    <th className="py-1 px-2 border-r border-neutral-300 dark:border-neutral-800">TIME</th>
-                    <th className="py-1 px-2 border-r border-neutral-300 dark:border-neutral-800">REF/INVOICE</th>
-                    <th className="py-1 px-2 border-r border-neutral-300 dark:border-neutral-800">CUSTOMER</th>
-                    <th className="py-1 px-2 border-r border-neutral-300 dark:border-neutral-800">METHOD</th>
-                    <th className="py-1 px-3 text-right">AMOUNT</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-900">
-                  {allPayments.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-4 text-center text-neutral-500 italic">NO REVENUE RECORDS REGISTERED FOR THIS PERIOD.</td>
-                    </tr>
-                  ) : (
-                    <>
-                      {allPayments.map((payment, idx) => (
-                        <tr 
-                          key={idx} 
-                          className="bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900"
-                        >
-                          <td className="py-1 px-2 border-r border-neutral-300 dark:border-neutral-800 font-normal">{payment.user_name || 'STAFF'}</td>
-                          <td className="py-1 px-2 border-r border-neutral-300 dark:border-neutral-800">
-                            {payment.paid_at ? new Date(payment.paid_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '--:--'}
+                      {/* Other Methods */}
+                      {summaries.filter(s => s.payment_type !== 'Cash').map((s, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                          <td className="py-1.5 px-3 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${
+                              s.payment_type === 'Card' ? 'bg-blue-500' : s.payment_type === 'Wallet' ? 'bg-purple-500' : 'bg-amber-500'
+                            }`}></span>
+                            {s.payment_type}
                           </td>
-                          <td className="py-1 px-2 border-r border-neutral-300 dark:border-neutral-800">
-                            <span className="text-neutral-800 dark:text-green-400 font-normal hover:underline cursor-pointer">
-                              {payment.invoice_number || 'DEPOSIT'}
+                          <td className="py-1.5 px-3 text-right font-mono font-semibold text-slate-800 dark:text-slate-200">
+                            €{s.calculated.toFixed(2)}
+                          </td>
+                          <td className="py-1.5 px-3 text-right">
+                            <div className="relative inline-block w-28">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">€</span>
+                              <input 
+                                type="number" 
+                                value={s.counted || ''}
+                                onChange={(e) => setCountedValues(prev => ({ ...prev, [s.payment_type]: parseFloat(e.target.value) || 0 }))}
+                                className="w-full pl-5 pr-2 py-0.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-slate-900 dark:text-slate-100 text-right font-mono font-semibold text-xs outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500"
+                                placeholder="0.00"
+                              />
+                            </div>
+                          </td>
+                          <td className="py-1.5 px-3 text-right font-mono font-semibold">
+                            <span className={`px-1.5 py-0.5 rounded text-xs ${
+                              Math.abs(s.difference) < 0.01 
+                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400' 
+                                : s.difference > 0 
+                                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400' 
+                                  : 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400'
+                            }`}>
+                              {s.difference >= 0 ? '+' : ''}€{s.difference.toFixed(2)}
                             </span>
-                          </td>
-                          <td className="py-1 px-2 border-r border-neutral-300 dark:border-neutral-800">
-                            {payment.customer_name ? payment.customer_name.toUpperCase() : 'N/A'}
-                          </td>
-                          <td className="py-0.5 px-2 border-r border-neutral-300 dark:border-neutral-800">
-                            <select 
-                              value={payment.method}
-                              onChange={(e) => updatePaymentMethod(payment.id, e.target.value)}
-                              className="bg-white text-neutral-900 border border-neutral-300 dark:bg-black dark:text-neutral-100 dark:border-neutral-800 rounded-none px-1 py-0.5 outline-none cursor-pointer w-full text-xs font-mono font-normal"
-                            >
-                              <option value="Cash">Cash</option>
-                              <option value="Debit Card">Debit Card</option>
-                              <option value="Credit Card">Credit Card</option>
-                              <option value="Wallet">Wallet</option>
-                              <option value="Other">Other</option>
-                            </select>
-                          </td>
-                          <td className="py-1 px-3 text-right font-normal text-neutral-955 dark:text-neutral-100">
-                            €{(Number(payment.amount) || 0).toFixed(2)}
                           </td>
                         </tr>
                       ))}
-                      {/* Total Footer for Payment Information */}
-                      <tr className="bg-neutral-200 dark:bg-neutral-900 border-t border-neutral-300 dark:border-neutral-800 font-bold text-neutral-855 dark:text-neutral-200 text-[18px]">
-                        <td colSpan={5} className="py-2 px-3 text-right text-[16px] uppercase tracking-widest border-r border-neutral-300 dark:border-neutral-800 font-bold">
-                          TOTAL REGISTERED PAYMENTS :
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Total Revenue Footer */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <span className="text-xs uppercase font-bold text-slate-600 dark:text-slate-300">Total System Revenue</span>
+                <span className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400">€{totalSales.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Detailed Transaction Breakdown */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white">Transaction Breakdown</h2>
+                <p className="text-xs text-slate-500">All registered invoice and deposit payments for this date</p>
+              </div>
+              <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-slate-600 dark:text-slate-300">
+                {allPayments.length} Transactions
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-50/70 dark:bg-slate-800/40 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                    <th className="py-1.5 px-3">Staff / Operator</th>
+                    <th className="py-1.5 px-3">Time</th>
+                    <th className="py-1.5 px-3">Invoice / Ref</th>
+                    <th className="py-1.5 px-3">Customer</th>
+                    <th className="py-1.5 px-3">Payment Method</th>
+                    <th className="py-1.5 px-3 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                  {allPayments.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-6 text-center text-slate-400 text-sm">
+                        No transactions or payments registered for this date.
+                      </td>
+                    </tr>
+                  ) : (
+                    allPayments.map((payment, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="py-1.5 px-3 text-xs font-medium text-slate-700 dark:text-slate-300">
+                          {payment.user_name || 'Staff'}
                         </td>
-                        <td className="py-2 px-3 text-right text-blue-600 dark:text-blue-400 font-bold text-[18px]">
-                          €{allPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}
+                        <td className="py-1.5 px-3 text-xs font-mono text-slate-500">
+                          {payment.paid_at ? new Date(payment.paid_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '--:--'}
+                        </td>
+                        <td className="py-1.5 px-3 text-xs font-semibold text-blue-600 dark:text-blue-400">
+                          {payment.invoice_number || 'Deposit'}
+                        </td>
+                        <td className="py-1.5 px-3 text-xs font-medium text-slate-700 dark:text-slate-300">
+                          {payment.customer_name || 'Walk-in Customer'}
+                        </td>
+                        <td className="py-1 px-3">
+                          <select 
+                            value={payment.method}
+                            onChange={(e) => updatePaymentMethod(payment.id, e.target.value)}
+                            className="bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-0.5 outline-none text-xs font-medium cursor-pointer"
+                          >
+                            <option value="Cash">Cash</option>
+                            <option value="Debit Card">Debit Card</option>
+                            <option value="Credit Card">Credit Card</option>
+                            <option value="Wallet">Wallet</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </td>
+                        <td className="py-1.5 px-3 text-right font-mono font-bold text-sm text-slate-900 dark:text-white">
+                          €{(Number(payment.amount) || 0).toFixed(2)}
                         </td>
                       </tr>
-                    </>
+                    ))
                   )}
                 </tbody>
+                {allPayments.length > 0 && (
+                  <tfoot>
+                    <tr className="bg-slate-50 dark:bg-slate-800/40 border-t border-slate-200 dark:border-slate-700 font-bold">
+                      <td colSpan={5} className="py-2 px-3 text-right text-xs uppercase text-slate-600 dark:text-slate-300">
+                        Total Registered Payments
+                      </td>
+                      <td className="py-2 px-3 text-right text-base font-mono text-blue-600 dark:text-blue-400">
+                        €{allPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>

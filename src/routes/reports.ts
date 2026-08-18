@@ -179,7 +179,76 @@ router.get('/eod-data', async (req: any, res, next) => {
       GROUP BY p.method, p.type
     `, (!isSuper && branchId) ? [date, req.user.business_id, req.user.business_id, branchId, branchId] : [date, req.user.business_id, req.user.business_id]);
 
-    res.json({ invoicePayments, otherMovements, summary, date });
+    const existingReport = await queryOne(`
+      SELECT starting_balance, comments, cash_counted, difference 
+      FROM closing_reports 
+      WHERE report_date=? AND business_id=? ${(!isSuper && branchId) ? 'AND (branch_id=? OR branch_id IS NULL)' : ''}
+      ORDER BY id DESC LIMIT 1
+    `, (!isSuper && branchId) ? [date, req.user.business_id, branchId] : [date, req.user.business_id]) as any;
+
+    res.json({ 
+      invoicePayments, 
+      otherMovements, 
+      summary, 
+      date,
+      startingBalance: existingReport ? Number(existingReport.starting_balance) : null,
+      comments: existingReport?.comments || ''
+    });
+  } catch (e: any) { next(e); }
+});
+
+// GET /api/reports/starting-cash
+router.get('/starting-cash', async (req: any, res, next) => {
+  try {
+    const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
+    const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
+    const branchId = req.user.branch_id;
+
+    const report = await queryOne(`
+      SELECT id, starting_balance, created_at 
+      FROM closing_reports 
+      WHERE report_date=? AND business_id=? ${(!isSuper && branchId) ? 'AND (branch_id=? OR branch_id IS NULL)' : ''}
+      ORDER BY id DESC LIMIT 1
+    `, (!isSuper && branchId) ? [date, req.user.business_id, branchId] : [date, req.user.business_id]) as any;
+
+    const hasStartingCash = report !== null && report.starting_balance !== null && report.starting_balance !== undefined;
+    res.json({
+      hasStartingCash: !!hasStartingCash,
+      startingBalance: hasStartingCash ? Number(report.starting_balance) : 0,
+      reportId: report?.id || null
+    });
+  } catch (e: any) { next(e); }
+});
+
+// POST /api/reports/starting-cash
+router.post('/starting-cash', async (req: any, res, next) => {
+  try {
+    const { starting_balance, report_date } = req.body;
+    const date = report_date || new Date().toISOString().split('T')[0];
+    const amount = Number(starting_balance) || 0;
+    const branchId = req.user.branch_id || 1;
+
+    const existing = await queryOne(`
+      SELECT id FROM closing_reports 
+      WHERE report_date=? AND business_id=? AND branch_id=?
+      ORDER BY id DESC LIMIT 1
+    `, [date, req.user.business_id, branchId]) as any;
+
+    if (existing) {
+      await execute(
+        'UPDATE closing_reports SET starting_balance=? WHERE id=?',
+        [amount, existing.id]
+      );
+      res.json({ success: true, message: 'Starting cash updated', id: existing.id, starting_balance: amount });
+    } else {
+      const r = await execute(
+        `INSERT INTO closing_reports 
+         (business_id, branch_id, user_id, report_date, starting_balance, cash_counted, calculated_cash, difference, total_sales, total_deposits, total_cash_in_drawer, comments)
+         VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, '')`,
+        [req.user.business_id, branchId, req.userId, date, amount]
+      );
+      res.json({ success: true, message: 'Starting cash recorded', id: r.insertId, starting_balance: amount });
+    }
   } catch (e: any) { next(e); }
 });
 
@@ -209,14 +278,34 @@ router.post('/eod', async (req: any, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const [r] = await conn.execute(`
-      INSERT INTO closing_reports
-        (business_id,branch_id,user_id,report_date,starting_balance,cash_counted,calculated_cash,difference,
-         total_sales,total_deposits,total_cash_in_drawer,comments)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [req.user.business_id, req.user.branch_id, req.userId, report_date, starting_balance, cash_counted, calculated_cash, difference,
-       total_sales, total_deposits, total_cash_in_drawer, comments]);
-    const reportId = (r as any).insertId;
+
+    const [existingRows] = await conn.execute(
+      'SELECT id FROM closing_reports WHERE business_id=? AND branch_id=? AND report_date=? ORDER BY id DESC LIMIT 1',
+      [req.user.business_id, req.user.branch_id || 1, report_date]
+    );
+    let reportId: number;
+    if ((existingRows as any[]).length > 0) {
+      reportId = (existingRows as any[])[0].id;
+      await conn.execute(`
+        UPDATE closing_reports 
+        SET user_id=?, starting_balance=?, cash_counted=?, calculated_cash=?, difference=?,
+            total_sales=?, total_deposits=?, total_cash_in_drawer=?, comments=?
+        WHERE id=?
+      `, [req.userId, starting_balance, cash_counted, calculated_cash, difference,
+          total_sales, total_deposits, total_cash_in_drawer, comments, reportId]);
+
+      await conn.execute('DELETE FROM closing_report_payments WHERE report_id=?', [reportId]);
+    } else {
+      const [r] = await conn.execute(`
+        INSERT INTO closing_reports
+          (business_id,branch_id,user_id,report_date,starting_balance,cash_counted,calculated_cash,difference,
+           total_sales,total_deposits,total_cash_in_drawer,comments)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [req.user.business_id, req.user.branch_id || 1, req.userId, report_date, starting_balance, cash_counted, calculated_cash, difference,
+         total_sales, total_deposits, total_cash_in_drawer, comments]);
+      reportId = (r as any).insertId;
+    }
+
     for (const s of payment_summaries) {
       await conn.execute(
         'INSERT INTO closing_report_payments (report_id,payment_type,calculated,counted,difference) VALUES (?,?,?,?,?)',
