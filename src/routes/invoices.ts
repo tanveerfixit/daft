@@ -211,6 +211,7 @@ router.get('/export', async (req: any, res, next) => {
     }
 
     const invoiceIds = invoices.map((inv: any) => inv.id);
+    const placeholders = invoiceIds.map(() => '?').join(',');
 
     // 2. Fetch invoice items
     const items: any[] = await query(`
@@ -220,15 +221,15 @@ router.get('/export', async (req: any, res, next) => {
       LEFT JOIN product_skus s ON ii.sku_id=s.id
       LEFT JOIN products p ON s.product_id=p.id
       LEFT JOIN devices d ON ii.device_id=d.id
-      WHERE ii.invoice_id IN (?)
-    `, [invoiceIds]);
+      WHERE ii.invoice_id IN (${placeholders})
+    `, invoiceIds);
 
     // 3. Fetch payments
     const payments: any[] = await query(`
       SELECT p.invoice_id, p.method, p.amount, p.type, p.created_at
       FROM payments p
-      WHERE p.invoice_id IN (?)
-    `, [invoiceIds]);
+      WHERE p.invoice_id IN (${placeholders})
+    `, invoiceIds);
 
     // Group items and payments by invoice_id
     const itemsMap = new Map<number, any[]>();
@@ -847,7 +848,7 @@ router.post('/:id/send-email', async (req: any, res, next) => {
     res.json({ success: true, message: `Invoice successfully sent to ${email.trim()}` });
   } catch (e: any) { 
     console.error('[send-email] error:', e.message);
-    next(e); 
+    res.status(400).json({ error: `Email Delivery Failed: ${e.message}` });
   }
 });
 

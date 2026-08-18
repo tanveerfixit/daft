@@ -214,24 +214,35 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
     }
   }, [activeTab, exportStartDate, exportEndDate]);
 
-  const handleDownloadInvoiceExport = (format: 'json' | 'csv') => {
+  const handleDownloadInvoiceExport = async (format: 'json' | 'csv') => {
     setIsExporting(true);
-    const params = new URLSearchParams();
-    if (exportStartDate) params.append('startDate', exportStartDate);
-    if (exportEndDate) params.append('endDate', exportEndDate);
-    params.append('format', format);
+    try {
+      const params = new URLSearchParams();
+      if (exportStartDate) params.append('startDate', exportStartDate);
+      if (exportEndDate) params.append('endDate', exportEndDate);
+      params.append('format', format);
 
-    const downloadUrl = `/api/invoices/export?${params.toString()}`;
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = `invoices_export_${exportStartDate}_to_${exportEndDate}.${format}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const res = await fetch(`/api/invoices/export?${params.toString()}`);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({ error: 'Export failed with status ' + res.status }));
+        throw new Error(errJson.error || `Server responded with ${res.status}`);
+      }
 
-    setTimeout(() => {
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `invoices_export_${exportStartDate}_to_${exportEndDate}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('Download export error:', err);
+      alert(`Export Download Failed: ${err.message}`);
+    } finally {
       setIsExporting(false);
-    }, 1000);
+    }
   };
 
   const handleInvoiceFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
