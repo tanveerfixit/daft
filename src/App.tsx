@@ -288,7 +288,7 @@ function AppInner() {
         const headers: Record<string, string> = {
           'Content-Type': 'application/json'
         };
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('epos_token');
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
         const today = new Date().toISOString().split('T')[0];
@@ -336,7 +336,7 @@ function AppInner() {
         const headers: Record<string, string> = {
           'Content-Type': 'application/json'
         };
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('epos_token');
         if (token) {
           headers['Authorization'] = `Bearer ${token}`;
         }
@@ -407,7 +407,7 @@ function AppInner() {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json'
       };
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('epos_token');
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }

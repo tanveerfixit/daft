@@ -28,8 +28,16 @@ window.fetch = async (resource: any, config: any = {}) => {
 
     const response = await originalFetch(resource, config);
     if (response.status === 401 && typeof url === 'string' && !url.includes('/api/auth/login') && !url.includes('/api/auth/me')) {
-      localStorage.removeItem('epos_token');
-      window.location.href = '/';
+      try {
+        const keys = Object.keys(localStorage);
+        keys.forEach(k => {
+          if (k.startsWith('epos_') && k !== 'theme') {
+            localStorage.removeItem(k);
+          }
+        });
+        localStorage.removeItem('token');
+      } catch (e) {}
+      window.location.replace('/');
       return new Response(JSON.stringify({}), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }

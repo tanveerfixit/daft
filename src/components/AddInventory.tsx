@@ -1,6 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Trash2, Save, Smartphone } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, Plus, Trash2, Save, Smartphone, AlertTriangle, Check } from 'lucide-react';
 import { Product, Branch, Supplier } from '../types';
+
+interface SerializedItem {
+  imei: string;
+  color: string;
+  gb: string;
+  condition: string;
+  duplicateError?: string | null;
+  isChecking?: boolean;
+}
 
 export default function AddInventory({ 
   productId, 
@@ -28,6 +37,14 @@ export default function AddInventory({
   const [showNewSupplierModal, setShowNewSupplierModal] = useState(false);
   const [newSupplierData, setNewSupplierData] = useState({ name: '', phone: '', email: '' });
   const [supplierStatus, setSupplierStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
+
+  // Serialized Items State
+  const [items, setItems] = useState<SerializedItem[]>([
+    { imei: '', color: '', gb: '128', condition: 'New' }
+  ]);
+
+  // Input refs for barcode scanner navigation
+  const imeiInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const handleQuickAddSupplier = async () => {
     if (!newSupplierData.name.trim()) return;
@@ -61,11 +78,6 @@ export default function AddInventory({
     }
   };
 
-  // Serialized Items State
-  const [items, setItems] = useState<{ imei: string; color: string; gb: string; condition: string }[]>([
-    { imei: '', color: '', gb: '', condition: 'New' }
-  ]);
-
   useEffect(() => {
     Promise.all([
       fetch(`/api/products/${productId}`).then(res => res.json()),
@@ -84,33 +96,197 @@ export default function AddInventory({
     });
   }, [productId]);
 
-  const handleAddItem = () => {
-    setItems([...items, { imei: '', color: '', gb: '', condition: 'New' }]);
+  // Auto focus first IMEI input when serialized product is loaded
+  useEffect(() => {
+    if (!loading && product?.product_type === 'serialized') {
+      setTimeout(() => {
+        imeiInputRefs.current[0]?.focus();
+      }, 100);
+    }
+  }, [loading, product]);
+
+  const checkImeiDuplicate = async (imei: string, index: number, currentItems: SerializedItem[]) => {
+    const cleanImei = imei.trim();
+    if (!cleanImei) {
+      setItems(prev => {
+        const updated = [...prev];
+        if (updated[index]) {
+          updated[index] = { ...updated[index], duplicateError: null, isChecking: false };
+        }
+        return updated;
+      });
+      return;
+    }
+
+    // 1. Check in-batch duplicate
+    const isBatchDuplicate = currentItems.some((it, i) => i !== index && it.imei.trim().toLowerCase() === cleanImei.toLowerCase());
+    if (isBatchDuplicate) {
+      setItems(prev => {
+        const updated = [...prev];
+        if (updated[index]) {
+          updated[index] = {
+            ...updated[index],
+            duplicateError: 'Duplicate IMEI in current list',
+            isChecking: false
+          };
+        }
+        return updated;
+      });
+      return;
+    }
+
+    // 2. Check Database inventory duplicate
+    try {
+      setItems(prev => {
+        const updated = [...prev];
+        if (updated[index]) {
+          updated[index] = { ...updated[index], isChecking: true };
+        }
+        return updated;
+      });
+
+      const res = await fetch(`/api/devices/check-imei?imei=${encodeURIComponent(cleanImei)}`);
+      const data = await res.json();
+
+      setItems(prev => {
+        const updated = [...prev];
+        if (updated[index]) {
+          if (data.exists && data.device) {
+            const dev = data.device;
+            updated[index] = {
+              ...updated[index],
+              duplicateError: `Already in inventory: ${dev.product_name || 'Device'} (${dev.status || 'in_stock'}${dev.branch_name ? ' @ ' + dev.branch_name : ''})`,
+              isChecking: false
+            };
+          } else {
+            updated[index] = {
+              ...updated[index],
+              duplicateError: null,
+              isChecking: false
+            };
+          }
+        }
+        return updated;
+      });
+    } catch (err) {
+      console.error('Error checking IMEI:', err);
+      setItems(prev => {
+        const updated = [...prev];
+        if (updated[index]) {
+          updated[index] = { ...updated[index], isChecking: false };
+        }
+        return updated;
+      });
+    }
+  };
+
+  const handleAddItem = (defaultValues?: Partial<SerializedItem>) => {
+    const newItem: SerializedItem = {
+      imei: defaultValues?.imei || '',
+      color: defaultValues?.color || '',
+      gb: defaultValues?.gb || '128',
+      condition: defaultValues?.condition || 'New',
+      duplicateError: null
+    };
+
+    setItems(prev => {
+      const nextList = [...prev, newItem];
+      const nextIndex = nextList.length - 1;
+      setTimeout(() => {
+        imeiInputRefs.current[nextIndex]?.focus();
+      }, 50);
+      return nextList;
+    });
   };
 
   const handleRemoveItem = (index: number) => {
-    setItems(items.filter((_, i) => i !== index));
+    setItems(prev => {
+      const remaining = prev.filter((_, i) => i !== index);
+      // Re-validate remaining items for duplicates
+      setTimeout(() => {
+        remaining.forEach((it, idx) => {
+          if (it.imei.trim()) {
+            checkImeiDuplicate(it.imei, idx, remaining);
+          }
+        });
+      }, 50);
+      return remaining;
+    });
   };
 
-  const handleItemChange = (index: number, field: string, value: string) => {
-    const newItems = [...items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setItems(newItems);
+  const handleItemChange = (index: number, field: keyof SerializedItem, value: string) => {
+    setItems(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      
+      if (field === 'imei') {
+        // Trigger duplicate check
+        checkImeiDuplicate(value, index, updated);
+      }
+      return updated;
+    });
+  };
+
+  // Barcode scan handler: on Enter key, advance to next row or create a new row immediately
+  const handleImeiKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, idx: number) => {
+    if (e.key === 'Enter') {
+      e.preventDefault(); // Prevent form submission
+      
+      const currentItem = items[idx];
+      const currentImei = currentItem?.imei?.trim();
+      
+      if (currentImei) {
+        // Validate current IMEI
+        checkImeiDuplicate(currentImei, idx, items);
+      }
+
+      if (idx === items.length - 1) {
+        // We are on the last line: auto create next line and copy GB & Condition from current row
+        handleAddItem({
+          gb: currentItem?.gb || '128',
+          condition: currentItem?.condition || 'New',
+          color: currentItem?.color || ''
+        });
+      } else {
+        // Focus the existing next line's IMEI field
+        imeiInputRefs.current[idx + 1]?.focus();
+      }
+    }
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!branchId) return alert('Please select a branch');
 
+    if (product?.product_type === 'serialized') {
+      // Validate items
+      if (items.length === 0) return alert('Please add at least one device.');
+      
+      const emptyImeis = items.filter(it => !it.imei.trim());
+      if (emptyImeis.length > 0) {
+        return alert('Please fill in all IMEI / Serial numbers or remove empty rows.');
+      }
+
+      const duplicateErrors = items.filter(it => it.duplicateError);
+      if (duplicateErrors.length > 0) {
+        return alert(`Cannot save: ${duplicateErrors.length} item(s) have duplicate/invalid IMEIs. Please resolve errors before saving.`);
+      }
+    }
+
     const payload = {
       sku_id: productId,
       branch_id: parseInt(branchId),
       quantity: product?.product_type === 'serialized' ? items.length : parseInt(quantity),
-      cost_price: parseFloat(costPrice),
-      selling_price: parseFloat(sellingPrice),
+      cost_price: parseFloat(costPrice) || 0,
+      selling_price: parseFloat(sellingPrice) || 0,
       supplier_id: supplierId ? parseInt(supplierId) : null,
       po_number: poNumber,
-      items: product?.product_type === 'serialized' ? items : []
+      items: product?.product_type === 'serialized' ? items.map(it => ({
+        imei: it.imei.trim(),
+        color: it.color,
+        gb: it.gb,
+        condition: it.condition
+      })) : []
     };
 
     try {
@@ -151,6 +327,19 @@ export default function AddInventory({
 
   return (
     <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-955 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full overflow-auto" style={{ fontSize: '17px' }}>
+      {/* Reusable Datalist for Storage options */}
+      <datalist id="storage-presets">
+        <option value="128" />
+        <option value="256" />
+        <option value="64" />
+        <option value="512" />
+        <option value="1TB" />
+        <option value="128GB" />
+        <option value="256GB" />
+        <option value="64GB" />
+        <option value="512GB" />
+      </datalist>
+
       {/* Header bar */}
       <div className="sticky top-0 z-40 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 shrink-0 mb-2">
         <div className="flex items-center justify-between px-4 py-2 flex-wrap md:flex-nowrap gap-2">
@@ -296,13 +485,18 @@ export default function AddInventory({
           {product.product_type === 'serialized' && (
             <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 font-mono text-[14px]">
               <div className="p-3 bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 flex justify-between items-center rounded-none">
-                <h3 className="text-base font-bold text-black dark:text-white uppercase flex items-center gap-2">
-                  <Smartphone size={16} className="text-[#0285b5]" />
-                  Serialized Items
-                </h3>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-base font-bold text-black dark:text-white uppercase flex items-center gap-2">
+                    <Smartphone size={16} className="text-[#0285b5]" />
+                    Serialized Items
+                  </h3>
+                  <span className="text-xs text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 border border-neutral-300 dark:border-neutral-700">
+                    Scan barcode & press Enter to auto-advance
+                  </span>
+                </div>
                 <button 
                   type="button"
-                  onClick={handleAddItem}
+                  onClick={() => handleAddItem()}
                   className="bg-[#0285b5] hover:bg-blue-600 text-white font-bold py-1 px-3 rounded-none text-xs flex items-center gap-1 transition-all cursor-pointer border border-[#0285b5]"
                 >
                   <Plus size={12} />
@@ -314,77 +508,161 @@ export default function AddInventory({
                   <thead>
                     <tr className="bg-neutral-100 dark:bg-neutral-955 border-b border-neutral-300 dark:border-neutral-800 text-[11px] font-bold text-black dark:text-white uppercase tracking-wider">
                       <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800 w-12 text-center">#</th>
-                      <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800">IMEI / Serial Number</th>
-                      <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800">Color</th>
-                      <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800">GB</th>
-                      <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800">Condition</th>
+                      <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800 min-w-[280px]">IMEI / Serial Number</th>
+                      <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800 w-44">Storage (GB)</th>
+                      <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800 w-40">Color</th>
+                      <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800 w-36">Condition</th>
                       <th className="px-3 py-2 w-12 text-center"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-200 dark:divide-neutral-850">
-                    {items.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-neutral-50 dark:hover:bg-neutral-900 text-sm bg-white dark:bg-black text-neutral-900 dark:text-neutral-100">
-                        <td className="px-3 py-2 border-r border-neutral-200 dark:border-neutral-800 text-center text-neutral-500 font-mono">{idx + 1}</td>
-                        <td className="px-3 py-2 border-r border-neutral-200 dark:border-neutral-800">
-                          <input 
-                            type="text"
-                            required
-                            value={item.imei}
-                            onChange={(e) => handleItemChange(idx, 'imei', e.target.value)}
-                            placeholder="Scan IMEI..."
-                            className="w-full bg-transparent border-none p-0 text-sm focus:ring-0 focus:outline-none outline-none font-mono text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400"
-                          />
-                        </td>
-                        <td className="px-3 py-2 border-r border-neutral-200 dark:border-neutral-800">
-                          <input 
-                            type="text"
-                            value={item.color}
-                            onChange={(e) => handleItemChange(idx, 'color', e.target.value)}
-                            placeholder="Color"
-                            className="w-full bg-transparent border-none p-0 text-sm focus:ring-0 focus:outline-none outline-none text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400"
-                          />
-                        </td>
-                        <td className="px-3 py-2 border-r border-neutral-200 dark:border-neutral-800">
-                          <input 
-                            type="text"
-                            value={item.gb}
-                            onChange={(e) => handleItemChange(idx, 'gb', e.target.value)}
-                            placeholder="GB"
-                            className="w-full bg-transparent border-none p-0 text-sm focus:ring-0 focus:outline-none outline-none text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400"
-                          />
-                        </td>
-                        <td className="px-3 py-2 border-r border-neutral-200 dark:border-neutral-800">
-                          <select 
-                            value={item.condition}
-                            onChange={(e) => handleItemChange(idx, 'condition', e.target.value)}
-                            className="bg-transparent border-none p-0 text-sm focus:ring-0 focus:outline-none outline-none text-neutral-900 dark:text-neutral-100 cursor-pointer"
-                          >
-                            <option className="bg-white dark:bg-black text-black dark:text-white">New</option>
-                            <option className="bg-white dark:bg-black text-black dark:text-white">A</option>
-                            <option className="bg-white dark:bg-black text-black dark:text-white">B</option>
-                            <option className="bg-white dark:bg-black text-black dark:text-white">C</option>
-                            <option className="bg-white dark:bg-black text-black dark:text-white">Faulty</option>
-                          </select>
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          {items.length > 1 && (
-                            <button 
-                              type="button"
-                              onClick={() => handleRemoveItem(idx)}
-                              className="text-neutral-400 hover:text-red-500 transition-colors cursor-pointer bg-transparent border-none p-0"
+                    {items.map((item, idx) => {
+                      const hasError = !!item.duplicateError;
+                      return (
+                        <tr 
+                          key={idx} 
+                          className={`text-sm transition-colors ${
+                            hasError 
+                              ? 'bg-red-50/70 dark:bg-red-950/40 text-red-900 dark:text-red-200' 
+                              : 'hover:bg-neutral-50 dark:hover:bg-neutral-900 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100'
+                          }`}
+                        >
+                          <td className="px-3 py-2.5 border-r border-neutral-200 dark:border-neutral-800 text-center text-neutral-500 font-mono align-top pt-3">
+                            {idx + 1}
+                          </td>
+                          <td className="px-3 py-2 border-r border-neutral-200 dark:border-neutral-800 align-top">
+                            <div className="relative">
+                              <input 
+                                ref={el => { imeiInputRefs.current[idx] = el; }}
+                                type="text"
+                                required
+                                value={item.imei}
+                                onChange={(e) => handleItemChange(idx, 'imei', e.target.value)}
+                                onKeyDown={(e) => handleImeiKeyDown(e, idx)}
+                                onBlur={() => checkImeiDuplicate(item.imei, idx, items)}
+                                placeholder="Scan or type IMEI (Press Enter for next line)..."
+                                className={`w-full px-2 py-1 text-sm font-mono border rounded-none focus:outline-none transition-colors ${
+                                  hasError 
+                                    ? 'border-red-500 bg-red-100/50 dark:bg-red-900/30 text-red-600 dark:text-red-300 font-bold focus:ring-1 focus:ring-red-500' 
+                                    : 'border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:border-[#0285b5]'
+                                }`}
+                              />
+                              {item.isChecking && (
+                                <span className="absolute right-2 top-1.5 text-[10px] text-neutral-400 animate-pulse font-mono">
+                                  checking...
+                                </span>
+                              )}
+                            </div>
+                            {item.duplicateError && (
+                              <div className="flex items-start gap-1 text-[11px] text-red-600 dark:text-red-400 font-bold mt-1 bg-red-100/60 dark:bg-red-950/80 p-1 border border-red-300 dark:border-red-800">
+                                <AlertTriangle size={13} className="shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+                                <span>{item.duplicateError}</span>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Storage with 128, 256 dropdown & manual entry */}
+                          <td className="px-3 py-2 border-r border-neutral-200 dark:border-neutral-800 align-top">
+                            <div className="flex items-center gap-1.5">
+                              <input 
+                                type="text"
+                                list="storage-presets"
+                                value={item.gb}
+                                onChange={(e) => handleItemChange(idx, 'gb', e.target.value)}
+                                placeholder="128, 256, etc."
+                                className="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 rounded-none focus:outline-none focus:border-[#0285b5]"
+                              />
+                              <div className="flex gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleItemChange(idx, 'gb', '128')}
+                                  className={`px-1.5 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer ${
+                                    item.gb === '128' || item.gb === '128GB'
+                                      ? 'bg-[#0285b5] text-white border-[#0285b5]'
+                                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-200'
+                                  }`}
+                                  title="Quick select 128"
+                                >
+                                  128
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleItemChange(idx, 'gb', '256')}
+                                  className={`px-1.5 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer ${
+                                    item.gb === '256' || item.gb === '256GB'
+                                      ? 'bg-[#0285b5] text-white border-[#0285b5]'
+                                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-200'
+                                  }`}
+                                  title="Quick select 256"
+                                >
+                                  256
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Color */}
+                          <td className="px-3 py-2 border-r border-neutral-200 dark:border-neutral-800 align-top">
+                            <input 
+                              type="text"
+                              value={item.color}
+                              onChange={(e) => handleItemChange(idx, 'color', e.target.value)}
+                              placeholder="e.g. Black, Blue"
+                              className="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 rounded-none focus:outline-none focus:border-[#0285b5]"
+                            />
+                          </td>
+
+                          {/* Condition */}
+                          <td className="px-3 py-2 border-r border-neutral-200 dark:border-neutral-800 align-top">
+                            <select 
+                              value={item.condition}
+                              onChange={(e) => handleItemChange(idx, 'condition', e.target.value)}
+                              className="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 rounded-none focus:outline-none focus:border-[#0285b5] cursor-pointer"
                             >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                              <option value="New" className="bg-white dark:bg-black text-black dark:text-white">New</option>
+                              <option value="A" className="bg-white dark:bg-black text-black dark:text-white">Grade A</option>
+                              <option value="B" className="bg-white dark:bg-black text-black dark:text-white">Grade B</option>
+                              <option value="C" className="bg-white dark:bg-black text-black dark:text-white">Grade C</option>
+                              <option value="Faulty" className="bg-white dark:bg-black text-black dark:text-white">Faulty</option>
+                            </select>
+                          </td>
+
+                          {/* Remove button */}
+                          <td className="px-3 py-2 text-center align-top pt-3">
+                            {items.length > 1 && (
+                              <button 
+                                type="button"
+                                onClick={() => handleRemoveItem(idx)}
+                                className="text-neutral-400 hover:text-red-500 transition-colors cursor-pointer bg-transparent border-none p-0"
+                                title="Remove row"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-              <div className="p-3 bg-neutral-50 dark:bg-neutral-950 border-t border-neutral-300 dark:border-neutral-800 text-right text-xs">
-                <span className="font-bold text-neutral-500 uppercase mr-2">Total Rows:</span>
-                <span className="font-bold text-neutral-900 dark:text-neutral-100">{items.length}</span>
+              <div className="p-3 bg-neutral-50 dark:bg-neutral-950 border-t border-neutral-300 dark:border-neutral-800 flex justify-between items-center text-xs">
+                <div className="text-neutral-500">
+                  {items.some(i => i.duplicateError) ? (
+                    <span className="text-red-500 font-bold flex items-center gap-1">
+                      <AlertTriangle size={13} />
+                      Duplicate / existing IMEI detected in table
+                    </span>
+                  ) : (
+                    <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-bold">
+                      <Check size={13} /> Ready to save
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <span className="font-bold text-neutral-500 uppercase mr-2">Total Rows:</span>
+                  <span className="font-bold text-neutral-900 dark:text-neutral-100">{items.length}</span>
+                </div>
               </div>
             </div>
           )}

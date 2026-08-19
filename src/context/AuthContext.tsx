@@ -25,6 +25,30 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+export function clearAllBusinessStorage() {
+  const keysToRemove = [
+    'epos_token',
+    'epos_cart',
+    'epos_customer',
+    'epos_payments',
+    'epos_activities',
+    'token'
+  ];
+  keysToRemove.forEach(k => localStorage.removeItem(k));
+
+  // Purge any namespaced business keys (e.g. epos_cart_biz_*)
+  try {
+    const allKeys = Object.keys(localStorage);
+    allKeys.forEach(key => {
+      if (key.startsWith('epos_') && key !== 'theme') {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch (e) {
+    console.error('Failed to clean localStorage:', e);
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -37,9 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .then(r => r.json())
         .then(user => {
           if (user.id) { setCurrentUser(user); setToken(savedToken); }
-          else { localStorage.removeItem('epos_token'); }
+          else { clearAllBusinessStorage(); }
         })
-        .catch(() => localStorage.removeItem('epos_token'))
+        .catch(() => clearAllBusinessStorage())
         .finally(() => setLoading(false));
     } else {
       setLoading(false);
@@ -54,23 +78,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Login failed');
+    
+    // Clear residual storage before initializing new business session
+    clearAllBusinessStorage();
+
     localStorage.setItem('epos_token', data.token);
     setToken(data.token);
     setCurrentUser(data.user);
   };
 
   const setSession = useCallback((newToken: string, newUser: User) => {
+    clearAllBusinessStorage();
     localStorage.setItem('epos_token', newToken);
     setToken(newToken);
     setCurrentUser(newUser);
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback((redirect: boolean = true) => {
     const t = localStorage.getItem('epos_token');
-    if (t) fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${t}` } });
-    localStorage.removeItem('epos_token');
+    if (t) {
+      fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${t}` } }).catch(() => {});
+    }
+    clearAllBusinessStorage();
     setToken(null);
     setCurrentUser(null);
+    if (redirect) {
+      window.location.replace('/');
+    }
   }, []);
 
   useEffect(() => {

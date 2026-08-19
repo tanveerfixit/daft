@@ -67,7 +67,7 @@ export const StartingCashModal: React.FC<StartingCashModalProps> = ({
       const headers: Record<string, string> = {
         'Content-Type': 'application/json'
       };
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('epos_token');
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }

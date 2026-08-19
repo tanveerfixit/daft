@@ -50,11 +50,13 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const [categories, setCategories] = useState<any[]>([]);
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('epos_cart');
+    const bId = currentUser?.business_id;
+    const saved = bId ? localStorage.getItem(`epos_cart_biz_${bId}`) : null;
     try { return saved ? JSON.parse(saved) : []; } catch { return []; }
   });
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(() => {
-    const saved = localStorage.getItem('epos_customer');
+    const bId = currentUser?.business_id;
+    const saved = bId ? localStorage.getItem(`epos_customer_biz_${bId}`) : null;
     try { return saved ? JSON.parse(saved) : null; } catch { return null; }
   });
   const [customerSearch, setCustomerSearch] = useState('');
@@ -63,7 +65,8 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const [paymentAmount, setPaymentAmount] = useState('');
   const [availableMethods, setAvailableMethods] = useState<string[]>(['Cash', 'Card']);
   const [addedPayments, setAddedPayments] = useState<PaymentEntry[]>(() => {
-    const saved = localStorage.getItem('epos_payments');
+    const bId = currentUser?.business_id;
+    const saved = bId ? localStorage.getItem(`epos_payments_biz_${bId}`) : null;
     try { return saved ? JSON.parse(saved) : []; } catch { return []; }
   });
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -71,10 +74,32 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const [lastInvoiceData, setLastInvoiceData] = useState<any>(null);
   const [printType, setPrintType] = useState<'Thermal' | 'A4'>('Thermal');
   const [activities, setActivities] = useState<Activity[]>(() => {
-    const saved = localStorage.getItem('epos_activities');
+    const bId = currentUser?.business_id;
+    const saved = bId ? localStorage.getItem(`epos_activities_biz_${bId}`) : null;
     try { return saved ? JSON.parse(saved) : []; } catch { return []; }
   });
   
+  // Reload storage state if active business changes
+  useEffect(() => {
+    if (!currentUser?.business_id) return;
+    const bId = currentUser.business_id;
+    try {
+      const savedCart = localStorage.getItem(`epos_cart_biz_${bId}`);
+      setCart(savedCart ? JSON.parse(savedCart) : []);
+
+      const savedCust = localStorage.getItem(`epos_customer_biz_${bId}`);
+      setSelectedCustomer(savedCust ? JSON.parse(savedCust) : null);
+
+      const savedPay = localStorage.getItem(`epos_payments_biz_${bId}`);
+      setAddedPayments(savedPay ? JSON.parse(savedPay) : []);
+
+      const savedAct = localStorage.getItem(`epos_activities_biz_${bId}`);
+      setActivities(savedAct ? JSON.parse(savedAct) : []);
+    } catch (e) {
+      console.error('Error restoring business cart:', e);
+    }
+  }, [currentUser?.business_id]);
+
   // New Customer Modal State
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
@@ -97,22 +122,30 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
   const [depositProductInfo, setDepositProductInfo] = useState<any>(null);
 
-  // Persistence Effects
+  // Persistence Effects - strictly isolated by business ID
   useEffect(() => {
-    localStorage.setItem('epos_cart', JSON.stringify(cart));
-  }, [cart]);
+    if (currentUser?.business_id) {
+      localStorage.setItem(`epos_cart_biz_${currentUser.business_id}`, JSON.stringify(cart));
+    }
+  }, [cart, currentUser?.business_id]);
 
   useEffect(() => {
-    localStorage.setItem('epos_customer', JSON.stringify(selectedCustomer));
-  }, [selectedCustomer]);
+    if (currentUser?.business_id) {
+      localStorage.setItem(`epos_customer_biz_${currentUser.business_id}`, JSON.stringify(selectedCustomer));
+    }
+  }, [selectedCustomer, currentUser?.business_id]);
 
   useEffect(() => {
-    localStorage.setItem('epos_payments', JSON.stringify(addedPayments));
-  }, [addedPayments]);
+    if (currentUser?.business_id) {
+      localStorage.setItem(`epos_payments_biz_${currentUser.business_id}`, JSON.stringify(addedPayments));
+    }
+  }, [addedPayments, currentUser?.business_id]);
 
   useEffect(() => {
-    localStorage.setItem('epos_activities', JSON.stringify(activities));
-  }, [activities]);
+    if (currentUser?.business_id) {
+      localStorage.setItem(`epos_activities_biz_${currentUser.business_id}`, JSON.stringify(activities));
+    }
+  }, [activities, currentUser?.business_id]);
 
   // Effects
   useEffect(() => {
@@ -692,6 +725,13 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     setActivities([]); // Reset activities for the new invoice
     
     // Clear persistence
+    if (currentUser?.business_id) {
+      const bId = currentUser.business_id;
+      localStorage.removeItem(`epos_cart_biz_${bId}`);
+      localStorage.removeItem(`epos_customer_biz_${bId}`);
+      localStorage.removeItem(`epos_payments_biz_${bId}`);
+      localStorage.removeItem(`epos_activities_biz_${bId}`);
+    }
     localStorage.removeItem('epos_cart');
     localStorage.removeItem('epos_customer');
     localStorage.removeItem('epos_payments');

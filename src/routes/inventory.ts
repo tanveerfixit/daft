@@ -133,6 +133,35 @@ router.get('/purchase-orders/:id', async (req: any, res, next) => {
   } catch (e: any) { next(e); }
 });
 
+// GET /api/devices/check-imei (Check if IMEI already exists in database inventory)
+router.get('/devices/check-imei', async (req: any, res, next) => {
+  const { imei } = req.query;
+  if (!imei || String(imei).trim() === '') {
+    return res.json({ exists: false });
+  }
+  try {
+    const cleanImei = String(imei).trim();
+    const device = await queryOne(`
+      SELECT d.id, d.imei, d.imei_serial, d.status, d.branch_id, d.condition, d.gb, d.color,
+             p.name as product_name, s.sku_code, b.name as branch_name
+      FROM devices d
+      JOIN product_skus s ON d.sku_id = s.id
+      JOIN products p ON s.product_id = p.id
+      LEFT JOIN branches b ON d.branch_id = b.id
+      WHERE (d.imei = ? OR d.imei_serial = ?) AND d.business_id = ?
+      LIMIT 1
+    `, [cleanImei, cleanImei, req.user.business_id]);
+
+    if (device) {
+      return res.json({ exists: true, device });
+    }
+    return res.json({ exists: false });
+  } catch (e: any) {
+    console.error('[CheckIMEI] Error:', e.message);
+    next(e);
+  }
+});
+
 // GET /api/devices/search  (must be BEFORE /devices/:id to avoid wildcard clash)
 router.get('/devices/search', async (req: any, res, next) => {
   const { q, imei, branch_id } = req.query;

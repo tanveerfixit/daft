@@ -692,16 +692,34 @@ export default function EndOfDay() {
     }
   };
 
+  const isCashPayment = (method: string) => {
+    const m = (method || '').toLowerCase();
+    return m === 'cash' || m.includes('cash');
+  };
+
+  const isCardPayment = (method: string) => {
+    const m = (method || '').toLowerCase();
+    return m.includes('card') || m.includes('debit') || m.includes('credit');
+  };
+
+  const isWalletPayment = (method: string) => {
+    const m = (method || '').toLowerCase();
+    return m.includes('wallet');
+  };
+
   const allPayments = [...invoicePayments, ...otherMovements];
-  const totalSales = allPayments.reduce((sum, p) => sum + p.amount, 0);
+  const totalSales = allPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const totalRefunds = allPayments
+    .filter(p => (Number(p.amount) || 0) < 0)
+    .reduce((sum, p) => sum + Math.abs(Number(p.amount) || 0), 0);
   
   const cashFromInvoices = invoicePayments
-    .filter(p => p.method.toLowerCase() === 'cash')
-    .reduce((sum, p) => sum + p.amount, 0);
+    .filter(p => isCashPayment(p.method))
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     
   const cashFromDeposits = otherMovements
-    .filter(p => p.method.toLowerCase() === 'cash')
-    .reduce((sum, p) => sum + p.amount, 0);
+    .filter(p => isCashPayment(p.method))
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
   const totalCashSales = cashFromInvoices + cashFromDeposits;
   const calculatedCashTotal = totalCashSales + startingBalance;
@@ -713,30 +731,27 @@ export default function EndOfDay() {
     
     if (type === 'Card') {
       return allPayments
-        .filter(p => p.method.toLowerCase().includes('card'))
-        .reduce((sum, p) => sum + p.amount, 0);
+        .filter(p => isCardPayment(p.method))
+        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     }
     
     if (type === 'Wallet') {
       return allPayments
-        .filter(p => p.method.toLowerCase() === 'wallet')
-        .reduce((sum, p) => sum + p.amount, 0);
+        .filter(p => isWalletPayment(p.method))
+        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     }
     
     if (type === 'Refunds') {
       return allPayments
-        .filter(p => p.amount < 0)
-        .reduce((sum, p) => sum + p.amount, 0);
+        .filter(p => (Number(p.amount) || 0) < 0)
+        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     }
     
     if (type === 'Other') {
       // Catch-all for any method that isn't Cash, Card, or Wallet
       return allPayments
-        .filter(p => {
-          const m = p.method.toLowerCase();
-          return !m.includes('cash') && !m.includes('card') && m !== 'wallet';
-        })
-        .reduce((sum, p) => sum + p.amount, 0);
+        .filter(p => !isCashPayment(p.method) && !isCardPayment(p.method) && !isWalletPayment(p.method))
+        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     }
     return 0;
   };
@@ -1207,6 +1222,8 @@ export default function EndOfDay() {
                             <option value="Debit Card">Debit Card</option>
                             <option value="Credit Card">Credit Card</option>
                             <option value="Wallet">Wallet</option>
+                            <option value="Refund (Cash)">Refund (Cash)</option>
+                            <option value="Refund (Debit Card)">Refund (Debit Card)</option>
                             <option value="Other">Other</option>
                           </select>
                         </td>
