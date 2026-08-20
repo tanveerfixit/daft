@@ -4803,29 +4803,42 @@ var init_inventory = __esm({
       }
     });
     router8.get("/devices/search", async (req, res, next) => {
-      const { q, imei, branch_id } = req.query;
+      const { q, imei, branch_id, status } = req.query;
       const searchVal = q || imei;
       try {
         let sql = `
-      SELECT d.*, p.name as product_name, s.sku_code, b.name as branch_name
+      SELECT 
+        d.*, 
+        p.name as product_name, 
+        COALESCE(c.name, 'Mobile Devices') as category_name,
+        COALESCE(m.name, '') as manufacturer_name,
+        s.sku_code, 
+        s.barcode,
+        b.name as branch_name
       FROM devices d 
-      JOIN product_skus s ON d.sku_id=s.id
-      JOIN products p ON s.product_id=p.id
+      LEFT JOIN product_skus s ON d.sku_id=s.id
+      LEFT JOIN products p ON (d.product_id=p.id OR s.product_id=p.id)
+      LEFT JOIN categories c ON p.category_id=c.id
+      LEFT JOIN manufacturers m ON p.manufacturer_id=m.id
       LEFT JOIN branches b ON d.branch_id=b.id 
-      WHERE d.status='in_stock' AND d.business_id=?
+      WHERE d.business_id=?
     `;
         const params = [req.user.business_id];
-        if (searchVal && String(searchVal).trim() !== "") {
-          sql += " AND (d.imei LIKE ? OR p.name LIKE ? OR s.sku_code LIKE ? OR d.imei_serial LIKE ?)";
-          const term = `%${String(searchVal).trim()}%`;
-          params.push(term, term, term, term);
+        if (status && status !== "all") {
+          sql += " AND d.status=?";
+          params.push(status);
         }
-        const activeBranchId = branch_id ? parseInt(branch_id) : req.user.branch_id;
+        if (searchVal && String(searchVal).trim() !== "") {
+          sql += " AND (d.imei LIKE ? OR p.name LIKE ? OR s.sku_code LIKE ? OR s.barcode LIKE ? OR d.imei_serial LIKE ?)";
+          const term = `%${String(searchVal).trim()}%`;
+          params.push(term, term, term, term, term);
+        }
+        const activeBranchId = branch_id ? parseInt(branch_id) : null;
         if (activeBranchId && String(activeBranchId) !== "undefined") {
           sql += " AND d.branch_id=?";
           params.push(activeBranchId);
         }
-        sql += " LIMIT 20";
+        sql += " ORDER BY d.id DESC LIMIT 50";
         res.json(await query(sql, params));
       } catch (e) {
         console.error("[SearchDevices] Error:", e.message);

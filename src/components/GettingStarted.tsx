@@ -3,7 +3,8 @@ import {
   Settings, Building2, Percent, CreditCard, Users, Package, Printer, Save, 
   Plus, X, ArrowUp, Upload, RotateCcw, FileText, Download, FileSpreadsheet, 
   Calendar, CheckCircle2, AlertCircle, RefreshCw, FileJson, ArrowDownToLine, 
-  ArrowUpFromLine, Check, ShieldCheck, Database
+  ArrowUpFromLine, Check, ShieldCheck, Database, ScanBarcode, Search, Trash2, 
+  Smartphone, ListPlus, CheckCheck
 } from 'lucide-react';
 
 interface SettingsData {
@@ -153,6 +154,14 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
     errors?: string[];
   } | null>(null);
   const serialFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Scanned / Searched Serial Devices Export State
+  const [serialExportMode, setSerialExportMode] = useState<'all' | 'scanned'>('all');
+  const [scannedExportDevices, setScannedExportDevices] = useState<any[]>([]);
+  const [scanInputText, setScanInputText] = useState('');
+  const [isScanningDevice, setIsScanningDevice] = useState(false);
+  const [scanFeedback, setScanFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const scanInputRef = useRef<HTMLInputElement>(null);
 
   // General Products
   const [generalCsvText, setGeneralCsvText] = useState('');
@@ -511,6 +520,107 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
     } catch (err: any) {
       alert(`Download Error: ${err.message}`);
     }
+  };
+
+  const handleScanOrSearchDevice = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const queryText = scanInputText.trim();
+    if (!queryText) return;
+
+    setIsScanningDevice(true);
+    setScanFeedback(null);
+
+    try {
+      const res = await fetch(`/api/devices/search?q=${encodeURIComponent(queryText)}`);
+      if (!res.ok) throw new Error('Failed to search device');
+      const list = await res.json();
+
+      if (!list || list.length === 0) {
+        setScanFeedback({ type: 'error', message: `No device found matching "${queryText}" in current inventory.` });
+        return;
+      }
+
+      // Find exact or first match
+      const exactMatch = list.find((d: any) => 
+        (d.imei && d.imei.toLowerCase() === queryText.toLowerCase()) ||
+        (d.imei_serial && d.imei_serial.toLowerCase() === queryText.toLowerCase()) ||
+        (d.barcode && d.barcode.toLowerCase() === queryText.toLowerCase()) ||
+        (d.sku_code && d.sku_code.toLowerCase() === queryText.toLowerCase())
+      ) || list[0];
+
+      // Check if already in scanned list
+      const alreadyAdded = scannedExportDevices.some((d: any) => d.id === exactMatch.id || (d.imei && exactMatch.imei && d.imei === exactMatch.imei));
+      if (alreadyAdded) {
+        setScanFeedback({ type: 'error', message: `Device "${exactMatch.imei || exactMatch.product_name}" is already in the export list.` });
+      } else {
+        setScannedExportDevices(prev => [exactMatch, ...prev]);
+        setScanFeedback({ 
+          type: 'success', 
+          message: `✓ Added: ${exactMatch.product_name} (${exactMatch.imei || exactMatch.imei_serial || exactMatch.sku_code || 'Device'})` 
+        });
+        setScanInputText('');
+      }
+    } catch (err: any) {
+      setScanFeedback({ type: 'error', message: err.message || 'Error searching device' });
+    } finally {
+      setIsScanningDevice(false);
+      setTimeout(() => {
+        scanInputRef.current?.focus();
+      }, 50);
+    }
+  };
+
+  const handleRemoveScannedDevice = (deviceId: number) => {
+    setScannedExportDevices(prev => prev.filter(d => d.id !== deviceId));
+  };
+
+  const handleClearScannedDevices = () => {
+    setScannedExportDevices([]);
+    setScanFeedback(null);
+  };
+
+  const handleDownloadScannedSerialExport = () => {
+    if (scannedExportDevices.length === 0) {
+      alert('Please scan or search at least one device to export.');
+      return;
+    }
+
+    const escapeCsv = (str: any) => {
+      if (str === null || str === undefined) return '""';
+      const s = String(str).trim();
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+
+    let csvContent = `"Serial Number / IMEI","Product Name","Category","Brand / Manufacturer","Storage","Color","Condition","Cost Price","Selling Price","Stock Status","IMEI Status","Carrier / Lock","Created Date"\n`;
+    for (const d of scannedExportDevices) {
+      const serial = d.imei_serial || d.imei || d.sku_code || '';
+      const line = [
+        escapeCsv(serial),
+        escapeCsv(d.product_name || 'Standard Mobile Device'),
+        escapeCsv(d.category_name || 'Mobile Devices'),
+        escapeCsv(d.manufacturer_name || ''),
+        escapeCsv(d.gb || d.storage || ''),
+        escapeCsv(d.color || ''),
+        escapeCsv(d.condition || d.physical_condition || 'New'),
+        Number(d.cost_price || 0).toFixed(2),
+        Number(d.selling_price || 0).toFixed(2),
+        escapeCsv(d.status || 'in_stock'),
+        escapeCsv(d.imei_status || 'Clean'),
+        escapeCsv(d.carrier || 'Unlocked'),
+        escapeCsv(d.created_at ? new Date(d.created_at).toISOString().replace('T', ' ').slice(0, 19) : new Date().toISOString().replace('T', ' ').slice(0, 19))
+      ].join(',');
+      csvContent += line + '\n';
+    }
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `scanned_serial_products_${scannedExportDevices.length}_devices_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
   };
 
   const handleSerialFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2645,7 +2755,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                   {/* Left: Export Serial Products */}
                   <div className="bg-white border border-slate-200 rounded-lg p-5 flex flex-col justify-between space-y-4">
                     <div>
-                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
                         <div className="flex items-center gap-2">
                           <ArrowDownToLine size={18} className="text-blue-600" />
                           <h4 className="font-bold text-slate-800 text-base">Export Serial Products</h4>
@@ -2659,38 +2769,187 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                         </button>
                       </div>
 
-                      <p className="text-xs text-slate-600 mb-3 leading-relaxed">
-                        Download all serialized inventory (Phones, Tablets, Laptops) into standard CSV format:
-                      </p>
-
-                      <div className="bg-slate-50 border border-slate-200 rounded p-2.5 mb-4 text-[11px] font-mono text-slate-700 space-y-1 overflow-x-auto">
-                        <div>"Serial Number / IMEI", "Product Name", "Category", "Brand / Manufacturer", "Storage", "Color", "Condition", "Cost Price", "Selling Price", "Stock Status", "IMEI Status", "Carrier / Lock", "Created Date"</div>
+                      {/* Export Sub-Tabs: All vs Scan */}
+                      <div className="flex bg-slate-100 p-1 rounded-md mb-3 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setSerialExportMode('all')}
+                          className={`flex-1 py-1.5 px-2 rounded font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                            serialExportMode === 'all'
+                              ? 'bg-white text-blue-700 shadow-xs font-semibold'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <Database size={13} />
+                          Download All Inventory
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSerialExportMode('scanned');
+                            setTimeout(() => scanInputRef.current?.focus(), 50);
+                          }}
+                          className={`flex-1 py-1.5 px-2 rounded font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                            serialExportMode === 'scanned'
+                              ? 'bg-white text-blue-700 shadow-xs font-semibold'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <ScanBarcode size={13} />
+                          Scan Barcode / Search IMEI {scannedExportDevices.length > 0 ? `(${scannedExportDevices.length})` : ''}
+                        </button>
                       </div>
 
-                      <div className="bg-blue-50 border border-blue-100 rounded p-3 text-xs text-blue-800 mb-4">
-                        <span className="font-semibold">In-Stock Devices:</span> {serialStats.in_stock_devices} &nbsp;|&nbsp; <span className="font-semibold">Total Recorded:</span> {serialStats.total_devices}
-                      </div>
+                      {serialExportMode === 'all' ? (
+                        <>
+                          <p className="text-xs text-slate-600 mb-3 leading-relaxed">
+                            Download all serialized inventory (Phones, Tablets, Laptops) into standard CSV format:
+                          </p>
+
+                          <div className="bg-slate-50 border border-slate-200 rounded p-2.5 mb-4 text-[11px] font-mono text-slate-700 space-y-1 overflow-x-auto">
+                            <div>"Serial Number / IMEI", "Product Name", "Category", "Brand / Manufacturer", "Storage", "Color", "Condition", "Cost Price", "Selling Price", "Stock Status", "IMEI Status", "Carrier / Lock", "Created Date"</div>
+                          </div>
+
+                          <div className="bg-blue-50 border border-blue-100 rounded p-3 text-xs text-blue-800 mb-4">
+                            <span className="font-semibold">In-Stock Devices:</span> {serialStats.in_stock_devices} &nbsp;|&nbsp; <span className="font-semibold">Total Recorded:</span> {serialStats.total_devices}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="space-y-3">
+                          <p className="text-xs text-slate-600 leading-relaxed">
+                            Scan device barcodes or enter IMEIs one by one to compile a specific list to export:
+                          </p>
+
+                          {/* Scanner Input */}
+                          <form onSubmit={handleScanOrSearchDevice} className="flex gap-2">
+                            <div className="relative flex-1">
+                              <ScanBarcode size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                              <input
+                                ref={scanInputRef}
+                                type="text"
+                                value={scanInputText}
+                                onChange={(e) => setScanInputText(e.target.value)}
+                                placeholder="Scan barcode or type IMEI & press Enter..."
+                                className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none font-mono"
+                              />
+                            </div>
+                            <button
+                              type="submit"
+                              disabled={isScanningDevice || !scanInputText.trim()}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold disabled:opacity-50 flex items-center gap-1 shrink-0"
+                            >
+                              <Plus size={14} />
+                              {isScanningDevice ? 'Searching...' : 'Add'}
+                            </button>
+                          </form>
+
+                          {/* Scan Feedback Banner */}
+                          {scanFeedback && (
+                            <div className={`p-2 rounded text-xs flex items-center justify-between ${
+                              scanFeedback.type === 'success'
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                : 'bg-red-50 text-red-800 border border-red-200'
+                            }`}>
+                              <span>{scanFeedback.message}</span>
+                              <button onClick={() => setScanFeedback(null)} className="text-slate-400 hover:text-slate-600">
+                                <X size={13} />
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Scanned List */}
+                          <div className="border border-slate-200 rounded overflow-hidden">
+                            <div className="bg-slate-50 px-3 py-1.5 border-b border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-700">
+                              <span className="flex items-center gap-1.5">
+                                <Smartphone size={13} className="text-blue-600" />
+                                Scanned Devices ({scannedExportDevices.length})
+                              </span>
+                              {scannedExportDevices.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={handleClearScannedDevices}
+                                  className="text-[11px] text-red-600 hover:text-red-800 font-normal underline"
+                                >
+                                  Clear All
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="max-h-48 overflow-y-auto divide-y divide-slate-100">
+                              {scannedExportDevices.length === 0 ? (
+                                <div className="p-4 text-center text-xs text-slate-400">
+                                  No devices scanned yet. Scan a barcode or type an IMEI above.
+                                </div>
+                              ) : (
+                                scannedExportDevices.map((dev, idx) => (
+                                  <div key={dev.id || idx} className="p-2.5 flex items-center justify-between text-xs hover:bg-slate-50 transition-colors">
+                                    <div className="min-w-0 pr-2">
+                                      <div className="font-semibold text-slate-800 truncate">{dev.product_name || 'Mobile Device'}</div>
+                                      <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2">
+                                        <span>IMEI: {dev.imei || dev.imei_serial || dev.sku_code}</span>
+                                        {(dev.gb || dev.color || dev.condition) && (
+                                          <span>• {[dev.gb, dev.color, dev.condition].filter(Boolean).join(' / ')}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <span className="font-semibold text-slate-700">${Number(dev.selling_price || 0).toFixed(2)}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveScannedDevice(dev.id)}
+                                        title="Remove from export"
+                                        className="p-1 text-slate-400 hover:text-red-600 rounded"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-2 pt-2 border-t border-slate-100">
-                      <button
-                        type="button"
-                        onClick={handleDownloadSerialExport}
-                        disabled={isSerialExporting}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        <Download size={16} />
-                        {isSerialExporting ? 'Exporting...' : 'Download Serial Products (.csv)'}
-                      </button>
+                      {serialExportMode === 'all' ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleDownloadSerialExport}
+                            disabled={isSerialExporting}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                          >
+                            <Download size={16} />
+                            {isSerialExporting ? 'Exporting...' : 'Download Serial Products (.csv)'}
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={handleDownloadSerialSample}
-                        className="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium py-1.5 px-3 rounded text-xs border border-slate-200 transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        <FileText size={14} />
-                        Download Sample Template (.csv)
-                      </button>
+                          <button
+                            type="button"
+                            onClick={handleDownloadSerialSample}
+                            className="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium py-1.5 px-3 rounded text-xs border border-slate-200 transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            <FileText size={14} />
+                            Download Sample Template (.csv)
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleDownloadScannedSerialExport}
+                            disabled={scannedExportDevices.length === 0}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                          >
+                            <Download size={16} />
+                            Download Scanned CSV ({scannedExportDevices.length} {scannedExportDevices.length === 1 ? 'device' : 'devices'})
+                          </button>
+                          <p className="text-[11px] text-slate-500 text-center">
+                            💡 Import this CSV into another shop with "Update Existing Details" to transfer ownership.
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
 
