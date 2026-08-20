@@ -4745,17 +4745,17 @@ var init_inventory = __esm({
               skuId = insSku.insertId;
             }
             const [existDevice] = await conn.execute(
-              "SELECT id FROM devices WHERE business_id = ? AND (imei COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci OR imei_serial COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci) LIMIT 1",
-              [businessId, serialNumber, serialNumber]
+              "SELECT id FROM devices WHERE (imei COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci OR imei_serial COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci) LIMIT 1",
+              [serialNumber, serialNumber]
             );
             if (existDevice.length > 0) {
               const existingId = existDevice[0].id;
               if (duplicateHandling === "overwrite") {
                 await conn.execute(`
               UPDATE devices 
-              SET product_id = ?, sku_id = ?, gb = ?, color = ?, \`condition\` = ?, cost_price = ?, selling_price = ?, status = ?, imei_status = ?, carrier = ?
+              SET business_id = ?, branch_id = ?, product_id = ?, sku_id = ?, gb = ?, color = ?, \`condition\` = ?, cost_price = ?, selling_price = ?, status = ?, imei_status = ?, carrier = ?
               WHERE id = ?
-            `, [productId, skuId, storage, color, condition, costPrice, sellingPrice, stockStatus, imeiStatus, carrier, existingId]);
+            `, [businessId, branchId, productId, skuId, storage, color, condition, costPrice, sellingPrice, stockStatus, imeiStatus, carrier, existingId]);
                 updated++;
               } else {
                 skipped++;
