@@ -34,9 +34,22 @@ export function clearAllBusinessStorage() {
     'epos_activities',
     'token'
   ];
-  keysToRemove.forEach(k => localStorage.removeItem(k));
+  keysToRemove.forEach(k => {
+    sessionStorage.removeItem(k);
+    localStorage.removeItem(k);
+  });
 
-  // Purge any namespaced business keys (e.g. epos_cart_biz_*)
+  // Purge any namespaced business keys in sessionStorage
+  try {
+    const sKeys = Object.keys(sessionStorage);
+    sKeys.forEach(key => {
+      if (key.startsWith('epos_') && key !== 'theme') {
+        sessionStorage.removeItem(key);
+      }
+    });
+  } catch (e) {}
+
+  // Purge legacy namespaced business keys in localStorage
   try {
     const allKeys = Object.keys(localStorage);
     allKeys.forEach(key => {
@@ -45,7 +58,7 @@ export function clearAllBusinessStorage() {
       }
     });
   } catch (e) {
-    console.error('Failed to clean localStorage:', e);
+    console.error('Failed to clean storage:', e);
   }
 }
 
@@ -55,8 +68,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('epos_token');
+    const savedToken = sessionStorage.getItem('epos_token') || localStorage.getItem('epos_token');
     if (savedToken) {
+      // Isolate to this tab's sessionStorage and remove from global localStorage
+      sessionStorage.setItem('epos_token', savedToken);
+      localStorage.removeItem('epos_token');
+
       fetch('/api/auth/me', { headers: { Authorization: `Bearer ${savedToken}` } })
         .then(r => r.json())
         .then(user => {
@@ -82,20 +99,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Clear residual storage before initializing new business session
     clearAllBusinessStorage();
 
-    localStorage.setItem('epos_token', data.token);
+    sessionStorage.setItem('epos_token', data.token);
+    localStorage.removeItem('epos_token');
     setToken(data.token);
     setCurrentUser(data.user);
   };
 
   const setSession = useCallback((newToken: string, newUser: User) => {
     clearAllBusinessStorage();
-    localStorage.setItem('epos_token', newToken);
+    sessionStorage.setItem('epos_token', newToken);
+    localStorage.removeItem('epos_token');
     setToken(newToken);
     setCurrentUser(newUser);
   }, []);
 
   const logout = useCallback((redirect: boolean = true) => {
-    const t = localStorage.getItem('epos_token');
+    const t = sessionStorage.getItem('epos_token') || localStorage.getItem('epos_token');
     if (t) {
       fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${t}` } }).catch(() => {});
     }
