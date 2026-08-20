@@ -547,24 +547,34 @@ export default function CustomerDetails({
           )}
 
           {activeTab === 'activity' && (
-            <div className="space-y-4">
-              <h3 className="text-base font-bold text-black dark:text-white uppercase tracking-wider border-b border-neutral-300 dark:border-neutral-800 pb-2">Activity Log</h3>
+            <div className="space-y-2">
+              <h3 className="text-base font-bold uppercase tracking-wider border-b border-neutral-300 dark:border-neutral-800 pb-1">Activity Log</h3>
               {activities.length === 0 ? (
-                <p className="text-center text-neutral-400 dark:text-neutral-500 italic py-8 text-sm font-normal">No activity recorded yet.</p>
+                <p className="text-center text-neutral-400 dark:text-neutral-500 italic py-4 text-base font-normal">No activity recorded yet.</p>
               ) : (
-                <div className="space-y-4">
-                  {activities.map(act => (
-                    <div key={act.id} className="bg-neutral-200 dark:bg-neutral-900 rounded-none p-3 border border-neutral-300 dark:border-neutral-800">
-                      <div className="flex justify-between items-start mb-1 font-normal">
-                        <p className="text-base font-bold text-black dark:text-white">{act.activity}</p>
-                        <span className="text-[11px] font-bold text-neutral-400 uppercase">
-                          {new Date(act.created_at).toLocaleString()}
-                        </span>
-                      </div>
-                      <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed font-normal">{act.details}</p>
-                      <p className="text-[11px] text-neutral-400 mt-2 font-normal">Logged by: {act.user_name}</p>
-                    </div>
-                  ))}
+                <div className="border border-neutral-300 dark:border-neutral-800 overflow-hidden">
+                  <table className="w-full text-left text-base border-collapse">
+                    <thead>
+                      <tr className="bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-sm font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+                        <th className="py-1.5 px-3 border-r border-neutral-300 dark:border-neutral-800 w-32">Date</th>
+                        <th className="py-1.5 px-3 border-r border-neutral-300 dark:border-neutral-800 w-28">Time</th>
+                        <th className="py-1.5 px-3 border-r border-neutral-300 dark:border-neutral-800 w-40">User</th>
+                        <th className="py-1.5 px-3 border-r border-neutral-300 dark:border-neutral-800 w-48">Activity</th>
+                        <th className="py-1.5 px-3">Details</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800 text-base">
+                      {activities.map(act => (
+                        <tr key={act.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors bg-white dark:bg-black text-neutral-900 dark:text-neutral-100">
+                          <td className="py-1.5 px-3 border-r border-neutral-200 dark:border-neutral-800">{new Date(act.created_at).toLocaleDateString('en-GB')}</td>
+                          <td className="py-1.5 px-3 border-r border-neutral-200 dark:border-neutral-800">{new Date(act.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</td>
+                          <td className="py-1.5 px-3 border-r border-neutral-200 dark:border-neutral-800">{act.user_name || 'System'}</td>
+                          <td className="py-1.5 px-3 border-r border-neutral-200 dark:border-neutral-800">{act.activity}</td>
+                          <td className="py-1.5 px-3">{act.details}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

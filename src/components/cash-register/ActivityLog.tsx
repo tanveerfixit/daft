@@ -14,54 +14,54 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ activities }) => {
       case 'sale': return <Tag size={12} className="text-emerald-600 dark:text-emerald-400" />;
       case 'customer': return <UserPlus size={12} className="text-blue-600 dark:text-blue-400" />;
       case 'stock': return <Package size={12} className="text-amber-600 dark:text-amber-400" />;
-      default: return <Settings size={12} className="text-neutral-500" />;
+      default: return <Settings size={12} className="text-slate-500" />;
     }
   };
 
   const getActivityBg = (type: Activity['type']) => {
     switch (type) {
-      case 'sale': return 'bg-emerald-100 dark:bg-emerald-950/20';
-      case 'customer': return 'bg-blue-100 dark:bg-blue-950/20';
-      case 'stock': return 'bg-amber-100 dark:bg-amber-950/20';
-      default: return 'bg-neutral-100 dark:bg-neutral-900';
+      case 'sale': return 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800';
+      case 'customer': return 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800';
+      case 'stock': return 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800';
+      default: return 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700';
     }
   };
 
   return (
-    <div className={`bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-md shadow-xs overflow-hidden flex flex-col transition-all duration-300 ${isCollapsed ? 'h-[40px]' : 'h-[200px]'} font-mono`}>
+    <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs overflow-hidden flex flex-col transition-all duration-300 ${isCollapsed ? 'h-[42px]' : 'h-[200px]'} font-sans`}>
       <div 
-        className="px-4 py-1.5 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900 flex items-center justify-between cursor-pointer hover:bg-neutral-250 dark:hover:bg-neutral-850 transition-colors"
+        className="px-3 py-1.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 flex items-center justify-between cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
-        <div className="flex items-center gap-2">
-          <History size={16} className="text-neutral-600 dark:text-neutral-400" />
-          <h2 className="font-bold text-black dark:text-white text-[13px] uppercase tracking-wider">Recent Activity</h2>
+        <div className="flex items-center gap-1.5">
+          <History size={14} className="text-blue-600 dark:text-blue-400" />
+          <h2 className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wider">Recent Activity</h2>
           {activities.length > 0 && (
-            <span className="bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 text-[10px] px-1.5 py-0.5 rounded-sm font-bold border border-neutral-300 dark:border-neutral-800">
+            <span className="bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[11px] px-1.5 py-0.2 rounded-full font-bold border border-blue-200 dark:border-blue-800">
               {activities.length}
             </span>
           )}
         </div>
-        {isCollapsed ? <ChevronDown size={16} className="text-neutral-555" /> : <ChevronUp size={16} className="text-neutral-555" />}
+        {isCollapsed ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronUp size={14} className="text-slate-400" />}
       </div>
       {!isCollapsed && (
-        <div className="flex-1 overflow-y-auto p-1.5 space-y-1.5 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-1.5 space-y-1 custom-scrollbar divide-y divide-slate-100 dark:divide-slate-800">
           {activities.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-neutral-450 dark:text-neutral-500 text-xs italic">
+            <div className="h-full flex items-center justify-center text-slate-400 italic text-xs">
               No recent activity
             </div>
           ) : (
             activities.map((activity) => (
-              <div key={activity.id} className="flex gap-3 p-2 rounded-sm hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors group border-b border-neutral-200 dark:border-neutral-800 last:border-0">
-                <div className={`mt-0.5 w-6 h-6 rounded-sm flex items-center justify-center shrink-0 border border-neutral-300 dark:border-neutral-800 ${getActivityBg(activity.type)}`}>
+              <div key={activity.id} className="flex gap-2 p-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group">
+                <div className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center shrink-0 border ${getActivityBg(activity.type)}`}>
                   {getActivityIcon(activity.type)}
                 </div>
                 <div className="min-w-0 font-sans">
                   <div className="flex items-center gap-2 font-sans">
-                    <p className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate font-sans">{activity.action}</p>
-                    <span className="text-[10px] text-neutral-500 font-mono whitespace-nowrap">{activity.time}</span>
+                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate font-sans">{activity.action}</p>
+                    <span className="text-[11px] text-slate-400 font-mono whitespace-nowrap">{activity.time}</span>
                   </div>
-                  <p className="text-[11px] text-neutral-600 dark:text-neutral-400 truncate leading-tight mt-0.5 font-sans">{activity.details}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 truncate leading-tight mt-0.5 font-sans">{activity.details}</p>
                 </div>
               </div>
             ))

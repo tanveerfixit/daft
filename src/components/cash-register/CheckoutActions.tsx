@@ -40,12 +40,12 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
   const typedAmount = parseFloat(paymentAmount) || 0;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5 font-sans">
       {isPaymentComplete ? (
         <button 
           onClick={onCheckout}
           disabled={isCartEmpty}
-          className="w-full py-3.5 rounded font-bold text-base uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-500 bg-amber-400 text-slate-900 hover:bg-amber-500 disabled:bg-neutral-200 dark:disabled:bg-neutral-900 disabled:text-neutral-500 disabled:cursor-not-allowed disabled:border-neutral-300 dark:disabled:border-neutral-800 disabled:opacity-50 cursor-pointer transition-colors shadow-sm"
+          className="w-full py-3.5 rounded-lg font-bold text-base uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-500 bg-amber-400 text-slate-900 hover:bg-amber-500 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400 disabled:cursor-not-allowed disabled:border-slate-200 dark:disabled:border-slate-700 disabled:opacity-50 cursor-pointer transition-all shadow-sm"
         >
           <Check size={20} strokeWidth={3} />
           <span>Complete Checkout</span>
@@ -54,7 +54,7 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
         <button 
           onClick={onQuickCheckout}
           disabled={isCartEmpty}
-          className={`w-full py-3.5 rounded font-bold text-base uppercase tracking-wider flex items-center justify-center gap-2 border cursor-pointer transition-all disabled:bg-neutral-200 dark:disabled:bg-neutral-900 disabled:text-neutral-500 disabled:cursor-not-allowed disabled:border-neutral-300 dark:disabled:border-neutral-800 disabled:opacity-50 shadow-sm ${
+          className={`w-full py-3.5 rounded-lg font-bold text-base uppercase tracking-wider flex items-center justify-center gap-2 border cursor-pointer transition-all disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400 disabled:cursor-not-allowed disabled:border-slate-200 dark:disabled:border-slate-700 disabled:opacity-50 shadow-sm ${
             isCartEmpty ? '' : getMethodColorClass(paymentMethod)
           }`}
         >
@@ -71,7 +71,7 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
       
       <button 
         onClick={onClearCart}
-        className="w-full py-3 rounded font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2 border border-red-600 bg-red-600 hover:bg-red-700 text-white cursor-pointer transition-colors"
+        className="w-full py-2.5 rounded-lg font-semibold text-sm uppercase tracking-wider flex items-center justify-center gap-2 border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/60 cursor-pointer transition-colors"
       >
         <Trash2 size={16} />
         Discard Transaction

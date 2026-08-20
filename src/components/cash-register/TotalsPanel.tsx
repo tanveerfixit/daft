@@ -15,28 +15,30 @@ export const TotalsPanel: React.FC<TotalsPanelProps> = ({
   total
 }) => {
   return (
-    <div className="p-4 border-b border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black font-mono text-base">
-      <div className="flex items-center gap-2 mb-3">
-        <Calculator size={16} className="text-neutral-600 dark:text-neutral-400" />
-        <h3 className="font-bold text-black dark:text-white text-base uppercase">Summary</h3>
+    <div className="p-3.5 bg-white dark:bg-slate-900 font-sans">
+      <div className="flex items-center gap-2 mb-2.5">
+        <Calculator size={16} className="text-blue-600 dark:text-blue-400" />
+        <h3 className="font-bold text-slate-900 dark:text-white text-sm uppercase tracking-wider">Summary</h3>
       </div>
       
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <div className="flex justify-between text-base">
-          <span className="text-neutral-600 dark:text-neutral-400">Subtotal</span>
-          <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">€{subtotal.toFixed(2)}</span>
+          <span className="text-slate-500 dark:text-slate-400 font-medium">Subtotal</span>
+          <span className="font-mono font-bold text-slate-900 dark:text-white">€{subtotal.toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-base">
-          <span className="text-neutral-600 dark:text-neutral-400">Tax (0%)</span>
-          <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">€{tax.toFixed(2)}</span>
+          <span className="text-slate-500 dark:text-slate-400 font-medium">Tax (0%)</span>
+          <span className="font-mono font-bold text-slate-900 dark:text-white">€{tax.toFixed(2)}</span>
         </div>
-        <div className="flex justify-between text-base">
-          <span className="text-neutral-600 dark:text-neutral-400">Discount</span>
-          <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">-€{discount.toFixed(2)}</span>
-        </div>
-        <div className="pt-2 border-t border-neutral-300 dark:border-neutral-800 flex justify-between items-end">
-          <span className="font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider text-[13px]">Total Amount</span>
-          <span className="font-mono text-2xl font-bold text-neutral-900 dark:text-neutral-100 leading-none">€{total.toFixed(2)}</span>
+        {discount > 0 && (
+          <div className="flex justify-between text-base">
+            <span className="text-slate-500 dark:text-slate-400 font-medium">Discount</span>
+            <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">-€{discount.toFixed(2)}</span>
+          </div>
+        )}
+        <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-baseline mt-2">
+          <span className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-sm">Total Amount</span>
+          <span className="font-mono text-2xl font-bold text-blue-600 dark:text-blue-400 leading-none">€{total.toFixed(2)}</span>
         </div>
       </div>
     </div>

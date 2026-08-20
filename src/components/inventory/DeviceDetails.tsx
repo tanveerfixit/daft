@@ -336,12 +336,12 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
   if (!device) return <div className="p-8 text-center text-[var(--brand-danger)] uppercase font-bold">Device not found</div>;
 
   return (
-    <div className="flex flex-col h-full bg-[#f4f7f9] p-4 font-sans">
+    <div className="flex flex-col h-full bg-[#f4f7f9] dark:bg-slate-950 p-2 font-sans">
       {/* Top Header with Back Button */}
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end mb-2">
         <button 
           onClick={onBack}
-          className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-300 rounded hover:bg-slate-50 text-slate-700 text-xs font-medium shadow-sm transition-all"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-semibold shadow-2xs transition-all cursor-pointer"
         >
           <span className="text-slate-400">☰</span>
           Devices Inventory
@@ -349,184 +349,177 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
       </div>
 
       {/* Main Container */}
-      <div className="bg-white border border-slate-200 rounded shadow-sm overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-2xs overflow-hidden flex flex-col">
         {/* Tabs Header */}
-        <div className="flex bg-[#f8f9fa] border-b border-slate-200">
+        <div className="flex bg-[#f8f9fa] dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800">
           <button 
             onClick={() => setActiveTab('info')}
-            className={`px-6 py-2.5 text-xs font-bold transition-all border-r border-slate-200 ${activeTab === 'info' ? 'bg-white text-slate-800' : 'bg-[#f1f3f5] text-slate-500 hover:text-slate-700'}`}
+            className={`px-5 py-2 text-sm font-bold transition-all border-r border-slate-200 dark:border-slate-800 cursor-pointer ${activeTab === 'info' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white' : 'bg-[#f1f3f5] dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
           >
             Device Information
           </button>
           <button 
             onClick={() => setActiveTab('activity')}
-            className={`px-6 py-2.5 text-xs font-bold transition-all border-r border-slate-200 ${activeTab === 'activity' ? 'bg-white text-slate-800' : 'bg-[#f1f3f5] text-slate-500 hover:text-slate-700'}`}
+            className={`px-5 py-2 text-sm font-bold transition-all border-r border-slate-200 dark:border-slate-800 cursor-pointer ${activeTab === 'activity' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white' : 'bg-[#f1f3f5] dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
           >
             Activity Log
           </button>
         </div>
 
         {/* Card Body */}
-        <div className="p-8">
+        <div className="p-4">
           {activeTab === 'info' ? (
-            <div className="flex flex-col md:flex-row gap-0 items-start">
+            <div className="flex flex-col md:flex-row gap-5 items-start">
               {/* Left Column: Icon */}
-              <div className="w-48 shrink-0 flex justify-center">
-                <div className="w-40 h-48 flex items-center justify-center">
-                  <svg viewBox="0 0 24 24" className="w-full h-full text-black" fill="currentColor">
+              <div className="w-32 shrink-0 flex justify-center pt-2">
+                <div className="w-28 h-36 flex items-center justify-center">
+                  <svg viewBox="0 0 24 24" className="w-full h-full text-slate-800 dark:text-slate-200" fill="currentColor">
                     <path d="M17,1H7A2,2 0 0,0 5,3V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V3A2,2 0 0,0 17,1M17,19H7V5H17V19M16,13H8V11H16V13M16,17H8V15H16V17M16,9H8V7H16V9Z" />
                   </svg>
                 </div>
               </div>
 
               {/* Middle Column: Details */}
-              <div className="flex-1 px-12 space-y-5">
-                <div className="mb-6">
-                  <a href="#" className="text-[#3498db] text-xl font-normal hover:underline">
-                    {device.imei} :
+              <div className="flex-1 px-4 space-y-3">
+                <div>
+                  <a href="#" className="text-blue-600 dark:text-blue-400 text-xl font-bold hover:underline font-mono">
+                    {device.imei}
                   </a>
                 </div>
 
-                <div className="space-y-3 text-base">
+                <div className="space-y-2 text-base">
                   <div className="flex gap-2">
-                    <span className="font-normal text-slate-600 min-w-[140px]">Model :</span>
-                    <span className="text-slate-900 font-normal">{device.product_name}</span>
+                    <span className="font-semibold text-slate-500 dark:text-slate-400 min-w-[130px]">Model:</span>
+                    <span className="text-slate-900 dark:text-white font-bold text-lg">{device.product_name}</span>
                   </div>
                   <div className="flex gap-2">
-                    <span className="font-normal text-slate-600 min-w-[140px]">Specs :</span>
-                    <span className="text-slate-900 font-normal">{device.ram || '-'} RAM / {device.gb || '-'} Storage</span>
+                    <span className="font-semibold text-slate-500 dark:text-slate-400 min-w-[130px]">Specs:</span>
+                    <span className="text-slate-900 dark:text-white font-medium text-base">{device.ram || '-'} RAM / {device.gb || '-'} Storage</span>
                   </div>
                   <div className="flex gap-2 items-center">
-                    <span className="font-normal text-slate-600 min-w-[140px]">SKU/Barcode :</span>
-                    <span className="text-[#3498db] font-normal flex items-center gap-1">
+                    <span className="font-semibold text-slate-500 dark:text-slate-400 min-w-[130px]">SKU/Barcode:</span>
+                    <span className="text-blue-600 dark:text-blue-400 font-mono text-base font-bold flex items-center gap-1">
                       {device.sku_code || 'N/A'}
                       <ExternalLink size={14} className="cursor-pointer" />
                     </span>
                   </div>
                   <div className="flex gap-2">
-                    <span className="font-normal text-slate-600 min-w-[140px]">Date Added :</span>
-                    <span className="text-slate-900 font-normal">
+                    <span className="font-semibold text-slate-500 dark:text-slate-400 min-w-[130px]">Date Added:</span>
+                    <span className="text-slate-800 dark:text-slate-200 text-base">
                       {new Date(device.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date(device.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })}
                     </span>
                   </div>
-                  <div className="flex gap-12 items-center">
+                  <div className="flex gap-8 items-center pt-1">
                     <div className="flex gap-2 items-center">
-                      <span className="font-normal text-slate-600 min-w-[40px]">PO :</span>
-                      <span className="text-[#3498db] font-normal flex items-center gap-1">
+                      <span className="font-semibold text-slate-500 dark:text-slate-400 min-w-[35px]">PO:</span>
+                      <span className="text-blue-600 dark:text-blue-400 font-semibold text-base flex items-center gap-1">
                         {device.po_number || 'Internal'}
                         <ExternalLink size={14} className="cursor-pointer" />
                       </span>
                     </div>
                     <div className="flex gap-2">
-                      <span className="font-normal text-slate-600">Cost :</span>
-                      <span className="text-slate-900 font-normal">€{Number(device.cost_price).toFixed(2)}</span>
+                      <span className="font-semibold text-slate-500 dark:text-slate-400">Cost:</span>
+                      <span className="text-slate-900 dark:text-white font-mono font-bold text-lg">€{Number(device.cost_price).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 pt-8">
+                <div className="flex gap-2 pt-3">
                   <button 
                     onClick={handleEditClick}
-                    className="px-6 py-2.5 bg-[#555] hover:bg-[#444] text-white rounded text-xs font-normal uppercase tracking-wider transition-all"
+                    className="px-4 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded text-sm font-semibold uppercase tracking-wider transition-all cursor-pointer"
                   >
                     Edit
                   </button>
                   <button 
                     onClick={() => alert('(contact Admin)')}
-                    className="px-6 py-2.5 bg-slate-300 cursor-not-allowed text-slate-500 rounded text-xs font-normal uppercase tracking-wider transition-all"
+                    className="px-4 py-1.5 bg-slate-200 dark:bg-slate-800 cursor-not-allowed text-slate-400 rounded text-sm font-semibold uppercase tracking-wider transition-all"
                   >
-                    Remove from inventory
+                    Remove
                   </button>
                   <button 
                     onClick={handlePrintLabel}
-                    className="px-6 py-2.5 bg-[#00c853] hover:bg-[#00a344] text-white rounded text-xs font-normal uppercase tracking-wider transition-all"
+                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-semibold uppercase tracking-wider transition-all cursor-pointer"
                   >
-                    Barcode Label Print
+                    Barcode Print
                   </button>
                 </div>
               </div>
 
               {/* Vertical Separator */}
-              <div className="hidden md:block w-[1px] bg-slate-200 self-stretch my-2" />
+              <div className="hidden md:block w-[1px] bg-slate-200 dark:border-slate-800 self-stretch my-1" />
 
               {/* Right Column: Status */}
-              <div className="w-96 pl-12 space-y-0 text-base">
-                <div className="py-3 border-b border-slate-100 flex flex-col">
-                  <span className="font-normal text-slate-600">Device Unlocked:</span>
-                  <span className="text-slate-900 font-normal mt-1">{device.unlocked || '-'}</span>
+              <div className="w-80 pl-4 space-y-0 text-base">
+                <div className="py-2 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                  <span className="font-semibold text-slate-500 dark:text-slate-400">Device Unlocked:</span>
+                  <span className="text-slate-900 dark:text-white font-bold text-base">{device.unlocked || '-'}</span>
                 </div>
-                <div className="py-3 border-b border-slate-100 flex flex-col">
-                  <span className="font-normal text-slate-600">IMEI Status:</span>
-                  <span className="text-slate-900 font-normal mt-1">{device.imei_status || '-'}</span>
+                <div className="py-2 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                  <span className="font-semibold text-slate-500 dark:text-slate-400">IMEI Status:</span>
+                  <span className="text-slate-900 dark:text-white font-bold text-base">{device.imei_status || '-'}</span>
                 </div>
-                <div className="py-3 border-b border-slate-100 flex flex-col">
-                  <span className="font-normal text-slate-600">Carrier:</span>
-                  <span className="text-slate-900 font-normal mt-1">{device.carrier || '-'}</span>
+                <div className="py-2 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                  <span className="font-semibold text-slate-500 dark:text-slate-400">Carrier:</span>
+                  <span className="text-slate-900 dark:text-white font-bold text-base">{device.carrier || '-'}</span>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="animate-in slide-in-from-bottom-4 duration-500">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-base font-normal text-slate-600 uppercase tracking-widest">History Log</h3>
-                <div className="flex gap-2">
-                  <select className="bg-white border border-slate-300 px-4 py-2 rounded text-sm text-slate-600 focus:outline-none font-normal">
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-base font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">History Log</h3>
+                <div className="flex gap-2 items-center">
+                  <select className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-2.5 py-1 rounded text-sm text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer">
                     <option>All Activities</option>
                   </select>
                   <button 
                     onClick={() => setShowNoteModal(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#3498db] hover:bg-[#2980b9] text-white rounded text-sm font-normal transition-all shadow-sm"
+                    className="flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold transition-all shadow-2xs cursor-pointer"
                   >
-                    <Plus size={16} />
-                    Add New Note
+                    <Plus size={15} />
+                    Add Note
                   </button>
                 </div>
               </div>
 
-              <div className="border border-slate-200 rounded overflow-hidden">
-                <table className="w-full text-left text-sm">
+              <div className="border border-slate-200 dark:border-slate-800 rounded overflow-hidden">
+                <table className="w-full text-left text-base border-collapse">
                   <thead>
-                    <tr className="bg-[#f8f9fa] border-b border-slate-200 text-slate-500 font-normal uppercase tracking-widest">
-                      <th className="px-6 py-4">Date</th>
-                      <th className="px-6 py-4">Time</th>
-                      <th className="px-6 py-4">User</th>
-                      <th className="px-6 py-4">Activity</th>
-                      <th className="px-6 py-4">Details</th>
+                    <tr className="bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 font-bold uppercase tracking-wider text-sm text-slate-700 dark:text-slate-300">
+                      <th className="py-1.5 px-3 border-r border-slate-200 dark:border-slate-800 w-32">Date</th>
+                      <th className="py-1.5 px-3 border-r border-slate-200 dark:border-slate-800 w-28">Time</th>
+                      <th className="py-1.5 px-3 border-r border-slate-200 dark:border-slate-800 w-40">User</th>
+                      <th className="py-1.5 px-3 border-r border-slate-200 dark:border-slate-800 w-48">Activity</th>
+                      <th className="py-1.5 px-3">Details</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
                     {activities.length > 0 ? (
                       activities.map((act) => (
-                        <tr key={act.id} className="hover:bg-slate-50 transition-colors text-slate-800 font-normal">
-                          <td className="px-6 py-4">{new Date(act.created_at).toLocaleDateString('en-GB')}</td>
-                          <td className="px-6 py-4">{new Date(act.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</td>
-                          <td className="px-6 py-4 font-normal text-[#3498db]">{act.user_name || 'System'}</td>
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col gap-1">
-                              <span className="px-3 py-1 bg-slate-100 rounded border border-slate-200 text-xs w-fit">{act.activity}</span>
-                              {act.source === 'product' && (
-                                <span className="text-[10px] text-orange-600 font-bold uppercase tracking-tighter">[Product Level]</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">{act.details}</td>
+                        <tr key={act.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors text-slate-900 dark:text-slate-100 text-base">
+                          <td className="py-1.5 px-3 border-r border-slate-100 dark:border-slate-800">{new Date(act.created_at).toLocaleDateString('en-GB')}</td>
+                          <td className="py-1.5 px-3 border-r border-slate-100 dark:border-slate-800">{new Date(act.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</td>
+                          <td className="py-1.5 px-3 border-r border-slate-100 dark:border-slate-800">{act.user_name || 'System'}</td>
+                          <td className="py-1.5 px-3 border-r border-slate-100 dark:border-slate-800">{act.activity}</td>
+                          <td className="py-1.5 px-3">{act.details}</td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={5} className="px-6 py-16 text-center text-slate-400 italic">No activities recorded yet</td>
+                        <td colSpan={5} className="py-4 text-center text-slate-400 italic text-base">No activities recorded yet</td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
 
-              <div className="mt-6 flex justify-between items-center text-xs font-normal text-slate-400 uppercase tracking-widest">
-                <span>Showing 1 - {activities.length} / {activities.length}</span>
-                <div className="flex gap-2">
-                  <button disabled className="px-3 py-1.5 border border-slate-200 rounded bg-white transition-colors hover:bg-slate-50">«</button>
-                  <button disabled className="px-3 py-1.5 border border-slate-200 rounded bg-white transition-colors hover:bg-slate-50">»</button>
+              <div className="mt-2 flex justify-between items-center text-xs font-medium text-slate-500 dark:text-slate-400">
+                <span>Showing 1 - {activities.length} of {activities.length}</span>
+                <div className="flex gap-1">
+                  <button disabled className="px-2 py-0.5 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 disabled:opacity-40 text-xs cursor-pointer">«</button>
+                  <button disabled className="px-2 py-0.5 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 disabled:opacity-40 text-xs cursor-pointer">»</button>
                 </div>
               </div>
             </div>
@@ -537,10 +530,10 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
       {/* Note Modal */}
       {showNoteModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[150] p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-300">
-            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-[#f8f9fa]">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-700">Add Device Note</h3>
-              <button onClick={() => setShowNoteModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-300">
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/60">
+              <h3 className="text-lg font-bold uppercase tracking-wider text-slate-900 dark:text-white">Add Device Note</h3>
+              <button onClick={() => setShowNoteModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl font-bold cursor-pointer">✕</button>
             </div>
             <div className="p-6">
               <textarea 
@@ -548,20 +541,20 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 value={newNote}
                 onChange={(e) => setNewNote(e.target.value)}
                 placeholder="Enter device activity details or notes here..."
-                className="w-full h-40 border border-slate-300 rounded p-4 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#3498db] placeholder:text-slate-400 resize-none transition-all bg-slate-50"
+                className="w-full h-40 border border-slate-300 dark:border-slate-700 rounded-md p-3.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400 resize-none transition-all bg-white dark:bg-slate-800"
               />
             </div>
-            <div className="px-6 py-4 border-t border-slate-200 flex gap-2">
+            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex gap-3 bg-slate-50 dark:bg-slate-800/60">
               <button 
                 onClick={() => setShowNoteModal(false)}
-                className="flex-1 py-2 rounded font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all uppercase text-[10px] tracking-widest"
+                className="flex-1 py-2.5 rounded-md font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all uppercase text-xs tracking-wider cursor-pointer"
               >
                 Cancel
               </button>
               <button 
                 onClick={handleAddNote}
                 disabled={!newNote.trim()}
-                className="flex-1 py-2 rounded font-bold text-white bg-[#3498db] hover:bg-[#2980b9] transition-all uppercase text-[10px] tracking-widest disabled:opacity-50"
+                className="flex-1 py-2.5 rounded-md font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all uppercase text-xs tracking-wider disabled:opacity-50 cursor-pointer shadow-xs"
               >
                 Save Note
               </button>
@@ -573,45 +566,45 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
       {/* Edit Modal */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[150] p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-300">
-            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-[#f8f9fa]">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-700">Edit Device Details</h3>
-              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-300">
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/60">
+              <h3 className="text-xl font-bold tracking-wider text-slate-900 dark:text-white">Edit Device Details</h3>
+              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl font-bold cursor-pointer">✕</button>
             </div>
             <div className="p-6 grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Color</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Color</label>
                 <input 
                   type="text" 
                   value={editForm.color} 
                   onChange={e => setEditForm({...editForm, color: e.target.value})}
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Storage (GB)</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Storage (GB)</label>
                 <input 
                   type="text" 
                   value={editForm.gb} 
                   onChange={e => setEditForm({...editForm, gb: e.target.value})}
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">RAM</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">RAM</label>
                 <input 
                   type="text" 
                   value={editForm.ram} 
                   onChange={e => setEditForm({...editForm, ram: e.target.value})}
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Condition</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Condition</label>
                 <select 
                   value={editForm.condition} 
                   onChange={e => setEditForm({...editForm, condition: e.target.value})}
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
                 >
                   <option value="New">New</option>
                   <option value="Grade A">Grade A</option>
@@ -620,53 +613,53 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                   <option value="Used">Used</option>
                 </select>
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Cost Price</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Cost Price (€)</label>
                 <input 
                   type="number" 
                   value={editForm.cost_price} 
                   onChange={e => setEditForm({...editForm, cost_price: e.target.value})}
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base font-mono focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Selling Price</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Selling Price (€)</label>
                 <input 
                   type="number" 
                   value={editForm.selling_price} 
                   onChange={e => setEditForm({...editForm, selling_price: e.target.value})}
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base font-mono font-bold focus:ring-2 focus:ring-blue-500 outline-none text-blue-600 dark:text-blue-400"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Unlocked Status</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Unlocked Status</label>
                 <input 
                   type="text" 
                   value={editForm.unlocked} 
                   onChange={e => setEditForm({...editForm, unlocked: e.target.value})}
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">IMEI Status</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">IMEI Status</label>
                 <input 
                   type="text" 
                   value={editForm.imei_status} 
                   onChange={e => setEditForm({...editForm, imei_status: e.target.value})}
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[#3498db] outline-none"
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
             </div>
-            <div className="px-6 py-4 bg-[#f8f9fa] border-t border-slate-200 flex justify-end gap-3">
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
               <button 
                 onClick={() => setShowEditModal(false)}
-                className="px-6 py-2 border border-slate-300 rounded text-xs font-bold uppercase tracking-widest text-slate-500 hover:bg-slate-50 transition-all"
+                className="px-5 py-2 border border-slate-300 dark:border-slate-700 rounded-md text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
               >
                 Cancel
               </button>
               <button 
                 onClick={handleUpdateDevice}
-                className="px-6 py-2 bg-[#3498db] hover:bg-[#2980b9] text-white rounded text-xs font-bold uppercase tracking-widest transition-all shadow-lg"
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-bold uppercase tracking-wider transition-all shadow-md cursor-pointer"
               >
                 Save Changes
               </button>

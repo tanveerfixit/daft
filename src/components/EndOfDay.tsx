@@ -409,7 +409,7 @@ const EndOfDayA4: React.FC<PrintProps> = ({
       )}
 
       <div>
-        <h3 className="text-[12px] font-extrabold mb-4 uppercase tracking-[0.2em] text-gray-400">Transaction Breakdown</h3>
+        <h3 className="text-sm font-extrabold mb-4 uppercase tracking-[0.2em] text-gray-400">Transaction Breakdown</h3>
         <table className="report-table">
           <thead>
             <tr>
@@ -429,14 +429,14 @@ const EndOfDayA4: React.FC<PrintProps> = ({
             ) : (
               allPayments.map((p, idx) => (
                 <tr key={idx}>
-                  <td className="font-medium">{p.user_name || 'Staff'}</td>
-                  <td className="text-gray-500">{p.paid_at ? new Date(p.paid_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--:--'}</td>
-                  <td className="font-mono text-[10px]">{p.invoice_number || 'DEPOSIT'}</td>
-                  <td>{p.customer_name || '--'}</td>
+                  <td className="font-medium text-sm">{p.user_name || 'Staff'}</td>
+                  <td className="text-gray-500 text-sm">{p.paid_at ? new Date(p.paid_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--:--'}</td>
+                  <td className="font-mono text-xs">{p.invoice_number || 'DEPOSIT'}</td>
+                  <td className="text-sm">{p.customer_name || '--'}</td>
                   <td>
-                    <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[9px] font-bold uppercase">{p.method}</span>
+                    <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-bold uppercase">{p.method}</span>
                   </td>
-                  <td className="text-right font-bold text-gray-900">€{(Number(p.amount) || 0).toFixed(2)}</td>
+                  <td className="text-right font-bold text-gray-900 text-base">€{(Number(p.amount) || 0).toFixed(2)}</td>
                 </tr>
               ))
             )}
@@ -444,20 +444,20 @@ const EndOfDayA4: React.FC<PrintProps> = ({
           <tfoot>
             {settings.eod_show_total_cash && (
               <tr className="bg-gray-100 text-gray-900 font-bold border-t border-gray-300">
-                <td colSpan={5} className="text-right py-2 uppercase text-[10px] tracking-widest">Total Cash</td>
-                <td className="text-right py-2 text-md">€{allPayments.filter(p => p.method.toLowerCase().includes('cash')).reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}</td>
+                <td colSpan={5} className="text-right py-2 uppercase text-xs tracking-widest">Total Cash</td>
+                <td className="text-right py-2 text-base">€{allPayments.filter(p => p.method.toLowerCase().includes('cash')).reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}</td>
               </tr>
             )}
             {settings.eod_show_total_card_sale && (
               <tr className="bg-gray-100 text-gray-900 font-bold border-t border-gray-300">
-                <td colSpan={5} className="text-right py-2 uppercase text-[10px] tracking-widest">Total Card Sale</td>
-                <td className="text-right py-2 text-md">€{allPayments.filter(p => p.method.toLowerCase().includes('card')).reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}</td>
+                <td colSpan={5} className="text-right py-2 uppercase text-xs tracking-widest">Total Card Sale</td>
+                <td className="text-right py-2 text-base">€{allPayments.filter(p => p.method.toLowerCase().includes('card')).reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}</td>
               </tr>
             )}
             {settings.eod_show_total && (
               <tr className="bg-gray-900 text-white font-bold">
-                <td colSpan={5} className="text-right py-3 uppercase text-[10px] tracking-widest">Total Sales for Period</td>
-                <td className="text-right py-3 text-lg">€{(Number(totalSales) || 0).toFixed(2)}</td>
+                <td colSpan={5} className="text-right py-3 uppercase text-xs tracking-widest">Total Sales for Period</td>
+                <td className="text-right py-3 text-xl">€{(Number(totalSales) || 0).toFixed(2)}</td>
               </tr>
             )}
           </tfoot>
@@ -832,7 +832,6 @@ export default function EndOfDay() {
                 <FileText size={20} className="text-blue-600 dark:text-blue-400" />
                 End of Day Closing Report
               </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Daily cash drawer reconciliation & revenue audit</p>
             </div>
 
             {/* Date Navigator */}
@@ -1170,10 +1169,10 @@ export default function EndOfDay() {
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
             <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white">Transaction Breakdown</h2>
-                <p className="text-xs text-slate-500">All registered invoice and deposit payments for this date</p>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">Transaction Breakdown</h2>
+                <p className="text-sm text-slate-500">All registered invoice and deposit payments for this date</p>
               </div>
-              <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-slate-600 dark:text-slate-300">
+              <span className="text-sm font-semibold px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-md text-slate-600 dark:text-slate-300">
                 {allPayments.length} Transactions
               </span>
             </div>
@@ -1181,42 +1180,42 @@ export default function EndOfDay() {
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="bg-slate-50/70 dark:bg-slate-800/40 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                    <th className="py-1.5 px-3">Staff / Operator</th>
-                    <th className="py-1.5 px-3">Time</th>
-                    <th className="py-1.5 px-3">Invoice / Ref</th>
-                    <th className="py-1.5 px-3">Customer</th>
-                    <th className="py-1.5 px-3">Payment Method</th>
-                    <th className="py-1.5 px-3 text-right">Amount</th>
+                  <tr className="bg-slate-50/70 dark:bg-slate-800/40 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                    <th className="py-2.5 px-4">Staff / Operator</th>
+                    <th className="py-2.5 px-4">Time</th>
+                    <th className="py-2.5 px-4">Invoice / Ref</th>
+                    <th className="py-2.5 px-4">Customer</th>
+                    <th className="py-2.5 px-4">Payment Method</th>
+                    <th className="py-2.5 px-4 text-right">Amount</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
                   {allPayments.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-6 text-center text-slate-400 text-sm">
+                      <td colSpan={6} className="py-8 text-center text-slate-400 text-base">
                         No transactions or payments registered for this date.
                       </td>
                     </tr>
                   ) : (
                     allPayments.map((payment, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="py-1.5 px-3 text-xs font-medium text-slate-700 dark:text-slate-300">
+                        <td className="py-2 px-4 text-sm font-medium text-slate-700 dark:text-slate-300">
                           {payment.user_name || 'Staff'}
                         </td>
-                        <td className="py-1.5 px-3 text-xs font-mono text-slate-500">
+                        <td className="py-2 px-4 text-sm font-mono text-slate-500">
                           {payment.paid_at ? new Date(payment.paid_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '--:--'}
                         </td>
-                        <td className="py-1.5 px-3 text-xs font-semibold text-blue-600 dark:text-blue-400">
+                        <td className="py-2 px-4 text-sm font-semibold text-blue-600 dark:text-blue-400">
                           {payment.invoice_number || 'Deposit'}
                         </td>
-                        <td className="py-1.5 px-3 text-xs font-medium text-slate-700 dark:text-slate-300">
+                        <td className="py-2 px-4 text-sm font-medium text-slate-700 dark:text-slate-300">
                           {payment.customer_name || 'Walk-in Customer'}
                         </td>
-                        <td className="py-1 px-3">
+                        <td className="py-2 px-4">
                           <select 
                             value={payment.method}
                             onChange={(e) => updatePaymentMethod(payment.id, e.target.value)}
-                            className="bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-0.5 outline-none text-xs font-medium cursor-pointer"
+                            className="bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-md px-2.5 py-1 outline-none text-sm font-medium cursor-pointer"
                           >
                             <option value="Cash">Cash</option>
                             <option value="Debit Card">Debit Card</option>
@@ -1227,7 +1226,7 @@ export default function EndOfDay() {
                             <option value="Other">Other</option>
                           </select>
                         </td>
-                        <td className="py-1.5 px-3 text-right font-mono font-bold text-sm text-slate-900 dark:text-white">
+                        <td className="py-2 px-4 text-right font-mono font-bold text-base text-slate-900 dark:text-white">
                           €{(Number(payment.amount) || 0).toFixed(2)}
                         </td>
                       </tr>
@@ -1237,10 +1236,10 @@ export default function EndOfDay() {
                 {allPayments.length > 0 && (
                   <tfoot>
                     <tr className="bg-slate-50 dark:bg-slate-800/40 border-t border-slate-200 dark:border-slate-700 font-bold">
-                      <td colSpan={5} className="py-2 px-3 text-right text-xs uppercase text-slate-600 dark:text-slate-300">
+                      <td colSpan={5} className="py-3 px-4 text-right text-sm uppercase text-slate-600 dark:text-slate-300">
                         Total Registered Payments
                       </td>
-                      <td className="py-2 px-3 text-right text-base font-mono text-blue-600 dark:text-blue-400">
+                      <td className="py-3 px-4 text-right text-lg font-mono text-blue-600 dark:text-blue-400">
                         €{allPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}
                       </td>
                     </tr>

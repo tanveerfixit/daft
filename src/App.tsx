@@ -441,7 +441,6 @@ function AppInner() {
     { id: 'customers', label: 'Customers', icon: Users },
     { id: 'products', label: 'Products', icon: Package },
     { id: 'purchase-orders', label: 'Purchase Orders', icon: ShoppingBag },
-    { id: 'end-of-day', label: 'End of Day', icon: Banknote },
     { id: 'devices', label: 'Devices Inventory', icon: Smartphone },
     { id: 'transfers', label: 'Transfers', icon: ArrowLeftRight },
   ];
@@ -579,21 +578,21 @@ function AppInner() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-28 bg-[var(--bg-sidebar)] text-white flex flex-col z-20 shadow-xl">
+        <aside className="w-26 bg-[var(--bg-sidebar)] text-white flex flex-col z-20 shadow-lg shrink-0">
           <nav className="flex-1 py-1 flex flex-col items-center">
             {menuItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => handleSidebarNavigate(item.id)}
-                className={`group w-full flex flex-col items-center justify-center py-5 px-1 transition-all duration-200 border-l-4 ${
+                className={`group w-full flex flex-col items-center justify-center py-3 px-1 transition-all duration-150 border-l-[3px] cursor-pointer ${
                   currentView === item.id 
-                    ? 'bg-white/10 border-[var(--brand-primary)] text-white' 
-                    : 'border-transparent text-white/60 hover:bg-white/5 hover:text-white'
+                    ? 'bg-white/15 border-[var(--brand-primary)] text-white' 
+                    : 'border-transparent text-slate-200 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <item.icon size={30} className="transition-transform duration-200 group-hover:scale-110" />
-                <span className={`text-[11px] uppercase tracking-wider mt-2.5 text-center select-none font-bold transition-colors ${
-                  currentView === item.id ? 'text-white' : 'text-white/60 group-hover:text-white'
+                <item.icon size={22} strokeWidth={1.5} className="transition-transform duration-150" />
+                <span className={`text-[14px] mt-2 text-center select-none font-normal leading-tight transition-colors ${
+                  currentView === item.id ? 'text-white' : 'text-slate-200 group-hover:text-white'
                 }`}>
                   {item.label}
                 </span>

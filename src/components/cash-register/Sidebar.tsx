@@ -40,9 +40,9 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = (props) => {
   return (
-    <div className="w-[380px] h-full flex flex-col bg-white dark:bg-black border-l border-neutral-300 dark:border-neutral-800 overflow-hidden rounded-none shadow-none">
+    <div className="w-[390px] h-full flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden rounded-xl shadow-xs">
       {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 overflow-y-auto custom-scrollbar divide-y divide-slate-100 dark:divide-slate-800">
         <div>
           <CustomerSelector 
             selectedCustomer={props.selectedCustomer}
@@ -82,7 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
       </div>
       
       {/* Sticky Footer Area */}
-      <div className="shrink-0 p-4 border-t border-neutral-300 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-950 rounded-none">
+      <div className="shrink-0 p-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">
         <CheckoutActions 
           onCheckout={props.onCheckout}
           onQuickCheckout={props.onQuickCheckout}

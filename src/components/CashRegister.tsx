@@ -427,7 +427,11 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
         newCart[existingItemIndex].quantity += 1;
         return newCart;
       } else {
-        return [...prevCart, { ...product, quantity: 1 }];
+        return [...prevCart, { 
+          ...product, 
+          selling_price: Number(product.selling_price ?? 0),
+          quantity: 1 
+        }];
       }
     });
 
@@ -469,11 +473,12 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     setCart(prevCart => {
       return prevCart.map(item => {
         if (item.id === productId && (!deviceId || item.device_id === deviceId)) {
-          const oldPrice = item.customPrice ?? item.selling_price;
-          if (newPrice !== oldPrice) {
-            addActivity('Price Changed', `${item.product_name}: €${oldPrice.toFixed(2)} → €${newPrice.toFixed(2)}`, 'sale');
+          const oldPrice = Number(item.customPrice ?? item.selling_price ?? 0);
+          const safeNewPrice = Number(newPrice) || 0;
+          if (safeNewPrice !== oldPrice) {
+            addActivity('Price Changed', `${item.product_name}: €${oldPrice.toFixed(2)} → €${safeNewPrice.toFixed(2)}`, 'sale');
           }
-          return { ...item, customPrice: newPrice };
+          return { ...item, customPrice: safeNewPrice };
         }
         return item;
       });
@@ -497,8 +502,9 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
           if (updatedFields.quantity && updatedFields.quantity !== item.quantity) {
             addActivity('Quantity Updated', `${item.product_name}: ${item.quantity} → ${updatedFields.quantity}`, 'stock');
           }
-          if (updatedFields.customPrice && updatedFields.customPrice !== (item.customPrice ?? item.selling_price)) {
-            addActivity('Price Updated', `${item.product_name}: €${(item.customPrice ?? item.selling_price).toFixed(2)} → €${updatedFields.customPrice.toFixed(2)}`, 'sale');
+          const currentItemPrice = Number(item.customPrice ?? item.selling_price ?? 0);
+          if (updatedFields.customPrice !== undefined && Number(updatedFields.customPrice) !== currentItemPrice) {
+            addActivity('Price Updated', `${item.product_name}: €${currentItemPrice.toFixed(2)} → €${Number(updatedFields.customPrice).toFixed(2)}`, 'sale');
           }
           if (updatedFields.discount !== undefined) {
             addActivity('Discount Applied', `${item.product_name}: ${updatedFields.discount}${updatedFields.discountType === 'percentage' ? '%' : '€'} discount`, 'sale');
@@ -651,24 +657,26 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       discount_total: discountTotal,
       grand_total: total,
       items: cart.map(item => {
-        const itemPrice = item.customPrice ?? item.selling_price;
-        let itemTotal = itemPrice * item.quantity;
+        const itemPrice = Number(item.customPrice ?? item.selling_price ?? 0);
+        const itemQty = Number(item.quantity) || 1;
+        let itemTotal = itemPrice * itemQty;
         if (item.discount) {
+          const d = Number(item.discount) || 0;
           if (item.discountType === 'percentage') {
-            itemTotal = itemTotal * (1 - item.discount / 100);
+            itemTotal = itemTotal * (1 - d / 100);
           } else {
-            itemTotal = itemTotal - item.discount;
+            itemTotal = itemTotal - d;
           }
         }
         return {
           sku_id: item.id,
           device_id: item.device_id,
           imei: item.imei,
-          quantity: item.quantity,
+          quantity: itemQty,
           price: itemPrice,
-          discount: item.discount || 0,
+          discount: Number(item.discount) || 0,
           discount_type: item.discountType || 'percentage',
-          total: Math.max(0, itemTotal),
+          total: Math.max(0, isNaN(itemTotal) ? 0 : itemTotal),
           is_deposit: item.is_deposit || false,
           notes: item.notes || ''
         };
@@ -746,15 +754,16 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   };
 
   // Calculations
-  const subtotal = cart.reduce((sum, item) => sum + (item.customPrice ?? item.selling_price) * item.quantity, 0);
+  const subtotal = cart.reduce((sum, item) => sum + Number(item.customPrice ?? item.selling_price ?? 0) * (Number(item.quantity) || 1), 0);
   
   const discountTotal = cart.reduce((sum, item) => {
     if (!item.discount) return sum;
-    const itemSubtotal = (item.customPrice ?? item.selling_price) * item.quantity;
+    const itemSubtotal = Number(item.customPrice ?? item.selling_price ?? 0) * (Number(item.quantity) || 1);
+    const d = Number(item.discount) || 0;
     if (item.discountType === 'percentage') {
-      return sum + (itemSubtotal * (item.discount / 100));
+      return sum + (itemSubtotal * (d / 100));
     } else {
-      return sum + Math.min(item.discount, itemSubtotal);
+      return sum + Math.min(d, itemSubtotal);
     }
   }, 0);
 
@@ -773,16 +782,19 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   }, [remainingAmount]);
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full overflow-hidden" style={{ fontSize: '17px' }}>
+    <div className="flex flex-col h-full bg-slate-100/70 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans text-base p-3 select-none w-full overflow-hidden">
       {/* Header Area */}
-      <div className="flex justify-between items-center shrink-0 mb-2 px-1 py-1">
-        <h2 className="text-xl font-bold text-black dark:text-white uppercase">Register</h2>
+      <div className="flex justify-between items-center shrink-0 mb-3 px-1">
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+          <ShoppingBag size={20} className="text-blue-600 dark:text-blue-400" />
+          Cash Register
+        </h2>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden gap-2">
+      <div className="flex-1 flex overflow-hidden gap-3">
         {/* Left Side: Product Search & Cart */}
-        <div className="flex-1 flex flex-col bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 p-3 min-w-0">
+        <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs p-3.5 min-w-0">
           {/* Search Bar & Results (Floating setup) */}
           <div ref={searchContainerRef} className="shrink-0 mb-3 relative z-50">
             <ProductSearchBar 

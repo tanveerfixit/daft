@@ -23,97 +23,98 @@ export const CartRow: React.FC<CartRowProps> = ({
   onEdit,
   onSelectProduct
 }) => {
-  const itemPrice = item.customPrice ?? item.selling_price;
+  const itemPrice = Number(item.customPrice ?? item.selling_price ?? 0);
   
   // Calculate total with discount
-  let total = itemPrice * item.quantity;
+  let total = itemPrice * (Number(item.quantity) || 1);
   if (item.discount) {
+    const d = Number(item.discount) || 0;
     if (item.discountType === 'percentage') {
-      total = total * (1 - item.discount / 100);
+      total = total * (1 - d / 100);
     } else {
-      total = total - item.discount;
+      total = total - d;
     }
   }
-  total = Math.max(0, total);
+  total = Math.max(0, isNaN(total) ? 0 : total);
 
   return (
-    <tr className="group border-b border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors bg-white dark:bg-black">
+    <tr className="group hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">
       {/* Index Column */}
-      <td className="py-1.5 pl-2 text-center border-r border-neutral-300 dark:border-neutral-800 font-mono text-sm text-neutral-500 font-bold">
+      <td className="py-2 pl-3 text-center border-r border-slate-200 dark:border-slate-800 font-mono text-sm text-slate-400 font-bold">
         <span>#{index + 1}</span>
       </td>
 
       {/* Description Column */}
-      <td className="py-1.5 px-2.5 min-w-[250px] border-r border-neutral-300 dark:border-neutral-800 font-sans">
+      <td className="py-2 px-3 min-w-[250px] border-r border-slate-200 dark:border-slate-800 font-sans">
         <div className="flex flex-col">
           <div className="flex items-baseline gap-2 flex-wrap font-sans">
-            <span className="text-[16px] font-normal text-neutral-900 dark:text-neutral-100 leading-tight font-sans">{item.product_name}</span>
+            <span className="text-base font-semibold text-slate-900 dark:text-white leading-tight font-sans">{item.product_name}</span>
             <button 
               onClick={() => onSelectProduct?.(item.id)}
-              className="text-[11px] font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline uppercase"
+              className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline uppercase"
             >
               {item.sku_code || item.barcode || `SKU-${item.id}`}
             </button>
           </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap font-sans">
             {item.device_id && (
-              <span className="inline-flex items-center gap-1 bg-neutral-200 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 text-[10px] px-1.5 py-0.5 rounded-sm border border-neutral-300 dark:border-neutral-800 font-mono">
-                <Smartphone size={10} />
+              <span className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 font-mono">
+                <Smartphone size={12} />
                 {item.imei}
               </span>
             )}
             {item.discount && (
-              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-sm border border-emerald-500/20">
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
                 -{item.discount}{item.discountType === 'percentage' ? '%' : '€'}
               </span>
             )}
           </div>
           {item.notes && (
-            <p className="text-xs text-neutral-500 italic mt-1 line-clamp-1">"{item.notes}"</p>
+            <p className="text-xs text-slate-400 italic mt-0.5 line-clamp-1">"{item.notes}"</p>
           )}
         </div>
       </td>
 
       {/* Metrics Column (Need/Have/OnPO) */}
-      <td className="py-1.5 px-2 text-center border-r border-neutral-300 dark:border-neutral-800">
+      <td className="py-2 px-3 text-center border-r border-slate-200 dark:border-slate-800">
         <div className="flex items-center justify-center gap-2 text-sm font-mono">
           <div className="flex flex-col items-center" title="Need">
-            <span className="text-neutral-650 dark:text-neutral-400">0</span>
+            <span className="text-slate-400">0</span>
           </div>
-          <div className="w-[1px] h-4 bg-neutral-350 dark:bg-neutral-800" />
+          <div className="w-[1px] h-4 bg-slate-200 dark:border-slate-700" />
           <div className="flex flex-col items-center" title="Have">
-            <span className={`font-bold ${(item.total_stock || 0) > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-650 dark:text-red-400'}`}>
+            <span className={`font-bold ${(item.total_stock || 0) > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
               {item.total_stock || 0}
             </span>
           </div>
-          <div className="w-[1px] h-4 bg-neutral-350 dark:bg-neutral-800" />
+          <div className="w-[1px] h-4 bg-slate-200 dark:border-slate-700" />
           <div className="flex flex-col items-center" title="OnPO">
-            <span className="text-neutral-650 dark:text-neutral-400">0</span>
+            <span className="text-slate-400">0</span>
           </div>
         </div>
       </td>
 
       {/* Quantity Column */}
-      <td className="py-1.5 px-2 border-r border-neutral-300 dark:border-neutral-800">
-        <div className="flex items-center justify-center gap-2">
+      <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800">
+        <div className="flex items-center justify-center gap-1.5">
           {item.product_type === 'serialized' ? (
-            <span className="w-20 text-center font-mono font-bold text-[13px] text-blue-650 dark:text-blue-400 bg-blue-500/10 py-0.5 rounded-sm border border-blue-200 dark:border-blue-800">
+            <span className="w-20 text-center font-mono font-bold text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 py-1 rounded-md border border-blue-200 dark:border-blue-800">
               QTY: 1
             </span>
           ) : (
             <>
               <button 
                 onClick={() => onUpdateQuantity(item.id, -1, item.device_id)}
-                className="w-6 h-6 flex items-center justify-center rounded-sm border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 transition-colors"
+                className="w-7 h-7 flex items-center justify-center rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
               >
-                <Minus size={12} />
+                <Minus size={13} />
               </button>
-              <span className="w-8 text-center font-mono font-bold text-[15px] text-neutral-900 dark:text-neutral-100">{item.quantity}</span>
+              <span className="w-8 text-center font-mono font-bold text-base text-slate-900 dark:text-white">{item.quantity}</span>
               <button 
                 onClick={() => onUpdateQuantity(item.id, 1, item.device_id)}
-                className="w-6 h-6 flex items-center justify-center rounded-sm border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 transition-colors"
+                className="w-7 h-7 flex items-center justify-center rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
               >
-                <Plus size={12} />
+                <Plus size={13} />
               </button>
             </>
           )}
@@ -121,31 +122,31 @@ export const CartRow: React.FC<CartRowProps> = ({
       </td>
 
       {/* Unit Price Column */}
-      <td className="py-1.5 px-2 text-right border-r border-neutral-300 dark:border-neutral-800 font-mono text-neutral-900 dark:text-neutral-100">
+      <td className="py-2 px-3 text-right border-r border-slate-200 dark:border-slate-800 font-mono text-base font-semibold text-slate-800 dark:text-slate-200">
         <span>€{itemPrice.toFixed(2)}</span>
       </td>
 
       {/* Total Column */}
-      <td className="py-1.5 px-2 text-right border-r border-neutral-300 dark:border-neutral-800 font-mono font-bold text-neutral-900 dark:text-neutral-100">
+      <td className="py-2 px-3 text-right border-r border-slate-200 dark:border-slate-800 font-mono font-bold text-base text-slate-900 dark:text-white">
         <span>€{total.toFixed(2)}</span>
       </td>
 
       {/* Actions Column */}
-      <td className="py-1.5 pr-2 text-center">
+      <td className="py-2 pr-3 text-center">
         <div className="flex items-center justify-center gap-1">
           <button 
             onClick={() => onEdit(item)}
-            className="p-1 text-neutral-600 hover:text-blue-500 hover:bg-neutral-200 dark:hover:bg-neutral-900 rounded-sm transition-colors"
+            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
             title="Edit Item"
           >
-            <Pencil size={14} />
+            <Pencil size={15} />
           </button>
           <button 
             onClick={() => onRemove(item.id, item.device_id)}
-            className="p-1 text-neutral-650 hover:text-red-500 hover:bg-neutral-200 dark:hover:bg-neutral-900 rounded-sm transition-colors"
+            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors cursor-pointer"
             title="Remove Item"
           >
-            <Trash2 size={14} className="text-red-500" />
+            <Trash2 size={15} className="text-rose-500" />
           </button>
         </div>
       </td>

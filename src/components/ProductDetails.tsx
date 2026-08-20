@@ -105,34 +105,37 @@ export default function ProductDetails({
   const totalStock = Array.isArray(product.stock) ? product.stock.reduce((acc, s) => acc + s.quantity, 0) : 0;
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-955 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full overflow-auto" style={{ fontSize: '17px' }}>
+    <div className="flex flex-col h-full bg-slate-100/70 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans text-base p-3 select-none w-full overflow-auto">
       {/* Header bar */}
-      <div className="sticky top-0 z-40 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 shrink-0 mb-2">
-        <div className="flex items-center justify-between px-4 py-2 flex-wrap md:flex-nowrap gap-2">
-          <div className="flex items-center gap-6">
-            <h1 className="text-base font-bold tracking-wider uppercase text-[#0285b5] dark:text-[#0285b5]">Product Details</h1>
+      <div className="sticky top-0 z-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xs mb-3 px-4 py-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Product Details</h1>
+            <span className="text-sm font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 uppercase">
+              {product.product_type}
+            </span>
           </div>
           
           <div className="flex items-center gap-2">
             <button 
               onClick={() => setIsEditing(true)}
-              className="flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white border border-blue-600 font-bold text-sm cursor-pointer rounded-none transition-colors"
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm cursor-pointer rounded-md transition-colors shadow-xs"
             >
-              <Edit3 size={13} />
+              <Edit3 size={16} />
               Edit
             </button>
             <button 
               onClick={handleArchive}
-              className="flex items-center gap-1 px-3 py-1 bg-red-600 hover:bg-red-700 text-white border border-red-600 font-bold text-sm cursor-pointer rounded-none transition-colors"
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm cursor-pointer rounded-md transition-colors shadow-xs"
             >
-              <Trash2 size={13} />
+              <Trash2 size={16} />
               Archive
             </button>
             <button 
               onClick={onBack}
-              className="flex items-center gap-1 px-3 py-1 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 font-bold text-sm cursor-pointer rounded-none transition-colors"
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 font-semibold text-sm cursor-pointer rounded-md transition-colors"
             >
-              <List size={13} />
+              <List size={16} />
               Back to List
             </button>
           </div>
@@ -140,135 +143,180 @@ export default function ProductDetails({
       </div>
 
       {/* Tab selectors */}
-      <div className="flex border-b border-neutral-300 dark:border-neutral-800 mb-4 bg-white dark:bg-black px-2 pt-2">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 mb-3 bg-white dark:bg-slate-900 rounded-t-lg px-3 pt-1.5 gap-1">
         <button
           onClick={() => setActiveTab('info')}
-          className={`px-4 py-2 text-sm font-bold border-t border-x -mb-px transition-colors rounded-none cursor-pointer ${
+          className={`px-5 py-2.5 text-base font-bold border-b-2 transition-colors cursor-pointer ${
             activeTab === 'info'
-              ? 'bg-neutral-200 dark:bg-neutral-900 border-neutral-300 dark:border-neutral-800 border-b-transparent text-[#0285b5] dark:text-[#0285b5]'
-              : 'bg-white dark:bg-black border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800'
+              ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-950/20'
+              : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
           Specification
         </button>
         <button
           onClick={() => setActiveTab('pricing')}
-          className={`px-4 py-2 text-sm font-bold border-t border-x -mb-px transition-colors rounded-none cursor-pointer ${
+          className={`px-5 py-2.5 text-base font-bold border-b-2 transition-colors cursor-pointer ${
             activeTab === 'pricing'
-              ? 'bg-neutral-200 dark:bg-neutral-900 border-neutral-300 dark:border-neutral-800 border-b-transparent text-[#0285b5] dark:text-[#0285b5]'
-              : 'bg-white dark:bg-black border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800'
+              ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-950/20'
+              : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
           Special Pricing
         </button>
         <button
           onClick={() => setActiveTab('activity')}
-          className={`px-4 py-2 text-sm font-bold border-t border-x -mb-px transition-colors rounded-none cursor-pointer ${
+          className={`px-5 py-2.5 text-base font-bold border-b-2 transition-colors cursor-pointer ${
             activeTab === 'activity'
-              ? 'bg-neutral-200 dark:bg-neutral-900 border-neutral-300 dark:border-neutral-800 border-b-transparent text-[#0285b5] dark:text-[#0285b5]'
-              : 'bg-white dark:bg-black border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800'
+              ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-950/20'
+              : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
           Activity Log
         </button>
       </div>
 
-      <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none p-4">
+      <div className="flex-1 overflow-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xs p-4">
         {activeTab === 'info' && (
-          <div className="space-y-6">
-            <div className="flex flex-col md:flex-row gap-8">
-              {/* Left Column: Image Area */}
-              <div className="w-full md:w-1/4 flex flex-col items-center">
-                <div className="w-48 h-48 bg-neutral-200 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 rounded-none flex items-center justify-center mb-4 shadow-none">
-                  <Link size={80} className="text-neutral-400 dark:text-neutral-700" strokeWidth={1.5} />
+          <div className="space-y-4">
+            <div className="flex flex-col lg:flex-row gap-5 items-start">
+              {/* Left Column: Compact Image Card */}
+              <div className="w-full lg:w-56 shrink-0 flex flex-col items-center p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-lg">
+                <div className="w-36 h-36 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg flex items-center justify-center mb-3 shadow-2xs">
+                  <Link size={52} className="text-slate-300 dark:text-slate-600" strokeWidth={1.5} />
                 </div>
-                <div className="flex flex-col gap-2 w-full max-w-[200px]">
-                  <button className="bg-white dark:bg-neutral-900 border border-[#0285b5] text-[#0285b5] hover:bg-blue-50 dark:hover:bg-blue-950/20 text-xs font-bold py-1.5 px-3 rounded-none transition-colors cursor-pointer uppercase">
+                <div className="flex flex-col gap-1.5 w-full">
+                  <button className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-semibold py-1.5 px-2 rounded-md transition-colors cursor-pointer uppercase tracking-wider">
                     Change Picture
                   </button>
-                  <button className="bg-white dark:bg-neutral-900 border border-[#0285b5] text-[#0285b5] hover:bg-blue-50 dark:hover:bg-blue-950/20 text-xs font-bold py-1.5 px-3 rounded-none transition-colors cursor-pointer uppercase">
+                  <button className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-semibold py-1.5 px-2 rounded-md transition-colors cursor-pointer uppercase tracking-wider">
                     Web Description
                   </button>
                 </div>
               </div>
 
-              {/* Right Column: Standard Specification reconciliation table */}
-              <div className="flex-1">
-                <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 font-mono text-[14px]">
-                  <div className="divide-y divide-neutral-300 dark:divide-neutral-800">
-                    {/* Product Name */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                      <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Product Name :</div>
-                      <div className="md:col-span-8 px-3 font-bold text-neutral-900 dark:text-neutral-100 uppercase">{product.product_name}</div>
-                    </div>
+              {/* Right Column: High-contrast compact table */}
+              <div className="flex-1 w-full">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+                  <table className="w-full border-collapse">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-base">
+                      {/* Product Name */}
+                      <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="w-1/3 py-2.5 px-4 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                          Product Name
+                        </td>
+                        <td className="py-2.5 px-4 text-xl font-bold text-slate-900 dark:text-white">
+                          {product.product_name}
+                        </td>
+                      </tr>
 
-                    {/* Category */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                      <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Category :</div>
-                      <div className="md:col-span-8 px-3 text-neutral-850 dark:text-neutral-200 uppercase">{product.category_name || 'UNCATEGORIZED'}</div>
-                    </div>
+                      {/* Category */}
+                      <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="w-1/3 py-2.5 px-4 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                          Category
+                        </td>
+                        <td className="py-2.5 px-4 text-lg font-semibold text-slate-800 dark:text-slate-200 uppercase">
+                          {product.category_name || 'UNCATEGORIZED'}
+                        </td>
+                      </tr>
 
-                    {/* Tracking Type */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                      <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Inventory Type :</div>
-                      <div className="md:col-span-8 px-3 text-neutral-850 dark:text-neutral-200 capitalize">{product.product_type}</div>
-                    </div>
+                      {/* Inventory Type */}
+                      <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="w-1/3 py-2.5 px-4 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                          Inventory Type
+                        </td>
+                        <td className="py-2.5 px-4 text-lg font-semibold text-slate-800 dark:text-slate-200 capitalize">
+                          {product.product_type}
+                        </td>
+                      </tr>
 
-                    {/* SKU/Barcode */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                      <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">SKU / Barcode :</div>
-                      <div className="md:col-span-8 px-3 text-neutral-850 dark:text-neutral-200 font-mono">{product.sku_code || 'N/A'}</div>
-                    </div>
+                      {/* SKU / Barcode */}
+                      <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="w-1/3 py-2.5 px-4 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                          SKU / Barcode
+                        </td>
+                        <td className="py-2.5 px-4 text-lg font-mono font-bold text-slate-800 dark:text-slate-200">
+                          {product.sku_code || 'N/A'}
+                        </td>
+                      </tr>
 
-                    {/* Stock Levels */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                      <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Need / Have / On PO :</div>
-                      <div className="md:col-span-8 px-3 flex items-center gap-3">
-                        <button 
-                          onClick={() => onViewDevices(product.id)}
-                          className="text-[#0285b5] font-bold hover:underline cursor-pointer bg-transparent border-0 p-0 text-sm"
-                        >
-                          0 / {totalStock} / 0
-                        </button>
-                        <button 
-                          onClick={() => onViewDevices(product.id)}
-                          className="cursor-pointer bg-transparent border-0 p-0 flex items-center"
-                        >
-                          <Link size={13} className="text-[#0285b5]" />
-                        </button>
-                        <button 
-                          onClick={() => onAddInventory(product.id)}
-                          className="bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold py-0.5 px-3 rounded-none text-xs transition-colors cursor-pointer border border-amber-500 uppercase"
-                        >
-                          Add Stock
-                        </button>
-                      </div>
-                    </div>
+                      {/* Stock Levels */}
+                      <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="w-1/3 py-2.5 px-4 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                          Stock (Need / Have / PO)
+                        </td>
+                        <td className="py-2.5 px-4">
+                          <div className="flex items-center gap-3">
+                            <button 
+                              onClick={() => onViewDevices(product.id)}
+                              className="text-xl font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer bg-transparent border-0 p-0"
+                            >
+                              0 / {totalStock} / 0
+                            </button>
+                            <button 
+                              onClick={() => onViewDevices(product.id)}
+                              className="cursor-pointer bg-transparent border-0 p-0 text-blue-600 dark:text-blue-400 hover:opacity-80"
+                              title="View Devices"
+                            >
+                              <Link size={18} />
+                            </button>
+                            <button 
+                              onClick={() => onAddInventory(product.id)}
+                              className="bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold py-1 px-3 rounded text-sm transition-colors cursor-pointer border border-amber-500 uppercase tracking-wider shadow-2xs ml-1"
+                            >
+                              Add Stock
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
 
-                    {/* Minimum Stock */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                      <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Minimum Stock :</div>
-                      <div className="md:col-span-8 px-3 text-neutral-850 dark:text-neutral-200">{product.min_stock_level ?? 0}</div>
-                    </div>
+                      {/* Minimum Stock */}
+                      <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="w-1/3 py-2.5 px-4 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                          Minimum Stock
+                        </td>
+                        <td className="py-2.5 px-4 text-lg font-semibold text-slate-800 dark:text-slate-200">
+                          {product.min_stock_level ?? 0}
+                        </td>
+                      </tr>
 
-                    {/* Selling Price */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                      <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Selling Price :</div>
-                      <div className="md:col-span-8 px-3 font-bold text-neutral-900 dark:text-neutral-100">€{(Number(product.selling_price) || 0).toFixed(2)}</div>
-                    </div>
+                      {/* Selling Price */}
+                      <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="w-1/3 py-2.5 px-4 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                          Selling Price
+                        </td>
+                        <td className="py-2.5 px-4 text-2xl font-mono font-bold text-blue-600 dark:text-blue-400">
+                          €{(Number(product.selling_price) || 0).toFixed(2)}
+                        </td>
+                      </tr>
 
-                    {/* Min Selling Price */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                      <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Min Selling Price :</div>
-                      <div className="md:col-span-8 px-3 text-neutral-850 dark:text-neutral-200">€{(Number(product.min_sales_price) || 0).toFixed(2)}</div>
-                    </div>
+                      {/* Min Selling Price */}
+                      <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="w-1/3 py-2.5 px-4 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                          Min Selling Price
+                        </td>
+                        <td className="py-2.5 px-4 text-lg font-mono font-bold text-slate-800 dark:text-slate-200">
+                          €{(Number(product.min_sales_price) || 0).toFixed(2)}
+                        </td>
+                      </tr>
 
-                    {/* Taxable */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                      <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Taxable :</div>
-                      <div className="md:col-span-8 px-3 text-neutral-850 dark:text-neutral-200 uppercase">{product.is_taxable === false || product.is_taxable === 0 ? 'NO' : 'YES'}</div>
-                    </div>
-                  </div>
+                      {/* Taxable */}
+                      <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="w-1/3 py-2.5 px-4 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                          Taxable
+                        </td>
+                        <td className="py-2.5 px-4 text-base font-bold">
+                          <span className={`px-3 py-0.5 rounded text-sm uppercase font-bold ${
+                            product.is_taxable === false || product.is_taxable === 0 
+                              ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' 
+                              : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
+                          }`}>
+                            {product.is_taxable === false || product.is_taxable === 0 ? 'NO' : 'YES'}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
@@ -284,54 +332,54 @@ export default function ProductDetails({
         )}
 
         {activeTab === 'activity' && (
-          <div className="flex flex-col h-full font-mono text-[14px]">
+          <div className="flex flex-col h-full text-base">
             {/* Activity Log Header */}
-            <div className="p-3 bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 flex justify-between items-center rounded-none">
-              <h3 className="text-base font-bold text-black dark:text-white uppercase">Activity Log</h3>
-              <div className="flex gap-2">
-                <select className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none">
+            <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex justify-between items-center rounded-t-lg">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white uppercase tracking-wider">Activity Log</h3>
+              <div className="flex gap-2 items-center">
+                <select className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2.5 py-1 text-sm text-slate-900 dark:text-slate-100 focus:outline-none cursor-pointer">
                   <option>All Activities</option>
                 </select>
-                <button className="bg-blue-600 hover:bg-blue-700 text-white border border-blue-600 font-bold py-1 px-3 rounded-none text-sm cursor-pointer transition-colors">
+                <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded text-sm cursor-pointer transition-colors shadow-2xs">
                   Add New Note
                 </button>
               </div>
             </div>
 
             {/* Activity Log Table */}
-            <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800">
-              <table className="w-full text-left border-collapse">
+            <div className="flex-1 overflow-auto bg-white dark:bg-slate-900 border-x border-b border-slate-200 dark:border-slate-800 rounded-b-lg">
+              <table className="w-full text-left border-collapse text-base">
                 <thead>
-                  <tr className="bg-neutral-100 dark:bg-neutral-955 border-b border-neutral-300 dark:border-neutral-800 text-[12px] font-bold text-black dark:text-white uppercase tracking-wider">
-                    <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-24">Date</th>
-                    <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-24">Time</th>
-                    <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-48">User</th>
-                    <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-64">Activity</th>
-                    <th className="px-2 py-1">Details</th>
+                  <tr className="bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    <th className="py-1.5 px-3 border-r border-slate-200 dark:border-slate-800 w-32">Date</th>
+                    <th className="py-1.5 px-3 border-r border-slate-200 dark:border-slate-800 w-28">Time</th>
+                    <th className="py-1.5 px-3 border-r border-slate-200 dark:border-slate-800 w-40">User</th>
+                    <th className="py-1.5 px-3 border-r border-slate-200 dark:border-slate-800 w-48">Activity</th>
+                    <th className="py-1.5 px-3">Details</th>
                   </tr>
                 </thead>
-                <tbody className="text-sm font-normal">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
                   {activities.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-2 py-8 text-center text-neutral-400 dark:text-neutral-500 italic text-sm">
+                      <td colSpan={5} className="py-4 text-center text-slate-400 italic text-base">
                         No activities recorded for this product
                       </td>
                     </tr>
                   ) : (
-                    activities.map((activity, idx) => (
+                    activities.map((activity) => (
                       <tr 
                         key={activity.id} 
-                        className={`border-b border-neutral-200 dark:border-neutral-800 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors bg-white dark:bg-black text-neutral-900 dark:text-neutral-100`}
+                        className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors text-slate-900 dark:text-slate-100 text-base"
                       >
-                        <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">
+                        <td className="py-1.5 px-3 border-r border-slate-100 dark:border-slate-800">
                           {new Date(activity.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-')}
                         </td>
-                        <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">
+                        <td className="py-1.5 px-3 border-r border-slate-100 dark:border-slate-800">
                           {new Date(activity.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase()}
                         </td>
-                        <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{activity.user_name || 'System'}</td>
-                        <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 font-normal">{activity.activity}</td>
-                        <td className="px-2 py-1 text-neutral-600 dark:text-neutral-400">{activity.details}</td>
+                        <td className="py-1.5 px-3 border-r border-slate-100 dark:border-slate-800">{activity.user_name || 'System'}</td>
+                        <td className="py-1.5 px-3 border-r border-slate-100 dark:border-slate-800">{activity.activity}</td>
+                        <td className="py-1.5 px-3">{activity.details}</td>
                       </tr>
                     ))
                   )}
@@ -340,25 +388,25 @@ export default function ProductDetails({
             </div>
 
             {/* Activity Log Footer */}
-            <div className="p-2 bg-white dark:bg-black border-t border-neutral-300 dark:border-neutral-800 flex justify-between items-center text-[12px] text-neutral-500 dark:text-neutral-400">
+            <div className="p-1.5 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 mt-1 rounded-lg">
               <div className="flex items-center gap-2">
-                <select className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-1 py-0.5 focus:outline-none">
+                <select className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-1.5 py-0.5 text-xs focus:outline-none cursor-pointer">
                   <option>20</option>
                 </select>
-                <span className="font-bold">1-{activities.length}/{activities.length}</span>
+                <span className="font-semibold text-xs">1-{activities.length}/{activities.length}</span>
               </div>
               
               <div className="flex items-center gap-1">
-                <button className="px-2 py-0.5 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-none cursor-pointer">«</button>
-                <button className="px-3 py-0.5 bg-[#0285b5] border border-[#0285b5] text-white rounded-none font-bold cursor-pointer">1</button>
-                <button className="px-2 py-0.5 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-none cursor-pointer">»</button>
+                <button className="px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-xs cursor-pointer">«</button>
+                <button className="px-2.5 py-0.5 bg-blue-600 border border-blue-600 text-white rounded text-xs font-bold cursor-pointer">1</button>
+                <button className="px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-xs cursor-pointer">»</button>
               </div>
             </div>
           </div>
         )}
 
         {activeTab === 'pricing' && (
-          <div className="p-8 text-center text-neutral-400 italic font-mono text-[14px]">
+          <div className="p-8 text-center text-slate-400 italic text-base">
             No current special pricing adjustment data available
           </div>
         )}

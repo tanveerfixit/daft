@@ -1078,7 +1078,8 @@ router.get('/search', async (req: any, res, next) => {
       return res.json(await query(sql, params));
     }
     const products = await query(`
-      SELECT s.id, p.name as product_name, s.sku_code, s.barcode, s.selling_price,
+      SELECT s.id, p.name as product_name, s.sku_code, s.barcode, 
+             COALESCE(s.selling_price, p.base_unit_price, 0) as selling_price,
              p.product_type, p.allow_overselling,
              (SELECT SUM(quantity) FROM branch_stock WHERE sku_id=s.id ${!isSuper ? 'AND branch_id=?' : ''}) as total_stock
       FROM product_skus s JOIN products p ON s.product_id=p.id
@@ -1088,7 +1089,8 @@ router.get('/search', async (req: any, res, next) => {
         : [`%${q}%`, `%${q}%`, `%${q}%`, req.user.business_id]);
 
     const devices = await query(`
-      SELECT s.id, p.name as product_name, s.sku_code, s.barcode, s.selling_price,
+      SELECT s.id, p.name as product_name, s.sku_code, s.barcode, 
+             COALESCE(d.selling_price, s.selling_price, p.base_unit_price, 0) as selling_price,
              p.product_type, p.allow_overselling, d.imei, d.id as device_id, 1 as total_stock
       FROM devices d JOIN product_skus s ON d.sku_id=s.id
       JOIN products p ON s.product_id=p.id

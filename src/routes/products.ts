@@ -49,7 +49,7 @@ router.get('/', async (req: any, res, next) => {
 
     const productsSql = `
       SELECT s.id, p.name as product_name, s.sku_code, s.barcode,
-             s.selling_price, s.cost_price, p.product_type,
+             COALESCE(s.selling_price, p.base_unit_price, 0) as selling_price, s.cost_price, p.product_type,
              c.name as category_name, m.name as manufacturer_name,
              p.id as product_id,
              (SELECT SUM(quantity) FROM branch_stock WHERE sku_id = s.id) as total_stock

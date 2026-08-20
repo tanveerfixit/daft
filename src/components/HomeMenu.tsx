@@ -44,12 +44,12 @@ const HomeMenu: React.FC<HomeMenuProps> = ({ onNavigate }) => {
           <button
             key={tile.id}
             onClick={() => onNavigate(tile.id)}
-            className="flex flex-col items-center justify-center bg-[rgb(2,133,181)] text-white p-2 rounded-md shadow-md transition-all aspect-square group w-full border border-[rgb(2,133,181)] hover:-translate-y-1 hover:brightness-110"
+            className="flex flex-col items-center justify-center bg-[rgb(2,133,181)] text-white p-2 rounded-lg shadow-md transition-all aspect-square group w-full border border-[rgb(2,133,181)] hover:-translate-y-1 hover:brightness-110 cursor-pointer"
           >
             <div className="mb-1 group-hover:scale-110 transition-all duration-200">
               <tile.icon size={28} strokeWidth={1.5} className="text-white" />
             </div>
-            <span className="text-[12px] font-bold text-center leading-tight uppercase tracking-tight px-0.5 mt-1 text-white">
+            <span className="text-[14px] font-medium text-center leading-tight px-0.5 mt-1 text-white">
               {tile.label}
             </span>
           </button>

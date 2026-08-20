@@ -14,7 +14,7 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
   onSave
 }) => {
   // Use string states to allow empty inputs during typing
-  const [unitPrice, setUnitPrice] = useState<string>(String(item.customPrice ?? item.selling_price));
+  const [unitPrice, setUnitPrice] = useState<string>(String(item.customPrice ?? item.selling_price ?? 0));
   const [quantity, setQuantity] = useState<string>(String(item.quantity));
   const [discount, setDiscount] = useState<string>(String(item.discount || 0));
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>(item.discountType || 'percentage');

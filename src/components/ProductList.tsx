@@ -157,24 +157,24 @@ export default function ProductList({
   };
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full overflow-hidden" style={{ fontSize: '17px' }}>
+    <div className="flex flex-col h-full bg-slate-100/70 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans text-base p-3 select-none w-full overflow-hidden">
       {/* Header */}
-      <div className="flex justify-between items-center shrink-0 mb-2 px-1 py-1">
-        <h2 className="text-xl font-bold text-black dark:text-white uppercase">Manage Products</h2>
+      <div className="flex justify-between items-center shrink-0 mb-3 px-1">
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">Manage Products</h2>
         <button 
           onClick={onCreateProduct}
-          className="bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold py-1.5 px-4 rounded-none text-base flex items-center gap-2 transition-all shadow-none"
+          className="bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold py-1.5 px-4 rounded-lg text-sm flex items-center gap-2 transition-all shadow-xs border border-amber-500 cursor-pointer"
         >
           <Plus size={16} />
           Create Product
         </button>
       </div>
 
-      <div className="p-4 flex flex-wrap gap-2 items-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none mb-2">
+      <div className="p-3 flex flex-wrap gap-2.5 items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs mb-3">
         <select 
           value={selectedType}
           onChange={(e) => { setSelectedType(e.target.value); setCurrentPage(1); }}
-          className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none w-48"
+          className="bg-slate-50 dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-base text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 w-44 cursor-pointer"
         >
           <option value="All Products">All Types</option>
           <option value="stock">Generic Stock</option>
@@ -184,7 +184,7 @@ export default function ProductList({
         <select 
           value={selectedManufacturer}
           onChange={(e) => { setSelectedManufacturer(e.target.value); setCurrentPage(1); }}
-          className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none w-48"
+          className="bg-slate-50 dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-base text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 w-48 cursor-pointer"
         >
           <option value="All Manufacturers">All Manufacturers</option>
           {manufacturers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -192,7 +192,7 @@ export default function ProductList({
         <select 
           value={selectedCategory}
           onChange={(e) => { setSelectedCategory(e.target.value); setCurrentPage(1); }}
-          className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none w-48"
+          className="bg-slate-50 dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-base text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 w-48 cursor-pointer"
         >
           <option value="All Categories">All Categories</option>
           {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -202,71 +202,70 @@ export default function ProductList({
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search Products"
+            placeholder="Search Products..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full pl-3 pr-10 py-1.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-base focus:outline-none text-neutral-900 dark:text-neutral-100"
+            className="w-full pl-3 pr-10 py-1.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700 rounded-lg text-base focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:border-blue-500 text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
           />
           <div 
             onClick={() => { setSearchQuery(searchInput); setCurrentPage(1); }}
-            className="absolute right-0 top-0 h-full w-10 flex items-center justify-center bg-neutral-100 dark:bg-neutral-955 border-l border-neutral-300 dark:border-neutral-800 rounded-none cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-900"
+            className="absolute right-0 top-0 h-full w-10 flex items-center justify-center border-l border-slate-300 dark:border-slate-700 rounded-r-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
           >
-            <Search size={16} className="text-neutral-500" />
+            <Search size={16} />
           </div>
         </div>
       </div>
 
       {/* Table Content */}
-      {isLoading && <div className="flex items-center justify-center py-12 text-neutral-500"><span>Loading products...</span></div>}
+      {isLoading && <div className="flex items-center justify-center py-12 text-slate-500"><span>Loading products...</span></div>}
       {fetchError && <div className="flex items-center justify-center py-12 text-red-500"><span>{fetchError}</span></div>}
-      <div className="flex-1 overflow-auto border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black rounded-none shadow-none" style={{ display: (isLoading || fetchError) ? 'none' : 'block' }}>
+      <div className="flex-1 overflow-auto border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl shadow-xs" style={{ display: (isLoading || fetchError) ? 'none' : 'block' }}>
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-1/6">Manufacturer Name</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-1/4">Product Name</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-1/6">SKU/Barcode</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-1/6">Category Name</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right w-1/12">Selling Price</th>
-              <th className="px-2 py-1 text-center w-1/6">Stock (Total)</th>
+            <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <th className="px-3 py-2.5 border-r border-slate-200 dark:border-slate-800 w-32">Manufacturer</th>
+              <th className="px-3 py-2.5 border-r border-slate-200 dark:border-slate-800 min-w-[280px]">Product Name</th>
+              <th className="px-3 py-2.5 border-r border-slate-200 dark:border-slate-800 w-36">SKU/Barcode</th>
+              <th className="px-3 py-2.5 border-r border-slate-200 dark:border-slate-800 w-40">Category</th>
+              <th className="px-3 py-2.5 border-r border-slate-200 dark:border-slate-800 text-right w-28">Selling Price</th>
+              <th className="px-3 py-2.5 text-center w-24">Stock (Total)</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
             {products.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-2 py-8 text-center text-neutral-400 dark:text-neutral-500 bg-white dark:bg-black">
+                <td colSpan={6} className="px-3 py-12 text-center text-slate-400 dark:text-slate-500 italic">
                   No products found.
                 </td>
               </tr>
             ) : (
-              products.map((product, idx) => (
+              products.map((product) => (
                 <tr 
                   key={product.id} 
                   onClick={() => onSelectProduct(product.id)}
-                  className={`border-b border-neutral-200 dark:border-neutral-800 text-base font-normal hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer transition-colors bg-white dark:bg-black text-neutral-900 dark:text-neutral-100`}
+                  className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 cursor-pointer transition-colors bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                 >
-                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 font-normal font-sans">{product.manufacturer_name || ''}</td>
-                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 font-normal font-sans text-neutral-900 dark:text-neutral-100">{product.product_name}</td>
-                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 font-normal font-mono text-sm">{product.sku_code || product.barcode || ''}</td>
-                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 font-normal font-sans text-neutral-600 dark:text-neutral-400">
-                    <div className="flex items-center justify-between">
-                      <span>{product.category_name || ''}</span>
-                      {product.category_name && (
-                        <button className="p-1 bg-neutral-200 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none hover:bg-neutral-300 dark:hover:bg-neutral-800 transition-colors">
-                          <div className="flex gap-0.5">
-                            <div className="w-0.5 h-0.5 bg-neutral-900 dark:bg-white rounded-none"></div>
-                            <div className="w-0.5 h-0.5 bg-neutral-900 dark:bg-white rounded-none"></div>
-                            <div className="w-0.5 h-0.5 bg-neutral-900 dark:bg-white rounded-none"></div>
-                          </div>
-                        </button>
-                      )}
-                    </div>
+                  <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-sm font-medium w-32 truncate">
+                    {product.manufacturer_name || '-'}
                   </td>
-                  <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-normal text-neutral-900 dark:text-neutral-100">
+                  <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-800 font-semibold text-base text-slate-900 dark:text-white min-w-[280px]">
+                    {product.product_name}
+                  </td>
+                  <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-800 text-blue-600 dark:text-blue-400 font-mono text-xs font-bold w-36">
+                    {product.sku_code || product.barcode || '-'}
+                  </td>
+                  <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-sm w-40">
+                    <span className="truncate block">{product.category_name || '-'}</span>
+                  </td>
+                  <td className="px-3 py-2 border-r border-slate-100 dark:border-slate-800 text-right font-mono font-bold text-base text-slate-900 dark:text-white w-28">
                     €{(Number(product.selling_price) || 0).toFixed(2)}
                   </td>
-                  <td className="px-2 py-1 text-center">
-                    <span className={`font-bold text-sm ${product.total_stock && product.total_stock > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                  <td className="px-3 py-2 text-center w-24">
+                    <span className={`font-mono font-bold text-sm px-2 py-0.5 rounded ${
+                      product.total_stock && product.total_stock > 0 
+                        ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40' 
+                        : 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40'
+                    }`}>
                       {product.total_stock || 0}
                     </span>
                   </td>
@@ -278,22 +277,22 @@ export default function ProductList({
       </div>
 
       {/* Footer Pagination */}
-      <div className="p-4 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none mt-2 flex justify-between items-center text-sm text-neutral-500 dark:text-neutral-400">
-        <div className="flex items-center gap-4">
+      <div className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs mt-3 flex justify-between items-center text-sm text-slate-600 dark:text-slate-400">
+        <div className="flex items-center gap-3">
           <select 
             value={itemsPerPage}
             onChange={(e) => {
               setItemsPerPage(Number(e.target.value));
               setCurrentPage(1);
             }}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 focus:outline-none text-neutral-900 dark:text-neutral-100"
+            className="bg-slate-50 dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 focus:outline-none text-slate-900 dark:text-slate-100 text-sm cursor-pointer"
           >
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
+            <option value={20}>20 per page</option>
+            <option value={50}>50 per page</option>
+            <option value={100}>100 per page</option>
           </select>
-          <span className="font-bold">
-            {totalItems > 0 ? `${(currentPage - 1) * itemsPerPage + 1}-${Math.min(currentPage * itemsPerPage, totalItems)}/${totalItems}` : '0-0/0'}
+          <span className="font-medium text-xs">
+            {totalItems > 0 ? `Showing ${(currentPage - 1) * itemsPerPage + 1}-${Math.min(currentPage * itemsPerPage, totalItems)} of ${totalItems}` : '0 items'}
           </span>
         </div>
         
@@ -301,17 +300,17 @@ export default function ProductList({
           <button 
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage === 1}
-            className="px-2 py-1 border border-neutral-300 dark:border-neutral-800 rounded-none hover:bg-neutral-200 dark:hover:bg-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-900 dark:text-neutral-100"
+            className="px-2.5 py-1 border border-slate-300 dark:border-slate-700 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-slate-900 dark:text-slate-100 transition-colors cursor-pointer text-xs font-bold"
           >
-            «
+            « Prev
           </button>
           {renderPageNumbers()}
           <button 
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
-            className="px-2 py-1 border border-neutral-300 dark:border-neutral-800 rounded-none hover:bg-neutral-200 dark:hover:bg-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-900 dark:text-neutral-100"
+            className="px-2.5 py-1 border border-slate-300 dark:border-slate-700 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-slate-900 dark:text-slate-100 transition-colors cursor-pointer text-xs font-bold"
           >
-            »
+            Next »
           </button>
         </div>
       </div>

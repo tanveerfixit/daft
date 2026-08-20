@@ -407,37 +407,37 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
               </button>
             </div>
           </div>
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse text-base">
             <thead>
-              <tr className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 text-[11px] font-bold text-black dark:text-white uppercase tracking-wider">
-                <th className="px-3 py-1 border-r border-neutral-300 dark:border-neutral-800 w-24">Date</th>
-                <th className="px-3 py-1 border-r border-neutral-300 dark:border-neutral-800 w-24">Time</th>
-                <th className="px-3 py-1 border-r border-neutral-300 dark:border-neutral-800 w-36">User</th>
-                <th className="px-3 py-1 border-r border-neutral-300 dark:border-neutral-800 w-44">Activity</th>
-                <th className="px-3 py-1">Details</th>
+              <tr className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 text-sm font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+                <th className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800 w-32">Date</th>
+                <th className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800 w-28">Time</th>
+                <th className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800 w-40">User</th>
+                <th className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800 w-48">Activity</th>
+                <th className="px-3 py-1.5">Details</th>
               </tr>
             </thead>
-            <tbody className="text-xs font-normal">
+            <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800 text-base">
               {invoice.activities && invoice.activities.length > 0 ? (
                 invoice.activities.map((activity) => (
-                  <tr key={activity.id} className="border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900">
+                  <tr key={activity.id} className="border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100">
                     <td className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800">{formatDate(activity.created_at)}</td>
                     <td className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800">{formatTime(activity.created_at)}</td>
                     <td className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800">{activity.user_name || 'System'}</td>
-                    <td className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800 font-normal">{activity.activity}</td>
+                    <td className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800">{activity.activity}</td>
                     <td className="px-3 py-1.5">{activity.details}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-3 py-5 text-center text-neutral-400 dark:text-neutral-500 italic">
+                  <td colSpan={5} className="px-3 py-4 text-center text-neutral-400 dark:text-neutral-500 italic text-base">
                     No activities recorded for this invoice.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
-          <div className="p-1.5 bg-white dark:bg-black border-t border-neutral-300 dark:border-neutral-800 flex justify-between items-center text-[11px] text-neutral-500 dark:text-neutral-400">
+          <div className="p-1.5 bg-white dark:bg-black border-t border-neutral-300 dark:border-neutral-800 flex justify-between items-center text-xs text-neutral-500 dark:text-neutral-400">
             <div className="flex items-center gap-2">
               <select className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 px-1 py-0.5 focus:outline-none rounded-none">
                 <option>auto</option>

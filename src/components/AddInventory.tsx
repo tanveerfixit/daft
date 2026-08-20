@@ -326,7 +326,7 @@ export default function AddInventory({
   );
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-955 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full overflow-auto" style={{ fontSize: '17px' }}>
+    <div className="flex flex-col h-full bg-slate-100/70 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans text-base p-3 select-none w-full overflow-auto">
       {/* Reusable Datalist for Storage options */}
       <datalist id="storage-presets">
         <option value="128" />
@@ -341,12 +341,17 @@ export default function AddInventory({
       </datalist>
 
       {/* Header bar */}
-      <div className="sticky top-0 z-40 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 shrink-0 mb-2">
-        <div className="flex items-center justify-between px-4 py-2 flex-wrap md:flex-nowrap gap-2">
-          <div className="flex items-center gap-6">
-            <h1 className="text-base font-bold tracking-wider uppercase text-[#0285b5] dark:text-[#0285b5]">Add Inventory</h1>
-            <span className="text-xs text-neutral-500 dark:text-neutral-400 hidden lg:inline">
-              {product.manufacturer_name && <span className="font-bold text-neutral-700 dark:text-neutral-300">{product.manufacturer_name}</span>} • {product.product_name} • <span className="font-mono">{product.sku_code}</span>
+      <div className="sticky top-0 z-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xs mb-3 px-4 py-2.5">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">Add Inventory</h1>
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 uppercase">
+              {product.product_type}
+            </span>
+            <span className="text-sm text-slate-500 dark:text-slate-400 hidden lg:inline">
+              {product.manufacturer_name && <span className="font-semibold text-slate-700 dark:text-slate-300">{product.manufacturer_name} • </span>}
+              {product.product_name} 
+              {product.sku_code && <span className="font-mono text-xs ml-1 text-slate-400">({product.sku_code})</span>}
             </span>
           </div>
           
@@ -354,183 +359,202 @@ export default function AddInventory({
             <button 
               type="button"
               onClick={() => handleSubmit()}
-              className="flex items-center gap-1 px-4 py-1 bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-600 font-bold text-sm cursor-pointer rounded-none transition-colors"
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm cursor-pointer rounded-md transition-colors shadow-xs"
             >
-              <Save size={13} />
+              <Save size={15} />
               Save Inventory
             </button>
             <button 
               type="button"
               onClick={onBack}
-              className="flex items-center gap-1 px-3 py-1 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 font-bold text-sm cursor-pointer rounded-none transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 font-semibold text-sm cursor-pointer rounded-md transition-colors"
             >
-              <ArrowLeft size={13} />
+              <ArrowLeft size={15} />
               Back
             </button>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none p-4">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Specification Reconciliation Style Grid */}
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 font-mono text-[14px]">
-            <div className="divide-y divide-neutral-300 dark:divide-neutral-800">
-              {/* Product Info Description */}
-              <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-neutral-50 dark:bg-neutral-950 font-bold">
-                <div className="md:col-span-4 px-3 md:text-right text-neutral-600 dark:text-neutral-400">PRODUCT TO INCREASE :</div>
-                <div className="md:col-span-8 px-3 text-neutral-900 dark:text-neutral-100 uppercase">
-                  {product.manufacturer_name && `${product.manufacturer_name} - `}{product.product_name} ({product.sku_code})
-                </div>
-              </div>
+      <div className="flex-1 overflow-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xs p-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Specification Style Compact Configuration Table */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+            <table className="w-full border-collapse">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {/* Product Info Description */}
+                <tr className="bg-slate-50/70 dark:bg-slate-800/40">
+                  <td className="w-1/3 py-1.5 px-3 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                    Product To Increase
+                  </td>
+                  <td className="py-1.5 px-3 text-lg font-bold text-slate-900 dark:text-white uppercase">
+                    {product.manufacturer_name && `${product.manufacturer_name} - `}{product.product_name} {product.sku_code && `(${product.sku_code})`}
+                  </td>
+                </tr>
 
-              {/* Branch Selection */}
-              <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Select Branch * :</div>
-                <div className="md:col-span-8 px-3">
-                  <select 
-                    required
-                    value={branchId}
-                    onChange={(e) => setBranchId(e.target.value)}
-                    className="w-full max-w-md bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none"
-                  >
-                    <option value="">Choose Branch</option>
-                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
-                </div>
-              </div>
+                {/* Branch Selection */}
+                <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                  <td className="w-1/3 py-1.5 px-3 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                    Select Branch *
+                  </td>
+                  <td className="py-1.5 px-3">
+                    <select 
+                      required
+                      value={branchId}
+                      onChange={(e) => setBranchId(e.target.value)}
+                      className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2.5 py-1 text-base text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 cursor-pointer font-medium"
+                    >
+                      <option value="">Choose Branch</option>
+                      {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  </td>
+                </tr>
 
-              {/* Supplier */}
-              <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Supplier :</div>
-                <div className="md:col-span-8 px-3 flex items-center gap-4">
-                  <select 
-                    value={supplierId}
-                    onChange={(e) => setSupplierId(e.target.value)}
-                    className="w-full max-w-md bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none"
-                  >
-                    <option value="">Choose Supplier</option>
-                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                  <button 
-                    type="button"
-                    onClick={() => setShowNewSupplierModal(true)}
-                    className="text-[#0285b5] hover:underline text-xs font-bold flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer"
-                  >
-                    <Plus size={12} /> Quick Add
-                  </button>
-                </div>
-              </div>
+                {/* Supplier */}
+                <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                  <td className="w-1/3 py-1.5 px-3 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                    Supplier
+                  </td>
+                  <td className="py-1.5 px-3">
+                    <div className="flex items-center gap-3">
+                      <select 
+                        value={supplierId}
+                        onChange={(e) => setSupplierId(e.target.value)}
+                        className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2.5 py-1 text-base text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 cursor-pointer font-medium"
+                      >
+                        <option value="">Choose Supplier</option>
+                        {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                      <button 
+                        type="button"
+                        onClick={() => setShowNewSupplierModal(true)}
+                        className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-bold flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer whitespace-nowrap"
+                      >
+                        <Plus size={14} /> Quick Add
+                      </button>
+                    </div>
+                  </td>
+                </tr>
 
-              {/* PO Reference */}
-              <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">PO Reference :</div>
-                <div className="md:col-span-8 px-3">
-                  <input 
-                    type="text"
-                    value={poNumber}
-                    onChange={(e) => setPoNumber(e.target.value)}
-                    placeholder="e.g. PO-12345"
-                    className="w-full max-w-md bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
-                  />
-                </div>
-              </div>
+                {/* PO Reference */}
+                <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                  <td className="w-1/3 py-1.5 px-3 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                    PO Reference
+                  </td>
+                  <td className="py-1.5 px-3">
+                    <input 
+                      type="text"
+                      value={poNumber}
+                      onChange={(e) => setPoNumber(e.target.value)}
+                      placeholder="e.g. PO-12345"
+                      className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2.5 py-1 text-base text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 font-mono"
+                    />
+                  </td>
+                </tr>
 
-              {/* Cost Price */}
-              <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Cost Price (€) :</div>
-                <div className="md:col-span-8 px-3">
-                  <input 
-                    type="number"
-                    step="0.01"
-                    value={costPrice}
-                    onChange={(e) => setCostPrice(e.target.value)}
-                    className="w-full max-w-[150px] bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* Selling Price */}
-              <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Selling Price (€) :</div>
-                <div className="md:col-span-8 px-3">
-                  <input 
-                    type="number"
-                    step="0.01"
-                    value={sellingPrice}
-                    onChange={(e) => setSellingPrice(e.target.value)}
-                    className="w-full max-w-[150px] bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* Non-Serialized Quantity */}
-              {product.product_type !== 'serialized' && (
-                <div className="grid grid-cols-1 md:grid-cols-12 items-center py-2.5 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900">
-                  <div className="md:col-span-4 px-3 md:text-right font-bold text-neutral-500 dark:text-neutral-400 uppercase">Quantity to Add :</div>
-                  <div className="md:col-span-8 px-3">
+                {/* Cost Price */}
+                <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                  <td className="w-1/3 py-1.5 px-3 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                    Cost Price (€)
+                  </td>
+                  <td className="py-1.5 px-3">
                     <input 
                       type="number"
-                      value={quantity}
-                      onChange={(e) => setQuantity(e.target.value)}
-                      className="w-full max-w-[150px] bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
+                      step="0.01"
+                      value={costPrice}
+                      onChange={(e) => setCostPrice(e.target.value)}
+                      className="w-full max-w-[160px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2.5 py-1 text-base text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 font-mono font-bold"
                     />
-                  </div>
-                </div>
-              )}
-            </div>
+                  </td>
+                </tr>
+
+                {/* Selling Price */}
+                <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                  <td className="w-1/3 py-1.5 px-3 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                    Selling Price (€)
+                  </td>
+                  <td className="py-1.5 px-3">
+                    <input 
+                      type="number"
+                      step="0.01"
+                      value={sellingPrice}
+                      onChange={(e) => setSellingPrice(e.target.value)}
+                      className="w-full max-w-[160px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2.5 py-1 text-lg text-blue-600 dark:text-blue-400 focus:outline-none focus:border-blue-500 font-mono font-bold"
+                    />
+                  </td>
+                </tr>
+
+                {/* Non-Serialized Quantity */}
+                {product.product_type !== 'serialized' && (
+                  <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                    <td className="w-1/3 py-1.5 px-3 text-base font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider bg-slate-50/40 dark:bg-slate-800/20">
+                      Quantity to Add
+                    </td>
+                    <td className="py-1.5 px-3">
+                      <input 
+                        type="number"
+                        min="1"
+                        value={quantity}
+                        onChange={(e) => setQuantity(e.target.value)}
+                        className="w-full max-w-[160px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2.5 py-1 text-base text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 font-mono font-bold"
+                      />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
 
           {/* Serialized Items Table */}
           {product.product_type === 'serialized' && (
-            <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 font-mono text-[14px]">
-              <div className="p-3 bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 flex justify-between items-center rounded-none">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-xs mt-4">
+              <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-base font-bold text-black dark:text-white uppercase flex items-center gap-2">
-                    <Smartphone size={16} className="text-[#0285b5]" />
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                    <Smartphone size={18} className="text-blue-600 dark:text-blue-400" />
                     Serialized Items
                   </h3>
-                  <span className="text-xs text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 border border-neutral-300 dark:border-neutral-700">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 font-medium">
                     Scan barcode & press Enter to auto-advance
                   </span>
                 </div>
                 <button 
                   type="button"
                   onClick={() => handleAddItem()}
-                  className="bg-[#0285b5] hover:bg-blue-600 text-white font-bold py-1 px-3 rounded-none text-xs flex items-center gap-1 transition-all cursor-pointer border border-[#0285b5]"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3.5 rounded-md text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                 >
-                  <Plus size={12} />
+                  <Plus size={13} />
                   Add Row
                 </button>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-neutral-100 dark:bg-neutral-955 border-b border-neutral-300 dark:border-neutral-800 text-[11px] font-bold text-black dark:text-white uppercase tracking-wider">
-                      <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800 w-12 text-center">#</th>
-                      <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800 min-w-[280px]">IMEI / Serial Number</th>
-                      <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800 w-44">Storage (GB)</th>
-                      <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800 w-40">Color</th>
-                      <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800 w-36">Condition</th>
-                      <th className="px-3 py-2 w-12 text-center"></th>
+                    <tr className="bg-slate-50/70 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                      <th className="py-1.5 px-2.5 w-12 text-center">#</th>
+                      <th className="py-1.5 px-2.5 min-w-[280px]">IMEI / Serial Number</th>
+                      <th className="py-1.5 px-2.5 w-48">Storage (GB)</th>
+                      <th className="py-1.5 px-2.5 w-44">Color</th>
+                      <th className="py-1.5 px-2.5 w-40">Condition</th>
+                      <th className="py-1.5 px-2.5 w-12 text-center"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-200 dark:divide-neutral-850">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
                     {items.map((item, idx) => {
                       const hasError = !!item.duplicateError;
                       return (
                         <tr 
                           key={idx} 
-                          className={`text-sm transition-colors ${
+                          className={`text-base transition-colors ${
                             hasError 
-                              ? 'bg-red-50/70 dark:bg-red-950/40 text-red-900 dark:text-red-200' 
-                              : 'hover:bg-neutral-50 dark:hover:bg-neutral-900 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100'
+                              ? 'bg-rose-50/70 dark:bg-rose-950/40 text-rose-900 dark:text-rose-200' 
+                              : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/30 bg-white dark:bg-slate-900'
                           }`}
                         >
-                          <td className="px-3 py-2.5 border-r border-neutral-200 dark:border-neutral-800 text-center text-neutral-500 font-mono align-top pt-3">
+                          <td className="py-1.5 px-2.5 text-center text-slate-500 font-mono text-base font-bold align-top pt-2">
                             {idx + 1}
                           </td>
-                          <td className="px-3 py-2 border-r border-neutral-200 dark:border-neutral-800 align-top">
+                          <td className="py-1.5 px-2.5 align-top">
                             <div className="relative">
                               <input 
                                 ref={el => { imeiInputRefs.current[idx] = el; }}
@@ -541,45 +565,45 @@ export default function AddInventory({
                                 onKeyDown={(e) => handleImeiKeyDown(e, idx)}
                                 onBlur={() => checkImeiDuplicate(item.imei, idx, items)}
                                 placeholder="Scan or type IMEI (Press Enter for next line)..."
-                                className={`w-full px-2 py-1 text-sm font-mono border rounded-none focus:outline-none transition-colors ${
+                                className={`w-full px-2.5 py-1 text-base font-mono border rounded-md focus:outline-none transition-colors ${
                                   hasError 
-                                    ? 'border-red-500 bg-red-100/50 dark:bg-red-900/30 text-red-600 dark:text-red-300 font-bold focus:ring-1 focus:ring-red-500' 
-                                    : 'border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:border-[#0285b5]'
+                                    ? 'border-rose-500 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 font-bold focus:ring-1 focus:ring-rose-500' 
+                                    : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:border-blue-500'
                                 }`}
                               />
                               {item.isChecking && (
-                                <span className="absolute right-2 top-1.5 text-[10px] text-neutral-400 animate-pulse font-mono">
+                                <span className="absolute right-2 top-1.5 text-xs text-slate-400 animate-pulse font-mono">
                                   checking...
                                 </span>
                               )}
                             </div>
                             {item.duplicateError && (
-                              <div className="flex items-start gap-1 text-[11px] text-red-600 dark:text-red-400 font-bold mt-1 bg-red-100/60 dark:bg-red-950/80 p-1 border border-red-300 dark:border-red-800">
-                                <AlertTriangle size={13} className="shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+                              <div className="flex items-start gap-1.5 text-xs text-rose-600 dark:text-rose-400 font-semibold mt-1 bg-rose-100/60 dark:bg-rose-950/80 p-1.5 rounded-md border border-rose-300 dark:border-rose-800">
+                                <AlertTriangle size={14} className="shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
                                 <span>{item.duplicateError}</span>
                               </div>
                             )}
                           </td>
 
                           {/* Storage with 128, 256 dropdown & manual entry */}
-                          <td className="px-3 py-2 border-r border-neutral-200 dark:border-neutral-800 align-top">
+                          <td className="py-1.5 px-2.5 align-top">
                             <div className="flex items-center gap-1.5">
                               <input 
                                 type="text"
                                 list="storage-presets"
                                 value={item.gb}
                                 onChange={(e) => handleItemChange(idx, 'gb', e.target.value)}
-                                placeholder="128, 256, etc."
-                                className="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 rounded-none focus:outline-none focus:border-[#0285b5]"
+                                placeholder="128, 256..."
+                                className="w-full px-2.5 py-1 text-base border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md focus:outline-none focus:border-blue-500 font-medium"
                               />
                               <div className="flex gap-1 shrink-0">
                                 <button
                                   type="button"
                                   onClick={() => handleItemChange(idx, 'gb', '128')}
-                                  className={`px-1.5 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer ${
+                                  className={`px-2 py-0.5 text-xs font-bold rounded-md border transition-colors cursor-pointer ${
                                     item.gb === '128' || item.gb === '128GB'
-                                      ? 'bg-[#0285b5] text-white border-[#0285b5]'
-                                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-200'
+                                      ? 'bg-blue-600 text-white border-blue-600'
+                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
                                   }`}
                                   title="Quick select 128"
                                 >
@@ -588,10 +612,10 @@ export default function AddInventory({
                                 <button
                                   type="button"
                                   onClick={() => handleItemChange(idx, 'gb', '256')}
-                                  className={`px-1.5 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer ${
+                                  className={`px-2 py-0.5 text-xs font-bold rounded-md border transition-colors cursor-pointer ${
                                     item.gb === '256' || item.gb === '256GB'
-                                      ? 'bg-[#0285b5] text-white border-[#0285b5]'
-                                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-200'
+                                      ? 'bg-blue-600 text-white border-blue-600'
+                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
                                   }`}
                                   title="Quick select 256"
                                 >
@@ -602,41 +626,41 @@ export default function AddInventory({
                           </td>
 
                           {/* Color */}
-                          <td className="px-3 py-2 border-r border-neutral-200 dark:border-neutral-800 align-top">
+                          <td className="py-1.5 px-2.5 align-top">
                             <input 
                               type="text"
                               value={item.color}
                               onChange={(e) => handleItemChange(idx, 'color', e.target.value)}
                               placeholder="e.g. Black, Blue"
-                              className="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 rounded-none focus:outline-none focus:border-[#0285b5]"
+                              className="w-full px-2.5 py-1 text-base border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md focus:outline-none focus:border-blue-500"
                             />
                           </td>
 
                           {/* Condition */}
-                          <td className="px-3 py-2 border-r border-neutral-200 dark:border-neutral-800 align-top">
+                          <td className="py-1.5 px-2.5 align-top">
                             <select 
                               value={item.condition}
                               onChange={(e) => handleItemChange(idx, 'condition', e.target.value)}
-                              className="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 rounded-none focus:outline-none focus:border-[#0285b5] cursor-pointer"
+                              className="w-full px-2.5 py-1 text-base border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-md focus:outline-none focus:border-blue-500 cursor-pointer font-medium"
                             >
-                              <option value="New" className="bg-white dark:bg-black text-black dark:text-white">New</option>
-                              <option value="A" className="bg-white dark:bg-black text-black dark:text-white">Grade A</option>
-                              <option value="B" className="bg-white dark:bg-black text-black dark:text-white">Grade B</option>
-                              <option value="C" className="bg-white dark:bg-black text-black dark:text-white">Grade C</option>
-                              <option value="Faulty" className="bg-white dark:bg-black text-black dark:text-white">Faulty</option>
+                              <option value="New">New</option>
+                              <option value="A">Grade A</option>
+                              <option value="B">Grade B</option>
+                              <option value="C">Grade C</option>
+                              <option value="Faulty">Faulty</option>
                             </select>
                           </td>
 
                           {/* Remove button */}
-                          <td className="px-3 py-2 text-center align-top pt-3">
+                          <td className="py-1.5 px-2.5 text-center align-top pt-2">
                             {items.length > 1 && (
                               <button 
                                 type="button"
                                 onClick={() => handleRemoveItem(idx)}
-                                className="text-neutral-400 hover:text-red-500 transition-colors cursor-pointer bg-transparent border-none p-0"
+                                className="text-slate-400 hover:text-rose-600 transition-colors cursor-pointer bg-transparent border-none p-0"
                                 title="Remove row"
                               >
-                                <Trash2 size={15} />
+                                <Trash2 size={16} />
                               </button>
                             )}
                           </td>
@@ -646,22 +670,22 @@ export default function AddInventory({
                   </tbody>
                 </table>
               </div>
-              <div className="p-3 bg-neutral-50 dark:bg-neutral-950 border-t border-neutral-300 dark:border-neutral-800 flex justify-between items-center text-xs">
-                <div className="text-neutral-500">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-sm">
+                <div>
                   {items.some(i => i.duplicateError) ? (
-                    <span className="text-red-500 font-bold flex items-center gap-1">
-                      <AlertTriangle size={13} />
+                    <span className="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1.5">
+                      <AlertTriangle size={15} />
                       Duplicate / existing IMEI detected in table
                     </span>
                   ) : (
-                    <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-bold">
-                      <Check size={13} /> Ready to save
+                    <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 font-semibold">
+                      <Check size={15} /> Ready to save
                     </span>
                   )}
                 </div>
                 <div>
-                  <span className="font-bold text-neutral-500 uppercase mr-2">Total Rows:</span>
-                  <span className="font-bold text-neutral-900 dark:text-neutral-100">{items.length}</span>
+                  <span className="font-semibold text-slate-500 uppercase mr-2 text-xs">Total Items:</span>
+                  <span className="font-bold text-slate-900 dark:text-white font-mono text-base">{items.length}</span>
                 </div>
               </div>
             </div>
@@ -671,26 +695,26 @@ export default function AddInventory({
 
       {/* Quick Add Supplier Modal */}
       {showNewSupplierModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 font-mono text-base">
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-md overflow-hidden flex flex-col rounded-none shadow-none">
-            <div className="bg-neutral-100 dark:bg-neutral-900 px-4 py-2.5 border-b border-neutral-300 dark:border-neutral-800">
-              <h3 className="font-bold text-black dark:text-white uppercase text-sm">Add New Supplier</h3>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 font-sans text-base">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md overflow-hidden flex flex-col rounded-xl shadow-xl">
+            <div className="bg-slate-50 dark:bg-slate-800/60 px-5 py-3.5 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="font-bold text-slate-900 dark:text-white text-base">Add New Supplier</h3>
             </div>
             
-            <div className="p-4 space-y-4">
+            <div className="p-5 space-y-4">
               {supplierStatus && (
-                <div className={`p-2 border text-sm font-bold rounded-none ${
-                  supplierStatus.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                <div className={`p-3 border text-sm font-semibold rounded-lg ${
+                  supplierStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300' : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300'
                 }`}>
                   {supplierStatus.msg}
                 </div>
               )}
               
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-neutral-500 uppercase">Supplier Name *</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Supplier Name *</label>
                 <input
                   type="text"
-                  className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-0"
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-3 py-1.5 text-base text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
                   placeholder="e.g. Apple Wholesale"
                   value={newSupplierData.name}
                   onChange={(e) => setNewSupplierData({ ...newSupplierData, name: e.target.value })}
@@ -698,22 +722,22 @@ export default function AddInventory({
                 />
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-neutral-500 uppercase">Phone</label>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Phone</label>
                   <input
                     type="text"
-                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-0"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-3 py-1.5 text-base text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
                     placeholder="Phone number"
                     value={newSupplierData.phone}
                     onChange={(e) => setNewSupplierData({ ...newSupplierData, phone: e.target.value })}
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-neutral-500 uppercase">Email</label>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Email</label>
                   <input
                     type="email"
-                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-0"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-3 py-1.5 text-base text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
                     placeholder="Email address"
                     value={newSupplierData.email}
                     onChange={(e) => setNewSupplierData({ ...newSupplierData, email: e.target.value })}
@@ -722,23 +746,23 @@ export default function AddInventory({
               </div>
             </div>
 
-            <div className="bg-neutral-50 dark:bg-neutral-950 px-4 py-3 border-t border-neutral-300 dark:border-neutral-800 flex justify-end gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={handleQuickAddSupplier}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-4 rounded-none text-xs cursor-pointer transition-colors border border-blue-600 uppercase"
-              >
-                Add Supplier
-              </button>
+            <div className="bg-slate-50 dark:bg-slate-800/40 px-5 py-3 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => {
                   setShowNewSupplierModal(false);
                   setNewSupplierData({ name: '', phone: '', email: '' });
                 }}
-                className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 font-bold py-1 px-4 rounded-none text-xs cursor-pointer transition-colors uppercase"
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold py-1.5 px-4 rounded-md text-sm cursor-pointer transition-colors"
               >
                 Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleQuickAddSupplier}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1.5 px-4 rounded-md text-sm cursor-pointer transition-colors shadow-xs"
+              >
+                Add Supplier
               </button>
             </div>
           </div>
