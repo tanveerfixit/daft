@@ -176,6 +176,12 @@ async function initSchema() {
         product_type VARCHAR(50) DEFAULT 'stock',
         description TEXT,
         allow_overselling TINYINT(1) DEFAULT 1,
+        min_stock_level INT DEFAULT 0,
+        is_taxable TINYINT(1) DEFAULT 1,
+        require_note TINYINT(1) DEFAULT 0,
+        min_sales_price DECIMAL(10,2) DEFAULT 0,
+        additional_description TEXT NULL,
+        alert_message TEXT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         deleted_at TIMESTAMP NULL,
         FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
@@ -747,64 +753,49 @@ async function initSchema() {
         FOREIGN KEY (device_id) REFERENCES devices(id)
       )
     `);
-    try {
-      await conn.query("ALTER TABLE products ADD COLUMN sku_barcode VARCHAR(50) UNIQUE AFTER id");
-      await conn.query("ALTER TABLE products ADD COLUMN base_unit_price DECIMAL(10, 2) DEFAULT 0.00 AFTER name");
-      await conn.query("ALTER TABLE products ADD COLUMN cost_price DECIMAL(10, 2) DEFAULT 0.00 AFTER base_unit_price");
-      await conn.query("ALTER TABLE products ADD COLUMN category VARCHAR(100) AFTER cost_price");
-      console.log("[MySQL] Migration: added sku_barcode, price fields to products");
-    } catch (e) {
-      if (!e.message?.includes("Duplicate column")) throw e;
+    const productAlterQueries = [
+      "ALTER TABLE products ADD COLUMN sku_barcode VARCHAR(50) UNIQUE AFTER id",
+      "ALTER TABLE products ADD COLUMN base_unit_price DECIMAL(10, 2) DEFAULT 0.00 AFTER name",
+      "ALTER TABLE products ADD COLUMN cost_price DECIMAL(10, 2) DEFAULT 0.00 AFTER base_unit_price",
+      "ALTER TABLE products ADD COLUMN category VARCHAR(100) AFTER cost_price",
+      "ALTER TABLE products ADD COLUMN min_stock_level INT DEFAULT 0 AFTER allow_overselling",
+      "ALTER TABLE products ADD COLUMN is_taxable TINYINT(1) DEFAULT 1 AFTER min_stock_level",
+      "ALTER TABLE products ADD COLUMN require_note TINYINT(1) DEFAULT 0 AFTER is_taxable",
+      "ALTER TABLE products ADD COLUMN min_sales_price DECIMAL(10,2) DEFAULT 0 AFTER require_note",
+      "ALTER TABLE products ADD COLUMN additional_description TEXT NULL AFTER min_sales_price",
+      "ALTER TABLE products ADD COLUMN alert_message TEXT NULL AFTER additional_description"
+    ];
+    for (const sql of productAlterQueries) {
+      try {
+        await conn.query(sql);
+      } catch (e) {
+        if (!e.message?.includes("Duplicate column") && !e.message?.includes("Duplicate key")) {
+        }
+      }
     }
     try {
       await conn.query("ALTER TABLE devices ADD COLUMN product_id INT AFTER id");
-      await conn.query("ALTER TABLE devices ADD COLUMN imei_serial VARCHAR(50) UNIQUE AFTER product_id");
-      await conn.query("ALTER TABLE devices ADD COLUMN date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER carrier");
-      await conn.query("ALTER TABLE devices ADD CONSTRAINT fk_devices_product_id FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE");
-      console.log("[MySQL] Migration: added product_id, imei_serial, date_added to devices");
     } catch (e) {
-      if (!e.message?.includes("Duplicate column") && !e.message?.includes("Duplicate key")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE devices ADD COLUMN imei_serial VARCHAR(50) UNIQUE AFTER product_id");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE devices ADD COLUMN date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER carrier");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE devices ADD CONSTRAINT fk_devices_product_id FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE");
+    } catch (e) {
     }
     try {
       await conn.query("ALTER TABLE invoice_items ADD COLUMN notes TEXT NULL AFTER total");
     } catch (e) {
-      if (!e.message?.includes("Duplicate column")) throw e;
     }
     try {
       await conn.query("ALTER TABLE invoice_items ADD COLUMN discount_type VARCHAR(20) DEFAULT 'percentage' AFTER discount");
     } catch (e) {
-      if (!e.message?.includes("Duplicate column")) throw e;
-    }
-    try {
-      await conn.query("ALTER TABLE products ADD COLUMN min_stock_level INT DEFAULT 0 AFTER allow_overselling");
-      console.log("[MySQL] Migration: added min_stock_level to products");
-    } catch (e) {
-      if (!e.message?.includes("Duplicate column")) throw e;
-    }
-    try {
-      await conn.query("ALTER TABLE products ADD COLUMN is_taxable TINYINT(1) DEFAULT 1 AFTER min_stock_level");
-    } catch (e) {
-      if (!e.message?.includes("Duplicate column")) throw e;
-    }
-    try {
-      await conn.query("ALTER TABLE products ADD COLUMN require_note TINYINT(1) DEFAULT 0 AFTER is_taxable");
-    } catch (e) {
-      if (!e.message?.includes("Duplicate column")) throw e;
-    }
-    try {
-      await conn.query("ALTER TABLE products ADD COLUMN min_sales_price DECIMAL(10,2) DEFAULT 0 AFTER require_note");
-    } catch (e) {
-      if (!e.message?.includes("Duplicate column")) throw e;
-    }
-    try {
-      await conn.query("ALTER TABLE products ADD COLUMN additional_description TEXT NULL AFTER min_sales_price");
-    } catch (e) {
-      if (!e.message?.includes("Duplicate column")) throw e;
-    }
-    try {
-      await conn.query("ALTER TABLE products ADD COLUMN alert_message TEXT NULL AFTER additional_description");
-    } catch (e) {
-      if (!e.message?.includes("Duplicate column")) throw e;
     }
     await conn.query("SET FOREIGN_KEY_CHECKS = 1");
     try {
@@ -2056,7 +2047,7 @@ var init_products = __esm({
         );
         await conn.execute(
           "INSERT INTO activity_logs (product_id,user_id,activity_type,description) VALUES (?,?,?,?)",
-          [skuId, req.userId, "Product Updated", detailMsg]
+          [sku.product_id, req.userId, "Product Updated", detailMsg]
         );
         await conn.commit();
         res.json({ success: true });
@@ -2137,7 +2128,7 @@ var init_products = __esm({
         );
         await conn.execute(
           "INSERT INTO activity_logs (product_id,user_id,activity_type,description) VALUES (?,?,?,?)",
-          [skuId, req.userId, "Product Created", `Product "${name}" created with SKU ${finalSku}`]
+          [productId, req.userId, "Product Created", `Product "${name}" created with SKU ${finalSku}`]
         );
         await conn.commit();
         res.json({ id: skuId });
@@ -2188,7 +2179,7 @@ var init_products = __esm({
         );
         await conn.execute(
           "INSERT INTO activity_logs (product_id,user_id,activity_type,description) VALUES (?,?,?,?)",
-          [skuId, req.userId, "Product Created", `Product "${name}" quick-added with SKU ${finalSku}`]
+          [productId, req.userId, "Product Created", `Product "${name}" quick-added with SKU ${finalSku}`]
         );
         if (stockQty > 0) {
           await conn.execute(

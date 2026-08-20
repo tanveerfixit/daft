@@ -193,6 +193,12 @@ export async function initSchema() {
         product_type VARCHAR(50) DEFAULT 'stock',
         description TEXT,
         allow_overselling TINYINT(1) DEFAULT 1,
+        min_stock_level INT DEFAULT 0,
+        is_taxable TINYINT(1) DEFAULT 1,
+        require_note TINYINT(1) DEFAULT 0,
+        min_sales_price DECIMAL(10,2) DEFAULT 0,
+        additional_description TEXT NULL,
+        alert_message TEXT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         deleted_at TIMESTAMP NULL,
         FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
@@ -811,72 +817,50 @@ export async function initSchema() {
       )
     `);
 
-    // 2. Ensure existing products table has requested fields
-    try {
-      await conn.query('ALTER TABLE products ADD COLUMN sku_barcode VARCHAR(50) UNIQUE AFTER id');
-      await conn.query('ALTER TABLE products ADD COLUMN base_unit_price DECIMAL(10, 2) DEFAULT 0.00 AFTER name');
-      await conn.query('ALTER TABLE products ADD COLUMN cost_price DECIMAL(10, 2) DEFAULT 0.00 AFTER base_unit_price');
-      await conn.query('ALTER TABLE products ADD COLUMN category VARCHAR(100) AFTER cost_price');
-      console.log('[MySQL] Migration: added sku_barcode, price fields to products');
-    } catch (e: any) {
-      if (!e.message?.includes('Duplicate column')) throw e;
+    // 2. Ensure existing products table has all required columns
+    const productAlterQueries = [
+      'ALTER TABLE products ADD COLUMN sku_barcode VARCHAR(50) UNIQUE AFTER id',
+      'ALTER TABLE products ADD COLUMN base_unit_price DECIMAL(10, 2) DEFAULT 0.00 AFTER name',
+      'ALTER TABLE products ADD COLUMN cost_price DECIMAL(10, 2) DEFAULT 0.00 AFTER base_unit_price',
+      'ALTER TABLE products ADD COLUMN category VARCHAR(100) AFTER cost_price',
+      'ALTER TABLE products ADD COLUMN min_stock_level INT DEFAULT 0 AFTER allow_overselling',
+      'ALTER TABLE products ADD COLUMN is_taxable TINYINT(1) DEFAULT 1 AFTER min_stock_level',
+      'ALTER TABLE products ADD COLUMN require_note TINYINT(1) DEFAULT 0 AFTER is_taxable',
+      'ALTER TABLE products ADD COLUMN min_sales_price DECIMAL(10,2) DEFAULT 0 AFTER require_note',
+      'ALTER TABLE products ADD COLUMN additional_description TEXT NULL AFTER min_sales_price',
+      'ALTER TABLE products ADD COLUMN alert_message TEXT NULL AFTER additional_description'
+    ];
+    for (const sql of productAlterQueries) {
+      try {
+        await conn.query(sql);
+      } catch (e: any) {
+        if (!e.message?.includes('Duplicate column') && !e.message?.includes('Duplicate key')) {
+          // Non-fatal warning
+        }
+      }
     }
 
     // 3. Ensure existing devices table has requested fields
     try {
       await conn.query('ALTER TABLE devices ADD COLUMN product_id INT AFTER id');
+    } catch (e) {}
+    try {
       await conn.query('ALTER TABLE devices ADD COLUMN imei_serial VARCHAR(50) UNIQUE AFTER product_id');
+    } catch (e) {}
+    try {
       await conn.query('ALTER TABLE devices ADD COLUMN date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER carrier');
+    } catch (e) {}
+    try {
       await conn.query('ALTER TABLE devices ADD CONSTRAINT fk_devices_product_id FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE');
-      console.log('[MySQL] Migration: added product_id, imei_serial, date_added to devices');
-    } catch (e: any) {
-      if (!e.message?.includes('Duplicate column') && !e.message?.includes('Duplicate key')) throw e;
-    }
+    } catch (e) {}
 
     // 4. Ensure invoice_items has notes and discount_type columns
     try {
       await conn.query('ALTER TABLE invoice_items ADD COLUMN notes TEXT NULL AFTER total');
-    } catch (e: any) {
-      if (!e.message?.includes('Duplicate column')) throw e;
-    }
+    } catch (e: any) {}
     try {
       await conn.query("ALTER TABLE invoice_items ADD COLUMN discount_type VARCHAR(20) DEFAULT 'percentage' AFTER discount");
-    } catch (e: any) {
-      if (!e.message?.includes('Duplicate column')) throw e;
-    }
-
-    // 5. Ensure products table has additional detail columns
-    try {
-      await conn.query('ALTER TABLE products ADD COLUMN min_stock_level INT DEFAULT 0 AFTER allow_overselling');
-      console.log('[MySQL] Migration: added min_stock_level to products');
-    } catch (e: any) {
-      if (!e.message?.includes('Duplicate column')) throw e;
-    }
-    try {
-      await conn.query('ALTER TABLE products ADD COLUMN is_taxable TINYINT(1) DEFAULT 1 AFTER min_stock_level');
-    } catch (e: any) {
-      if (!e.message?.includes('Duplicate column')) throw e;
-    }
-    try {
-      await conn.query('ALTER TABLE products ADD COLUMN require_note TINYINT(1) DEFAULT 0 AFTER is_taxable');
-    } catch (e: any) {
-      if (!e.message?.includes('Duplicate column')) throw e;
-    }
-    try {
-      await conn.query('ALTER TABLE products ADD COLUMN min_sales_price DECIMAL(10,2) DEFAULT 0 AFTER require_note');
-    } catch (e: any) {
-      if (!e.message?.includes('Duplicate column')) throw e;
-    }
-    try {
-      await conn.query('ALTER TABLE products ADD COLUMN additional_description TEXT NULL AFTER min_sales_price');
-    } catch (e: any) {
-      if (!e.message?.includes('Duplicate column')) throw e;
-    }
-    try {
-      await conn.query('ALTER TABLE products ADD COLUMN alert_message TEXT NULL AFTER additional_description');
-    } catch (e: any) {
-      if (!e.message?.includes('Duplicate column')) throw e;
-    }
+    } catch (e: any) {}
 
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');
 

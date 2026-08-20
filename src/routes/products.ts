@@ -210,7 +210,7 @@ router.put('/:id', async (req: any, res, next) => {
       [skuId, req.userId, 'Product Updated', detailMsg]);
     
     await conn.execute('INSERT INTO activity_logs (product_id,user_id,activity_type,description) VALUES (?,?,?,?)',
-      [skuId, req.userId, 'Product Updated', detailMsg]);
+      [sku.product_id, req.userId, 'Product Updated', detailMsg]);
 
     await conn.commit();
     res.json({ success: true });
@@ -266,7 +266,7 @@ router.post('/', async (req: any, res, next) => {
     await conn.execute('INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)',
       [skuId, req.userId, 'Product Created', `Product "${name}" created with SKU ${finalSku}`]);
     await conn.execute('INSERT INTO activity_logs (product_id,user_id,activity_type,description) VALUES (?,?,?,?)',
-      [skuId, req.userId, 'Product Created', `Product "${name}" created with SKU ${finalSku}`]);
+      [productId, req.userId, 'Product Created', `Product "${name}" created with SKU ${finalSku}`]);
     await conn.commit();
     res.json({ id: skuId });
   } catch (e: any) {
@@ -320,7 +320,7 @@ router.post('/quick-add', async (req: any, res, next) => {
     await conn.execute('INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)',
       [skuId, req.userId, 'Product Created', `Product "${name}" quick-added with SKU ${finalSku}`]);
     await conn.execute('INSERT INTO activity_logs (product_id,user_id,activity_type,description) VALUES (?,?,?,?)',
-      [skuId, req.userId, 'Product Created', `Product "${name}" quick-added with SKU ${finalSku}`]);
+      [productId, req.userId, 'Product Created', `Product "${name}" quick-added with SKU ${finalSku}`]);
 
     // 3. Add Stock if quantity > 0
     if (stockQty > 0) {
