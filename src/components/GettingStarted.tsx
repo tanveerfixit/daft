@@ -133,6 +133,45 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
+  // ─── Products Import & Export State ─────────────────────────────────────────
+  const [productSubMode, setProductSubMode] = useState<'serial' | 'general'>('serial');
+
+  // Serial Products
+  const [serialCsvText, setSerialCsvText] = useState('');
+  const [serialFile, setSerialFile] = useState<File | null>(null);
+  const [serialDuplicateMode, setSerialDuplicateMode] = useState<'overwrite' | 'skip'>('overwrite');
+  const [isSerialImporting, setIsSerialImporting] = useState(false);
+  const [isSerialExporting, setIsSerialExporting] = useState(false);
+  const [serialStats, setSerialStats] = useState<{ total_devices: number; in_stock_devices: number }>({ total_devices: 0, in_stock_devices: 0 });
+  const [serialImportResult, setSerialImportResult] = useState<{
+    success: boolean;
+    total: number;
+    imported: number;
+    updated: number;
+    skipped: number;
+    errorsCount: number;
+    errors?: string[];
+  } | null>(null);
+  const serialFileInputRef = useRef<HTMLInputElement>(null);
+
+  // General Products
+  const [generalCsvText, setGeneralCsvText] = useState('');
+  const [generalFile, setGeneralFile] = useState<File | null>(null);
+  const [generalDuplicateMode, setGeneralDuplicateMode] = useState<'overwrite' | 'skip'>('overwrite');
+  const [isGeneralImporting, setIsGeneralImporting] = useState(false);
+  const [isGeneralExporting, setIsGeneralExporting] = useState(false);
+  const [generalStats, setGeneralStats] = useState<{ total_products: number; total_skus: number; total_stock: number }>({ total_products: 0, total_skus: 0, total_stock: 0 });
+  const [generalImportResult, setGeneralImportResult] = useState<{
+    success: boolean;
+    total: number;
+    imported: number;
+    updated: number;
+    skipped: number;
+    errorsCount: number;
+    errors?: string[];
+  } | null>(null);
+  const generalFileInputRef = useRef<HTMLInputElement>(null);
+
   // ─── Invoice Export & Import State ──────────────────────────────────────────
   const getTodayISO = () => new Date().toISOString().split('T')[0];
   const [exportPreset, setExportPreset] = useState<'today' | 'yesterday' | 'last7' | 'last30' | 'this_month' | 'custom'>('today');
@@ -362,102 +401,344 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ─── Products Import / Export Functions ─────────────────────────────────────
+  const parseCSVRows = (text: string): string[][] => {
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let entry = '';
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      const next = text[i + 1];
+      if (c === '"') {
+        if (inQuotes && next === '"') {
+          entry += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (c === ',' && !inQuotes) {
+        row.push(entry.trim());
+        entry = '';
+      } else if ((c === '\r' || c === '\n') && !inQuotes) {
+        if (c === '\r' && next === '\n') i++;
+        row.push(entry.trim());
+        if (row.some(val => val.length > 0)) {
+          rows.push(row);
+        }
+        row = [];
+        entry = '';
+      } else {
+        entry += c;
+      }
+    }
+    if (entry.length > 0 || row.length > 0) {
+      row.push(entry.trim());
+      if (row.some(val => val.length > 0)) {
+        rows.push(row);
+      }
+    }
+    return rows;
+  };
+
+  const fetchProductsStats = async () => {
+    try {
+      const [resSerial, resGen] = await Promise.all([
+        fetch('/api/devices/stats').catch(() => null),
+        fetch('/api/products/stats').catch(() => null)
+      ]);
+      if (resSerial && resSerial.ok) {
+        const sData = await resSerial.json();
+        setSerialStats({
+          total_devices: Number(sData.total_devices) || 0,
+          in_stock_devices: Number(sData.in_stock_devices) || 0
+        });
+      }
+      if (resGen && resGen.ok) {
+        const gData = await resGen.json();
+        setGeneralStats({
+          total_products: Number(gData.total_products) || 0,
+          total_skus: Number(gData.total_skus) || 0,
+          total_stock: Number(gData.total_stock) || 0
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching product stats:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'import-products') {
+      fetchProductsStats();
+    }
+  }, [activeTab]);
+
+  // Serial Products Handlers
+  const handleDownloadSerialExport = async () => {
+    setIsSerialExporting(true);
+    try {
+      const res = await fetch('/api/devices/export-csv');
+      if (!res.ok) throw new Error('Failed to export serial products');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `serial_products_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`Serial Export Error: ${err.message}`);
+    } finally {
+      setIsSerialExporting(false);
+    }
+  };
+
+  const handleDownloadSerialSample = async () => {
+    try {
+      const res = await fetch('/api/devices/sample-csv');
+      if (!res.ok) throw new Error('Failed to download template');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'sample_serial_products.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`Download Error: ${err.message}`);
+    }
+  };
+
+  const handleSerialFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
+    setSerialFile(file);
+    setSerialImportResult(null);
     const reader = new FileReader();
     reader.onload = (event) => {
-      const text = event.target?.result as string;
-      setCsvText(text);
+      setSerialCsvText(event.target?.result as string);
     };
     reader.readAsText(file);
   };
 
-  const handleImportProducts = async () => {
-    if (!csvText.trim()) {
-      setMessage({ type: 'error', text: 'Please paste CSV data or upload a file first.' });
+  const handleImportSerialSubmit = async () => {
+    const textToProcess = serialCsvText.trim();
+    if (!textToProcess) {
+      alert('Please select a CSV file or paste serial product CSV data.');
       return;
     }
-
-    setIsSaving(true);
-    setMessage(null);
+    setIsSerialImporting(true);
+    setSerialImportResult(null);
 
     try {
-      // Simple CSV parser (handles basic quoting)
-      const parseCSV = (text: string) => {
-        const lines = text.split('\n');
-        if (lines.length < 2) return [];
+      const rows = parseCSVRows(textToProcess);
+      if (rows.length < 2) {
+        throw new Error('CSV is empty or missing data rows.');
+      }
+      const headers = rows[0].map(h => h.toLowerCase().replace(/^"|"$/g, '').trim());
 
-        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-        const result = [];
-
-        for (let i = 1; i < lines.length; i++) {
-          if (!lines[i].trim()) continue;
-          
-          const row: any = {};
-          // Regex to handle quoted commas
-          const matches = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
-          
-          // Fallback if regex fails for some reason
-          const values = matches ? matches.map(v => v.trim().replace(/^"|"$/g, '')) : lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-
-          const getVal = (names: string[]) => {
-            for (const name of names) {
-              const idx = headers.findIndex(h => h.toLowerCase() === name.toLowerCase());
-              if (idx !== -1) return values[idx];
-            }
-            return '';
-          };
-
-          row.branch_name = getVal(['Sub-Domain']) || 'Main Branch';
-          
-          // Product Type mapping
-          const prodType = getVal(['Product Type']);
-          const isSerialized = getVal(['SERIALIZED INVENTORY']);
-          if (prodType) {
-            row.product_type = prodType;
-          } else if (isSerialized === 'Yes' || isSerialized === '1') {
-            row.product_type = 'Mobile Devices';
-          } else {
-            row.product_type = 'Standard';
-          }
-
-          row.category_name = getVal(['Category name', 'CATEGORY NAME']);
-          row.manufacturer_name = getVal(['Manufacturer name', 'MANUFACTURER NAME']);
-          row.product_name = getVal(['Product name', 'PRODUCT NAME']);
-          row.sku = getVal(['SKU', 'SKU/BARCODE']) || getVal(['Id']);
-          row.cost_price = getVal(['Cost price', 'COST PRICE']);
-          row.selling_price = getVal(['Selling Price', 'SELLING PRICE']);
-          row.current_inventory = getVal(['Current inventory', 'CURRENT INVENTORY']);
-          row.allow_overselling = getVal(['Allow Over Selling', 'ALLOW OVER SELLING']);
-
-          result.push(row);
+      const getColVal = (row: string[], candidateHeaders: string[]) => {
+        for (const cand of candidateHeaders) {
+          const idx = headers.findIndex(h => h === cand.toLowerCase());
+          if (idx !== -1 && row[idx] !== undefined) return row[idx].replace(/^"|"$/g, '').trim();
         }
-        return result;
+        return '';
       };
 
-      const products = parseCSV(csvText);
+      const items = [];
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const serialNum = getColVal(r, ['Serial Number / IMEI', 'Serial Number', 'Serial number', 'IMEI', 'Serial', 'IMEI/Serial', 'Serial No', 'serial_number', 'imei', 'serial']);
+        if (!serialNum) continue;
 
-      const response = await fetch('/api/import-products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ products })
-      });
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to import products');
+        items.push({
+          serial_number: serialNum,
+          product_name: getColVal(r, ['Product Name', 'Product name', 'Product', 'Name', 'Device Name', 'Description']),
+          category_name: getColVal(r, ['Category', 'Category name', 'Category Name', 'category']),
+          manufacturer_name: getColVal(r, ['Brand / Manufacturer', 'Brand', 'Manufacturer', 'Manufacturer name', 'Make', 'manufacturer']),
+          storage: getColVal(r, ['Storage', 'GB', 'Capacity', 'Memory', 'RAM', 'gb', 'storage']),
+          color: getColVal(r, ['Color', 'Colour', 'color', 'colour']),
+          physical_condition: getColVal(r, ['Condition', 'Physical Condition', 'Grade', 'physical_condition', 'condition']),
+          cost_price: parseFloat(getColVal(r, ['Cost Price', 'Cost price', 'Cost', 'Unit Cost', 'Buy Price', 'cost_price'])) || 0,
+          selling_price: parseFloat(getColVal(r, ['Selling Price', 'Selling price', 'Price', 'Retail Price', 'Unit Price', 'selling_price', 'price'])) || 0,
+          status: getColVal(r, ['Stock Status', 'Status', 'Device Status', 'status']) || 'in_stock',
+          imei_status: getColVal(r, ['IMEI Status', 'Network Status', 'Blacklist Status', 'imei_status']) || 'Clean',
+          carrier: getColVal(r, ['Carrier / Lock', 'Carrier', 'Network', 'Lock Status', 'Unlocked', 'carrier', 'unlocked']) || 'Unlocked',
+          created_by_user: getColVal(r, ['Created By', 'Created by User Name', 'User', 'Staff', 'created_by']),
+          created_date: getColVal(r, ['Created Date', 'Created on Date', 'Created At', 'Date', 'Date Added', 'created_at', 'date'])
+        });
       }
 
-      setMessage({ type: 'success', text: `Successfully imported ${products.length} products.` });
-      setCsvText('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    } catch (error: any) {
-      console.error('Import error:', error);
-      setMessage({ type: 'error', text: error.message });
+      if (items.length === 0) {
+        throw new Error('No valid serial product rows with serial numbers could be parsed.');
+      }
+
+      const res = await fetch('/api/devices/import-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items,
+          duplicateHandling: serialDuplicateMode
+        })
+      });
+
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || 'Failed to import serial products');
+
+      setSerialImportResult(resData);
+      setSerialCsvText('');
+      setSerialFile(null);
+      if (serialFileInputRef.current) serialFileInputRef.current.value = '';
+      fetchProductsStats();
+    } catch (err: any) {
+      setSerialImportResult({
+        success: false,
+        total: 0,
+        imported: 0,
+        updated: 0,
+        skipped: 0,
+        errorsCount: 1,
+        errors: [err.message]
+      });
     } finally {
-      setIsSaving(false);
+      setIsSerialImporting(false);
+    }
+  };
+
+  // General Products Handlers
+  const handleDownloadGeneralExport = async () => {
+    setIsGeneralExporting(true);
+    try {
+      const res = await fetch('/api/products/export-csv');
+      if (!res.ok) throw new Error('Failed to export general products');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `general_products_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`General Export Error: ${err.message}`);
+    } finally {
+      setIsGeneralExporting(false);
+    }
+  };
+
+  const handleDownloadGeneralSample = async () => {
+    try {
+      const res = await fetch('/api/products/sample-csv');
+      if (!res.ok) throw new Error('Failed to download template');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'standard_general_products.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`Download Error: ${err.message}`);
+    }
+  };
+
+  const handleGeneralFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setGeneralFile(file);
+    setGeneralImportResult(null);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setGeneralCsvText(event.target?.result as string);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportGeneralSubmit = async () => {
+    const textToProcess = generalCsvText.trim();
+    if (!textToProcess) {
+      alert('Please select a CSV file or paste general product CSV data.');
+      return;
+    }
+    setIsGeneralImporting(true);
+    setGeneralImportResult(null);
+
+    try {
+      const rows = parseCSVRows(textToProcess);
+      if (rows.length < 2) {
+        throw new Error('CSV is empty or missing data rows.');
+      }
+      const headers = rows[0].map(h => h.toLowerCase().replace(/^"|"$/g, '').trim());
+
+      const getColVal = (row: string[], candidateHeaders: string[]) => {
+        for (const cand of candidateHeaders) {
+          const idx = headers.findIndex(h => h === cand.toLowerCase());
+          if (idx !== -1 && row[idx] !== undefined) return row[idx].replace(/^"|"$/g, '').trim();
+        }
+        return '';
+      };
+
+      const products = [];
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const prodName = getColVal(r, ['Product Name', 'Product name', 'Product', 'Name', 'Description', 'Item Name']);
+        if (!prodName) continue;
+
+        products.push({
+          product_name: prodName,
+          product_type: getColVal(r, ['Product Type', 'Product type', 'Type', 'product_type', 'type']) || 'Standard',
+          category_name: getColVal(r, ['Category', 'Category name', 'Category Name', 'category', 'category_name']),
+          manufacturer_name: getColVal(r, ['Brand / Manufacturer', 'Brand', 'Manufacturer', 'Manufacturer name', 'Make', 'manufacturer', 'manufacturer_name']),
+          sku: getColVal(r, ['SKU', 'SKU / Barcode', 'SKU Code', 'Item Code', 'Code', 'sku', 'sku_code', 'id']),
+          barcode: getColVal(r, ['Barcode', 'UPC', 'EAN', 'Barcode Number', 'barcode']),
+          cost_price: parseFloat(getColVal(r, ['Cost Price', 'Cost price', 'Cost', 'Buy Price', 'cost_price', 'unit cost'])) || 0,
+          selling_price: parseFloat(getColVal(r, ['Selling Price', 'Selling price', 'Price', 'Retail Price', 'Unit Price', 'selling_price', 'price'])) || 0,
+          quantity: parseInt(getColVal(r, ['Quantity In Stock', 'Quantity', 'Qty', 'Qty Sold', 'Current Inventory', 'Stock', 'quantity', 'stock'])) || 0,
+          min_stock_level: parseInt(getColVal(r, ['Min Stock Level', 'Min Stock', 'Minimum Stock', 'Reorder Level', 'min_stock_level'])) || 0,
+          is_taxable: getColVal(r, ['Taxable', 'Is Taxable', 'Tax', 'taxable', 'is_taxable']) || 'Yes'
+        });
+      }
+
+      if (products.length === 0) {
+        throw new Error('No valid product rows with product names could be parsed.');
+      }
+
+      const res = await fetch('/api/products/import-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          products,
+          duplicateHandling: generalDuplicateMode
+        })
+      });
+
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || 'Failed to import general products');
+
+      setGeneralImportResult(resData);
+      setGeneralCsvText('');
+      setGeneralFile(null);
+      if (generalFileInputRef.current) generalFileInputRef.current.value = '';
+      fetchProductsStats();
+    } catch (err: any) {
+      setGeneralImportResult({
+        success: false,
+        total: 0,
+        imported: 0,
+        updated: 0,
+        skipped: 0,
+        errorsCount: 1,
+        errors: [err.message]
+      });
+    } finally {
+      setIsGeneralImporting(false);
     }
   };
 
@@ -1018,7 +1299,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
     { id: 'manage-taxes', label: 'Manage Taxes', icon: Percent },
     { id: 'payment-options', label: 'Payment Options', icon: CreditCard },
     { id: 'import-customers', label: 'Import Customers', icon: Users },
-    { id: 'import-products', label: 'Import Products', icon: Package },
+    { id: 'import-products', label: 'Import / Export Products', icon: Package },
   ];
 
   return (
@@ -2319,72 +2600,381 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
               </div>
             </div>
           ) : activeTab === 'import-products' ? (
-            <div className="max-w-4xl">
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">Import Products</h3>
-              <p className="text-sm text-slate-500 mb-8">
-                Paste your CSV data below to import products, categories, and manufacturers. The system will automatically create any missing locations, categories, or manufacturers.
-              </p>
+            <div className="max-w-5xl space-y-6">
+              {/* Header */}
+              <div>
+                <h3 className="text-2xl font-bold text-slate-800 mb-1 flex items-center gap-2">
+                  <Package className="text-blue-600" size={24} />
+                  Import & Export Products
+                </h3>
+                <p className="text-sm text-slate-500">
+                  Download live inventory CSV records or upload new product catalog files.
+                </p>
+              </div>
 
-              <div className="bg-white border border-slate-200 rounded p-6 space-y-6">
-                <div className="flex items-center gap-4">
-                  <div className="flex-1">
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Upload CSV File</label>
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="file" 
-                        ref={fileInputRef}
-                        onChange={handleFileUpload}
-                        accept=".csv"
-                        className="hidden"
-                      />
-                      <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-sm font-medium transition-colors border border-slate-300"
+              {/* Mode Switcher Buttons */}
+              <div className="flex border-b border-slate-200 gap-2 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setProductSubMode('serial')}
+                  className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${
+                    productSubMode === 'serial'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  Serial Products
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProductSubMode('general')}
+                  className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${
+                    productSubMode === 'general'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  General Products
+                </button>
+              </div>
+
+              {/* ───────────────────────────────────────────────────────────── */}
+              {/* SUB-SECTION 1: SERIAL PRODUCTS */}
+              {/* ───────────────────────────────────────────────────────────── */}
+              {productSubMode === 'serial' && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left: Export Serial Products */}
+                  <div className="bg-white border border-slate-200 rounded-lg p-5 flex flex-col justify-between space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                        <div className="flex items-center gap-2">
+                          <ArrowDownToLine size={18} className="text-blue-600" />
+                          <h4 className="font-bold text-slate-800 text-base">Export Serial Products</h4>
+                        </div>
+                        <button
+                          onClick={fetchProductsStats}
+                          title="Refresh Stats"
+                          className="p-1 text-slate-400 hover:text-blue-600 rounded"
+                        >
+                          <RefreshCw size={15} />
+                        </button>
+                      </div>
+
+                      <p className="text-xs text-slate-600 mb-3 leading-relaxed">
+                        Download all serialized inventory (Phones, Tablets, Laptops) into standard CSV format:
+                      </p>
+
+                      <div className="bg-slate-50 border border-slate-200 rounded p-2.5 mb-4 text-[11px] font-mono text-slate-700 space-y-1 overflow-x-auto">
+                        <div>"Serial Number / IMEI", "Product Name", "Category", "Brand / Manufacturer", "Storage", "Color", "Condition", "Cost Price", "Selling Price", "Stock Status", "IMEI Status", "Carrier / Lock", "Created Date"</div>
+                      </div>
+
+                      <div className="bg-blue-50 border border-blue-100 rounded p-3 text-xs text-blue-800 mb-4">
+                        <span className="font-semibold">In-Stock Devices:</span> {serialStats.in_stock_devices} &nbsp;|&nbsp; <span className="font-semibold">Total Recorded:</span> {serialStats.total_devices}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={handleDownloadSerialExport}
+                        disabled={isSerialExporting}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                       >
-                        <Upload size={16} />
-                        Choose File
+                        <Download size={16} />
+                        {isSerialExporting ? 'Exporting...' : 'Download Serial Products (.csv)'}
                       </button>
-                      {fileInputRef.current?.files?.[0] && (
-                        <span className="text-sm text-slate-500">{fileInputRef.current.files[0].name}</span>
+
+                      <button
+                        type="button"
+                        onClick={handleDownloadSerialSample}
+                        className="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium py-1.5 px-3 rounded text-xs border border-slate-200 transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <FileText size={14} />
+                        Download Sample Template (.csv)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Right: Import Serial Products */}
+                  <div className="bg-white border border-slate-200 rounded-lg p-5 flex flex-col justify-between space-y-4">
+                    <div>
+                      <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-4">
+                        <ArrowUpFromLine size={18} className="text-emerald-600" />
+                        <h4 className="font-bold text-slate-800 text-base">Import Serial Products</h4>
+                      </div>
+
+                      <p className="text-xs text-slate-600 mb-3 leading-relaxed">
+                        Upload or paste standard or custom CSV files to add or update serial devices in your inventory and catalog.
+                      </p>
+
+                      {/* File upload */}
+                      <div className="mb-3">
+                        <input
+                          type="file"
+                          ref={serialFileInputRef}
+                          onChange={handleSerialFileUpload}
+                          accept=".csv"
+                          className="hidden"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => serialFileInputRef.current?.click()}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-medium border border-slate-300"
+                          >
+                            <Upload size={14} />
+                            Choose .csv File
+                          </button>
+                          {serialFile && (
+                            <span className="text-xs text-slate-600 truncate max-w-[200px]">{serialFile.name}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Textarea */}
+                      <div className="mb-3">
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Or Paste Serial CSV Data:
+                        </label>
+                        <textarea
+                          rows={6}
+                          value={serialCsvText}
+                          onChange={(e) => setSerialCsvText(e.target.value)}
+                          placeholder={`"Serial Number / IMEI","Product Name","Category","Brand / Manufacturer","Storage","Color","Condition","Cost Price","Selling Price","Stock Status","IMEI Status","Carrier / Lock","Created Date"\n"R5GL3253R8Y","Galaxy Tab A11+ X230 WI-FI","Tablets","Samsung","128GB","Silver","New",150.00,219.00,"in_stock","Clean","Unlocked","2026-08-07 10:11:45"\n"353014119037244","iPhone 12 mini","Mobile Phones","Apple","128GB","Black","Grade A",160.00,245.00,"in_stock","Clean","Unlocked","2026-07-25 09:50:02"`}
+                          className="w-full border border-slate-300 rounded p-2 text-xs font-mono focus:ring-1 focus:ring-blue-500 focus:outline-none resize-y"
+                        />
+                      </div>
+
+                      {/* Duplicate handling */}
+                      <div className="mb-3 bg-slate-50 border border-slate-200 rounded p-2 text-xs">
+                        <span className="font-semibold text-slate-700 block mb-1">Duplicate Serial Handling:</span>
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="serialDuplicateMode"
+                              checked={serialDuplicateMode === 'overwrite'}
+                              onChange={() => setSerialDuplicateMode('overwrite')}
+                            />
+                            <span>Update Existing Details</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="serialDuplicateMode"
+                              checked={serialDuplicateMode === 'skip'}
+                              onChange={() => setSerialDuplicateMode('skip')}
+                            />
+                            <span>Skip Duplicates</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Result alert */}
+                      {serialImportResult && (
+                        <div className={`p-3 rounded text-xs mb-3 ${
+                          serialImportResult.success
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : 'bg-red-50 text-red-800 border border-red-200'
+                        }`}>
+                          <div className="font-semibold mb-1">
+                            {serialImportResult.success ? 'Import Completed' : 'Import Error'}
+                          </div>
+                          <div>Total Rows: {serialImportResult.total} | Added: {serialImportResult.imported} | Updated: {serialImportResult.updated} | Skipped: {serialImportResult.skipped}</div>
+                          {serialImportResult.errors && serialImportResult.errors.length > 0 && (
+                            <ul className="list-disc list-inside mt-1 space-y-0.5 text-[11px] text-red-700">
+                              {serialImportResult.errors.map((err, idx) => (
+                                <li key={idx}>{err}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
                       )}
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={handleImportSerialSubmit}
+                        disabled={isSerialImporting}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        <Save size={16} />
+                        {isSerialImporting ? 'Importing...' : 'Import Serial Products'}
+                      </button>
                     </div>
                   </div>
                 </div>
+              )}
 
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700">Or Paste CSV Data</label>
-                  <textarea 
-                    value={csvText}
-                    onChange={(e) => setCsvText(e.target.value)}
-                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 h-64 resize-none"
-                    placeholder="Sub-Domain,Id,Product Type,Category name,Manufacturer name,Product name,Color Name,Storage,Physical Condition,SKU,Cost price,Selling Price,Taxable,Current inventory,Count Inventory,Minimum stock,Require Reference,Allow Over Selling"
-                  />
-                </div>
+              {/* ───────────────────────────────────────────────────────────── */}
+              {/* SUB-SECTION 2: GENERAL PRODUCTS */}
+              {/* ───────────────────────────────────────────────────────────── */}
+              {productSubMode === 'general' && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left: Export General Products */}
+                  <div className="bg-white border border-slate-200 rounded-lg p-5 flex flex-col justify-between space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                        <div className="flex items-center gap-2">
+                          <ArrowDownToLine size={18} className="text-blue-600" />
+                          <h4 className="font-bold text-slate-800 text-base">Export General Products</h4>
+                        </div>
+                        <button
+                          onClick={fetchProductsStats}
+                          title="Refresh Stats"
+                          className="p-1 text-slate-400 hover:text-blue-600 rounded"
+                        >
+                          <RefreshCw size={15} />
+                        </button>
+                      </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded p-4 flex gap-4 text-xs text-slate-600 italic">
-                  <div className="bg-slate-300 w-1 h-auto rounded-full"></div>
-                  <p>
-                    Make sure your CSV data includes the header row. The system will map fields based on the header names.
-                  </p>
-                </div>
+                      <p className="text-xs text-slate-600 mb-3 leading-relaxed">
+                        Download standard catalog items, accessories, and stock into standard CSV format:
+                      </p>
 
-                <div className="flex justify-end pt-4 border-t border-slate-100">
-                  <button
-                    onClick={handleImportProducts}
-                    disabled={isSaving}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded text-sm shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
-                  >
-                    <Save size={16} />
-                    {isSaving ? 'Importing...' : 'Save Products'}
-                  </button>
-                </div>
+                      <div className="bg-slate-50 border border-slate-200 rounded p-2.5 mb-4 text-[11px] font-mono text-slate-700 space-y-1 overflow-x-auto">
+                        <div>"Product Name", "Product Type", "Category", "Brand / Manufacturer", "SKU", "Barcode", "Cost Price", "Selling Price", "Quantity In Stock", "Min Stock Level", "Taxable"</div>
+                      </div>
 
-                {message && (
-                  <div className={`mt-4 p-3 rounded text-sm font-medium ${message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                    {message.text}
+                      <div className="bg-blue-50 border border-blue-100 rounded p-3 text-xs text-blue-800 mb-4">
+                        <span className="font-semibold">Catalog Products:</span> {generalStats.total_products} &nbsp;|&nbsp; <span className="font-semibold">SKUs:</span> {generalStats.total_skus} &nbsp;|&nbsp; <span className="font-semibold">Stock:</span> {generalStats.total_stock}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={handleDownloadGeneralExport}
+                        disabled={isGeneralExporting}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        <Download size={16} />
+                        {isGeneralExporting ? 'Exporting...' : 'Download General Products (.csv)'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleDownloadGeneralSample}
+                        className="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium py-1.5 px-3 rounded text-xs border border-slate-200 transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <FileText size={14} />
+                        Download Sample Template (.csv)
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
+
+                  {/* Right: Import General Products */}
+                  <div className="bg-white border border-slate-200 rounded-lg p-5 flex flex-col justify-between space-y-4">
+                    <div>
+                      <div className="flex items-center gap-2 pb-3 border-b border-slate-100 mb-4">
+                        <ArrowUpFromLine size={18} className="text-emerald-600" />
+                        <h4 className="font-bold text-slate-800 text-base">Import General Products</h4>
+                      </div>
+
+                      <p className="text-xs text-slate-600 mb-3 leading-relaxed">
+                        Upload or paste standard or custom CSV files to add or update general items, accessories, prices, and stock.
+                      </p>
+
+                      {/* File upload */}
+                      <div className="mb-3">
+                        <input
+                          type="file"
+                          ref={generalFileInputRef}
+                          onChange={handleGeneralFileUpload}
+                          accept=".csv"
+                          className="hidden"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => generalFileInputRef.current?.click()}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-medium border border-slate-300"
+                          >
+                            <Upload size={14} />
+                            Choose .csv File
+                          </button>
+                          {generalFile && (
+                            <span className="text-xs text-slate-600 truncate max-w-[200px]">{generalFile.name}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Textarea */}
+                      <div className="mb-3">
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Or Paste General CSV Data:
+                        </label>
+                        <textarea
+                          rows={6}
+                          value={generalCsvText}
+                          onChange={(e) => setGeneralCsvText(e.target.value)}
+                          placeholder={`"Product Name","Product Type","Category","Brand / Manufacturer","SKU","Barcode","Cost Price","Selling Price","Quantity In Stock","Min Stock Level","Taxable"\n"Privacy Tempered Glass / Screen Protector","Standard","Accessories","","GSP05","GSP05",2.50,15.00,25,5,"Yes"\n"20W USB-C Power Adapter","Standard","Accessories","Apple","AP-20W-PWR","194252157007",12.00,25.00,10,3,"Yes"`}
+                          className="w-full border border-slate-300 rounded p-2 text-xs font-mono focus:ring-1 focus:ring-blue-500 focus:outline-none resize-y"
+                        />
+                      </div>
+
+                      {/* Duplicate handling */}
+                      <div className="mb-3 bg-slate-50 border border-slate-200 rounded p-2 text-xs">
+                        <span className="font-semibold text-slate-700 block mb-1">Duplicate Product / SKU Handling:</span>
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="generalDuplicateMode"
+                              checked={generalDuplicateMode === 'overwrite'}
+                              onChange={() => setGeneralDuplicateMode('overwrite')}
+                            />
+                            <span>Update Existing Price & Stock</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="generalDuplicateMode"
+                              checked={generalDuplicateMode === 'skip'}
+                              onChange={() => setGeneralDuplicateMode('skip')}
+                            />
+                            <span>Skip Duplicates</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Result alert */}
+                      {generalImportResult && (
+                        <div className={`p-3 rounded text-xs mb-3 ${
+                          generalImportResult.success
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : 'bg-red-50 text-red-800 border border-red-200'
+                        }`}>
+                          <div className="font-semibold mb-1">
+                            {generalImportResult.success ? 'Import Completed' : 'Import Error'}
+                          </div>
+                          <div>Total Rows: {generalImportResult.total} | Added: {generalImportResult.imported} | Updated: {generalImportResult.updated} | Skipped: {generalImportResult.skipped}</div>
+                          {generalImportResult.errors && generalImportResult.errors.length > 0 && (
+                            <ul className="list-disc list-inside mt-1 space-y-0.5 text-[11px] text-red-700">
+                              {generalImportResult.errors.map((err, idx) => (
+                                <li key={idx}>{err}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={handleImportGeneralSubmit}
+                        disabled={isGeneralImporting}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        <Save size={16} />
+                        {isGeneralImporting ? 'Importing...' : 'Import General Products'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-slate-400">

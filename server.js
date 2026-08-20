@@ -830,37 +830,12 @@ async function initSchema() {
   }
 }
 async function seedData() {
-  const [existing] = await pool.execute("SELECT id FROM businesses WHERE name='Phone Management System'");
+  const [existing] = await pool.execute("SELECT id FROM businesses LIMIT 1");
   if (existing.length > 0) return;
   const conn = await pool.getConnection();
   try {
-    console.log("[MySQL] Resetting database and seeding initial data...");
+    console.log("[MySQL] No businesses found. Seeding initial baseline data...");
     await conn.query("SET FOREIGN_KEY_CHECKS = 0");
-    const tables = [
-      "businesses",
-      "branches",
-      "users",
-      "customers",
-      "suppliers",
-      "settings",
-      "payment_methods",
-      "smtp_settings",
-      "invoices",
-      "invoice_items",
-      "products",
-      "product_skus",
-      "branch_stock",
-      "devices",
-      "inventory_movements",
-      "jobs",
-      "device_transfers"
-    ];
-    for (const table of tables) {
-      try {
-        await conn.query(`TRUNCATE TABLE ${table}`);
-      } catch (e) {
-      }
-    }
     const [bizResult] = await conn.execute(
       "INSERT INTO businesses (name, email, slug, status) VALUES (?, ?, ?, ?)",
       ["Phone Management System", "support@techinbox.ie", "phone-management-system", "active"]
@@ -1933,6 +1908,244 @@ var init_products = __esm({
         next(e);
       }
     });
+    router3.get("/stats", async (req, res, next) => {
+      try {
+        const businessId = req.user.business_id;
+        const rows = await query(`
+      SELECT 
+        COUNT(DISTINCT p.id) as total_products,
+        COUNT(DISTINCT s.id) as total_skus,
+        COALESCE(SUM(bs.quantity), 0) as total_stock
+      FROM products p
+      JOIN product_skus s ON s.product_id = p.id
+      LEFT JOIN branch_stock bs ON bs.sku_id = s.id AND bs.branch_id = ?
+      WHERE p.business_id = ? AND p.deleted_at IS NULL AND p.product_type != 'serialized'
+    `, [req.user.branch_id, businessId]);
+        res.json(rows[0] || { total_products: 0, total_skus: 0, total_stock: 0 });
+      } catch (e) {
+        next(e);
+      }
+    });
+    router3.get("/sample-csv", async (req, res) => {
+      const sampleContent = `"Product Name","Product Type","Category","Brand / Manufacturer","SKU","Barcode","Cost Price","Selling Price","Quantity In Stock","Min Stock Level","Taxable"
+"Privacy Tempered Glass / Screen Protector","Standard","Accessories","","GSP05","GSP05",2.50,15.00,25,5,"Yes"
+"20W USB-C Power Adapter","Standard","Accessories","Apple","AP-20W-PWR","194252157007",12.00,25.00,10,3,"Yes"
+"Silicone Case - Midnight","Standard","Cases","Apple","CASE-IP14-BLK","194253322114",8.00,29.99,15,2,"Yes"
+"Screen Replacement Service","Labor/Services","Repairs","","SRV-SCRN","",0.00,65.00,0,0,"No"`;
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", 'attachment; filename="standard_general_products.csv"');
+      res.send(sampleContent);
+    });
+    router3.get("/export-csv", async (req, res, next) => {
+      try {
+        const businessId = req.user.business_id;
+        const rows = await query(`
+      SELECT 
+        p.name as product_name,
+        CASE 
+          WHEN p.product_type = 'stock' THEN 'Standard'
+          WHEN p.product_type = 'service' THEN 'Labor/Services'
+          ELSE COALESCE(p.product_type, 'Standard')
+        END as product_type,
+        COALESCE(c.name, '') as category_name,
+        COALESCE(m.name, '') as manufacturer_name,
+        COALESCE(s.sku_code, '') as sku,
+        COALESCE(s.barcode, '') as barcode,
+        COALESCE(s.cost_price, 0) as cost_price,
+        COALESCE(s.selling_price, 0) as selling_price,
+        COALESCE((SELECT SUM(quantity) FROM branch_stock WHERE sku_id = s.id AND branch_id = ?), 0) as quantity,
+        COALESCE(p.min_stock_level, 0) as min_stock_level,
+        CASE WHEN p.is_taxable = 1 THEN 'Yes' ELSE 'No' END as is_taxable
+      FROM product_skus s
+      JOIN products p ON s.product_id = p.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+      WHERE p.business_id = ? AND p.deleted_at IS NULL AND p.product_type != 'serialized'
+      ORDER BY p.name ASC
+    `, [req.user.branch_id, businessId]);
+        const escapeCsv = (str) => {
+          if (str === null || str === void 0) return '""';
+          const s = String(str).trim();
+          return `"${s.replace(/"/g, '""')}"`;
+        };
+        let csvContent = `"Product Name","Product Type","Category","Brand / Manufacturer","SKU","Barcode","Cost Price","Selling Price","Quantity In Stock","Min Stock Level","Taxable"
+`;
+        for (const row of rows) {
+          const line = [
+            escapeCsv(row.product_name),
+            escapeCsv(row.product_type),
+            escapeCsv(row.category_name),
+            escapeCsv(row.manufacturer_name),
+            escapeCsv(row.sku),
+            escapeCsv(row.barcode),
+            Number(row.cost_price || 0).toFixed(2),
+            Number(row.selling_price || 0).toFixed(2),
+            Number(row.quantity || 0),
+            Number(row.min_stock_level || 0),
+            escapeCsv(row.is_taxable)
+          ].join(",");
+          csvContent += line + "\n";
+        }
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename="general_products_${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.csv"`);
+        res.send(csvContent);
+      } catch (e) {
+        console.error("[ExportGeneralProducts] Error:", e.message);
+        next(e);
+      }
+    });
+    router3.post("/import-csv", async (req, res, next) => {
+      const { products, duplicateHandling = "overwrite" } = req.body;
+      if (!products || !Array.isArray(products) || products.length === 0) {
+        return res.status(400).json({ error: "No product records provided" });
+      }
+      const businessId = req.user.business_id;
+      const branchId = req.user.branch_id || 1;
+      let imported = 0;
+      let updated = 0;
+      let skipped = 0;
+      const errors = [];
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        for (let i = 0; i < products.length; i++) {
+          const p = products[i];
+          const prodName = String(p.product_name || p.product || p.name || "").trim();
+          const catName = String(p.category_name || p.category || "").trim();
+          const mfgName = String(p.manufacturer_name || p.manufacturer || p.brand || "").trim();
+          const skuCode = String(p.sku || p.sku_code || "").trim();
+          const barcode = String(p.barcode || "").trim();
+          const rawType = String(p.product_type || p.type || "Standard").trim();
+          const costPrice = parseFloat(p.cost_price || p.cost || 0) || 0;
+          const sellingPrice = parseFloat(p.selling_price || p.price || 0) || 0;
+          const qty = parseInt(p.quantity || p.qty || p.qty_sold || p.current_inventory || 0) || 0;
+          const minStock = parseInt(p.min_stock_level || p.min_stock || 0) || 0;
+          const isTaxableRaw = String(p.is_taxable || p.taxable || "Yes").trim().toLowerCase();
+          const isTaxable = isTaxableRaw === "yes" || isTaxableRaw === "1" || isTaxableRaw === "true" ? 1 : 0;
+          if (!prodName) {
+            errors.push(`Row ${i + 1}: Skipped - Product Name is required`);
+            skipped++;
+            continue;
+          }
+          try {
+            let categoryId = null;
+            if (catName) {
+              const [cr] = await conn.execute(
+                "SELECT id FROM categories WHERE business_id = ? AND name = ? LIMIT 1",
+                [businessId, catName]
+              );
+              if (cr.length > 0) {
+                categoryId = cr[0].id;
+              } else {
+                const [ins] = await conn.execute(
+                  "INSERT INTO categories (business_id, name) VALUES (?, ?)",
+                  [businessId, catName]
+                );
+                categoryId = ins.insertId;
+              }
+            }
+            let manufacturerId = null;
+            if (mfgName) {
+              const [mr] = await conn.execute(
+                "SELECT id FROM manufacturers WHERE business_id = ? AND name = ? LIMIT 1",
+                [businessId, mfgName]
+              );
+              if (mr.length > 0) {
+                manufacturerId = mr[0].id;
+              } else {
+                const [ins] = await conn.execute(
+                  "INSERT INTO manufacturers (business_id, name) VALUES (?, ?)",
+                  [businessId, mfgName]
+                );
+                manufacturerId = ins.insertId;
+              }
+            }
+            let mappedType = "stock";
+            if (rawType.toLowerCase() === "labor/services" || rawType.toLowerCase() === "service") {
+              mappedType = "service";
+            } else if (rawType.toLowerCase() === "mobile devices" || rawType.toLowerCase() === "serialized") {
+              mappedType = "serialized";
+            }
+            const [pr] = await conn.execute(
+              "SELECT id FROM products WHERE business_id = ? AND name = ? AND deleted_at IS NULL LIMIT 1",
+              [businessId, prodName]
+            );
+            let productId;
+            let isNewProduct = false;
+            if (pr.length > 0) {
+              productId = pr[0].id;
+              if (duplicateHandling === "overwrite") {
+                await conn.execute(
+                  "UPDATE products SET category_id = COALESCE(?, category_id), manufacturer_id = COALESCE(?, manufacturer_id), product_type = ?, min_stock_level = ?, is_taxable = ? WHERE id = ?",
+                  [categoryId, manufacturerId, mappedType, minStock, isTaxable, productId]
+                );
+              }
+            } else {
+              const [ins] = await conn.execute(
+                "INSERT INTO products (business_id, category_id, manufacturer_id, name, product_type, min_stock_level, is_taxable, allow_overselling) VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
+                [businessId, categoryId, manufacturerId, prodName, mappedType, minStock, isTaxable]
+              );
+              productId = ins.insertId;
+              isNewProduct = true;
+            }
+            const effectiveSku = skuCode || `SKU-${prodName.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+            const effectiveBarcode = barcode || effectiveSku;
+            const [sr] = await conn.execute(
+              'SELECT id FROM product_skus WHERE product_id = ? AND (sku_code = ? OR ? = "") LIMIT 1',
+              [productId, effectiveSku, skuCode]
+            );
+            let skuId;
+            if (sr.length > 0) {
+              skuId = sr[0].id;
+              if (duplicateHandling === "overwrite") {
+                await conn.execute(
+                  'UPDATE product_skus SET sku_code = ?, barcode = COALESCE(NULLIF(?, ""), barcode), cost_price = ?, selling_price = ? WHERE id = ?',
+                  [effectiveSku, effectiveBarcode, costPrice, sellingPrice, skuId]
+                );
+                if (!isNewProduct) updated++;
+              } else {
+                if (!isNewProduct) skipped++;
+              }
+            } else {
+              const [ins] = await conn.execute(
+                "INSERT INTO product_skus (product_id, sku_code, barcode, cost_price, selling_price) VALUES (?, ?, ?, ?, ?)",
+                [productId, effectiveSku, effectiveBarcode, costPrice, sellingPrice]
+              );
+              skuId = ins.insertId;
+              if (!isNewProduct) updated++;
+            }
+            if (qty > 0 || isNewProduct) {
+              await conn.execute(
+                "INSERT INTO branch_stock (sku_id, branch_id, quantity) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE quantity = VALUES(quantity)",
+                [skuId, branchId, qty]
+              );
+            }
+            if (isNewProduct) {
+              imported++;
+            }
+          } catch (rowErr) {
+            console.error(`General row ${i + 1} error:`, rowErr.message);
+            errors.push(`Row ${i + 1} (${prodName}): ${rowErr.message}`);
+          }
+        }
+        await conn.commit();
+        res.json({
+          success: true,
+          total: products.length,
+          imported,
+          updated,
+          skipped,
+          errorsCount: errors.length,
+          errors: errors.slice(0, 10)
+        });
+      } catch (e) {
+        await conn.rollback();
+        console.error("[ImportGeneralProducts] Error:", e.message);
+        res.status(500).json({ error: e.message || "Failed to import general products" });
+      } finally {
+        conn.release();
+      }
+    });
     router3.get("/special/get-deposit-product", async (req, res, next) => {
       const businessId = req.user?.business_id;
       if (!businessId) return res.status(401).json({ error: "Business context missing" });
@@ -2158,7 +2371,7 @@ var init_products = __esm({
       const { name, category_id, manufacturer_id, selling_price, cost_price, sku_code, barcode, branch_id, quantity } = data;
       const businessId = req.user.business_id;
       const activeBranchId = branch_id || req.user.branch_id;
-      const stockQty = parseInt(quantity) || 0;
+      const stockQty = parseInt(String(quantity)) || 0;
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
@@ -4326,6 +4539,268 @@ var init_inventory = __esm({
         next(e);
       }
     });
+    router8.get("/devices/stats", async (req, res, next) => {
+      try {
+        const businessId = req.user.business_id;
+        const isSuper = req.user.role === "superadmin";
+        const rows = await query(`
+      SELECT 
+        COUNT(*) as total_devices,
+        SUM(CASE WHEN status = 'in_stock' THEN 1 ELSE 0 END) as in_stock_devices
+      FROM devices
+      WHERE business_id = ? ${!isSuper ? "AND branch_id = ?" : ""}
+    `, !isSuper ? [businessId, req.user.branch_id] : [businessId]);
+        res.json(rows[0] || { total_devices: 0, in_stock_devices: 0 });
+      } catch (e) {
+        next(e);
+      }
+    });
+    router8.get("/devices/sample-csv", async (req, res) => {
+      const sampleContent = `"Serial Number / IMEI","Product Name","Category","Brand / Manufacturer","Storage","Color","Condition","Cost Price","Selling Price","Stock Status","IMEI Status","Carrier / Lock","Created Date"
+"R5GL3253R8Y","Galaxy Tab A11+ X230 WI-FI","Tablets","Samsung","128GB","Silver","New",150.00,219.00,"in_stock","Clean","Unlocked","2026-08-07 10:11:45"
+"R5GL3253Q8B","Galaxy Tab A11+ X230 WI-FI","Tablets","Samsung","128GB","Graphite","New",150.00,219.00,"in_stock","Clean","Unlocked","2026-08-07 10:13:18"
+"353014119037244","iPhone 12 mini","Mobile Phones","Apple","128GB","Black","Grade A",160.00,245.00,"in_stock","Clean","Unlocked","2026-07-25 09:50:02"
+"351500437920378","iPhone 13","Mobile Phones","Apple","128GB","Midnight","Grade A",220.00,330.00,"in_stock","Clean","Unlocked","2026-08-05 16:04:32"`;
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", 'attachment; filename="standard_serial_products.csv"');
+      res.send(sampleContent);
+    });
+    router8.get("/devices/export-csv", async (req, res, next) => {
+      try {
+        const businessId = req.user.business_id;
+        const isSuper = req.user.role === "superadmin";
+        const status = req.query.status || "all";
+        let sql = `
+      SELECT 
+        COALESCE(d.imei_serial, d.imei, '') as serial_number,
+        p.name as product_name,
+        COALESCE(c.name, 'Mobile Devices') as category_name,
+        COALESCE(m.name, '') as manufacturer_name,
+        COALESCE(d.gb, '') as storage,
+        COALESCE(d.color, '') as color,
+        COALESCE(d.\`condition\`, 'New') as physical_condition,
+        COALESCE(d.cost_price, 0) as cost_price,
+        COALESCE(d.selling_price, s.selling_price, 0) as selling_price,
+        COALESCE(d.status, 'in_stock') as status,
+        COALESCE(d.imei_status, 'Clean') as imei_status,
+        COALESCE(d.carrier, 'Unlocked') as carrier,
+        COALESCE(u.name, bz.name, 'Phone Lab') as created_by_user,
+        DATE_FORMAT(COALESCE(d.created_at, d.date_added, NOW()), '%Y-%m-%d %H:%i:%s') as created_date
+      FROM devices d
+      LEFT JOIN product_skus s ON d.sku_id = s.id
+      LEFT JOIN products p ON (d.product_id = p.id OR s.product_id = p.id)
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+      JOIN businesses bz ON d.business_id = bz.id
+      LEFT JOIN users u ON u.business_id = d.business_id AND u.role IN ('admin', 'manager', 'user')
+      WHERE d.business_id = ? ${status !== "all" ? "AND d.status = ?" : ""} ${!isSuper ? "AND d.branch_id = ?" : ""}
+      GROUP BY d.id
+      ORDER BY d.created_at DESC
+    `;
+        const params = [businessId];
+        if (status !== "all") params.push(status);
+        if (!isSuper) params.push(req.user.branch_id);
+        const rows = await query(sql, params);
+        const escapeCsv = (str) => {
+          if (str === null || str === void 0) return '""';
+          const s = String(str).trim();
+          return `"${s.replace(/"/g, '""')}"`;
+        };
+        let csvContent = `"Serial Number / IMEI","Product Name","Category","Brand / Manufacturer","Storage","Color","Condition","Cost Price","Selling Price","Stock Status","IMEI Status","Carrier / Lock","Created Date"
+`;
+        for (const row of rows) {
+          const line = [
+            escapeCsv(row.serial_number),
+            escapeCsv(row.product_name || "Standard Mobile Device"),
+            escapeCsv(row.category_name),
+            escapeCsv(row.manufacturer_name),
+            escapeCsv(row.storage),
+            escapeCsv(row.color),
+            escapeCsv(row.physical_condition),
+            Number(row.cost_price || 0).toFixed(2),
+            Number(row.selling_price || 0).toFixed(2),
+            escapeCsv(row.status),
+            escapeCsv(row.imei_status),
+            escapeCsv(row.carrier),
+            escapeCsv(row.created_date)
+          ].join(",");
+          csvContent += line + "\n";
+        }
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename="serial_products_${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.csv"`);
+        res.send(csvContent);
+      } catch (e) {
+        console.error("[ExportSerialProducts] Error:", e.message);
+        next(e);
+      }
+    });
+    router8.post("/devices/import-csv", async (req, res, next) => {
+      const { items, duplicateHandling = "overwrite" } = req.body;
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: "No serial product items provided" });
+      }
+      const businessId = req.user.business_id;
+      const branchId = req.user.branch_id || 1;
+      const userId = req.user.id || req.userId || 1;
+      let imported = 0;
+      let updated = 0;
+      let skipped = 0;
+      const errors = [];
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        for (let i = 0; i < items.length; i++) {
+          const row = items[i];
+          const serialNumber = String(row.serial_number || row.serial || row.imei || "").trim();
+          const productName = String(row.product_name || row.product || "Standard Mobile Device").trim();
+          const categoryName = String(row.category_name || row.category || "").trim();
+          const manufacturerName = String(row.manufacturer_name || row.manufacturer || row.brand || "").trim();
+          const storage = String(row.storage || row.gb || "").trim();
+          const color = String(row.color || "").trim();
+          const condition = String(row.physical_condition || row.condition || "New").trim();
+          const costPrice = parseFloat(row.cost_price || 0) || 0;
+          const sellingPrice = parseFloat(row.selling_price || row.price || 0) || 0;
+          const stockStatus = String(row.status || "in_stock").trim() || "in_stock";
+          const imeiStatus = String(row.imei_status || "Clean").trim() || "Clean";
+          const carrier = String(row.carrier || row.unlocked || "Unlocked").trim() || "Unlocked";
+          const createdDate = row.created_date || row.created_at || null;
+          if (!serialNumber) {
+            errors.push(`Row ${i + 1}: Skipped - Serial number is missing`);
+            skipped++;
+            continue;
+          }
+          try {
+            let categoryId = null;
+            if (categoryName) {
+              const [cr] = await conn.execute(
+                "SELECT id FROM categories WHERE business_id = ? AND name = ? LIMIT 1",
+                [businessId, categoryName]
+              );
+              if (cr.length > 0) {
+                categoryId = cr[0].id;
+              } else {
+                const [ins] = await conn.execute(
+                  "INSERT INTO categories (business_id, name) VALUES (?, ?)",
+                  [businessId, categoryName]
+                );
+                categoryId = ins.insertId;
+              }
+            }
+            let manufacturerId = null;
+            if (manufacturerName) {
+              const [mr] = await conn.execute(
+                "SELECT id FROM manufacturers WHERE business_id = ? AND name = ? LIMIT 1",
+                [businessId, manufacturerName]
+              );
+              if (mr.length > 0) {
+                manufacturerId = mr[0].id;
+              } else {
+                const [ins] = await conn.execute(
+                  "INSERT INTO manufacturers (business_id, name) VALUES (?, ?)",
+                  [businessId, manufacturerName]
+                );
+                manufacturerId = ins.insertId;
+              }
+            }
+            const [prodRows] = await conn.execute(
+              "SELECT id FROM products WHERE business_id = ? AND name = ? AND deleted_at IS NULL LIMIT 1",
+              [businessId, productName]
+            );
+            let productId;
+            if (prodRows.length > 0) {
+              productId = prodRows[0].id;
+              if (categoryId || manufacturerId) {
+                await conn.execute(
+                  "UPDATE products SET category_id = COALESCE(?, category_id), manufacturer_id = COALESCE(?, manufacturer_id) WHERE id = ?",
+                  [categoryId, manufacturerId, productId]
+                );
+              }
+            } else {
+              const [insProd] = await conn.execute(
+                "INSERT INTO products (business_id, category_id, manufacturer_id, name, product_type, allow_overselling) VALUES (?, ?, ?, ?, ?, ?)",
+                [businessId, categoryId, manufacturerId, productName, "serialized", 1]
+              );
+              productId = insProd.insertId;
+            }
+            const [skuRows] = await conn.execute(
+              "SELECT id FROM product_skus WHERE product_id = ? LIMIT 1",
+              [productId]
+            );
+            let skuId;
+            if (skuRows.length > 0) {
+              skuId = skuRows[0].id;
+              if (sellingPrice > 0 || costPrice > 0) {
+                await conn.execute(
+                  "UPDATE product_skus SET selling_price = COALESCE(NULLIF(?, 0), selling_price), cost_price = COALESCE(NULLIF(?, 0), cost_price) WHERE id = ?",
+                  [sellingPrice, costPrice, skuId]
+                );
+              }
+            } else {
+              const skuCode = `SKU-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 1e3)}`;
+              const [insSku] = await conn.execute(
+                "INSERT INTO product_skus (product_id, sku_code, barcode, cost_price, selling_price) VALUES (?, ?, ?, ?, ?)",
+                [productId, skuCode, skuCode, costPrice, sellingPrice]
+              );
+              skuId = insSku.insertId;
+            }
+            const [existDevice] = await conn.execute(
+              "SELECT id FROM devices WHERE business_id = ? AND (imei = ? OR imei_serial = ?) LIMIT 1",
+              [businessId, serialNumber, serialNumber]
+            );
+            if (existDevice.length > 0) {
+              const existingId = existDevice[0].id;
+              if (duplicateHandling === "overwrite") {
+                await conn.execute(`
+              UPDATE devices 
+              SET product_id = ?, sku_id = ?, gb = ?, color = ?, \`condition\` = ?, cost_price = ?, selling_price = ?, status = ?, imei_status = ?, carrier = ?
+              WHERE id = ?
+            `, [productId, skuId, storage, color, condition, costPrice, sellingPrice, stockStatus, imeiStatus, carrier, existingId]);
+                updated++;
+              } else {
+                skipped++;
+              }
+            } else {
+              const [insDev] = await conn.execute(`
+            INSERT INTO devices 
+              (business_id, branch_id, product_id, sku_id, imei, imei_serial, gb, color, \`condition\`, cost_price, selling_price, status, imei_status, carrier, created_at, date_added)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW()), COALESCE(?, NOW()))
+          `, [businessId, branchId, productId, skuId, serialNumber, serialNumber, storage, color, condition, costPrice, sellingPrice, stockStatus, imeiStatus, carrier, createdDate, createdDate]);
+              const deviceId = insDev.insertId;
+              if (stockStatus === "in_stock") {
+                await conn.execute(
+                  "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE quantity = quantity + 1",
+                  [branchId, skuId]
+                );
+              }
+              await conn.execute(
+                "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+                [deviceId, userId, "Device Created", "Imported via Standard CSV"]
+              );
+              imported++;
+            }
+          } catch (rowErr) {
+            console.error(`Row ${i + 1} error:`, rowErr.message);
+            errors.push(`Row ${i + 1} (${serialNumber}): ${rowErr.message}`);
+          }
+        }
+        await conn.commit();
+        res.json({
+          success: true,
+          total: items.length,
+          imported,
+          updated,
+          skipped,
+          errorsCount: errors.length,
+          errors: errors.slice(0, 10)
+        });
+      } catch (err) {
+        await conn.rollback();
+        console.error("[ImportSerialProducts] Error:", err.message);
+        res.status(500).json({ error: err.message || "Failed to import serial products" });
+      } finally {
+        conn.release();
+      }
+    });
     router8.get("/devices/search", async (req, res, next) => {
       const { q, imei, branch_id } = req.query;
       const searchVal = q || imei;
@@ -5102,7 +5577,7 @@ var init_inventory = __esm({
           updates.push("notes = ?");
           values.push(existingNotes);
         }
-        const collected = parseFloat(collected_amount) || 0;
+        const collected = parseFloat(String(collected_amount)) || 0;
         let invoiceNumber = null;
         if (collected > 0) {
           const newRemaining = Math.max(0, (job.remaining_balance || 0) - collected);

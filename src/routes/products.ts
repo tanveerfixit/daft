@@ -77,7 +77,278 @@ router.get('/', async (req: any, res, next) => {
     });
   } catch (e: any) { 
     console.error('[GetProducts] Error:', e.message);
-    next(e); 
+    next(e);
+  }
+});
+
+// GET /api/products/stats
+router.get('/stats', async (req: any, res, next) => {
+  try {
+    const businessId = req.user.business_id;
+    const rows = await query(`
+      SELECT 
+        COUNT(DISTINCT p.id) as total_products,
+        COUNT(DISTINCT s.id) as total_skus,
+        COALESCE(SUM(bs.quantity), 0) as total_stock
+      FROM products p
+      JOIN product_skus s ON s.product_id = p.id
+      LEFT JOIN branch_stock bs ON bs.sku_id = s.id AND bs.branch_id = ?
+      WHERE p.business_id = ? AND p.deleted_at IS NULL AND p.product_type != 'serialized'
+    `, [req.user.branch_id, businessId]);
+    res.json(rows[0] || { total_products: 0, total_skus: 0, total_stock: 0 });
+  } catch (e: any) {
+    next(e);
+  }
+});
+
+// GET /api/products/sample-csv
+router.get('/sample-csv', async (req: any, res) => {
+  const sampleContent = `"Product Name","Product Type","Category","Brand / Manufacturer","SKU","Barcode","Cost Price","Selling Price","Quantity In Stock","Min Stock Level","Taxable"\n` +
+    `"Privacy Tempered Glass / Screen Protector","Standard","Accessories","","GSP05","GSP05",2.50,15.00,25,5,"Yes"\n` +
+    `"20W USB-C Power Adapter","Standard","Accessories","Apple","AP-20W-PWR","194252157007",12.00,25.00,10,3,"Yes"\n` +
+    `"Silicone Case - Midnight","Standard","Cases","Apple","CASE-IP14-BLK","194253322114",8.00,29.99,15,2,"Yes"\n` +
+    `"Screen Replacement Service","Labor/Services","Repairs","","SRV-SCRN","",0.00,65.00,0,0,"No"`;
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="standard_general_products.csv"');
+  res.send(sampleContent);
+});
+
+// GET /api/products/export-csv
+router.get('/export-csv', async (req: any, res, next) => {
+  try {
+    const businessId = req.user.business_id;
+    const rows = await query(`
+      SELECT 
+        p.name as product_name,
+        CASE 
+          WHEN p.product_type = 'stock' THEN 'Standard'
+          WHEN p.product_type = 'service' THEN 'Labor/Services'
+          ELSE COALESCE(p.product_type, 'Standard')
+        END as product_type,
+        COALESCE(c.name, '') as category_name,
+        COALESCE(m.name, '') as manufacturer_name,
+        COALESCE(s.sku_code, '') as sku,
+        COALESCE(s.barcode, '') as barcode,
+        COALESCE(s.cost_price, 0) as cost_price,
+        COALESCE(s.selling_price, 0) as selling_price,
+        COALESCE((SELECT SUM(quantity) FROM branch_stock WHERE sku_id = s.id AND branch_id = ?), 0) as quantity,
+        COALESCE(p.min_stock_level, 0) as min_stock_level,
+        CASE WHEN p.is_taxable = 1 THEN 'Yes' ELSE 'No' END as is_taxable
+      FROM product_skus s
+      JOIN products p ON s.product_id = p.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+      WHERE p.business_id = ? AND p.deleted_at IS NULL AND p.product_type != 'serialized'
+      ORDER BY p.name ASC
+    `, [req.user.branch_id, businessId]);
+
+    const escapeCsv = (str: any) => {
+      if (str === null || str === undefined) return '""';
+      const s = String(str).trim();
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+
+    let csvContent = `"Product Name","Product Type","Category","Brand / Manufacturer","SKU","Barcode","Cost Price","Selling Price","Quantity In Stock","Min Stock Level","Taxable"\n`;
+    for (const row of rows) {
+      const line = [
+        escapeCsv(row.product_name),
+        escapeCsv(row.product_type),
+        escapeCsv(row.category_name),
+        escapeCsv(row.manufacturer_name),
+        escapeCsv(row.sku),
+        escapeCsv(row.barcode),
+        Number(row.cost_price || 0).toFixed(2),
+        Number(row.selling_price || 0).toFixed(2),
+        Number(row.quantity || 0),
+        Number(row.min_stock_level || 0),
+        escapeCsv(row.is_taxable)
+      ].join(',');
+      csvContent += line + '\n';
+    }
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="general_products_${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send(csvContent);
+  } catch (e: any) {
+    console.error('[ExportGeneralProducts] Error:', e.message);
+    next(e);
+  }
+});
+
+// POST /api/products/import-csv
+router.post('/import-csv', async (req: any, res, next) => {
+  const { products, duplicateHandling = 'overwrite' } = req.body;
+  if (!products || !Array.isArray(products) || products.length === 0) {
+    return res.status(400).json({ error: 'No product records provided' });
+  }
+
+  const businessId = req.user.business_id;
+  const branchId = req.user.branch_id || 1;
+
+  let imported = 0;
+  let updated = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    for (let i = 0; i < products.length; i++) {
+      const p = products[i];
+      const prodName = String(p.product_name || p.product || p.name || '').trim();
+      const catName = String(p.category_name || p.category || '').trim();
+      const mfgName = String(p.manufacturer_name || p.manufacturer || p.brand || '').trim();
+      const skuCode = String(p.sku || p.sku_code || '').trim();
+      const barcode = String(p.barcode || '').trim();
+      const rawType = String(p.product_type || p.type || 'Standard').trim();
+      const costPrice = parseFloat(p.cost_price || p.cost || 0) || 0;
+      const sellingPrice = parseFloat(p.selling_price || p.price || 0) || 0;
+      const qty = parseInt(p.quantity || p.qty || p.qty_sold || p.current_inventory || 0) || 0;
+      const minStock = parseInt(p.min_stock_level || p.min_stock || 0) || 0;
+      const isTaxableRaw = String(p.is_taxable || p.taxable || 'Yes').trim().toLowerCase();
+      const isTaxable = (isTaxableRaw === 'yes' || isTaxableRaw === '1' || isTaxableRaw === 'true') ? 1 : 0;
+
+      if (!prodName) {
+        errors.push(`Row ${i + 1}: Skipped - Product Name is required`);
+        skipped++;
+        continue;
+      }
+
+      try {
+        // 1. Category
+        let categoryId: number | null = null;
+        if (catName) {
+          const [cr] = await conn.execute(
+            'SELECT id FROM categories WHERE business_id = ? AND name = ? LIMIT 1',
+            [businessId, catName]
+          );
+          if ((cr as any[]).length > 0) {
+            categoryId = (cr as any[])[0].id;
+          } else {
+            const [ins] = await conn.execute(
+              'INSERT INTO categories (business_id, name) VALUES (?, ?)',
+              [businessId, catName]
+            );
+            categoryId = (ins as any).insertId;
+          }
+        }
+
+        // 2. Manufacturer
+        let manufacturerId: number | null = null;
+        if (mfgName) {
+          const [mr] = await conn.execute(
+            'SELECT id FROM manufacturers WHERE business_id = ? AND name = ? LIMIT 1',
+            [businessId, mfgName]
+          );
+          if ((mr as any[]).length > 0) {
+            manufacturerId = (mr as any[])[0].id;
+          } else {
+            const [ins] = await conn.execute(
+              'INSERT INTO manufacturers (business_id, name) VALUES (?, ?)',
+              [businessId, mfgName]
+            );
+            manufacturerId = (ins as any).insertId;
+          }
+        }
+
+        // 3. Product Type mapping
+        let mappedType = 'stock';
+        if (rawType.toLowerCase() === 'labor/services' || rawType.toLowerCase() === 'service') {
+          mappedType = 'service';
+        } else if (rawType.toLowerCase() === 'mobile devices' || rawType.toLowerCase() === 'serialized') {
+          mappedType = 'serialized';
+        }
+
+        // 4. Product Lookup / Creation
+        const [pr] = await conn.execute(
+          'SELECT id FROM products WHERE business_id = ? AND name = ? AND deleted_at IS NULL LIMIT 1',
+          [businessId, prodName]
+        );
+
+        let productId: number;
+        let isNewProduct = false;
+        if ((pr as any[]).length > 0) {
+          productId = (pr as any[])[0].id;
+          if (duplicateHandling === 'overwrite') {
+            await conn.execute(
+              'UPDATE products SET category_id = COALESCE(?, category_id), manufacturer_id = COALESCE(?, manufacturer_id), product_type = ?, min_stock_level = ?, is_taxable = ? WHERE id = ?',
+              [categoryId, manufacturerId, mappedType, minStock, isTaxable, productId]
+            );
+          }
+        } else {
+          const [ins] = await conn.execute(
+            'INSERT INTO products (business_id, category_id, manufacturer_id, name, product_type, min_stock_level, is_taxable, allow_overselling) VALUES (?, ?, ?, ?, ?, ?, ?, 1)',
+            [businessId, categoryId, manufacturerId, prodName, mappedType, minStock, isTaxable]
+          );
+          productId = (ins as any).insertId;
+          isNewProduct = true;
+        }
+
+        // 5. SKU Lookup / Creation
+        const effectiveSku = skuCode || `SKU-${prodName.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+        const effectiveBarcode = barcode || effectiveSku;
+
+        const [sr] = await conn.execute(
+          'SELECT id FROM product_skus WHERE product_id = ? AND (sku_code = ? OR ? = "") LIMIT 1',
+          [productId, effectiveSku, skuCode]
+        );
+
+        let skuId: number;
+        if ((sr as any[]).length > 0) {
+          skuId = (sr as any[])[0].id;
+          if (duplicateHandling === 'overwrite') {
+            await conn.execute(
+              'UPDATE product_skus SET sku_code = ?, barcode = COALESCE(NULLIF(?, ""), barcode), cost_price = ?, selling_price = ? WHERE id = ?',
+              [effectiveSku, effectiveBarcode, costPrice, sellingPrice, skuId]
+            );
+            if (!isNewProduct) updated++;
+          } else {
+            if (!isNewProduct) skipped++;
+          }
+        } else {
+          const [ins] = await conn.execute(
+            'INSERT INTO product_skus (product_id, sku_code, barcode, cost_price, selling_price) VALUES (?, ?, ?, ?, ?)',
+            [productId, effectiveSku, effectiveBarcode, costPrice, sellingPrice]
+          );
+          skuId = (ins as any).insertId;
+          if (!isNewProduct) updated++;
+        }
+
+        // 6. Branch Stock Quantity Update
+        if (qty > 0 || isNewProduct) {
+          await conn.execute(
+            'INSERT INTO branch_stock (sku_id, branch_id, quantity) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE quantity = VALUES(quantity)',
+            [skuId, branchId, qty]
+          );
+        }
+
+        if (isNewProduct) {
+          imported++;
+        }
+      } catch (rowErr: any) {
+        console.error(`General row ${i + 1} error:`, rowErr.message);
+        errors.push(`Row ${i + 1} (${prodName}): ${rowErr.message}`);
+      }
+    }
+
+    await conn.commit();
+    res.json({
+      success: true,
+      total: products.length,
+      imported,
+      updated,
+      skipped,
+      errorsCount: errors.length,
+      errors: errors.slice(0, 10)
+    });
+  } catch (e: any) {
+    await conn.rollback();
+    console.error('[ImportGeneralProducts] Error:', e.message);
+    res.status(500).json({ error: e.message || 'Failed to import general products' });
+  } finally {
+    conn.release();
   }
 });
 
@@ -296,7 +567,7 @@ router.post('/quick-add', async (req: any, res, next) => {
   const { name, category_id, manufacturer_id, selling_price, cost_price, sku_code, barcode, branch_id, quantity } = data;
   const businessId = req.user.business_id;
   const activeBranchId = branch_id || req.user.branch_id;
-  const stockQty = parseInt(quantity) || 0;
+  const stockQty = parseInt(String(quantity)) || 0;
 
   const conn = await pool.getConnection();
   try {
