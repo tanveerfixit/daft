@@ -4587,17 +4587,13 @@ var init_inventory = __esm({
         COALESCE(d.status, 'in_stock') as status,
         COALESCE(d.imei_status, 'Clean') as imei_status,
         COALESCE(d.carrier, 'Unlocked') as carrier,
-        COALESCE(u.name, bz.name, 'Phone Lab') as created_by_user,
         DATE_FORMAT(COALESCE(d.created_at, d.date_added, NOW()), '%Y-%m-%d %H:%i:%s') as created_date
       FROM devices d
       LEFT JOIN product_skus s ON d.sku_id = s.id
       LEFT JOIN products p ON (d.product_id = p.id OR s.product_id = p.id)
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
-      JOIN businesses bz ON d.business_id = bz.id
-      LEFT JOIN users u ON u.business_id = d.business_id AND u.role IN ('admin', 'manager', 'user')
       WHERE d.business_id = ? ${status !== "all" ? "AND d.status = ?" : ""} ${!isSuper ? "AND d.branch_id = ?" : ""}
-      GROUP BY d.id
       ORDER BY d.created_at DESC
     `;
         const params = [businessId];

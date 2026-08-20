@@ -568,7 +568,6 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
           status: getColVal(r, ['Stock Status', 'Status', 'Device Status', 'status']) || 'in_stock',
           imei_status: getColVal(r, ['IMEI Status', 'Network Status', 'Blacklist Status', 'imei_status']) || 'Clean',
           carrier: getColVal(r, ['Carrier / Lock', 'Carrier', 'Network', 'Lock Status', 'Unlocked', 'carrier', 'unlocked']) || 'Unlocked',
-          created_by_user: getColVal(r, ['Created By', 'Created by User Name', 'User', 'Staff', 'created_by']),
           created_date: getColVal(r, ['Created Date', 'Created on Date', 'Created At', 'Date', 'Date Added', 'created_at', 'date'])
         });
       }
