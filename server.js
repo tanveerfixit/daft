@@ -977,7 +977,7 @@ var init_mysql = __esm({
     pool = mysql.createPool({
       host: process.env.DB_HOST || "127.0.0.1",
       port: Number(process.env.DB_PORT) || 3306,
-      database: process.env.DB_NAME || "u583652021_clare",
+      database: process.env.DB_NAME || "epos_db",
       user: process.env.DB_USER || "root",
       password: process.env.DB_PASS !== void 0 ? process.env.DB_PASS : "",
       waitForConnections: true,
