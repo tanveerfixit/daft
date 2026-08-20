@@ -19,7 +19,7 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
   const [unitPrice, setUnitPrice] = useState<string>(String(item.customPrice ?? item.selling_price ?? 0));
   const [quantity, setQuantity] = useState<string>(String(item.quantity || 1));
   const [discount, setDiscount] = useState<string>(String(item.discount || 0));
-  const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>(item.discountType || 'percentage');
+  const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>(item.discountType || 'fixed');
   const [notes, setNotes] = useState<string>(item.notes || '');
 
   const [subtotal, setSubtotal] = useState<number>(0);
@@ -97,9 +97,12 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
     setQuantity(String(nextVal));
   };
 
-  const setQuickDiscount = (pct: number) => {
-    setDiscountType('percentage');
-    setDiscount(String(pct));
+  const setQuickDiscount = (val: number) => {
+    if (parseFloat(discount) === val) {
+      setDiscount('0');
+    } else {
+      setDiscount(String(val));
+    }
   };
 
   return (
@@ -211,25 +214,25 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
             </div>
           </div>
 
-          {/* Discount Section with Quick Chips */}
+          {/* Discount Section with Quick Chips (5, 10, 15) */}
           <div>
             <div className="flex justify-between items-center mb-1">
               <label className="text-xs font-bold text-[var(--text-main)] uppercase tracking-wider block">
                 Discount
               </label>
-              <div className="flex gap-1">
-                {[0, 5, 10, 15, 20].map((pct) => (
+              <div className="flex gap-1.5">
+                {[5, 10, 15].map((val) => (
                   <button
-                    key={pct}
+                    key={val}
                     type="button"
-                    onClick={() => setQuickDiscount(pct)}
-                    className={`text-[11px] font-mono px-2 py-0.5 rounded border transition-colors cursor-pointer ${
-                      discountType === 'percentage' && parseFloat(discount) === pct
-                        ? 'bg-blue-600 border-blue-600 text-white font-bold'
-                        : 'border-[var(--border-base)] bg-[var(--bg-app)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
+                    onClick={() => setQuickDiscount(val)}
+                    className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded border transition-all cursor-pointer ${
+                      parseFloat(discount) === val
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                        : 'border-[var(--border-base)] bg-[var(--bg-app)] text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
                     }`}
                   >
-                    {pct}%
+                    {discountType === 'percentage' ? `${val}%` : `€${val}`}
                   </button>
                 ))}
               </div>
@@ -249,8 +252,8 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
                 onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'fixed')}
                 className="bg-[var(--bg-app)] border border-[var(--border-base)] px-4 py-2 text-base font-bold text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 rounded font-mono cursor-pointer"
               >
-                <option value="percentage">%</option>
                 <option value="fixed">€</option>
+                <option value="percentage">%</option>
               </select>
             </div>
           </div>

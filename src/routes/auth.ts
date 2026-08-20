@@ -232,7 +232,7 @@ router.post('/login', async (req: any, res, next) => {
     if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
     // JWT Generation
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '2h' });
     await execute('UPDATE users SET last_login=NOW() WHERE id=?', [user.id]);
     const branch = await queryOne('SELECT * FROM branches WHERE id=?', [user.branch_id]) as any;
     const business = await queryOne('SELECT name FROM businesses WHERE id=?', [user.business_id]) as any;

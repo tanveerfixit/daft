@@ -117,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       timeoutId = setTimeout(() => {
         logout();
         alert('You have been logged out due to inactivity.');
-      }, 1 * 60 * 60 * 1000); // 1 hour
+      }, 2 * 60 * 60 * 1000); // 2 hours
     };
 
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];

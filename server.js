@@ -1413,7 +1413,7 @@ var init_auth = __esm({
           }
         }
         if (!valid) return res.status(401).json({ error: "Invalid email or password" });
-        const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "1h" });
+        const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "2h" });
         await execute("UPDATE users SET last_login=NOW() WHERE id=?", [user.id]);
         const branch = await queryOne("SELECT * FROM branches WHERE id=?", [user.branch_id]);
         const business = await queryOne("SELECT name FROM businesses WHERE id=?", [user.business_id]);
