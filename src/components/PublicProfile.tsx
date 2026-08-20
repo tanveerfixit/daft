@@ -27,6 +27,9 @@ export default function PublicProfile({ slug, onBack }: { slug: string, onBack?:
       })
       .then(data => {
         setBusiness(data);
+        if (data?.name) {
+          document.title = data.name;
+        }
         setLoading(false);
       })
       .catch(err => {

@@ -279,6 +279,16 @@ function AppInner() {
     return saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
   });
 
+  // Dynamically update browser tab/page title with Business Name
+  useEffect(() => {
+    if (currentUser) {
+      const bizName = currentUser.business_name || currentUser.branch_name;
+      if (bizName) {
+        document.title = bizName;
+      }
+    }
+  }, [currentUser]);
+
   // Check if starting cash has been recorded for today
   useEffect(() => {
     if (!currentUser) return;
