@@ -287,6 +287,8 @@ router.post('/devices/import-csv', async (req: any, res, next) => {
 
   const conn = await pool.getConnection();
   try {
+    await conn.query("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+    await conn.query("SET collation_connection = 'utf8mb4_unicode_ci'");
     await conn.beginTransaction();
 
     for (let i = 0; i < items.length; i++) {
@@ -316,7 +318,7 @@ router.post('/devices/import-csv', async (req: any, res, next) => {
         let categoryId: number | null = null;
         if (categoryName) {
           const [cr] = await conn.execute(
-            'SELECT id FROM categories WHERE business_id = ? AND name = ? LIMIT 1',
+            'SELECT id FROM categories WHERE business_id = ? AND name COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci LIMIT 1',
             [businessId, categoryName]
           );
           if ((cr as any[]).length > 0) {
@@ -334,7 +336,7 @@ router.post('/devices/import-csv', async (req: any, res, next) => {
         let manufacturerId: number | null = null;
         if (manufacturerName) {
           const [mr] = await conn.execute(
-            'SELECT id FROM manufacturers WHERE business_id = ? AND name = ? LIMIT 1',
+            'SELECT id FROM manufacturers WHERE business_id = ? AND name COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci LIMIT 1',
             [businessId, manufacturerName]
           );
           if ((mr as any[]).length > 0) {
@@ -350,7 +352,7 @@ router.post('/devices/import-csv', async (req: any, res, next) => {
 
         // 3. Find or create Product
         const [prodRows] = await conn.execute(
-          'SELECT id FROM products WHERE business_id = ? AND name = ? AND deleted_at IS NULL LIMIT 1',
+          'SELECT id FROM products WHERE business_id = ? AND name COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci AND deleted_at IS NULL LIMIT 1',
           [businessId, productName]
         );
         let productId: number;
@@ -395,7 +397,7 @@ router.post('/devices/import-csv', async (req: any, res, next) => {
 
         // 5. Check if device already exists
         const [existDevice] = await conn.execute(
-          'SELECT id FROM devices WHERE business_id = ? AND (imei = ? OR imei_serial = ?) LIMIT 1',
+          'SELECT id FROM devices WHERE business_id = ? AND (imei COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci OR imei_serial COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci) LIMIT 1',
           [businessId, serialNumber, serialNumber]
         );
 

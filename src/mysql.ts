@@ -20,7 +20,8 @@ export const pool = mysql.createPool({
   decimalNumbers: true,
   timezone: 'Z',
   enableKeepAlive: true,
-  keepAliveInitialDelay: 10000
+  keepAliveInitialDelay: 10000,
+  charset: 'utf8mb4_unicode_ci'
 });
 
 

@@ -955,7 +955,8 @@ var init_mysql = __esm({
       decimalNumbers: true,
       timezone: "Z",
       enableKeepAlive: true,
-      keepAliveInitialDelay: 1e4
+      keepAliveInitialDelay: 1e4,
+      charset: "utf8mb4_unicode_ci"
     });
   }
 });
@@ -2007,6 +2008,8 @@ var init_products = __esm({
       const errors = [];
       const conn = await pool.getConnection();
       try {
+        await conn.query("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+        await conn.query("SET collation_connection = 'utf8mb4_unicode_ci'");
         await conn.beginTransaction();
         for (let i = 0; i < products.length; i++) {
           const p = products[i];
@@ -2031,7 +2034,7 @@ var init_products = __esm({
             let categoryId = null;
             if (catName) {
               const [cr] = await conn.execute(
-                "SELECT id FROM categories WHERE business_id = ? AND name = ? LIMIT 1",
+                "SELECT id FROM categories WHERE business_id = ? AND name COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci LIMIT 1",
                 [businessId, catName]
               );
               if (cr.length > 0) {
@@ -2047,7 +2050,7 @@ var init_products = __esm({
             let manufacturerId = null;
             if (mfgName) {
               const [mr] = await conn.execute(
-                "SELECT id FROM manufacturers WHERE business_id = ? AND name = ? LIMIT 1",
+                "SELECT id FROM manufacturers WHERE business_id = ? AND name COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci LIMIT 1",
                 [businessId, mfgName]
               );
               if (mr.length > 0) {
@@ -2067,7 +2070,7 @@ var init_products = __esm({
               mappedType = "serialized";
             }
             const [pr] = await conn.execute(
-              "SELECT id FROM products WHERE business_id = ? AND name = ? AND deleted_at IS NULL LIMIT 1",
+              "SELECT id FROM products WHERE business_id = ? AND name COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci AND deleted_at IS NULL LIMIT 1",
               [businessId, prodName]
             );
             let productId;
@@ -2091,7 +2094,7 @@ var init_products = __esm({
             const effectiveSku = skuCode || `SKU-${prodName.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
             const effectiveBarcode = barcode || effectiveSku;
             const [sr] = await conn.execute(
-              'SELECT id FROM product_skus WHERE product_id = ? AND (sku_code = ? OR ? = "") LIMIT 1',
+              'SELECT id FROM product_skus WHERE product_id = ? AND (sku_code COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci OR ? = "") LIMIT 1',
               [productId, effectiveSku, skuCode]
             );
             let skuId;
@@ -4648,6 +4651,8 @@ var init_inventory = __esm({
       const errors = [];
       const conn = await pool.getConnection();
       try {
+        await conn.query("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+        await conn.query("SET collation_connection = 'utf8mb4_unicode_ci'");
         await conn.beginTransaction();
         for (let i = 0; i < items.length; i++) {
           const row = items[i];
@@ -4673,7 +4678,7 @@ var init_inventory = __esm({
             let categoryId = null;
             if (categoryName) {
               const [cr] = await conn.execute(
-                "SELECT id FROM categories WHERE business_id = ? AND name = ? LIMIT 1",
+                "SELECT id FROM categories WHERE business_id = ? AND name COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci LIMIT 1",
                 [businessId, categoryName]
               );
               if (cr.length > 0) {
@@ -4689,7 +4694,7 @@ var init_inventory = __esm({
             let manufacturerId = null;
             if (manufacturerName) {
               const [mr] = await conn.execute(
-                "SELECT id FROM manufacturers WHERE business_id = ? AND name = ? LIMIT 1",
+                "SELECT id FROM manufacturers WHERE business_id = ? AND name COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci LIMIT 1",
                 [businessId, manufacturerName]
               );
               if (mr.length > 0) {
@@ -4703,7 +4708,7 @@ var init_inventory = __esm({
               }
             }
             const [prodRows] = await conn.execute(
-              "SELECT id FROM products WHERE business_id = ? AND name = ? AND deleted_at IS NULL LIMIT 1",
+              "SELECT id FROM products WHERE business_id = ? AND name COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci AND deleted_at IS NULL LIMIT 1",
               [businessId, productName]
             );
             let productId;
@@ -4744,7 +4749,7 @@ var init_inventory = __esm({
               skuId = insSku.insertId;
             }
             const [existDevice] = await conn.execute(
-              "SELECT id FROM devices WHERE business_id = ? AND (imei = ? OR imei_serial = ?) LIMIT 1",
+              "SELECT id FROM devices WHERE business_id = ? AND (imei COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci OR imei_serial COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci) LIMIT 1",
               [businessId, serialNumber, serialNumber]
             );
             if (existDevice.length > 0) {

@@ -193,6 +193,8 @@ router.post('/import-csv', async (req: any, res, next) => {
 
   const conn = await pool.getConnection();
   try {
+    await conn.query("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+    await conn.query("SET collation_connection = 'utf8mb4_unicode_ci'");
     await conn.beginTransaction();
 
     for (let i = 0; i < products.length; i++) {
@@ -221,7 +223,7 @@ router.post('/import-csv', async (req: any, res, next) => {
         let categoryId: number | null = null;
         if (catName) {
           const [cr] = await conn.execute(
-            'SELECT id FROM categories WHERE business_id = ? AND name = ? LIMIT 1',
+            'SELECT id FROM categories WHERE business_id = ? AND name COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci LIMIT 1',
             [businessId, catName]
           );
           if ((cr as any[]).length > 0) {
@@ -239,7 +241,7 @@ router.post('/import-csv', async (req: any, res, next) => {
         let manufacturerId: number | null = null;
         if (mfgName) {
           const [mr] = await conn.execute(
-            'SELECT id FROM manufacturers WHERE business_id = ? AND name = ? LIMIT 1',
+            'SELECT id FROM manufacturers WHERE business_id = ? AND name COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci LIMIT 1',
             [businessId, mfgName]
           );
           if ((mr as any[]).length > 0) {
@@ -263,7 +265,7 @@ router.post('/import-csv', async (req: any, res, next) => {
 
         // 4. Product Lookup / Creation
         const [pr] = await conn.execute(
-          'SELECT id FROM products WHERE business_id = ? AND name = ? AND deleted_at IS NULL LIMIT 1',
+          'SELECT id FROM products WHERE business_id = ? AND name COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci AND deleted_at IS NULL LIMIT 1',
           [businessId, prodName]
         );
 
@@ -291,7 +293,7 @@ router.post('/import-csv', async (req: any, res, next) => {
         const effectiveBarcode = barcode || effectiveSku;
 
         const [sr] = await conn.execute(
-          'SELECT id FROM product_skus WHERE product_id = ? AND (sku_code = ? OR ? = "") LIMIT 1',
+          'SELECT id FROM product_skus WHERE product_id = ? AND (sku_code COLLATE utf8mb4_unicode_ci = ? COLLATE utf8mb4_unicode_ci OR ? = "") LIMIT 1',
           [productId, effectiveSku, skuCode]
         );
 
