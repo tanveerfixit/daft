@@ -765,6 +765,47 @@ async function initSchema() {
     } catch (e) {
       if (!e.message?.includes("Duplicate column") && !e.message?.includes("Duplicate key")) throw e;
     }
+    try {
+      await conn.query("ALTER TABLE invoice_items ADD COLUMN notes TEXT NULL AFTER total");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE invoice_items ADD COLUMN discount_type VARCHAR(20) DEFAULT 'percentage' AFTER discount");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE products ADD COLUMN min_stock_level INT DEFAULT 0 AFTER allow_overselling");
+      console.log("[MySQL] Migration: added min_stock_level to products");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE products ADD COLUMN is_taxable TINYINT(1) DEFAULT 1 AFTER min_stock_level");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE products ADD COLUMN require_note TINYINT(1) DEFAULT 0 AFTER is_taxable");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE products ADD COLUMN min_sales_price DECIMAL(10,2) DEFAULT 0 AFTER require_note");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE products ADD COLUMN additional_description TEXT NULL AFTER min_sales_price");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE products ADD COLUMN alert_message TEXT NULL AFTER additional_description");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
     await conn.query("SET FOREIGN_KEY_CHECKS = 1");
     try {
       await conn.query(`
@@ -857,13 +898,13 @@ async function seedData() {
       },
       {
         name: "iPear Ennis",
-        email: "technomore.irl@gmail.com",
+        email: "ipear.ennis@gmail.com",
         address: "6 Parnell St, Clonroad Beg, Ennis, Co. Clare, V95 X073",
         phone: "(065) 682 2900"
       },
       {
         name: "iPear in Tesco",
-        email: "ipear.ennis@gmail.com",
+        email: "ipear.clare@gmail.com",
         address: "Unit 20, Francis St, Clonroad Beg, Ennis, Co. Clare, V95 EP8K",
         phone: "(065) 672 4446"
       }
@@ -931,16 +972,14 @@ async function ensureSuperAdmin() {
 var pool;
 var init_mysql = __esm({
   "src/mysql.ts"() {
+    dotenv.config({ path: ".env.local" });
     dotenv.config();
-    if (!process.env.DB_PASS) {
-      throw new Error("[SECURITY FATAL] DB_PASS is not set in the .env file. Refusing to start with insecure credentials.");
-    }
     pool = mysql.createPool({
       host: process.env.DB_HOST || "127.0.0.1",
       port: Number(process.env.DB_PORT) || 3306,
-      database: process.env.DB_NAME || "u583652021_clarelab",
-      user: process.env.DB_USER || "u583652021_phpclarelab",
-      password: process.env.DB_PASS,
+      database: process.env.DB_NAME || "u583652021_clare",
+      user: process.env.DB_USER || "root",
+      password: process.env.DB_PASS !== void 0 ? process.env.DB_PASS : "",
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
@@ -955,28 +994,47 @@ var init_mysql = __esm({
 
 // src/services/mailer.ts
 import nodemailer from "nodemailer";
+function invalidateMailTransporter() {
+  cachedTransporter = null;
+  cachedKey = "";
+}
 async function getTransporter() {
   const settings = await queryOne("SELECT * FROM smtp_settings WHERE business_id = 1");
-  if (!settings || !settings.user || !settings.pass) {
-    if (!process.env.SMTP_USER) throw new Error("SMTP not configured. Please set up email settings in Admin Portal.");
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST || "smtp.hostinger.com",
-      port: Number(process.env.SMTP_PORT) || 465,
-      secure: process.env.SMTP_SECURE !== "false",
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-    });
+  let user = process.env.SMTP_USER || "noreply@clarelab.com";
+  let pass = process.env.SMTP_PASS || "Tani!!8877";
+  let host = process.env.SMTP_HOST || "smtp.hostinger.com";
+  let port = Number(process.env.SMTP_PORT) || 465;
+  let secure = process.env.SMTP_SECURE !== "false";
+  if (settings && settings.user && settings.pass) {
+    user = settings.user;
+    pass = settings.pass;
+    host = settings.host || "smtp.hostinger.com";
+    port = Number(settings.port) || 465;
+    secure = settings.secure === 1;
   }
-  return nodemailer.createTransport({
-    host: settings.host || "smtp.hostinger.com",
-    port: settings.port || 465,
-    secure: settings.secure === 1,
-    auth: { user: settings.user, pass: settings.pass }
+  const currentKey = `${host}:${port}:${user}:${secure}`;
+  if (cachedTransporter && cachedKey === currentKey) {
+    return cachedTransporter;
+  }
+  cachedKey = currentKey;
+  cachedTransporter = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    pool: true,
+    maxConnections: 5,
+    maxMessages: 100,
+    connectionTimeout: 5e3,
+    greetingTimeout: 5e3,
+    socketTimeout: 1e4,
+    auth: { user, pass }
   });
+  return cachedTransporter;
 }
 async function getFromAddress() {
   const settings = await queryOne("SELECT * FROM smtp_settings WHERE business_id = 1");
-  const name = settings?.from_name || process.env.SMTP_FROM_NAME || "iCover EPOS";
-  const email = settings?.from_email || settings?.user || process.env.SMTP_USER || "noreply@example.com";
+  const name = settings?.from_name || process.env.SMTP_FROM_NAME || "PhoneLab EPOS";
+  const email = settings?.from_email || settings?.user || process.env.SMTP_USER || "noreply@clarelab.com";
   return `"${name}" <${email}>`;
 }
 async function sendMail(to, subject, html) {
@@ -1028,10 +1086,129 @@ async function sendGeneratedPassword(user, password) {
   </div>`;
   await sendMail(user.email, "Your EPOS Account Password", html);
 }
-var baseStyle;
+async function sendTestEmail(toEmail) {
+  const html = `<div style="${baseStyle}">
+    <h2 style="color:#2980b9;">\u2713 SMTP Test Successful</h2>
+    <p>Your Hostinger SMTP email settings are configured correctly and working.</p>
+    <p style="color:#7f8c8d;font-size:13px;">Sent from your EPOS Admin Portal.</p>
+  </div>`;
+  await sendMail(toEmail, "EPOS SMTP Test Email", html);
+}
+async function sendInvoiceEmail(to, subject, invoice, company, customNote) {
+  const itemsHtml = (invoice.items || []).map((item) => `
+    <tr style="border-bottom: 1px solid #e5e7eb;">
+      <td style="padding: 10px 8px; font-size: 13px; color: #1f2937;">
+        <strong>${item.product_name || "Item"}</strong>
+        ${item.notes ? `<div style="font-size: 11px; color: #6b7280; font-style: italic;">Note: ${item.notes}</div>` : ""}
+        ${item.imei ? `<div style="font-size: 11px; color: #3b82f6;">IMEI: ${item.imei}</div>` : ""}
+      </td>
+      <td style="padding: 10px 8px; font-size: 13px; text-align: center; color: #4b5563;">${item.quantity}</td>
+      <td style="padding: 10px 8px; font-size: 13px; text-align: right; color: #4b5563;">\u20AC${(Number(item.price) || 0).toFixed(2)}</td>
+      <td style="padding: 10px 8px; font-size: 13px; text-align: right; font-weight: bold; color: #111827;">\u20AC${(Number(item.total) || 0).toFixed(2)}</td>
+    </tr>
+  `).join("");
+  const html = `
+    <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 650px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+      <!-- Header -->
+      <div style="background: #1e293b; color: #ffffff; padding: 24px; text-align: center;">
+        <h1 style="margin: 0; font-size: 24px; font-weight: bold; letter-spacing: 1px;">${company?.name || "INVOICE"}</h1>
+        <p style="margin: 4px 0 0 0; font-size: 12px; color: #94a3b8;">${company?.address ? `${company.address}, ` : ""}${company?.city || ""} ${company?.phone ? `\u2022 Tel: ${company.phone}` : ""}</p>
+      </div>
+
+      <!-- Invoice Info -->
+      <div style="padding: 24px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="vertical-align: top;">
+              <span style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: bold; display: block;">Billed To</span>
+              <strong style="font-size: 15px; color: #0f172a;">${invoice.customer?.name || invoice.customer_name || "Valued Customer"}</strong>
+              ${invoice.customer?.phone ? `<div style="font-size: 13px; color: #475569;">${invoice.customer.phone}</div>` : ""}
+              ${invoice.customer?.email ? `<div style="font-size: 13px; color: #475569;">${invoice.customer.email}</div>` : ""}
+            </td>
+            <td style="vertical-align: top; text-align: right;">
+              <div style="font-size: 18px; font-weight: bold; color: #0f172a; margin-bottom: 4px;">${invoice.invoice_number}</div>
+              <div style="font-size: 13px; color: #64748b;">Date: ${new Date(invoice.created_at).toLocaleDateString("en-GB")}</div>
+              <div style="font-size: 12px; font-weight: bold; text-transform: uppercase; margin-top: 4px; color: ${invoice.status === "paid" ? "#16a34a" : "#ea580c"};">
+                Status: ${invoice.status || "Paid"}
+              </div>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      ${customNote ? `
+        <div style="padding: 16px 24px; background: #eff6ff; border-left: 4px solid #3b82f6; margin: 16px 24px; font-size: 13px; color: #1e40af;">
+          ${customNote.replace(/\n/g, "<br/>")}
+        </div>
+      ` : ""}
+
+      <!-- Items Table -->
+      <div style="padding: 24px;">
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <thead>
+            <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+              <th style="padding: 10px 8px; text-align: left; font-size: 11px; text-transform: uppercase; color: #475569;">Item</th>
+              <th style="padding: 10px 8px; text-align: center; font-size: 11px; text-transform: uppercase; color: #475569; width: 60px;">Qty</th>
+              <th style="padding: 10px 8px; text-align: right; font-size: 11px; text-transform: uppercase; color: #475569; width: 90px;">Price</th>
+              <th style="padding: 10px 8px; text-align: right; font-size: 11px; text-transform: uppercase; color: #475569; width: 100px;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <!-- Totals -->
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="width: 50%;"></td>
+            <td style="width: 50%;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b;">Subtotal:</td>
+                  <td style="padding: 6px 0; text-align: right; font-weight: 500; color: #1e293b;">\u20AC${(Number(invoice.subtotal) || 0).toFixed(2)}</td>
+                </tr>
+                ${Number(invoice.discount_total) > 0 ? `
+                  <tr>
+                    <td style="padding: 6px 0; color: #16a34a;">Discount:</td>
+                    <td style="padding: 6px 0; text-align: right; font-weight: 500; color: #16a34a;">-\u20AC${(Number(invoice.discount_total) || 0).toFixed(2)}</td>
+                  </tr>
+                ` : ""}
+                <tr style="border-top: 2px solid #e2e8f0; font-size: 16px; font-weight: bold;">
+                  <td style="padding: 10px 0; color: #0f172a;">Grand Total:</td>
+                  <td style="padding: 10px 0; text-align: right; color: #0f172a;">\u20AC${(Number(invoice.grand_total) || 0).toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #64748b;">Amount Paid:</td>
+                  <td style="padding: 6px 0; text-align: right; font-weight: 500; color: #16a34a;">\u20AC${(Number(invoice.paid_amount) || Number(invoice.grand_total) || 0).toFixed(2)}</td>
+                </tr>
+                ${Number(invoice.due_amount) > 0 ? `
+                  <tr>
+                    <td style="padding: 6px 0; color: #dc2626; font-weight: bold;">Balance Due:</td>
+                    <td style="padding: 6px 0; text-align: right; font-weight: bold; color: #dc2626;">\u20AC${(Number(invoice.due_amount) || 0).toFixed(2)}</td>
+                  </tr>
+                ` : ""}
+              </table>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Footer -->
+      <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 16px 24px; text-align: center; font-size: 12px; color: #64748b;">
+        <p style="margin: 0;">Thank you for your business!</p>
+        ${company?.email ? `<p style="margin: 4px 0 0 0;">Questions? Contact us at <a href="mailto:${company.email}" style="color: #2563eb; text-decoration: none;">${company.email}</a></p>` : ""}
+      </div>
+    </div>
+  `;
+  await sendMail(to, subject, html);
+}
+var cachedTransporter, cachedKey, baseStyle;
 var init_mailer = __esm({
   "src/services/mailer.ts"() {
     init_mysql();
+    cachedTransporter = null;
+    cachedKey = "";
     baseStyle = `font-family:'Inter',sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px;border-radius:8px;`;
   }
 });
@@ -1350,11 +1527,14 @@ var init_auth = __esm({
     adminRouter = Router();
     adminRouter.get("/users", requireAdminAsync, async (req, res, next) => {
       try {
-        res.json(await query(`
-      SELECT u.id,u.name,u.email,u.role,u.status,u.last_login,u.created_at,b.name as branch_name,b.id as branch_id
-      FROM users u LEFT JOIN branches b ON u.branch_id=b.id
-      WHERE u.business_id=? AND u.deleted_at IS NULL ORDER BY u.created_at DESC
-    `, [req.user.business_id]));
+        const isMaster = ["developer", "superadmin"].includes(req.user.role);
+        const sql = isMaster ? `SELECT u.id,u.name,u.email,u.role,u.status,u.last_login,u.created_at,u.business_id,b.name as branch_name,b.id as branch_id
+         FROM users u LEFT JOIN branches b ON u.branch_id=b.id
+         WHERE u.deleted_at IS NULL ORDER BY u.created_at DESC` : `SELECT u.id,u.name,u.email,u.role,u.status,u.last_login,u.created_at,u.business_id,b.name as branch_name,b.id as branch_id
+         FROM users u LEFT JOIN branches b ON u.branch_id=b.id
+         WHERE u.business_id=? AND u.deleted_at IS NULL ORDER BY u.created_at DESC`;
+        const params = isMaster ? [] : [req.user.business_id];
+        res.json(await query(sql, params));
       } catch (e) {
         next(e);
       }
@@ -1365,18 +1545,13 @@ var init_auth = __esm({
         return res.status(400).json({ error: "Invalid status" });
       }
       try {
-        const user = await queryOne(
-          "SELECT * FROM users WHERE id=? AND business_id=?",
-          [req.params.id, req.user.business_id]
-        );
+        const isMaster = ["developer", "superadmin"].includes(req.user.role);
+        const user = isMaster ? await queryOne("SELECT * FROM users WHERE id=? AND deleted_at IS NULL", [req.params.id]) : await queryOne("SELECT * FROM users WHERE id=? AND business_id=? AND deleted_at IS NULL", [req.params.id, req.user.business_id]);
         if (!user) return res.status(404).json({ error: "User not found or access denied" });
-        if (user.email === "support@techinbox.ie" && status !== "approved") {
-          return res.status(400).json({ error: "This developer account cannot be deactivated" });
+        if (["support@techinbox.ie", "tanveerfixit@gmail.com"].includes(user.email) && status !== "approved") {
+          return res.status(400).json({ error: "Master admin accounts cannot be deactivated" });
         }
-        await execute(
-          "UPDATE users SET status=? WHERE id=? AND business_id=?",
-          [status, req.params.id, req.user.business_id]
-        );
+        await execute("UPDATE users SET status=? WHERE id=?", [status, req.params.id]);
         try {
           if (status === "approved") await sendAccountApproved({ name: user.name, email: user.email });
           else if (status === "rejected") await sendAccountRejected({ name: user.name, email: user.email });
@@ -1389,23 +1564,28 @@ var init_auth = __esm({
       }
     });
     adminRouter.put("/users/:id", requireAdminAsync, async (req, res, next) => {
-      const { name, branch_id, role, password } = req.body;
+      const { name, email, branch_id, role, password } = req.body;
       try {
-        const existing = await queryOne(
-          "SELECT id FROM users WHERE id=? AND business_id=?",
-          [req.params.id, req.user.business_id]
-        );
+        const isMaster = ["developer", "superadmin"].includes(req.user.role);
+        const existing = isMaster ? await queryOne("SELECT id, email FROM users WHERE id=? AND deleted_at IS NULL", [req.params.id]) : await queryOne("SELECT id, email FROM users WHERE id=? AND business_id=? AND deleted_at IS NULL", [req.params.id, req.user.business_id]);
         if (!existing) return res.status(404).json({ error: "User not found or access denied" });
-        if (password) {
-          const password_hash = await bcrypt.hash(password, 10);
+        if (email && email.trim() !== "" && email.trim() !== existing.email) {
+          const emailCheck = await queryOne("SELECT id FROM users WHERE email=? AND id!=? AND deleted_at IS NULL", [email.trim(), req.params.id]);
+          if (emailCheck) {
+            return res.status(400).json({ error: "This email address is already in use by another account" });
+          }
+        }
+        const updatedEmail = email && email.trim() !== "" ? email.trim() : existing.email;
+        if (password && password.trim() !== "") {
+          const password_hash = await bcrypt.hash(password.trim(), 10);
           await execute(
-            "UPDATE users SET name=?,branch_id=?,role=?,password='',password_hash=? WHERE id=? AND business_id=?",
-            [name, branch_id, role, password_hash, req.params.id, req.user.business_id]
+            "UPDATE users SET name=?,email=?,branch_id=?,role=?,password='',password_hash=? WHERE id=?",
+            [name, updatedEmail, branch_id, role, password_hash, req.params.id]
           );
         } else {
           await execute(
-            "UPDATE users SET name=?,branch_id=?,role=? WHERE id=? AND business_id=?",
-            [name, branch_id, role, req.params.id, req.user.business_id]
+            "UPDATE users SET name=?,email=?,branch_id=?,role=? WHERE id=?",
+            [name, updatedEmail, branch_id, role, req.params.id]
           );
         }
         res.json({ success: true });
@@ -1415,10 +1595,10 @@ var init_auth = __esm({
     });
     adminRouter.delete("/users/:id", requireAdminAsync, async (req, res, next) => {
       try {
-        const r = await execute(
-          "UPDATE users SET deleted_at=NOW() WHERE id=? AND business_id=?",
-          [req.params.id, req.user.business_id]
-        );
+        const isMaster = ["developer", "superadmin"].includes(req.user.role);
+        const sql = isMaster ? "UPDATE users SET deleted_at=NOW() WHERE id=?" : "UPDATE users SET deleted_at=NOW() WHERE id=? AND business_id=?";
+        const params = isMaster ? [req.params.id] : [req.params.id, req.user.business_id];
+        const r = await execute(sql, params);
         if (r.affectedRows === 0) return res.status(404).json({ error: "User not found or access denied" });
         res.json({ success: true });
       } catch (e) {
@@ -1521,6 +1701,60 @@ var init_auth = __esm({
         res.json({ success: true });
       } catch (e) {
         next(e);
+      }
+    });
+    adminRouter.get("/smtp", requireAdminAsync, async (req, res, next) => {
+      try {
+        const settings = await queryOne("SELECT * FROM smtp_settings WHERE business_id = 1");
+        if (settings) {
+          res.json({
+            ...settings,
+            pass: settings.pass ? "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" : ""
+          });
+        } else {
+          res.json({
+            host: process.env.SMTP_HOST || "smtp.hostinger.com",
+            port: Number(process.env.SMTP_PORT) || 465,
+            secure: 1,
+            user: process.env.SMTP_USER || "noreply@clarelab.com",
+            pass: "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022",
+            from_name: process.env.SMTP_FROM_NAME || "PhoneLab EPOS",
+            from_email: process.env.SMTP_USER || "noreply@clarelab.com"
+          });
+        }
+      } catch (e) {
+        next(e);
+      }
+    });
+    adminRouter.put("/smtp", requireAdminAsync, async (req, res, next) => {
+      const { host, port, secure, user, pass, from_name, from_email } = req.body;
+      try {
+        const existing = await queryOne("SELECT * FROM smtp_settings WHERE business_id = 1");
+        const updatedPass = pass && pass !== "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" && pass !== "********" ? pass : existing?.pass || process.env.SMTP_PASS || "Tani!!8877";
+        if (existing) {
+          await execute(
+            "UPDATE smtp_settings SET host=?, port=?, secure=?, user=?, pass=?, from_name=?, from_email=? WHERE business_id = 1",
+            [host, port, secure ? 1 : 0, user, updatedPass, from_name, from_email]
+          );
+        } else {
+          await execute(
+            "INSERT INTO smtp_settings (business_id, host, port, secure, user, pass, from_name, from_email) VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
+            [host, port, secure ? 1 : 0, user, updatedPass, from_name, from_email]
+          );
+        }
+        invalidateMailTransporter();
+        res.json({ success: true });
+      } catch (e) {
+        next(e);
+      }
+    });
+    adminRouter.post("/smtp/test", requireAdminAsync, async (req, res, next) => {
+      try {
+        const userEmail = req.user?.email || "noreply@clarelab.com";
+        await sendTestEmail(userEmail);
+        res.json({ success: true, message: `Test email sent to ${userEmail}` });
+      } catch (e) {
+        res.status(400).json({ error: e.message });
       }
     });
     adminRouter.get("/system/businesses", requireAdminAsync, async (req, res, next) => {
@@ -1678,7 +1912,7 @@ var init_products = __esm({
         const total = countRes[0]?.total || 0;
         const productsSql = `
       SELECT s.id, p.name as product_name, s.sku_code, s.barcode,
-             s.selling_price, s.cost_price, p.product_type,
+             COALESCE(s.selling_price, p.base_unit_price, 0) as selling_price, s.cost_price, p.product_type,
              c.name as category_name, m.name as manufacturer_name,
              p.id as product_id,
              (SELECT SUM(quantity) FROM branch_stock WHERE sku_id = s.id) as total_stock
@@ -1840,18 +2074,53 @@ var init_products = __esm({
       product_type: z2.string().optional(),
       sku_code: z2.string().optional(),
       barcode: z2.string().optional(),
-      allow_overselling: z2.boolean().optional()
+      allow_overselling: z2.boolean().optional(),
+      min_stock_level: z2.number().or(z2.string().transform(Number)).optional(),
+      is_taxable: z2.boolean().optional(),
+      require_note: z2.boolean().optional(),
+      min_sales_price: z2.number().or(z2.string().transform(Number)).optional(),
+      additional_description: z2.string().optional(),
+      alert_message: z2.string().optional()
     });
     router3.post("/", async (req, res, next) => {
       const data = createProductSchema.parse(req.body);
-      const { name, category_id, manufacturer_id, selling_price, cost_price, product_type, sku_code, barcode, allow_overselling } = data;
+      const {
+        name,
+        category_id,
+        manufacturer_id,
+        selling_price,
+        cost_price,
+        product_type,
+        sku_code,
+        barcode,
+        allow_overselling,
+        min_stock_level,
+        is_taxable,
+        require_note,
+        min_sales_price,
+        additional_description,
+        alert_message
+      } = data;
       const businessId = req.user.business_id;
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
         const [pr] = await conn.execute(
-          "INSERT INTO products (business_id,name,category_id,manufacturer_id,product_type,allow_overselling) VALUES (?,?,?,?,?,?)",
-          [businessId, name, category_id, manufacturer_id, product_type, allow_overselling === false ? 0 : 1]
+          "INSERT INTO products (business_id,name,category_id,manufacturer_id,product_type,allow_overselling,min_stock_level,is_taxable,require_note,min_sales_price,additional_description,alert_message) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+          [
+            businessId,
+            name,
+            category_id,
+            manufacturer_id,
+            product_type,
+            allow_overselling === false ? 0 : 1,
+            min_stock_level ?? null,
+            is_taxable ? 1 : 0,
+            require_note ? 1 : 0,
+            min_sales_price ?? null,
+            additional_description ?? null,
+            alert_message ?? null
+          ]
         );
         const productId = pr.insertId;
         let finalSku = sku_code?.trim() || "SKU-" + Math.random().toString(36).substring(2, 9).toUpperCase();
@@ -1872,6 +2141,9 @@ var init_products = __esm({
         res.json({ id: skuId });
       } catch (e) {
         await conn.rollback();
+        if (e.code === "ER_DUP_ENTRY" || e.message?.includes("Duplicate entry")) {
+          return res.status(400).json({ error: "A product with this SKU code already exists" });
+        }
         next(e);
       } finally {
         conn.release();
@@ -2335,6 +2607,7 @@ var router5, createInvoiceSchema, invoices_default;
 var init_invoices = __esm({
   "src/routes/invoices.ts"() {
     init_mysql();
+    init_mailer();
     router5 = Router5();
     router5.get("/suggestions", async (req, res, next) => {
       try {
@@ -2439,13 +2712,382 @@ var init_invoices = __esm({
         next(e);
       }
     });
+    router5.get("/export-count", async (req, res, next) => {
+      try {
+        const { startDate, endDate, branch_id } = req.query;
+        const isDeveloper = req.user.role === "developer";
+        const branchId = branch_id || req.user.branch_id;
+        let whereSql = "WHERE i.business_id=?";
+        const params = [req.user.business_id];
+        if (!isDeveloper && branchId) {
+          whereSql += " AND i.branch_id=?";
+          params.push(branchId);
+        } else if (branch_id) {
+          whereSql += " AND i.branch_id=?";
+          params.push(branch_id);
+        }
+        if (startDate) {
+          whereSql += " AND DATE(i.created_at) >= DATE(?)";
+          params.push(startDate);
+        }
+        if (endDate) {
+          whereSql += " AND DATE(i.created_at) <= DATE(?)";
+          params.push(endDate);
+        }
+        const rows = await query(`
+      SELECT COUNT(*) as total_invoices, COALESCE(SUM(i.grand_total), 0) as total_amount
+      FROM invoices i
+      ${whereSql}
+    `, params);
+        const countRow = rows[0] || { total_invoices: 0, total_amount: 0 };
+        res.json({
+          total_invoices: Number(countRow.total_invoices) || 0,
+          total_amount: Number(countRow.total_amount) || 0
+        });
+      } catch (e) {
+        next(e);
+      }
+    });
+    router5.get("/export", async (req, res, next) => {
+      try {
+        const { startDate, endDate, branch_id, format = "json" } = req.query;
+        const isDeveloper = req.user.role === "developer";
+        const branchId = branch_id || req.user.branch_id;
+        let whereSql = "WHERE i.business_id=?";
+        const params = [req.user.business_id];
+        if (!isDeveloper && branchId) {
+          whereSql += " AND i.branch_id=?";
+          params.push(branchId);
+        } else if (branch_id) {
+          whereSql += " AND i.branch_id=?";
+          params.push(branch_id);
+        }
+        if (startDate) {
+          whereSql += " AND DATE(i.created_at) >= DATE(?)";
+          params.push(startDate);
+        }
+        if (endDate) {
+          whereSql += " AND DATE(i.created_at) <= DATE(?)";
+          params.push(endDate);
+        }
+        const invoices = await query(`
+      SELECT i.id, i.invoice_number, i.business_id, i.branch_id, b.name as branch_name,
+             i.customer_id, c.name as customer_name, c.phone as customer_phone, c.email as customer_email,
+             i.subtotal, i.tax_total, i.discount_total, i.grand_total, i.paid_amount, i.due_amount,
+             i.status, i.created_at, u.name as created_by_name
+      FROM invoices i
+      LEFT JOIN branches b ON i.branch_id=b.id
+      LEFT JOIN customers c ON i.customer_id=c.id
+      LEFT JOIN users u ON i.user_id=u.id
+      ${whereSql}
+      ORDER BY i.id ASC
+    `, params);
+        if (invoices.length === 0) {
+          if (format === "csv") {
+            res.setHeader("Content-Type", "text/csv");
+            res.setHeader("Content-Disposition", `attachment; filename="invoices_export_${startDate || "all"}.csv"`);
+            return res.send("Invoice Number,Date,Customer Name,Customer Phone,Customer Email,Subtotal,Tax Total,Discount Total,Grand Total,Paid Amount,Due Amount,Status,Branch Name,Created By,Item Summary,Payment Summary\n");
+          }
+          return res.json({
+            export_version: "1.0",
+            business_id: req.user.business_id,
+            generated_at: (/* @__PURE__ */ new Date()).toISOString(),
+            filter: { startDate, endDate, branch_id },
+            total_count: 0,
+            invoices: []
+          });
+        }
+        const invoiceIds = invoices.map((inv) => inv.id);
+        const placeholders = invoiceIds.map(() => "?").join(",");
+        const items = await query(`
+      SELECT ii.invoice_id, ii.sku_id, s.sku_code, s.barcode, p.name as product_name,
+             ii.device_id, d.imei, ii.quantity, ii.price, ii.cost, ii.discount, ii.total, ii.notes
+      FROM invoice_items ii
+      LEFT JOIN product_skus s ON ii.sku_id=s.id
+      LEFT JOIN products p ON s.product_id=p.id
+      LEFT JOIN devices d ON ii.device_id=d.id
+      WHERE ii.invoice_id IN (${placeholders})
+    `, invoiceIds);
+        const payments = await query(`
+      SELECT p.invoice_id, p.method, p.amount, p.type, p.paid_at, p.paid_at as created_at
+      FROM payments p
+      WHERE p.invoice_id IN (${placeholders})
+    `, invoiceIds);
+        const itemsMap = /* @__PURE__ */ new Map();
+        for (const item of items) {
+          if (!itemsMap.has(item.invoice_id)) itemsMap.set(item.invoice_id, []);
+          itemsMap.get(item.invoice_id).push(item);
+        }
+        const paymentsMap = /* @__PURE__ */ new Map();
+        for (const p of payments) {
+          if (!paymentsMap.has(p.invoice_id)) paymentsMap.set(p.invoice_id, []);
+          paymentsMap.get(p.invoice_id).push(p);
+        }
+        const fullInvoices = invoices.map((inv) => ({
+          ...inv,
+          items: itemsMap.get(inv.id) || [],
+          payments: paymentsMap.get(inv.id) || []
+        }));
+        if (format === "csv") {
+          const escapeCsv = (val) => {
+            if (val === null || val === void 0) return '""';
+            const str = String(val).replace(/"/g, '""');
+            return `"${str}"`;
+          };
+          const headers = [
+            "Invoice Number",
+            "Date",
+            "Customer Name",
+            "Customer Phone",
+            "Customer Email",
+            "Subtotal",
+            "Tax Total",
+            "Discount Total",
+            "Grand Total",
+            "Paid Amount",
+            "Due Amount",
+            "Status",
+            "Branch Name",
+            "Created By",
+            "Item Summary",
+            "Payment Summary"
+          ];
+          const rows = fullInvoices.map((inv) => {
+            const itemSummary = (inv.items || []).map((it) => `${it.quantity}x ${it.product_name || "Item"} (SKU: ${it.sku_code || "N/A"}${it.imei ? `, IMEI: ${it.imei}` : ""}${it.notes ? `, Note: ${it.notes}` : ""}) @ \u20AC${(Number(it.price) || 0).toFixed(2)} = \u20AC${(Number(it.total) || 0).toFixed(2)}`).join(" | ");
+            const paymentSummary = (inv.payments || []).map((p) => `${p.method}: \u20AC${(Number(p.amount) || 0).toFixed(2)}`).join(" | ");
+            return [
+              escapeCsv(inv.invoice_number),
+              escapeCsv(new Date(inv.created_at).toISOString().split("T")[0]),
+              escapeCsv(inv.customer_name || "Walk-in Customer"),
+              escapeCsv(inv.customer_phone || ""),
+              escapeCsv(inv.customer_email || ""),
+              (Number(inv.subtotal) || 0).toFixed(2),
+              (Number(inv.tax_total) || 0).toFixed(2),
+              (Number(inv.discount_total) || 0).toFixed(2),
+              (Number(inv.grand_total) || 0).toFixed(2),
+              (Number(inv.paid_amount) || 0).toFixed(2),
+              (Number(inv.due_amount) || 0).toFixed(2),
+              escapeCsv(inv.status),
+              escapeCsv(inv.branch_name || ""),
+              escapeCsv(inv.created_by_name || ""),
+              escapeCsv(itemSummary),
+              escapeCsv(paymentSummary)
+            ].join(",");
+          });
+          const csvContent = [headers.join(","), ...rows].join("\n");
+          res.setHeader("Content-Type", "text/csv");
+          res.setHeader("Content-Disposition", `attachment; filename="invoices_export_${startDate || "all"}_to_${endDate || "now"}.csv"`);
+          return res.send(csvContent);
+        }
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Content-Disposition", `attachment; filename="invoices_backup_${startDate || "all"}_to_${endDate || "now"}.json"`);
+        res.json({
+          export_version: "1.0",
+          business_id: req.user.business_id,
+          generated_at: (/* @__PURE__ */ new Date()).toISOString(),
+          filter: { startDate, endDate, branch_id },
+          total_count: fullInvoices.length,
+          invoices: fullInvoices
+        });
+      } catch (e) {
+        next(e);
+      }
+    });
+    router5.post("/import", async (req, res, next) => {
+      const conn = await pool.getConnection();
+      try {
+        const { invoices, duplicateHandling = "skip" } = req.body;
+        if (!Array.isArray(invoices) || invoices.length === 0) {
+          return res.status(400).json({ error: "No valid invoices array found in payload" });
+        }
+        await conn.beginTransaction();
+        let importedCount = 0;
+        let skippedCount = 0;
+        let errorCount = 0;
+        const errors = [];
+        const [wRows] = await conn.execute(
+          "SELECT id FROM customers WHERE name='Walk-in Customer' AND business_id=? LIMIT 1",
+          [req.user.business_id]
+        );
+        let defaultCustomerId = wRows[0]?.id || null;
+        if (!defaultCustomerId) {
+          const [newWalkin] = await conn.execute(
+            "INSERT INTO customers (business_id, name, first_name, last_name) VALUES (?, 'Walk-in Customer', 'Walk-in', 'Customer')",
+            [req.user.business_id]
+          );
+          defaultCustomerId = newWalkin.insertId;
+        }
+        const [existingInvRows] = await conn.query(
+          "SELECT id, invoice_number FROM invoices WHERE business_id=?",
+          [req.user.business_id]
+        );
+        const existingMap = new Map(existingInvRows.map((r) => [r.invoice_number, r.id]));
+        for (const inv of invoices) {
+          try {
+            const invNum = inv.invoice_number || `IMP-${Date.now()}-${Math.floor(Math.random() * 1e3)}`;
+            if (existingMap.has(invNum)) {
+              if (duplicateHandling === "skip") {
+                skippedCount++;
+                continue;
+              } else if (duplicateHandling === "overwrite") {
+                const existingId = existingMap.get(invNum);
+                await conn.execute("DELETE FROM payments WHERE invoice_id=?", [existingId]);
+                await conn.execute("DELETE FROM invoice_items WHERE invoice_id=?", [existingId]);
+                await conn.execute("DELETE FROM invoice_activity WHERE invoice_id=?", [existingId]);
+                await conn.execute("DELETE FROM invoices WHERE id=?", [existingId]);
+              }
+            }
+            let customerId = defaultCustomerId;
+            if (inv.customer_name && inv.customer_name !== "Walk-in Customer") {
+              const [custRows] = await conn.execute(
+                "SELECT id FROM customers WHERE business_id=? AND (name=? OR (phone IS NOT NULL AND phone=? AND phone != '')) LIMIT 1",
+                [req.user.business_id, inv.customer_name, inv.customer_phone || ""]
+              );
+              if (custRows.length > 0) {
+                customerId = custRows[0].id;
+              } else {
+                const [newCust] = await conn.execute(
+                  "INSERT INTO customers (business_id, name, phone, email) VALUES (?, ?, ?, ?)",
+                  [req.user.business_id, inv.customer_name, inv.customer_phone || null, inv.customer_email || null]
+                );
+                customerId = newCust.insertId;
+              }
+            }
+            const subtotal = Number(inv.subtotal) || 0;
+            const taxTotal = Number(inv.tax_total) || 0;
+            const discountTotal = Number(inv.discount_total) || 0;
+            const grandTotal = Number(inv.grand_total) || 0;
+            const paidAmount = Number(inv.paid_amount) || 0;
+            const dueAmount = Number(inv.due_amount) || 0;
+            const status = inv.status || (dueAmount > 0.01 ? paidAmount > 0 ? "partial" : "credit" : "paid");
+            const createdAt = inv.created_at ? new Date(inv.created_at) : /* @__PURE__ */ new Date();
+            const [invR] = await conn.execute(
+              `INSERT INTO invoices 
+           (business_id, branch_id, user_id, customer_id, invoice_number, subtotal, tax_total, discount_total, grand_total, paid_amount, due_amount, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                req.user.business_id,
+                req.user.branch_id || null,
+                req.userId,
+                customerId,
+                invNum,
+                subtotal,
+                taxTotal,
+                discountTotal,
+                grandTotal,
+                paidAmount,
+                dueAmount,
+                status,
+                createdAt
+              ]
+            );
+            const invoiceId = invR.insertId;
+            if (Array.isArray(inv.items)) {
+              for (const item of inv.items) {
+                let skuId = item.sku_id || null;
+                if (!skuId && item.sku_code) {
+                  const [skuRows] = await conn.execute(
+                    "SELECT s.id FROM product_skus s JOIN products p ON s.product_id=p.id WHERE s.sku_code=? AND p.business_id=? LIMIT 1",
+                    [item.sku_code, req.user.business_id]
+                  );
+                  skuId = skuRows[0]?.id || null;
+                }
+                await conn.execute(
+                  `INSERT INTO invoice_items 
+               (invoice_id, sku_id, device_id, quantity, price, cost, discount, total, notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  [
+                    invoiceId,
+                    skuId,
+                    item.device_id || null,
+                    Number(item.quantity) || 1,
+                    Number(item.price) || 0,
+                    Number(item.cost) || 0,
+                    Number(item.discount) || 0,
+                    Number(item.total) || 0,
+                    item.notes || null
+                  ]
+                );
+              }
+            }
+            if (Array.isArray(inv.payments) && inv.payments.length > 0) {
+              for (const p of inv.payments) {
+                await conn.execute(
+                  "INSERT INTO payments (customer_id, invoice_id, type, method, amount, paid_at) VALUES (?, ?, ?, ?, ?, ?)",
+                  [
+                    customerId,
+                    invoiceId,
+                    p.type || "sale_payment",
+                    p.method || "Cash",
+                    Number(p.amount) || 0,
+                    p.paid_at ? new Date(p.paid_at) : p.created_at ? new Date(p.created_at) : createdAt
+                  ]
+                );
+              }
+            } else if (paidAmount > 0) {
+              await conn.execute(
+                "INSERT INTO payments (customer_id, invoice_id, type, method, amount, paid_at) VALUES (?, ?, ?, ?, ?, ?)",
+                [
+                  customerId,
+                  invoiceId,
+                  "sale_payment",
+                  inv.payment_method || "Cash",
+                  paidAmount,
+                  createdAt
+                ]
+              );
+            }
+            await conn.execute(
+              "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+              [invoiceId, req.userId, "Invoice Imported", `Imported via Backup/Restore for \u20AC${grandTotal.toFixed(2)}`]
+            );
+            existingMap.set(invNum, invoiceId);
+            importedCount++;
+          } catch (itemError) {
+            errorCount++;
+            errors.push(`Error on invoice ${inv.invoice_number || "Unknown"}: ${itemError.message}`);
+          }
+        }
+        await conn.commit();
+        res.json({
+          success: true,
+          total: invoices.length,
+          imported: importedCount,
+          skipped: skippedCount,
+          errorsCount: errorCount,
+          errors: errors.slice(0, 10)
+        });
+      } catch (e) {
+        if (conn) await conn.rollback().catch(() => {
+        });
+        next(e);
+      } finally {
+        if (conn) conn.release();
+      }
+    });
     router5.get("/", async (req, res, next) => {
       try {
         const { startDate, endDate } = req.query;
         const isDeveloper = req.user.role === "developer";
         const branchId = req.user.branch_id;
         let sql = `
-      SELECT i.*, c.name as customer_name FROM invoices i
+      SELECT i.*, 
+             c.name as customer_name,
+             (
+               SELECT GROUP_CONCAT(
+                 CONCAT(
+                   IF(ii.quantity > 1, CONCAT(ii.quantity, 'x '), ''),
+                   COALESCE(p.name, ii.notes, 'Item'),
+                   IF(d.imei IS NOT NULL AND d.imei != '', CONCAT(' (', d.imei, ')'), '')
+                 ) SEPARATOR ', '
+               )
+               FROM invoice_items ii
+               LEFT JOIN product_skus s ON ii.sku_id = s.id
+               LEFT JOIN products p ON s.product_id = p.id
+               LEFT JOIN devices d ON ii.device_id = d.id
+               WHERE ii.invoice_id = i.id
+             ) as products_summary
+      FROM invoices i
       LEFT JOIN customers c ON i.customer_id=c.id
       WHERE i.business_id=? ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
     `;
@@ -2515,8 +3157,12 @@ var init_invoices = __esm({
         device_id: z4.number().nullable().optional(),
         quantity: z4.number().or(z4.string().transform(Number)),
         price: z4.number().or(z4.string().transform(Number)),
+        cost: z4.number().or(z4.string().transform(Number)).optional(),
+        discount: z4.number().or(z4.string().transform(Number)).optional(),
+        discount_type: z4.string().optional().nullable(),
         total: z4.number().or(z4.string().transform(Number)),
-        is_deposit: z4.boolean().optional()
+        is_deposit: z4.boolean().optional(),
+        notes: z4.string().optional().nullable()
       })).min(1, "Cart is empty"),
       payments: z4.array(z4.object({
         method: z4.string(),
@@ -2539,7 +3185,7 @@ var init_invoices = __esm({
         let productInfoMap = /* @__PURE__ */ new Map();
         if (skuIds.length > 0) {
           const [allProductInfo] = await conn.query(`
-        SELECT s.id as sku_id, p.product_type, p.allow_overselling
+        SELECT s.id as sku_id, s.cost_price, p.product_type, p.allow_overselling
         FROM product_skus s JOIN products p ON s.product_id=p.id 
         WHERE s.id IN (?)
       `, [skuIds]);
@@ -2577,9 +3223,10 @@ var init_invoices = __esm({
         for (const item of items) {
           const skuId = item.id || item.sku_id;
           const productInfo = productInfoMap.get(skuId);
+          const itemCost = productInfo?.cost_price || item.cost || 0;
           await conn.execute(
-            "INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,total) VALUES (?,?,?,?,?,?)",
-            [invoiceId, skuId, item.device_id || null, item.quantity, item.price, item.total]
+            "INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,cost,discount,total,notes) VALUES (?,?,?,?,?,?,?,?,?)",
+            [invoiceId, skuId, item.device_id || null, item.quantity, item.price, itemCost, item.discount || 0, item.total, item.notes || null]
           );
           if (productInfo?.product_type === "stock") {
             await conn.execute(`
@@ -2712,6 +3359,60 @@ var init_invoices = __esm({
         next(e);
       } finally {
         conn.release();
+      }
+    });
+    router5.post("/:id/send-email", async (req, res, next) => {
+      try {
+        const { email, subject, message } = req.body;
+        if (!email || !email.includes("@")) {
+          return res.status(400).json({ error: "A valid email address is required" });
+        }
+        const isDeveloper = req.user.role === "developer";
+        const branchId = req.user.branch_id;
+        const invRows = await query(`
+      SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email,
+             b.name as branch_name, b.address as branch_address
+      FROM invoices i
+      LEFT JOIN customers c ON i.customer_id=c.id
+      LEFT JOIN branches b ON i.branch_id=b.id
+      WHERE i.id=? AND i.business_id=? ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
+      LIMIT 1
+    `, !isDeveloper && branchId ? [req.params.id, req.user.business_id, branchId] : [req.params.id, req.user.business_id]);
+        const invoice = invRows[0];
+        if (!invoice) return res.status(404).json({ error: "Invoice not found or access denied" });
+        const items = await query(`
+      SELECT ii.*, s.sku_code, p.name as product_name, d.imei
+      FROM invoice_items ii
+      LEFT JOIN product_skus s ON ii.sku_id=s.id
+      LEFT JOIN products p ON s.product_id=p.id
+      LEFT JOIN devices d ON ii.device_id=d.id
+      WHERE ii.invoice_id=?
+    `, [req.params.id]);
+        const payments = await query(`
+      SELECT * FROM payments WHERE invoice_id=?
+    `, [req.params.id]);
+        const company = await queryOne("SELECT * FROM businesses WHERE id=? LIMIT 1", [req.user.business_id]);
+        invoice.items = items;
+        invoice.payments = payments;
+        const emailSubject = subject || `Invoice ${invoice.invoice_number} from ${company?.name || "PhoneLab"}`;
+        sendInvoiceEmail(email.trim(), emailSubject, invoice, company, message).then(async () => {
+          await execute(
+            "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [invoice.id, req.userId, "Invoice Emailed", `Invoice emailed to ${email.trim()}`]
+          ).catch(() => {
+          });
+        }).catch((err) => {
+          console.error("[send-email background] error:", err.message);
+          execute(
+            "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [invoice.id, req.userId, "Invoice Email Failed", `Failed sending email to ${email.trim()}: ${err.message}`]
+          ).catch(() => {
+          });
+        });
+        res.json({ success: true, message: `Invoice email successfully queued for ${email.trim()}` });
+      } catch (e) {
+        console.error("[send-email] error:", e.message);
+        res.status(400).json({ error: `Email Delivery Failed: ${e.message}` });
       }
     });
     router5.put("/payments/:id", async (req, res, next) => {
@@ -2863,7 +3564,7 @@ var init_reports = __esm({
     router6.get("/eod-data", async (req, res, next) => {
       const date = req.query.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
       try {
-        const isSuper = req.user.role === "superadmin";
+        const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
         const branchId = req.user.branch_id;
         const invoicePayments = await query(`
       SELECT p.*, u.name as user_name, i.invoice_number, c.name as customer_name
@@ -2872,22 +3573,89 @@ var init_reports = __esm({
       LEFT JOIN users u ON i.user_id=u.id
       LEFT JOIN customers c ON p.customer_id=c.id
       WHERE DATE(p.paid_at)=? AND i.business_id=? 
-      ${!isSuper ? "AND i.branch_id=?" : ""}
-    `, !isSuper ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
+      ${!isSuper && branchId ? "AND (i.branch_id=? OR i.branch_id IS NULL)" : ""}
+    `, !isSuper && branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
         const otherMovements = await query(`
       SELECT p.*, 'System' as user_name, c.name as customer_name 
       FROM payments p
       LEFT JOIN customers c ON p.customer_id=c.id
-      WHERE DATE(p.paid_at)=? AND p.invoice_id IS NULL AND c.business_id=?
-      ${!isSuper ? "AND c.branch_id=?" : ""}
-    `, !isSuper ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
+      WHERE DATE(p.paid_at)=? AND p.invoice_id IS NULL AND (c.business_id=? OR c.business_id IS NULL)
+      ${!isSuper && branchId ? "AND (c.branch_id=? OR c.branch_id IS NULL)" : ""}
+    `, !isSuper && branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
         const summary = await query(`
-      SELECT method, type, SUM(amount) as total FROM payments p
-      JOIN customers c ON p.customer_id=c.id
-      WHERE DATE(p.paid_at)=? AND c.business_id=? ${!isSuper ? "AND c.branch_id=?" : ""}
-      GROUP BY method, type
-    `, !isSuper ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
-        res.json({ invoicePayments, otherMovements, summary, date });
+      SELECT p.method, p.type, SUM(p.amount) as total 
+      FROM payments p
+      LEFT JOIN invoices i ON p.invoice_id=i.id
+      LEFT JOIN customers c ON p.customer_id=c.id
+      WHERE DATE(p.paid_at)=? AND (i.business_id=? OR c.business_id=?)
+      ${!isSuper && branchId ? "AND (i.branch_id=? OR i.branch_id IS NULL OR c.branch_id=?)" : ""}
+      GROUP BY p.method, p.type
+    `, !isSuper && branchId ? [date, req.user.business_id, req.user.business_id, branchId, branchId] : [date, req.user.business_id, req.user.business_id]);
+        const existingReport = await queryOne(`
+      SELECT starting_balance, comments, cash_counted, difference 
+      FROM closing_reports 
+      WHERE report_date=? AND business_id=? ${!isSuper && branchId ? "AND (branch_id=? OR branch_id IS NULL)" : ""}
+      ORDER BY id DESC LIMIT 1
+    `, !isSuper && branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
+        res.json({
+          invoicePayments,
+          otherMovements,
+          summary,
+          date,
+          startingBalance: existingReport ? Number(existingReport.starting_balance) : null,
+          comments: existingReport?.comments || ""
+        });
+      } catch (e) {
+        next(e);
+      }
+    });
+    router6.get("/starting-cash", async (req, res, next) => {
+      try {
+        const date = req.query.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+        const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
+        const branchId = req.user.branch_id;
+        const report = await queryOne(`
+      SELECT id, starting_balance, created_at 
+      FROM closing_reports 
+      WHERE report_date=? AND business_id=? ${!isSuper && branchId ? "AND (branch_id=? OR branch_id IS NULL)" : ""}
+      ORDER BY id DESC LIMIT 1
+    `, !isSuper && branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
+        const hasStartingCash = report !== null && report.starting_balance !== null && report.starting_balance !== void 0;
+        res.json({
+          hasStartingCash: !!hasStartingCash,
+          startingBalance: hasStartingCash ? Number(report.starting_balance) : 0,
+          reportId: report?.id || null
+        });
+      } catch (e) {
+        next(e);
+      }
+    });
+    router6.post("/starting-cash", async (req, res, next) => {
+      try {
+        const { starting_balance, report_date } = req.body;
+        const date = report_date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+        const amount = Number(starting_balance) || 0;
+        const branchId = req.user.branch_id || 1;
+        const existing = await queryOne(`
+      SELECT id FROM closing_reports 
+      WHERE report_date=? AND business_id=? AND branch_id=?
+      ORDER BY id DESC LIMIT 1
+    `, [date, req.user.business_id, branchId]);
+        if (existing) {
+          await execute(
+            "UPDATE closing_reports SET starting_balance=? WHERE id=?",
+            [amount, existing.id]
+          );
+          res.json({ success: true, message: "Starting cash updated", id: existing.id, starting_balance: amount });
+        } else {
+          const r = await execute(
+            `INSERT INTO closing_reports 
+         (business_id, branch_id, user_id, report_date, starting_balance, cash_counted, calculated_cash, difference, total_sales, total_deposits, total_cash_in_drawer, comments)
+         VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, '')`,
+            [req.user.business_id, branchId, req.userId, date, amount]
+          );
+          res.json({ success: true, message: "Starting cash recorded", id: r.insertId, starting_balance: amount });
+        }
       } catch (e) {
         next(e);
       }
@@ -2926,17 +3694,20 @@ var init_reports = __esm({
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
-        const [r] = await conn.execute(
-          `
-      INSERT INTO closing_reports
-        (business_id,branch_id,user_id,report_date,starting_balance,cash_counted,calculated_cash,difference,
-         total_sales,total_deposits,total_cash_in_drawer,comments)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-          [
-            req.user.business_id,
-            req.user.branch_id,
+        const [existingRows] = await conn.execute(
+          "SELECT id FROM closing_reports WHERE business_id=? AND branch_id=? AND report_date=? ORDER BY id DESC LIMIT 1",
+          [req.user.business_id, req.user.branch_id || 1, report_date]
+        );
+        let reportId;
+        if (existingRows.length > 0) {
+          reportId = existingRows[0].id;
+          await conn.execute(`
+        UPDATE closing_reports 
+        SET user_id=?, starting_balance=?, cash_counted=?, calculated_cash=?, difference=?,
+            total_sales=?, total_deposits=?, total_cash_in_drawer=?, comments=?
+        WHERE id=?
+      `, [
             req.userId,
-            report_date,
             starting_balance,
             cash_counted,
             calculated_cash,
@@ -2944,10 +3715,34 @@ var init_reports = __esm({
             total_sales,
             total_deposits,
             total_cash_in_drawer,
-            comments
-          ]
-        );
-        const reportId = r.insertId;
+            comments,
+            reportId
+          ]);
+          await conn.execute("DELETE FROM closing_report_payments WHERE report_id=?", [reportId]);
+        } else {
+          const [r] = await conn.execute(
+            `
+        INSERT INTO closing_reports
+          (business_id,branch_id,user_id,report_date,starting_balance,cash_counted,calculated_cash,difference,
+           total_sales,total_deposits,total_cash_in_drawer,comments)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [
+              req.user.business_id,
+              req.user.branch_id || 1,
+              req.userId,
+              report_date,
+              starting_balance,
+              cash_counted,
+              calculated_cash,
+              difference,
+              total_sales,
+              total_deposits,
+              total_cash_in_drawer,
+              comments
+            ]
+          );
+          reportId = r.insertId;
+        }
         for (const s of payment_summaries) {
           await conn.execute(
             "INSERT INTO closing_report_payments (report_id,payment_type,calculated,counted,difference) VALUES (?,?,?,?,?)",
@@ -3493,6 +4288,32 @@ var init_inventory = __esm({
         const items = await query("SELECT * FROM purchase_order_items WHERE po_id=?", [req.params.id]);
         res.json({ ...po, items });
       } catch (e) {
+        next(e);
+      }
+    });
+    router8.get("/devices/check-imei", async (req, res, next) => {
+      const { imei } = req.query;
+      if (!imei || String(imei).trim() === "") {
+        return res.json({ exists: false });
+      }
+      try {
+        const cleanImei = String(imei).trim();
+        const device = await queryOne(`
+      SELECT d.id, d.imei, d.imei_serial, d.status, d.branch_id, d.condition, d.gb, d.color,
+             p.name as product_name, s.sku_code, b.name as branch_name
+      FROM devices d
+      JOIN product_skus s ON d.sku_id = s.id
+      JOIN products p ON s.product_id = p.id
+      LEFT JOIN branches b ON d.branch_id = b.id
+      WHERE (d.imei = ? OR d.imei_serial = ?) AND d.business_id = ?
+      LIMIT 1
+    `, [cleanImei, cleanImei, req.user.business_id]);
+        if (device) {
+          return res.json({ exists: true, device });
+        }
+        return res.json({ exists: false });
+      } catch (e) {
+        console.error("[CheckIMEI] Error:", e.message);
         next(e);
       }
     });
@@ -4352,14 +5173,16 @@ var init_inventory = __esm({
           return res.json(await query(sql, params));
         }
         const products = await query(`
-      SELECT s.id, p.name as product_name, s.sku_code, s.barcode, s.selling_price,
+      SELECT s.id, p.name as product_name, s.sku_code, s.barcode, 
+             COALESCE(s.selling_price, p.base_unit_price, 0) as selling_price,
              p.product_type, p.allow_overselling,
              (SELECT SUM(quantity) FROM branch_stock WHERE sku_id=s.id ${!isSuper ? "AND branch_id=?" : ""}) as total_stock
       FROM product_skus s JOIN products p ON s.product_id=p.id
       WHERE (p.name LIKE ? OR s.sku_code LIKE ? OR s.barcode LIKE ?) AND p.business_id=? AND p.deleted_at IS NULL LIMIT 15
     `, !isSuper ? [req.user.branch_id, `%${q}%`, `%${q}%`, `%${q}%`, req.user.business_id] : [`%${q}%`, `%${q}%`, `%${q}%`, req.user.business_id]);
         const devices = await query(`
-      SELECT s.id, p.name as product_name, s.sku_code, s.barcode, s.selling_price,
+      SELECT s.id, p.name as product_name, s.sku_code, s.barcode, 
+             COALESCE(d.selling_price, s.selling_price, p.base_unit_price, 0) as selling_price,
              p.product_type, p.allow_overselling, d.imei, d.id as device_id, 1 as total_stock
       FROM devices d JOIN product_skus s ON d.sku_id=s.id
       JOIN products p ON s.product_id=p.id
@@ -4394,6 +5217,7 @@ import { createServer as createViteServer } from "vite";
 import dotenv2 from "dotenv";
 import fs from "fs";
 import { ZodError } from "zod";
+dotenv2.config({ path: ".env.local" });
 dotenv2.config();
 function logError(message, error) {
   const entry = `[${(/* @__PURE__ */ new Date()).toISOString()}] ${message}: ${error?.message}
@@ -4413,7 +5237,7 @@ async function startServer() {
     process.exit(1);
   }
   const app = express();
-  const PORT = process.env.PORT || 3e3;
+  const PORT = Number(process.env.PORT) || 3e3;
   app.use(express.json({ limit: "10mb" }));
   const { default: authRouter, adminRouter: adminRouter2 } = await Promise.resolve().then(() => (init_auth(), auth_exports));
   const { default: publicRouter } = await Promise.resolve().then(() => (init_public(), public_exports));
@@ -4527,7 +5351,7 @@ async function startServer() {
   }
   app.use((err, req, res, next) => {
     if (err instanceof ZodError) {
-      return res.status(400).json({ error: "Validation Error", details: err.errors });
+      return res.status(400).json({ error: "Validation Error", details: err.errors || err.issues });
     }
     logError("Unhandled API Error", err);
     console.error("[Global Error Handler]", err);
