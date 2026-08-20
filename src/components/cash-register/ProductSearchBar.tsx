@@ -7,6 +7,7 @@ interface ProductSearchBarProps {
   onClear: () => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onQuickAddClick?: () => void;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 export const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
@@ -14,7 +15,8 @@ export const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
   setSearchQuery,
   onClear,
   onKeyDown,
-  onQuickAddClick
+  onQuickAddClick,
+  inputRef
 }) => {
   return (
     <div className="relative group font-sans">
@@ -22,13 +24,17 @@ export const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
         <Search className="h-4 w-4 text-slate-400" />
       </div>
       <input
+        ref={inputRef}
         type="text"
-        className="block w-full pl-10 pr-32 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50/50 dark:bg-slate-800/60 focus:bg-white dark:focus:bg-slate-900 transition-all text-base focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 placeholder:text-slate-400 text-slate-900 dark:text-slate-100 font-sans shadow-2xs"
-        placeholder="Search products by name, SKU or scan barcode..."
+        className="block w-full pl-10 pr-32 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50/50 dark:bg-slate-800/60 focus:bg-white dark:focus:bg-slate-900 transition-all text-base focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 placeholder:text-slate-400 text-slate-900 dark:text-slate-100 font-sans shadow-2xs"
+        placeholder="Scan barcode / IMEI or search product..."
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         onKeyDown={onKeyDown}
         autoFocus
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck="false"
       />
       <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center gap-2.5">
         {searchQuery && (

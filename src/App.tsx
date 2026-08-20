@@ -578,20 +578,20 @@ function AppInner() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-26 bg-[var(--bg-sidebar)] text-white flex flex-col z-20 shadow-lg shrink-0">
+        <aside className="w-28 bg-[var(--bg-sidebar)] text-white flex flex-col z-20 shadow-lg shrink-0">
           <nav className="flex-1 py-1 flex flex-col items-center">
             {menuItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => handleSidebarNavigate(item.id)}
-                className={`group w-full flex flex-col items-center justify-center py-3 px-1 transition-all duration-150 border-l-[3px] cursor-pointer ${
+                className={`group w-full flex flex-col items-center justify-center py-3.5 px-1.5 transition-all duration-150 border-l-[3px] cursor-pointer ${
                   currentView === item.id 
                     ? 'bg-white/15 border-[var(--brand-primary)] text-white' 
                     : 'border-transparent text-slate-200 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <item.icon size={22} strokeWidth={1.5} className="transition-transform duration-150" />
-                <span className={`text-[14px] mt-2 text-center select-none font-normal leading-tight transition-colors ${
+                <item.icon size={25} strokeWidth={1.6} className="transition-transform duration-150 group-hover:scale-105" />
+                <span className={`text-[15px] mt-2 text-center select-none font-medium leading-tight transition-colors ${
                   currentView === item.id ? 'text-white' : 'text-slate-200 group-hover:text-white'
                 }`}>
                   {item.label}

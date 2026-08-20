@@ -93,6 +93,7 @@ export interface Invoice {
   invoice_number: string;
   customer_id: number | null;
   customer_name?: string;
+  products_summary?: string;
   subtotal: number;
   tax_total: number;
   discount_total: number;

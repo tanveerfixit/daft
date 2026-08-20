@@ -521,12 +521,27 @@ router.get('/', async (req: any, res, next) => {
     const branchId = req.user.branch_id;
     
     let sql = `
-      SELECT i.*, c.name as customer_name FROM invoices i
+      SELECT i.*, 
+             c.name as customer_name,
+             (
+               SELECT GROUP_CONCAT(
+                 CONCAT(
+                   IF(ii.quantity > 1, CONCAT(ii.quantity, 'x '), ''),
+                   COALESCE(p.name, ii.notes, 'Item'),
+                   IF(d.imei IS NOT NULL AND d.imei != '', CONCAT(' (', d.imei, ')'), '')
+                 ) SEPARATOR ', '
+               )
+               FROM invoice_items ii
+               LEFT JOIN product_skus s ON ii.sku_id = s.id
+               LEFT JOIN products p ON s.product_id = p.id
+               LEFT JOIN devices d ON ii.device_id = d.id
+               WHERE ii.invoice_id = i.id
+             ) as products_summary
+      FROM invoices i
       LEFT JOIN customers c ON i.customer_id=c.id
       WHERE i.business_id=? ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
     `;
     const params: any[] = (!isDeveloper && branchId) ? [req.user.business_id, branchId] : [req.user.business_id];
-
 
     if (startDate) {
       sql += ' AND i.created_at >= ?';

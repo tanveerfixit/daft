@@ -97,6 +97,7 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
     const lowerSearch = searchTerm.toLowerCase();
     return (
       inv.invoice_number.toLowerCase().includes(lowerSearch) ||
+      (inv.products_summary || '').toLowerCase().includes(lowerSearch) ||
       (inv.customer_name || '').toLowerCase().includes(lowerSearch)
     );
   }) : [];
@@ -153,7 +154,7 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search Customer or Invoice..."
+            placeholder="Search Products, Invoice# or Customer..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-3 pr-10 py-0.5 bg-white border border-neutral-300 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-xs outline-none focus:border-neutral-500 h-7 font-mono"
@@ -172,7 +173,7 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
               <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-24">Date</th>
               <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-24">Time</th>
               <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-32">Invoice#</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800">Customer Name</th>
+              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800">Products Sold</th>
               <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-40">Sales Person</th>
               <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right w-28">Taxable</th>
               <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right w-28">Taxes</th>
@@ -201,19 +202,13 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
                   <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{formatDate(invoice.created_at)}</td>
                   <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{formatTime(invoice.created_at)}</td>
                   <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 font-mono text-neutral-700 dark:text-neutral-300">{invoice.invoice_number}</td>
-                  <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100">
-                    {invoice.customer_id ? (
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectCustomer?.(invoice.customer_id!);
-                        }}
-                        className="text-neutral-900 dark:text-neutral-100 hover:underline font-normal text-left"
-                      >
-                        {invoice.customer_name.toUpperCase()}
-                      </button>
+                  <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 font-normal">
+                    {invoice.products_summary ? (
+                      <span className="line-clamp-2" title={invoice.products_summary}>
+                        {invoice.products_summary}
+                      </span>
                     ) : (
-                      <span className="text-neutral-500 italic text-[11px] uppercase tracking-tight font-normal opacity-60">Walk-in</span>
+                      <span className="text-neutral-400 dark:text-neutral-500 italic text-[12px]">No items recorded</span>
                     )}
                   </td>
                   <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">PHONE LAB</td>

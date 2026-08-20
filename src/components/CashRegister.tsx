@@ -105,6 +105,13 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const walkInCustomerRef = useRef<Customer | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  const focusSearchInput = () => {
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 30);
+  };
 
   // IMEI Selector State
   const [showImeiSelector, setShowImeiSelector] = useState(false);
@@ -339,13 +346,71 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     }
   };
 
+  const handleBarcodeOrSearch = async (term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed) return;
+
+    const filtered = searchResults.filter(p => !p.device_id || !cart.some(c => c.device_id === p.device_id));
+    if (filtered.length > 0) {
+      const selectedItem = filtered[activeSearchIndex] || filtered[0];
+      addToCart(selectedItem);
+      return;
+    }
+
+    // Direct instant fetch for fast scanner Enter key event
+    try {
+      const response = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}&type=products`);
+      if (response.ok) {
+        const data: Product[] = await response.json();
+        const available = Array.isArray(data) ? data.filter(p => !p.device_id || !cart.some(c => c.device_id === p.device_id)) : [];
+        
+        if (available.length === 1) {
+          addToCart(available[0]);
+        } else if (available.length > 1) {
+          // Check for exact barcode, sku, or IMEI match
+          const exactMatch = available.find(p => 
+            (p.barcode && p.barcode.trim().toLowerCase() === trimmed.toLowerCase()) ||
+            (p.sku_code && p.sku_code.trim().toLowerCase() === trimmed.toLowerCase()) ||
+            ((p as any).imei && (p as any).imei.trim().toLowerCase() === trimmed.toLowerCase())
+          );
+          if (exactMatch) {
+            addToCart(exactMatch);
+          } else {
+            setSearchResults(available);
+            setActiveSearchIndex(0);
+          }
+        } else {
+          setSearchResults([]);
+          setActiveSearchIndex(0);
+        }
+      }
+    } catch (error) {
+      console.error('Direct barcode lookup error:', error);
+    }
+  };
+
   const fetchProducts = async (queryTerm: string) => {
     try {
       const response = await fetch(`/api/search?q=${encodeURIComponent(queryTerm)}&type=products`);
       if (response.ok) {
         const data = await response.json();
         if (searchQuery.trim() === queryTerm.trim()) {
-          setSearchResults(Array.isArray(data) ? data : []);
+          const available = Array.isArray(data) ? data.filter(p => !p.device_id || !cart.some(c => c.device_id === p.device_id)) : [];
+          
+          // Auto-add if query is an exact unique barcode or IMEI match
+          if (available.length === 1 && queryTerm.trim().length >= 3) {
+            const single = available[0];
+            const isExactBarcode = single.barcode && single.barcode.trim().toLowerCase() === queryTerm.trim().toLowerCase();
+            const isExactImei = (single as any).imei && (single as any).imei.trim().toLowerCase() === queryTerm.trim().toLowerCase();
+            const isExactSku = single.sku_code && single.sku_code.trim().toLowerCase() === queryTerm.trim().toLowerCase();
+
+            if (isExactBarcode || isExactImei || isExactSku) {
+              addToCart(single);
+              return;
+            }
+          }
+
+          setSearchResults(available);
           setActiveSearchIndex(0);
         }
       } else if (searchQuery.trim() === queryTerm.trim()) {
@@ -399,6 +464,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       const inCart = cart.some(item => item.device_id === product.device_id);
       if (inCart) {
         addActivity('Cart Blocked', `IMEI ${product.imei} is already in the cart`, 'system');
+        focusSearchInput();
         return;
       }
     }
@@ -411,6 +477,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       
       if (currentQty >= available) {
         addActivity('Stock Limit', `Cannot add more ${product.product_name}. Stock: ${available}`, 'stock');
+        focusSearchInput();
         return;
       }
     }
@@ -438,6 +505,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     addActivity('Added to Cart', `${product.product_name} added`, 'stock');
     setSearchQuery('');
     setSearchResults([]);
+    focusSearchInput();
   };
 
   const updateQuantity = (productId: number, delta: number, deviceId?: number) => {
@@ -798,23 +866,29 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
           {/* Search Bar & Results (Floating setup) */}
           <div ref={searchContainerRef} className="shrink-0 mb-3 relative z-50">
             <ProductSearchBar 
+              inputRef={searchInputRef}
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
-              onClear={() => setSearchQuery('')}
+              onClear={() => {
+                setSearchQuery('');
+                setSearchResults([]);
+                focusSearchInput();
+              }}
               onKeyDown={(e) => {
                 const filteredResults = searchResults.filter(p => !p.device_id || !cart.some(c => c.device_id === p.device_id));
                 if (e.key === 'ArrowDown') {
                   e.preventDefault();
-                  setActiveSearchIndex(prev => Math.min(prev + 1, filteredResults.length - 1));
+                  setActiveSearchIndex(prev => Math.min(prev + 1, Math.max(0, filteredResults.length - 1)));
                 } else if (e.key === 'ArrowUp') {
                   e.preventDefault();
                   setActiveSearchIndex(prev => Math.max(prev - 1, 0));
                 } else if (e.key === 'Enter') {
                   e.preventDefault();
-                  if (filteredResults.length > 0) {
-                    const selectedItem = filteredResults[activeSearchIndex] || filteredResults[0];
-                    addToCart(selectedItem);
-                  }
+                  handleBarcodeOrSearch(searchQuery);
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setSearchQuery('');
+                  setSearchResults([]);
                 }
               }}
               onQuickAddClick={() => openQuickAdd(searchQuery)}
@@ -936,7 +1010,10 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       {showDepositModal && (
         <DepositAmountModal 
           customer={selectedCustomer}
-          onClose={() => setShowDepositModal(false)}
+          onClose={() => {
+            setShowDepositModal(false);
+            focusSearchInput();
+          }}
           onAddDeposit={handleAddDepositToCart}
         />
       )}
@@ -946,7 +1023,10 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
           product={imeiSelectorProduct}
           availableImeis={availableImeis}
           isLoading={isLoadingImeis}
-          onClose={() => setShowImeiSelector(false)}
+          onClose={() => {
+            setShowImeiSelector(false);
+            focusSearchInput();
+          }}
           onSelect={(device) => {
             addToCart({
               ...imeiSelectorProduct,
@@ -960,7 +1040,10 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
       {showNewCustomerModal && (
         <CustomerFormModal 
-          onClose={() => setShowNewCustomerModal(false)}
+          onClose={() => {
+            setShowNewCustomerModal(false);
+            focusSearchInput();
+          }}
           onSave={handleSaveNewCustomer}
         />
       )}
@@ -971,6 +1054,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
           onClose={() => {
             setShowUpdateModal(false);
             setEditingItem(null);
+            focusSearchInput();
           }}
           onSave={handleUpdateCartItem}
         />
@@ -984,7 +1068,10 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
               <h3 className="text-base font-bold text-black dark:text-white uppercase">⚡ Quick Add Product</h3>
               <button
                 type="button"
-                onClick={() => setShowQuickAdd(false)}
+                onClick={() => {
+                  setShowQuickAdd(false);
+                  focusSearchInput();
+                }}
                 className="text-neutral-500 hover:text-neutral-750 dark:hover:text-neutral-350 transition-colors border-0 bg-transparent p-0 cursor-pointer"
               >
                 <XCircle size={18} />
