@@ -6,8 +6,6 @@ import { ZodError } from 'zod';
 import { initSchema, seedData, ensureSuperAdmin } from './src/mysql.js';
 import { requireAuthAsync } from './src/routes/auth.js';
 
-// Load .env.local first if it exists, then fallback to .env
-dotenv.config({ path: '.env.local' });
 dotenv.config();
 
 function logError(message: string, error: any) {

@@ -972,14 +972,16 @@ async function ensureSuperAdmin() {
 var pool;
 var init_mysql = __esm({
   "src/mysql.ts"() {
-    dotenv.config({ path: ".env.local" });
     dotenv.config();
+    if (!process.env.DB_PASS) {
+      throw new Error("[SECURITY FATAL] DB_PASS is not set in the .env file. Refusing to start with insecure credentials.");
+    }
     pool = mysql.createPool({
       host: process.env.DB_HOST || "127.0.0.1",
       port: Number(process.env.DB_PORT) || 3306,
-      database: process.env.DB_NAME || "epos_db",
-      user: process.env.DB_USER || "root",
-      password: process.env.DB_PASS !== void 0 ? process.env.DB_PASS : "",
+      database: process.env.DB_NAME,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASS,
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
@@ -3211,8 +3213,10 @@ var init_invoices = __esm({
           if (!isNaN(lastNum)) nextNum = lastNum + 1;
         }
         const invoiceNumber = `${prefix}-${String(nextNum).padStart(3, "0")}`;
-        const totalPaid = (payments || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
-        const dueAmount = Math.max(0, (parseFloat(grand_total) || 0) - totalPaid);
+        const grandTotalNum = parseFloat(grand_total) || 0;
+        const rawTotalPaid = (payments || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+        const totalPaid = Math.min(grandTotalNum, rawTotalPaid);
+        const dueAmount = Math.max(0, grandTotalNum - rawTotalPaid);
         let status = "paid";
         if (dueAmount > 0.01) status = totalPaid > 0 ? "partial" : "credit";
         const [invR] = await conn.execute(
@@ -3256,7 +3260,18 @@ var init_invoices = __esm({
             );
           }
         }
-        for (const p of payments || []) {
+        let excessChange = Math.max(0, rawTotalPaid - grandTotalNum);
+        const settledPayments = (payments || []).map((p) => {
+          let amt = parseFloat(p.amount) || 0;
+          const isCash = (p.method || "").toLowerCase().includes("cash");
+          if (isCash && excessChange > 0) {
+            const deduct = Math.min(amt, excessChange);
+            amt -= deduct;
+            excessChange -= deduct;
+          }
+          return { ...p, amount: amt };
+        }).filter((p) => p.amount > 0);
+        for (const p of settledPayments) {
           const type = p.method === "Store Credit" || p.method === "Wallet" ? "wallet_use" : "sale_payment";
           await conn.execute(
             "INSERT INTO payments (customer_id,invoice_id,type,method,amount) VALUES (?,?,?,?,?)",
@@ -3574,6 +3589,7 @@ var init_reports = __esm({
       LEFT JOIN customers c ON p.customer_id=c.id
       WHERE DATE(p.paid_at)=? AND i.business_id=? 
       ${!isSuper && branchId ? "AND (i.branch_id=? OR i.branch_id IS NULL)" : ""}
+      ORDER BY p.id ASC
     `, !isSuper && branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
         const otherMovements = await query(`
       SELECT p.*, 'System' as user_name, c.name as customer_name 
@@ -3581,6 +3597,7 @@ var init_reports = __esm({
       LEFT JOIN customers c ON p.customer_id=c.id
       WHERE DATE(p.paid_at)=? AND p.invoice_id IS NULL AND (c.business_id=? OR c.business_id IS NULL)
       ${!isSuper && branchId ? "AND (c.branch_id=? OR c.branch_id IS NULL)" : ""}
+      ORDER BY p.id ASC
     `, !isSuper && branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
         const summary = await query(`
       SELECT p.method, p.type, SUM(p.amount) as total 
@@ -3590,6 +3607,7 @@ var init_reports = __esm({
       WHERE DATE(p.paid_at)=? AND (i.business_id=? OR c.business_id=?)
       ${!isSuper && branchId ? "AND (i.branch_id=? OR i.branch_id IS NULL OR c.branch_id=?)" : ""}
       GROUP BY p.method, p.type
+      ORDER BY p.method ASC
     `, !isSuper && branchId ? [date, req.user.business_id, req.user.business_id, branchId, branchId] : [date, req.user.business_id, req.user.business_id]);
         const existingReport = await queryOne(`
       SELECT starting_balance, comments, cash_counted, difference 
@@ -5217,7 +5235,6 @@ import { createServer as createViteServer } from "vite";
 import dotenv2 from "dotenv";
 import fs from "fs";
 import { ZodError } from "zod";
-dotenv2.config({ path: ".env.local" });
 dotenv2.config();
 function logError(message, error) {
   const entry = `[${(/* @__PURE__ */ new Date()).toISOString()}] ${message}: ${error?.message}

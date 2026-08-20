@@ -665,8 +665,10 @@ router.post('/', async (req: any, res, next) => {
       if (!isNaN(lastNum)) nextNum = lastNum + 1;
     }
     const invoiceNumber = `${prefix}-${String(nextNum).padStart(3, '0')}`;
-    const totalPaid = (payments || []).reduce((s: number, p: any) => s + (parseFloat(p.amount) || 0), 0);
-    const dueAmount = Math.max(0, (parseFloat(grand_total) || 0) - totalPaid);
+    const grandTotalNum = parseFloat(grand_total) || 0;
+    const rawTotalPaid = (payments || []).reduce((s: number, p: any) => s + (parseFloat(p.amount) || 0), 0);
+    const totalPaid = Math.min(grandTotalNum, rawTotalPaid);
+    const dueAmount = Math.max(0, grandTotalNum - rawTotalPaid);
     let status = 'paid';
     if (dueAmount > 0.01) status = totalPaid > 0 ? 'partial' : 'credit';
     
@@ -714,7 +716,20 @@ router.post('/', async (req: any, res, next) => {
       }
     }
 
-    for (const p of (payments || [])) {
+    // Standard POS settlement: adjust excess cash tender for change given
+    let excessChange = Math.max(0, rawTotalPaid - grandTotalNum);
+    const settledPayments = (payments || []).map((p: any) => {
+      let amt = parseFloat(p.amount) || 0;
+      const isCash = (p.method || '').toLowerCase().includes('cash');
+      if (isCash && excessChange > 0) {
+        const deduct = Math.min(amt, excessChange);
+        amt -= deduct;
+        excessChange -= deduct;
+      }
+      return { ...p, amount: amt };
+    }).filter((p: any) => p.amount > 0);
+
+    for (const p of settledPayments) {
       const type = (p.method==='Store Credit'||p.method==='Wallet') ? 'wallet_use' : 'sale_payment';
       await conn.execute('INSERT INTO payments (customer_id,invoice_id,type,method,amount) VALUES (?,?,?,?,?)',
         [finalCustomerId, invoiceId, type, p.method, p.amount]);

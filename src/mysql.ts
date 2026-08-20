@@ -1,16 +1,18 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
-
-// Load .env.local first if it exists, then fallback to .env
-dotenv.config({ path: '.env.local' });
 dotenv.config();
+
+// SECURITY: Credentials must come from environment variables (FINDING-001)
+if (!process.env.DB_PASS) {
+  throw new Error('[SECURITY FATAL] DB_PASS is not set in the .env file. Refusing to start with insecure credentials.');
+}
 
 export const pool = mysql.createPool({
   host: process.env.DB_HOST || '127.0.0.1',
   port: Number(process.env.DB_PORT) || 3306,
-  database: process.env.DB_NAME || 'epos_db',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASS !== undefined ? process.env.DB_PASS : '',
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,

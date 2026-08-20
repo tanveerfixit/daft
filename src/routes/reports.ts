@@ -159,6 +159,7 @@ router.get('/eod-data', async (req: any, res, next) => {
       LEFT JOIN customers c ON p.customer_id=c.id
       WHERE DATE(p.paid_at)=? AND i.business_id=? 
       ${(!isSuper && branchId) ? 'AND (i.branch_id=? OR i.branch_id IS NULL)' : ''}
+      ORDER BY p.id ASC
     `, (!isSuper && branchId) ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
 
     const otherMovements = await query(`
@@ -167,6 +168,7 @@ router.get('/eod-data', async (req: any, res, next) => {
       LEFT JOIN customers c ON p.customer_id=c.id
       WHERE DATE(p.paid_at)=? AND p.invoice_id IS NULL AND (c.business_id=? OR c.business_id IS NULL)
       ${(!isSuper && branchId) ? 'AND (c.branch_id=? OR c.branch_id IS NULL)' : ''}
+      ORDER BY p.id ASC
     `, (!isSuper && branchId) ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
 
     const summary = await query(`
@@ -177,6 +179,7 @@ router.get('/eod-data', async (req: any, res, next) => {
       WHERE DATE(p.paid_at)=? AND (i.business_id=? OR c.business_id=?)
       ${(!isSuper && branchId) ? 'AND (i.branch_id=? OR i.branch_id IS NULL OR c.branch_id=?)' : ''}
       GROUP BY p.method, p.type
+      ORDER BY p.method ASC
     `, (!isSuper && branchId) ? [date, req.user.business_id, req.user.business_id, branchId, branchId] : [date, req.user.business_id, req.user.business_id]);
 
     const existingReport = await queryOne(`
