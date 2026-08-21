@@ -92,6 +92,14 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (isSaving) return false;
+
+    if (!formData.name?.trim()) {
+      return alert('Please enter a product name');
+    }
+    if (!formData.category_id) {
+      return alert('Please select a category');
+    }
+
     setIsSaving(true);
     
     // Determine product type based on tracking selection
@@ -237,14 +245,15 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
               </div>
               
               <div className="space-y-1">
-                <label className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider block">Category</label>
+                <label className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider block">Category <span className="text-red-500">*</span></label>
                 <div className="flex gap-2">
                   <select
+                    required
                     className="flex-1 p-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-base focus:outline-none text-neutral-900 dark:text-neutral-100 font-normal"
                     value={formData.category_id}
                     onChange={e => setFormData({ ...formData, category_id: e.target.value })}
                   >
-                    <option value="">Select Category</option>
+                    <option value="">Select Category *</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                   <button 

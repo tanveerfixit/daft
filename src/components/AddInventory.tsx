@@ -258,16 +258,16 @@ export default function AddInventory({
     if (e) e.preventDefault();
     if (!branchId) return alert('Please select a branch');
 
+    let validSerializedItems: typeof items = [];
     if (product?.product_type === 'serialized') {
-      // Validate items
-      if (items.length === 0) return alert('Please add at least one device.');
+      // Filter out any blank or empty rows
+      validSerializedItems = items.filter(it => it.imei && it.imei.trim().length > 0);
       
-      const emptyImeis = items.filter(it => !it.imei.trim());
-      if (emptyImeis.length > 0) {
-        return alert('Please fill in all IMEI / Serial numbers or remove empty rows.');
+      if (validSerializedItems.length === 0) {
+        return alert('Please enter at least one device with an IMEI / Serial number.');
       }
 
-      const duplicateErrors = items.filter(it => it.duplicateError);
+      const duplicateErrors = validSerializedItems.filter(it => it.duplicateError);
       if (duplicateErrors.length > 0) {
         return alert(`Cannot save: ${duplicateErrors.length} item(s) have duplicate/invalid IMEIs. Please resolve errors before saving.`);
       }
@@ -276,12 +276,12 @@ export default function AddInventory({
     const payload = {
       sku_id: productId,
       branch_id: parseInt(branchId),
-      quantity: product?.product_type === 'serialized' ? items.length : parseInt(quantity),
+      quantity: product?.product_type === 'serialized' ? validSerializedItems.length : parseInt(quantity),
       cost_price: parseFloat(costPrice) || 0,
       selling_price: parseFloat(sellingPrice) || 0,
       supplier_id: supplierId ? parseInt(supplierId) : null,
       po_number: poNumber,
-      items: product?.product_type === 'serialized' ? items.map(it => ({
+      items: product?.product_type === 'serialized' ? validSerializedItems.map(it => ({
         imei: it.imei.trim(),
         color: it.color,
         gb: it.gb,

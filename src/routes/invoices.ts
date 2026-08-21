@@ -899,9 +899,11 @@ router.post('/:id/send-email', async (req: any, res, next) => {
 
 router.put('/payments/:id', async (req: any, res, next) => {
   try {
+    const { method } = req.body;
+    if (!method) return res.status(400).json({ error: 'Method is required' });
     const r = await execute(
-      'UPDATE payments p JOIN invoices i ON p.invoice_id=i.id SET p.method=? WHERE p.id=? AND i.business_id=?',
-      [req.body.method, req.params.id, req.user.business_id]
+      'UPDATE payments p LEFT JOIN invoices i ON p.invoice_id=i.id LEFT JOIN customers c ON p.customer_id=c.id SET p.method=? WHERE p.id=? AND (i.business_id=? OR c.business_id=?)',
+      [method, req.params.id, req.user.business_id, req.user.business_id]
     );
     if (r.affectedRows === 0) return res.status(404).json({ error: 'Payment not found or access denied' });
     res.json({ success: true });

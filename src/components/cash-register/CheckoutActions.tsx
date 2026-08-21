@@ -61,10 +61,8 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
           <Zap size={20} strokeWidth={3} className="animate-pulse" />
           <span>
             {addedPaymentsCount > 0 
-              ? `Pay €${Math.max(0, remainingAmount).toFixed(2)} & Finish` 
-              : (typedAmount > 0 
-                  ? `Quick Pay €${typedAmount.toFixed(2)} (${paymentMethod})` 
-                  : `Quick Checkout (${paymentMethod})`)}
+              ? `Pay Remaining €${Math.max(0, remainingAmount).toFixed(2)} & Finish` 
+              : `Quick Pay €${Math.max(0, remainingAmount).toFixed(2)} (${paymentMethod})`}
           </span>
         </button>
       )}

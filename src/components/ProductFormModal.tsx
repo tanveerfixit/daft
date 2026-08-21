@@ -30,6 +30,8 @@ export default function ProductFormModal({ onClose, onSave, initialData }: Produ
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.product_name?.trim()) return alert('Please enter a product name');
+    if (!formData.category_id) return alert('Please select a category');
     onSave(formData);
   };
 
@@ -59,13 +61,14 @@ export default function ProductFormModal({ onClose, onSave, initialData }: Produ
             </div>
 
             <div className="flex items-center">
-              <label className="w-1/3 text-base font-bold text-black dark:text-white uppercase">Category</label>
+              <label className="w-1/3 text-base font-bold text-black dark:text-white uppercase">Category<span className="text-red-500">*</span></label>
               <select
+                required
                 className="w-2/3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none"
                 value={formData.category_id || ''}
                 onChange={e => setFormData({ ...formData, category_id: e.target.value ? parseInt(e.target.value) || 0 : undefined })}
               >
-                <option value="">Select Category</option>
+                <option value="">Select Category *</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>

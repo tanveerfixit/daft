@@ -3639,9 +3639,11 @@ var init_invoices = __esm({
     });
     router5.put("/payments/:id", async (req, res, next) => {
       try {
+        const { method } = req.body;
+        if (!method) return res.status(400).json({ error: "Method is required" });
         const r = await execute(
-          "UPDATE payments p JOIN invoices i ON p.invoice_id=i.id SET p.method=? WHERE p.id=? AND i.business_id=?",
-          [req.body.method, req.params.id, req.user.business_id]
+          "UPDATE payments p LEFT JOIN invoices i ON p.invoice_id=i.id LEFT JOIN customers c ON p.customer_id=c.id SET p.method=? WHERE p.id=? AND (i.business_id=? OR c.business_id=?)",
+          [method, req.params.id, req.user.business_id, req.user.business_id]
         );
         if (r.affectedRows === 0) return res.status(404).json({ error: "Payment not found or access denied" });
         res.json({ success: true });
@@ -3789,7 +3791,7 @@ var init_reports = __esm({
         const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
         const branchId = req.user.branch_id;
         const invoicePayments = await query(`
-      SELECT p.*, u.name as user_name, i.invoice_number, c.name as customer_name
+      SELECT p.*, u.name as user_name, i.invoice_number, i.status as invoice_status, c.name as customer_name
       FROM payments p
       LEFT JOIN invoices i ON p.invoice_id=i.id
       LEFT JOIN users u ON i.user_id=u.id
@@ -4411,7 +4413,9 @@ var init_inventory = __esm({
           finalPoNumber = `PO${nextSerial}`;
         }
         const [existPo] = await conn.execute("SELECT id FROM purchase_orders WHERE po_number=? AND business_id=?", [finalPoNumber, req.user.business_id]);
-        const totalAmount = (cost_price || 0) * (quantity || (items?.length || 0));
+        const validItems = (items || []).filter((it) => it.imei && it.imei.trim().length > 0);
+        const actualQuantity = productInfo.product_type === "serialized" ? validItems.length : quantity || 0;
+        const totalAmount = (cost_price || 0) * actualQuantity;
         let poId;
         if (existPo.length === 0) {
           const [pr] = await conn.execute(
@@ -4432,17 +4436,17 @@ var init_inventory = __esm({
             poId,
             productInfo.product_id,
             productInfo.product_name,
-            quantity || items?.length || 0,
-            quantity || items?.length || 0,
+            actualQuantity,
+            actualQuantity,
             cost_price || 0,
             totalAmount
           ]
         );
         if (productInfo.product_type === "serialized") {
-          for (const item of items) {
+          for (const item of validItems) {
             await conn.execute(
               "INSERT INTO devices (business_id,branch_id,sku_id,imei,cost_price,selling_price,color,gb,`condition`,po_number,status) VALUES (?,?,?,?,?,?,?,?,?,?,'in_stock')",
-              [req.user.business_id, activeBranchId, sku_id, item.imei, cost_price, selling_price, item.color, item.gb, item.condition, finalPoNumber]
+              [req.user.business_id, activeBranchId, sku_id, item.imei.trim(), cost_price, selling_price, item.color, item.gb, item.condition, finalPoNumber]
             );
             const deviceId = (await conn.execute("SELECT LAST_INSERT_ID() as id"))[0];
             await conn.execute(

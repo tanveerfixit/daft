@@ -152,7 +152,7 @@ router.get('/eod-data', async (req: any, res, next) => {
     const branchId = req.user.branch_id;
 
     const invoicePayments = await query(`
-      SELECT p.*, u.name as user_name, i.invoice_number, c.name as customer_name
+      SELECT p.*, u.name as user_name, i.invoice_number, i.status as invoice_status, c.name as customer_name
       FROM payments p
       LEFT JOIN invoices i ON p.invoice_id=i.id
       LEFT JOIN users u ON i.user_id=u.id

@@ -14,7 +14,8 @@ import {
   ArrowRightLeft,
   X,
   ExternalLink,
-  Calendar
+  Calendar,
+  RotateCcw
 } from 'lucide-react';
 import { Payment, ClosingReport, ClosingReportPayment } from '../types';
 import { useThermalSettings } from '../hooks/useThermalSettings';
@@ -434,9 +435,15 @@ const EndOfDayA4: React.FC<PrintProps> = ({
                   <td className="font-mono text-xs">{p.invoice_number || 'DEPOSIT'}</td>
                   <td className="text-sm">{p.customer_name || '--'}</td>
                   <td>
-                    <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-bold uppercase">{p.method}</span>
+                    {Number(p.amount) < 0 || String(p.method).toLowerCase().includes('refund') ? (
+                      <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs font-bold uppercase">REFUND</span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-bold uppercase">{p.method}</span>
+                    )}
                   </td>
-                  <td className="text-right font-bold text-gray-900 text-base">€{(Number(p.amount) || 0).toFixed(2)}</td>
+                  <td className={`text-right font-bold text-base ${Number(p.amount) < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                    {Number(p.amount) < 0 ? '-' : ''}€{Math.abs(Number(p.amount) || 0).toFixed(2)}
+                  </td>
                 </tr>
               ))
             )}
@@ -692,71 +699,66 @@ export default function EndOfDay() {
     }
   };
 
-  const isCashPayment = (method: string) => {
+  const isRefundPayment = (p: Payment | any) => {
+    return (Number(p.amount) || 0) < 0 || String(p.method || '').toLowerCase().includes('refund');
+  };
+
+  const getBasePaymentMethod = (method: string) => {
     const m = (method || '').toLowerCase();
-    return m === 'cash' || m.includes('cash');
+    if (m.includes('cash')) return 'Cash';
+    if (m.includes('card') || m.includes('debit') || m.includes('credit')) return 'Card';
+    return 'Other';
+  };
+
+  const isCashPayment = (method: string) => {
+    return getBasePaymentMethod(method) === 'Cash';
   };
 
   const isCardPayment = (method: string) => {
-    const m = (method || '').toLowerCase();
-    return m.includes('card') || m.includes('debit') || m.includes('credit');
+    return getBasePaymentMethod(method) === 'Card';
   };
 
-  const isWalletPayment = (method: string) => {
-    const m = (method || '').toLowerCase();
-    return m.includes('wallet');
+  const isOtherPayment = (method: string) => {
+    return getBasePaymentMethod(method) === 'Other';
   };
 
   const allPayments = [...invoicePayments, ...otherMovements];
-  const totalSales = allPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  const totalRefunds = allPayments
-    .filter(p => (Number(p.amount) || 0) < 0)
-    .reduce((sum, p) => sum + Math.abs(Number(p.amount) || 0), 0);
   
-  const cashFromInvoices = invoicePayments
-    .filter(p => isCashPayment(p.method))
-    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    
-  const cashFromDeposits = otherMovements
+  // Total Net Sales
+  const totalSales = allPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  
+  // Cash Sales (Net cash sales, including any cash refund reductions)
+  const totalCashSales = allPayments
     .filter(p => isCashPayment(p.method))
     .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
-  const totalCashSales = cashFromInvoices + cashFromDeposits;
+  // Card Sales (Net card sales, including any card refund reductions)
+  const totalCardSales = allPayments
+    .filter(p => isCardPayment(p.method))
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+  // Other Sales
+  const totalOtherSales = allPayments
+    .filter(p => isOtherPayment(p.method))
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+  const totalRefunds = allPayments
+    .filter(p => isRefundPayment(p))
+    .reduce((sum, p) => sum + Math.abs(Number(p.amount) || 0), 0);
+
   const calculatedCashTotal = totalCashSales + startingBalance;
   const cashCounted = countedValues['Cash'] || 0;
   const cashDifference = cashCounted - calculatedCashTotal;
 
   const getCalculatedAmount = (type: string) => {
     if (type === 'Cash') return totalCashSales;
-    
-    if (type === 'Card') {
-      return allPayments
-        .filter(p => isCardPayment(p.method))
-        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    }
-    
-    if (type === 'Wallet') {
-      return allPayments
-        .filter(p => isWalletPayment(p.method))
-        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    }
-    
-    if (type === 'Refunds') {
-      return allPayments
-        .filter(p => (Number(p.amount) || 0) < 0)
-        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    }
-    
-    if (type === 'Other') {
-      // Catch-all for any method that isn't Cash, Card, or Wallet
-      return allPayments
-        .filter(p => !isCashPayment(p.method) && !isCardPayment(p.method) && !isWalletPayment(p.method))
-        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    }
+    if (type === 'Card') return totalCardSales;
+    if (type === 'Other') return totalOtherSales;
+    if (type === 'Refunds') return totalRefunds;
     return 0;
   };
 
-  const paymentTypes = ['Cash', 'Card', 'Wallet', 'Refunds', 'Other'];
+  const paymentTypes = ['Cash', 'Card', 'Other', 'Refunds'];
   
   const summaries = paymentTypes.map(type => {
     const calculated = getCalculatedAmount(type);
@@ -938,51 +940,64 @@ export default function EndOfDay() {
 
           {/* KPI Metrics Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Total Sales */}
+            {/* 1. Cash Sale */}
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Sales</p>
-              <p className="text-2xl font-mono font-bold text-blue-600 dark:text-blue-400 mt-1">€{totalSales.toFixed(2)}</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">{allPayments.length} recorded payments</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cash Sale</p>
+              <p className="text-2xl font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-1">€{totalCashSales.toFixed(2)}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">{allPayments.filter(p => isCashPayment(p.method) && !isRefundPayment(p)).length} cash payments</p>
             </div>
 
-            {/* Opening Balance */}
+            {/* 2. Card Sale */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Card Sale</p>
+              <p className="text-2xl font-mono font-bold text-blue-600 dark:text-blue-400 mt-1">€{totalCardSales.toFixed(2)}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">{allPayments.filter(p => isCardPayment(p.method) && !isRefundPayment(p)).length} card payments</p>
+            </div>
+
+            {/* 3. Opening Balance */}
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Opening Balance</p>
               <p className="text-2xl font-mono font-bold text-slate-800 dark:text-slate-100 mt-1">€{startingBalance.toFixed(2)}</p>
               <p className="text-[11px] text-slate-400 mt-0.5">Starting drawer float</p>
             </div>
 
-            {/* Expected Cash */}
+            {/* 4. Total Sale */}
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Expected Cash</p>
-              <p className="text-2xl font-mono font-bold text-slate-800 dark:text-slate-100 mt-1">€{calculatedCashTotal.toFixed(2)}</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Opening + Cash Sales</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Sale</p>
+              <p className="text-2xl font-mono font-bold text-indigo-600 dark:text-indigo-400 mt-1">€{totalSales.toFixed(2)}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Net revenue ({allPayments.length} transactions)</p>
             </div>
 
-            {/* Cash Counted */}
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cash Counted</p>
-              <p className="text-2xl font-mono font-bold text-slate-900 dark:text-white mt-1">€{cashCounted.toFixed(2)}</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Actual drawer total</p>
-            </div>
-
-            {/* Cash Difference */}
+            {/* 5. Cash Difference */}
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cash Difference</p>
-              <div className="flex items-center gap-2 mt-1">
-                <span className={`text-2xl font-mono font-bold ${
-                  Math.abs(cashDifference) < 0.01 
-                    ? 'text-emerald-600 dark:text-emerald-400' 
-                    : cashDifference > 0 
-                      ? 'text-emerald-600 dark:text-emerald-400' 
-                      : 'text-rose-600 dark:text-rose-400'
-                }`}>
-                  {cashDifference >= 0 ? '+' : ''}€{cashDifference.toFixed(2)}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                {Math.abs(cashDifference) < 0.01 ? '✓ Balanced' : cashDifference > 0 ? 'Surplus' : 'Shortage'}
-              </p>
+              {startingBalance > 0 ? (
+                <>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`text-2xl font-mono font-bold ${
+                      Math.abs(cashDifference) < 0.01 
+                        ? 'text-emerald-600 dark:text-emerald-400' 
+                        : 'text-rose-600 dark:text-rose-400'
+                    }`}>
+                      {cashDifference > 0 ? '+' : ''}€{cashDifference.toFixed(2)}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {Math.abs(cashDifference) < 0.01 ? '✓ Balanced (Zero discrepancy)' : cashDifference > 0 ? 'Surplus (+ discrepancy)' : 'Shortage (- discrepancy)'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-2xl font-mono font-bold text-slate-400 dark:text-slate-500">
+                      --
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Enter starting balance below
+                  </p>
+                </>
+              )}
             </div>
           </div>
 
@@ -1072,9 +1087,9 @@ export default function EndOfDay() {
             {/* Right: Payment Breakdown Table */}
             <div className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col justify-between">
               <div>
-                <div className="p-5 pb-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
+                <div className="p-5 pb-3.5 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
                   <div>
-                    <h2 className="text-sm font-bold text-slate-900 dark:text-white">Payment Method Summary</h2>
+                    <h2 className="text-base font-bold text-slate-900 dark:text-white">Payment Method Summary</h2>
                     <p className="text-xs text-slate-500">Reconcile calculated system receipts with counted totals</p>
                   </div>
                 </div>
@@ -1082,85 +1097,103 @@ export default function EndOfDay() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="bg-slate-50/70 dark:bg-slate-800/40 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                        <th className="py-1.5 px-3">Method</th>
-                        <th className="py-1.5 px-3 text-right">System Calculated</th>
-                        <th className="py-1.5 px-3 text-right">Counted / Confirmed</th>
-                        <th className="py-1.5 px-3 text-right">Difference</th>
+                      <tr className="bg-slate-50/80 dark:bg-slate-800/60 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+                        <th className="py-2.5 px-4">Method</th>
+                        <th className="py-2.5 px-4 text-right">System Calculated</th>
+                        <th className="py-2.5 px-4 text-right">Counted / Confirmed</th>
+                        <th className="py-2.5 px-4 text-right">Difference</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
                       {/* Cash Row */}
                       <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="py-1.5 px-3 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <td className="py-3 px-4 text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
                           Cash Sales
                         </td>
-                        <td className="py-1.5 px-3 text-right font-mono font-semibold text-slate-800 dark:text-slate-200">
+                        <td className="py-3 px-4 text-right font-mono font-bold text-base sm:text-lg text-slate-900 dark:text-slate-100">
                           €{totalCashSales.toFixed(2)}
                         </td>
-                        <td className="py-1.5 px-3 text-right font-mono font-semibold text-slate-800 dark:text-slate-200">
+                        <td className="py-3 px-4 text-right font-mono font-bold text-base sm:text-lg text-slate-900 dark:text-slate-100">
                           €{((cashCounted - startingBalance) > 0 ? (cashCounted - startingBalance) : 0).toFixed(2)}
                         </td>
-                        <td className="py-1.5 px-3 text-right font-mono font-semibold">
-                          <span className={`px-1.5 py-0.5 rounded text-xs ${
-                            Math.abs(cashDifference) < 0.01 
-                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400' 
-                              : cashDifference > 0 
-                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400' 
-                                : 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400'
-                          }`}>
-                            {cashDifference >= 0 ? '+' : ''}€{cashDifference.toFixed(2)}
-                          </span>
+                        <td className="py-3 px-4 text-right font-mono font-bold">
+                          {startingBalance > 0 ? (
+                            <span className={`inline-block px-2.5 py-1 rounded-md text-sm ${
+                              Math.abs(cashDifference) < 0.01 
+                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' 
+                                : 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                            }`}>
+                              {cashDifference > 0 ? '+' : ''}€{cashDifference.toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="inline-block px-2.5 py-1 rounded-md text-sm text-slate-400 bg-slate-100 dark:bg-slate-800">
+                              --
+                            </span>
+                          )}
                         </td>
                       </tr>
 
-                      {/* Other Methods */}
-                      {summaries.filter(s => s.payment_type !== 'Cash').map((s, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                          <td className="py-1.5 px-3 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                            <span className={`w-2 h-2 rounded-full ${
-                              s.payment_type === 'Card' ? 'bg-blue-500' : s.payment_type === 'Wallet' ? 'bg-purple-500' : 'bg-amber-500'
-                            }`}></span>
-                            {s.payment_type}
-                          </td>
-                          <td className="py-1.5 px-3 text-right font-mono font-semibold text-slate-800 dark:text-slate-200">
-                            €{s.calculated.toFixed(2)}
-                          </td>
-                          <td className="py-1.5 px-3 text-right">
-                            <div className="relative inline-block w-28">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">€</span>
-                              <input 
-                                type="number" 
-                                value={s.counted || ''}
-                                onChange={(e) => setCountedValues(prev => ({ ...prev, [s.payment_type]: parseFloat(e.target.value) || 0 }))}
-                                className="w-full pl-5 pr-2 py-0.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-slate-900 dark:text-slate-100 text-right font-mono font-semibold text-xs outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500"
-                                placeholder="0.00"
-                              />
-                            </div>
-                          </td>
-                          <td className="py-1.5 px-3 text-right font-mono font-semibold">
-                            <span className={`px-1.5 py-0.5 rounded text-xs ${
-                              Math.abs(s.difference) < 0.01 
-                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400' 
-                                : s.difference > 0 
-                                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400' 
-                                  : 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400'
-                            }`}>
-                              {s.difference >= 0 ? '+' : ''}€{s.difference.toFixed(2)}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {/* Other Methods & Refunds */}
+                      {summaries.filter(s => s.payment_type !== 'Cash').map((s, idx) => {
+                        const isRefundRow = s.payment_type === 'Refunds';
+
+                        return (
+                          <tr key={idx} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${isRefundRow ? 'bg-red-50/30 dark:bg-red-950/20' : ''}`}>
+                            <td className="py-3 px-4 text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
+                              <span className={`w-2.5 h-2.5 rounded-full ${
+                                isRefundRow ? 'bg-red-500' : s.payment_type === 'Card' ? 'bg-blue-500' : 'bg-amber-500'
+                              }`}></span>
+                              {isRefundRow ? 'Total Refunds' : s.payment_type}
+                            </td>
+                            <td className={`py-3 px-4 text-right font-mono font-bold text-base sm:text-lg ${isRefundRow ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-slate-100'}`}>
+                              {isRefundRow ? '-' : ''}€{s.calculated.toFixed(2)}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              {isRefundRow ? (
+                                <span className="font-mono text-red-600 dark:text-red-400 font-bold text-base sm:text-lg px-2">
+                                  -€{s.calculated.toFixed(2)}
+                                </span>
+                              ) : (
+                                <div className="relative inline-flex items-center justify-end w-32">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">€</span>
+                                  <input 
+                                    type="number" 
+                                    value={s.counted || ''}
+                                    onChange={(e) => setCountedValues(prev => ({ ...prev, [s.payment_type]: parseFloat(e.target.value) || 0 }))}
+                                    className="w-full pl-7 pr-3 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-right font-mono font-bold text-sm sm:text-base outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 shadow-2xs"
+                                    placeholder="0.00"
+                                  />
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono font-bold">
+                              {isRefundRow ? (
+                                <span className="inline-block px-2.5 py-1 rounded-md text-sm text-slate-400 bg-slate-100 dark:bg-slate-800">
+                                  --
+                                </span>
+                              ) : (
+                                <span className={`inline-block px-2.5 py-1 rounded-md text-sm ${
+                                  Math.abs(s.difference) < 0.01 
+                                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' 
+                                    : 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                                }`}>
+                                  {s.difference > 0 ? '+' : ''}€{s.difference.toFixed(2)}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </div>
 
               {/* Total Revenue Footer */}
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <span className="text-xs uppercase font-bold text-slate-600 dark:text-slate-300">Total System Revenue</span>
-                <span className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400">€{totalSales.toFixed(2)}</span>
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <span className="text-sm uppercase font-bold text-slate-700 dark:text-slate-200">Total System Revenue</span>
+                <span className="text-xl font-mono font-black text-blue-600 dark:text-blue-400">€{totalSales.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -1197,40 +1230,59 @@ export default function EndOfDay() {
                       </td>
                     </tr>
                   ) : (
-                    allPayments.map((payment, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="py-2 px-4 text-sm font-medium text-slate-700 dark:text-slate-300">
-                          {payment.user_name || 'Staff'}
-                        </td>
-                        <td className="py-2 px-4 text-sm font-mono text-slate-500">
-                          {payment.paid_at ? new Date(payment.paid_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '--:--'}
-                        </td>
-                        <td className="py-2 px-4 text-sm font-semibold text-blue-600 dark:text-blue-400">
-                          {payment.invoice_number || 'Deposit'}
-                        </td>
-                        <td className="py-2 px-4 text-sm font-medium text-slate-700 dark:text-slate-300">
-                          {payment.customer_name || 'Walk-in Customer'}
-                        </td>
-                        <td className="py-2 px-4">
-                          <select 
-                            value={payment.method}
-                            onChange={(e) => updatePaymentMethod(payment.id, e.target.value)}
-                            className="bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-md px-2.5 py-1 outline-none text-sm font-medium cursor-pointer"
-                          >
-                            <option value="Cash">Cash</option>
-                            <option value="Debit Card">Debit Card</option>
-                            <option value="Credit Card">Credit Card</option>
-                            <option value="Wallet">Wallet</option>
-                            <option value="Refund (Cash)">Refund (Cash)</option>
-                            <option value="Refund (Debit Card)">Refund (Debit Card)</option>
-                            <option value="Other">Other</option>
-                          </select>
-                        </td>
-                        <td className="py-2 px-4 text-right font-mono font-bold text-base text-slate-900 dark:text-white">
-                          €{(Number(payment.amount) || 0).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))
+                    allPayments.map((payment, idx) => {
+                      const isRefund = isRefundPayment(payment);
+                      const baseMethod = getBasePaymentMethod(payment.method);
+
+                      return (
+                        <tr key={idx} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${isRefund ? 'bg-red-50/40 dark:bg-red-950/20' : ''}`}>
+                          <td className="py-2.5 px-4 text-sm font-medium text-slate-700 dark:text-slate-300">
+                            {payment.user_name || 'Staff'}
+                          </td>
+                          <td className="py-2.5 px-4 text-sm font-mono text-slate-500">
+                            {payment.paid_at ? new Date(payment.paid_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '--:--'}
+                          </td>
+                          <td className="py-2.5 px-4 text-sm font-semibold">
+                            <span className={isRefund ? 'text-red-600 dark:text-red-400 font-bold' : 'text-blue-600 dark:text-blue-400'}>
+                              {payment.invoice_number || 'Deposit'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-4 text-sm font-medium text-slate-700 dark:text-slate-300">
+                            {payment.customer_name || 'Walk-in Customer'}
+                          </td>
+                          <td className="py-2.5 px-4">
+                            <div className="flex items-center gap-2">
+                              {isRefund && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-800 rounded font-bold text-xs uppercase tracking-wider shrink-0">
+                                  <RotateCcw size={12} className="text-red-600 dark:text-red-400" />
+                                  Refund
+                                </span>
+                              )}
+                              <select 
+                                value={baseMethod}
+                                onChange={(e) => {
+                                  const newBase = e.target.value;
+                                  const targetMethod = isRefund ? `Refund (${newBase})` : newBase;
+                                  updatePaymentMethod(payment.id, targetMethod);
+                                }}
+                                className={`border rounded-md px-2.5 py-1 outline-none text-sm font-medium cursor-pointer transition-colors ${
+                                  isRefund 
+                                    ? 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800 font-semibold' 
+                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+                                }`}
+                              >
+                                <option value="Cash">Cash</option>
+                                <option value="Card">Card</option>
+                                <option value="Other">Other</option>
+                              </select>
+                            </div>
+                          </td>
+                          <td className={`py-2.5 px-4 text-right font-mono font-bold text-base ${isRefund ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
+                            {isRefund ? '-' : ''}€{Math.abs(Number(payment.amount) || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
                 {allPayments.length > 0 && (

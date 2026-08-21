@@ -42,7 +42,9 @@ router.post('/add', async (req: any, res, next) => {
       finalPoNumber = `PO${nextSerial}`;
     }
     const [existPo] = await conn.execute('SELECT id FROM purchase_orders WHERE po_number=? AND business_id=?', [finalPoNumber, req.user.business_id]);
-    const totalAmount = (cost_price || 0) * (quantity || (items?.length || 0));
+    const validItems = (items || []).filter((it: any) => it.imei && it.imei.trim().length > 0);
+    const actualQuantity = productInfo.product_type === 'serialized' ? validItems.length : (quantity || 0);
+    const totalAmount = (cost_price || 0) * actualQuantity;
     let poId: number;
     if ((existPo as any[]).length === 0) {
       const [pr] = await conn.execute(
@@ -58,14 +60,14 @@ router.post('/add', async (req: any, res, next) => {
     await conn.execute(
       'INSERT INTO purchase_order_items (po_id,product_id,description,ordered_qty,received_qty,unit_cost,total) VALUES (?,?,?,?,?,?,?)',
       [poId, productInfo.product_id, productInfo.product_name,
-       quantity || items?.length || 0, quantity || items?.length || 0, cost_price || 0, totalAmount]
+       actualQuantity, actualQuantity, cost_price || 0, totalAmount]
     );
 
     if (productInfo.product_type === 'serialized') {
-      for (const item of items) {
+      for (const item of validItems) {
         await conn.execute(
           "INSERT INTO devices (business_id,branch_id,sku_id,imei,cost_price,selling_price,color,gb,`condition`,po_number,status) VALUES (?,?,?,?,?,?,?,?,?,?,'in_stock')",
-          [req.user.business_id, activeBranchId, sku_id, item.imei, cost_price, selling_price, item.color, item.gb, item.condition, finalPoNumber]
+          [req.user.business_id, activeBranchId, sku_id, item.imei.trim(), cost_price, selling_price, item.color, item.gb, item.condition, finalPoNumber]
         );
         const deviceId = (await conn.execute('SELECT LAST_INSERT_ID() as id'))[0] as any;
         await conn.execute(

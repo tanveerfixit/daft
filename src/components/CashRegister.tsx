@@ -284,17 +284,14 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     setQuickCost('');
     setQuickSelling('');
     setQuickStock('0');
-    if (categories.length > 0) {
-      setQuickCategoryId(categories[0].id.toString());
-    } else {
-      setQuickCategoryId('');
-    }
+    setQuickCategoryId('');
     setShowQuickAdd(true);
   };
 
   const handleQuickAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickName.trim()) return alert('Please enter a product name');
+    if (!quickCategoryId) return alert('Please select a category');
     
     // Safely parse European number formats (e.g. 10,50 -> 10.50)
     const parsePrice = (val: string) => Number(val.replace(',', '.'));
@@ -703,8 +700,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
   const handleQuickCheckout = () => {
     if (cart.length === 0) return;
-    const inputAmount = parseFloat(paymentAmount);
-    const amount = (!isNaN(inputAmount) && inputAmount > 0) ? inputAmount : remainingAmount;
+    const amount = remainingAmount;
     if (amount <= 0) return;
 
     if (paymentMethod === 'Wallet') {
@@ -1124,7 +1120,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                     value={quickCategoryId}
                     onChange={(e) => setQuickCategoryId(e.target.value)}
                   >
-                    <option value="" className="bg-white dark:bg-black">Choose Category</option>
+                    <option value="" className="bg-white dark:bg-black">Choose Category *</option>
                     {categories.map((c) => (
                       <option key={c.id} value={c.id} className="bg-white dark:bg-black">
                         {c.name}
