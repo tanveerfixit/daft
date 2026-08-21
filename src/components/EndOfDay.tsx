@@ -783,7 +783,7 @@ export default function EndOfDay() {
         calculated_cash: totalCashSales,
         difference: cashDifference,
         total_sales: totalSales,
-        total_deposits: cashFromDeposits, // This might need a broader 'total manual movements' if needed
+        total_deposits: otherMovements.filter(p => isCashPayment(p.method)).reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
         total_cash_in_drawer: cashCounted,
         comments: comments,
         payment_summaries: summaries.map(s => ({
