@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   ShoppingBag, 
   XCircle,
-  Loader2
+  Loader2,
+  Plus
 } from 'lucide-react';
 import ThermalReceipt from './ThermalReceipt';
 import { Product, Customer, Invoice } from '../types';
@@ -47,6 +48,9 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const [quickCategoryId, setQuickCategoryId] = useState('');
   const [quickStock, setQuickStock] = useState('0');
   const [quickAddLoading, setQuickAddLoading] = useState(false);
+  const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [categories, setCategories] = useState<any[]>([]);
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -175,7 +179,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
         }
       })
       .catch(err => console.error('Error fetching categories:', err));
-  }, []);
+  }, [currentUser?.business_id]);
 
   useEffect(() => {
     if (initiateDeposit && preSelectedCustomerId && !showDepositModal) {
@@ -344,6 +348,33 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       alert(err.message || 'An error occurred during quick add');
     } finally {
       setQuickAddLoading(false);
+    }
+  };
+
+  const handleQuickAddCategory = async () => {
+    if (!newCategoryName.trim()) return;
+    try {
+      setIsSavingCategory(true);
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newCategoryName.trim() })
+      });
+      if (res.ok) {
+        const newCat = await res.json();
+        setCategories(prev => [...prev, newCat]);
+        setQuickCategoryId(String(newCat.id));
+        setShowNewCategoryModal(false);
+        setNewCategoryName('');
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Failed to add category');
+      }
+    } catch (error: any) {
+      console.error('Error adding category:', error);
+      alert(error.message || 'Error adding category');
+    } finally {
+      setIsSavingCategory(false);
     }
   };
 
@@ -1113,20 +1144,39 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">Category *</label>
-                  <select
-                    required
-                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none bg-transparent font-sans"
-                    value={quickCategoryId}
-                    onChange={(e) => setQuickCategoryId(e.target.value)}
-                  >
-                    <option value="" className="bg-white dark:bg-black">Choose Category *</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id} className="bg-white dark:bg-black">
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">Category *</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewCategoryModal(true)}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5 font-bold cursor-pointer"
+                    >
+                      <Plus size={12} /> Add New
+                    </button>
+                  </div>
+                  <div className="flex gap-1">
+                    <select
+                      required
+                      className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none bg-transparent font-sans"
+                      value={quickCategoryId}
+                      onChange={(e) => setQuickCategoryId(e.target.value)}
+                    >
+                      <option value="" className="bg-white dark:bg-black">Choose Category *</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id} className="bg-white dark:bg-black">
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button 
+                      type="button" 
+                      onClick={() => setShowNewCategoryModal(true)}
+                      className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 px-2.5 py-1.5 rounded transition-colors text-neutral-800 dark:text-neutral-200 shrink-0 cursor-pointer"
+                      title="Add New Category"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1188,6 +1238,55 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                   ) : (
                     'Save & Add'
                   )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Category Modal */}
+      {showNewCategoryModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-2xl w-full max-w-md overflow-hidden font-mono text-base">
+            <div className="px-4 py-2 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900">
+              <h3 className="text-base font-bold text-black dark:text-white uppercase">
+                Add New Category
+              </h3>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); handleQuickAddCategory(); }}>
+              <div className="p-4 space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider block">Category Name *</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full p-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded text-base focus:outline-none text-neutral-900 dark:text-neutral-100 font-sans"
+                    placeholder="e.g. Phone Cases, Screen Protectors..."
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-950 border-t border-neutral-300 dark:border-neutral-800 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNewCategoryModal(false);
+                    setNewCategoryName('');
+                  }}
+                  className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-3 rounded text-base transition-colors cursor-pointer"
+                  disabled={isSavingCategory}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingCategory || !newCategoryName.trim()}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1 px-4 rounded text-base transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingCategory ? 'Adding...' : 'Add Category'}
                 </button>
               </div>
             </form>
