@@ -192,11 +192,11 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
       {/* SECTION 2: 3-column responsive KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-[1600px]">
         
-        {/* Card 1: SALES */}
+        {/* Card 1: Sales */}
         <div className="bg-white dark:bg-neutral-900 rounded border border-neutral-300 dark:border-neutral-800 shadow-sm overflow-hidden flex flex-col">
           <div className="bg-neutral-100 dark:bg-neutral-800 px-4 py-2.5 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-2">
             <TrendingUp size={18} className="text-neutral-700 dark:text-neutral-300" />
-            <span className="font-bold text-sm uppercase tracking-wider text-neutral-800 dark:text-neutral-200">SALES</span>
+            <span className="font-semibold text-sm text-neutral-800 dark:text-neutral-200">Sales</span>
           </div>
           <div className="p-5 space-y-2.5 flex-1 flex flex-col justify-center text-sm font-semibold">
             <div className="flex justify-between">
@@ -212,11 +212,11 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
           </div>
         </div>
 
-        {/* Card 2: REPAIRS */}
+        {/* Card 2: Repairs */}
         <div className="bg-white dark:bg-neutral-900 rounded border border-neutral-300 dark:border-neutral-800 shadow-sm overflow-hidden flex flex-col">
           <div className="bg-neutral-100 dark:bg-neutral-800 px-4 py-2.5 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-2">
             <Wrench size={18} className="text-neutral-700 dark:text-neutral-300" />
-            <span className="font-bold text-sm uppercase tracking-wider text-neutral-800 dark:text-neutral-200">REPAIRS</span>
+            <span className="font-semibold text-sm text-neutral-800 dark:text-neutral-200">Repairs</span>
           </div>
           <div className="p-5 space-y-2.5 flex-1 flex flex-col justify-center text-sm font-semibold">
             <div className="flex justify-between">
@@ -234,11 +234,11 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
           </div>
         </div>
 
-        {/* Card 3: CUSTOMERS */}
+        {/* Card 3: Customers */}
         <div className="bg-white dark:bg-neutral-900 rounded border border-neutral-300 dark:border-neutral-800 shadow-sm overflow-hidden flex flex-col">
           <div className="bg-neutral-100 dark:bg-neutral-800 px-4 py-2.5 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-2">
             <Users size={18} className="text-neutral-700 dark:text-neutral-300" />
-            <span className="font-bold text-sm uppercase tracking-wider text-neutral-800 dark:text-neutral-200">CUSTOMERS</span>
+            <span className="font-semibold text-sm text-neutral-800 dark:text-neutral-200">Customers</span>
           </div>
           <div className="p-5 space-y-2.5 flex-1 flex flex-col justify-center text-sm font-semibold">
             <div className="flex justify-between">
@@ -261,7 +261,7 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
         <div className="bg-white dark:bg-neutral-900 rounded border border-neutral-300 dark:border-neutral-800 shadow-sm overflow-hidden">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-neutral-100 dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-800 text-xs font-bold text-neutral-850 dark:text-neutral-200 uppercase tracking-wider">
+              <tr className="bg-neutral-100 dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-800 text-xs font-bold text-neutral-850 dark:text-neutral-200">
                 <th className="px-4 py-2.5 w-2/3">Payment Type</th>
                 <th className="px-4 py-2.5 text-right">Total</th>
               </tr>
@@ -298,11 +298,11 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
           <div className="overflow-auto max-h-[350px]">
             <table className="w-full text-left border-collapse relative">
               <thead className="sticky top-0 z-10 bg-neutral-100 dark:bg-neutral-850 shadow-[0_1px_0_0_rgba(0,0,0,0.1)] dark:shadow-[0_1px_0_0_rgba(255,255,255,0.05)]">
-                <tr className="text-xs font-bold text-neutral-850 dark:text-neutral-200 uppercase tracking-wider">
-                  <th className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 font-bold">Categories Name</th>
-                  <th className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 font-bold text-right">QTY in Purchased</th>
+                <tr className="text-xs font-bold text-neutral-850 dark:text-neutral-200">
+                  <th className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 font-bold">Category Name</th>
+                  <th className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 font-bold text-right">Qty Purchased</th>
                   <th className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 font-bold text-right">Total Cost</th>
-                  <th className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 font-bold text-right">QTY in Sales</th>
+                  <th className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 font-bold text-right">Qty Sold</th>
                   <th className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 font-bold text-right">Total Sales</th>
                 </tr>
               </thead>

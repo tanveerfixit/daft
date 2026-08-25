@@ -76,91 +76,95 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
   };
 
   return (
-    <div className="h-full flex flex-col bg-[var(--bg-app)] overflow-hidden transition-colors duration-300">
-      {/* Header bar */}
-      <div className="flex justify-between items-center px-4 py-3 bg-[var(--bg-card)] border-b border-[var(--border-base)] shrink-0">
-        <h2 className="text-xl font-medium text-[var(--text-main)]">Repair Jobs</h2>
-        <div className="flex gap-2">
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted-more)]" size={16} />
-            <input
-              type="text"
-              placeholder="Search ID, model, customer..."
-              className="w-full pl-10 pr-4 py-1.5 bg-[var(--bg-card)] border border-[var(--border-base)] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] text-[var(--text-main)]"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all"
-          >
-            <Plus size={16} />
-            New Repair Job
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 py-2 select-none w-full" style={{ fontSize: '15px' }}>
+      {/* Header */}
+      <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
+        <h2 className="text-xl font-medium text-black dark:text-white">Repair Jobs</h2>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
+        >
+          <Plus size={16} />
+          <span>New Repair Job</span>
+        </button>
+      </div>
+
+      {/* Filters & Search */}
+      <div className="p-2 flex flex-wrap gap-2 items-center bg-white dark:bg-black border-b border-neutral-200 dark:border-neutral-850 shrink-0">
+        <div className="relative flex-1 max-w-md ml-auto">
+          <input
+            type="text"
+            placeholder="Search ID, model, customer..."
+            className="w-full pl-3 pr-10 py-0.5 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-xs outline-none focus:border-neutral-400 h-7 font-mono"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
+          <button className="absolute right-3 top-1/2 -translate-y-1/2">
+            <Search size={14} className="text-neutral-500 dark:text-neutral-400" />
           </button>
         </div>
       </div>
 
-      {/* Table — full width, no container box */}
-      <div className="flex-1 overflow-auto">
-        <table className="w-full text-left border-collapse">
-          <thead className="sticky top-0 z-10">
-            <tr className="bg-[var(--bg-app)] border-b border-[var(--border-base)] text-[11px] font-bold text-[var(--text-main)] uppercase tracking-wider">
-              <th className="px-4 py-2 border-r border-[var(--border-base)]">Job #</th>
-              <th className="px-4 py-2 border-r border-[var(--border-base)]">Customer</th>
-              <th className="px-4 py-2 border-r border-[var(--border-base)]">Device Model</th>
-              <th className="px-4 py-2 border-r border-[var(--border-base)]">Issue</th>
-              <th className="px-4 py-2 border-r border-[var(--border-base)] text-right">Quote</th>
-              <th className="px-4 py-2 border-r border-[var(--border-base)] text-right">Deposit</th>
-              <th className="px-4 py-2 border-r border-[var(--border-base)] text-right">Balance</th>
-              <th className="px-4 py-2 border-r border-[var(--border-base)]">Method</th>
-              <th className="px-4 py-2 border-r border-[var(--border-base)]">Status</th>
-              <th className="px-4 py-2 text-center">Actions</th>
+      {/* Table Content */}
+      <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
+        <table className="w-full text-left border-collapse bg-white dark:bg-black text-[15px]">
+          <thead>
+            <tr className="bg-neutral-100 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-850 text-[15px] font-semibold text-black dark:text-white">
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-20">Job #</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850">Customer</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850">Device Model</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850">Issue Description</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right w-24">Total Quote</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right w-24">Deposit Paid</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right w-24">Remaining Balance</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-28">Payment Method</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-28">Status</th>
+              <th className="px-1.5 py-0.5 text-center w-20">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">
             {filtered.map(repair => (
-              <tr key={repair.id} className="border-b border-[var(--border-base)] hover:bg-[var(--bg-hover)] transition-colors text-sm bg-[var(--bg-card)]">
-                <td className="px-4 py-2 border-r border-[var(--border-base)] font-mono text-xs font-bold">
+              <tr key={repair.id} className="bg-white dark:bg-black hover:bg-neutral-200/70 dark:hover:bg-neutral-800 transition-colors cursor-pointer text-[15px]">
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 font-mono font-bold">
                   <button
                     type="button"
                     title="Print short repair ticket"
                     onClick={() => setPrintRepair(repair)}
-                    className="text-[var(--brand-primary)] hover:underline cursor-pointer flex items-center gap-1 font-bold"
+                    className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1 font-bold text-[15px]"
                   >
                     #{repair.id}
                   </button>
                 </td>
-                <td className="px-4 py-2 border-r border-[var(--border-base)] font-bold text-[var(--text-main)]">
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-900 dark:text-neutral-100">
                   {repair.customer_name || '—'}
                 </td>
-                <td className="px-4 py-2 border-r border-[var(--border-base)] text-[var(--text-main)]">{repair.device_model}</td>
-                <td className="px-4 py-2 border-r border-[var(--border-base)] text-[var(--text-muted)] max-w-[200px] truncate">
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-900 dark:text-neutral-100">{repair.device_model}</td>
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400 max-w-[200px] truncate">
                   {repair.issue}
                 </td>
-                <td className="px-4 py-2 border-r border-[var(--border-base)] text-right text-[var(--text-main)] font-mono">
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right text-neutral-900 dark:text-neutral-100 font-mono">
                   €{Number(repair.total_quote || 0).toFixed(2)}
                 </td>
-                <td className="px-4 py-2 border-r border-[var(--border-base)] text-right text-[var(--text-muted)] font-mono">
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right text-neutral-600 dark:text-neutral-400 font-mono">
                   €{Number(repair.deposit_paid || 0).toFixed(2)}
                 </td>
-                <td className="px-4 py-2 border-r border-[var(--border-base)] text-right font-bold font-mono">
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right font-bold font-mono">
                   <span className={(repair.remaining_balance || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}>
                     €{Number(repair.remaining_balance || 0).toFixed(2)}
                   </span>
                 </td>
-                <td className="px-4 py-2 border-r border-[var(--border-base)] text-[var(--text-muted-more)] text-xs">
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400">
                   {repair.payment_method || '—'}
                 </td>
-                <td className="px-4 py-2 border-r border-[var(--border-base)]">
-                  <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase tracking-widest ${getStatusColor(repair.status)}`}>
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850">
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded border capitalize inline-block ${getStatusColor(repair.status)}`}>
                     {repair.status?.replace('_', ' ')}
                   </span>
                 </td>
-                <td className="px-4 py-2 text-center">
+                <td className="px-1.5 py-0.5 text-center">
                   <button 
                     onClick={() => setSelectedRepair(repair)}
-                    className="text-[var(--brand-primary)] hover:underline font-medium text-xs"
+                    className="text-blue-600 dark:text-blue-400 hover:underline font-medium text-xs cursor-pointer"
                   >
                     Update
                   </button>
@@ -169,13 +173,29 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-16 text-center text-[var(--text-muted-more)] bg-[var(--bg-card)]">
+                <td colSpan={10} className="px-4 py-12 text-center text-neutral-400 dark:text-neutral-500 bg-white dark:bg-black text-sm italic">
                   {searchTerm ? `No repair jobs found for "${searchTerm}"` : 'No repair jobs yet. Create your first job.'}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Footer Pagination */}
+      <div className="p-2 bg-white dark:bg-black border-t border-neutral-200 dark:border-neutral-850 flex justify-between items-center text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
+        <div className="flex items-center gap-4">
+          <select className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none font-mono">
+            <option>auto</option>
+          </select>
+          <span className="font-normal">1-{filtered.length}/{repairs.length}</span>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 rounded-none bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-850 text-neutral-850 dark:text-neutral-200">«</button>
+          <button className="px-3 py-0.5 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black rounded-none font-normal">1</button>
+          <button className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 rounded-none bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-850 text-neutral-850 dark:text-neutral-200">»</button>
+        </div>
       </div>
 
       {isModalOpen && (

@@ -136,136 +136,134 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
   };
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-955 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full overflow-auto" style={{ fontSize: '17px' }}>
-      {/* Header bar with Filters */}
-      <div className="sticky top-0 z-40 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 shrink-0 mb-2 p-3 space-y-3">
-        <div className="flex justify-between items-center flex-wrap gap-2">
-          <h1 className="text-base font-bold tracking-wider uppercase text-[#0285b5] dark:text-[#0285b5]">Devices Inventory</h1>
-        </div>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 py-2 select-none w-full" style={{ fontSize: '15px' }}>
+      {/* Header */}
+      <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
+        <h2 className="text-xl font-medium text-black dark:text-white">Devices Inventory</h2>
+        <span className="text-xs font-medium px-2.5 py-0.5 rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300">
+          {totalFiltered} Serialized Units
+        </span>
+      </div>
+
+      {/* Filters & Search */}
+      <div className="p-2 flex flex-wrap gap-2 items-center bg-white dark:bg-black border-b border-neutral-200 dark:border-neutral-850 shrink-0">
+        <select 
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono font-bold text-xs cursor-pointer w-48"
+        >
+          <option value="in_stock">Devices in Inventory</option>
+          <option value="sold">Sold Devices</option>
+          <option value="repair">In Repair</option>
+        </select>
         
-        {/* Flat Grid Filters Row */}
-        <div className="flex flex-wrap gap-2 items-center text-sm">
-          <select 
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none w-48 cursor-pointer"
+        <select 
+          value={selectedModel}
+          onChange={(e) => setSelectedModel(e.target.value)}
+          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono text-xs cursor-pointer w-48"
+        >
+          <option value="all">All Device Models</option>
+          {uniqueModels.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+        
+        <select 
+          value={selectedColor}
+          onChange={(e) => setSelectedColor(e.target.value)}
+          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono text-xs cursor-pointer w-36"
+        >
+          <option value="all">All Colors</option>
+          {uniqueColors.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        
+        <select 
+          value={selectedCondition}
+          onChange={(e) => setSelectedCondition(e.target.value)}
+          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono text-xs cursor-pointer w-36"
+        >
+          <option value="all">All Conditions</option>
+          {uniqueConditions.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        
+        <div className="relative flex-1 max-w-md ml-auto">
+          <input
+            type="text"
+            placeholder="Search IMEI, Model, PO, Inv..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-3 pr-10 py-0.5 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-xs outline-none focus:border-neutral-400 h-7 font-mono"
+          />
+          <button 
+            className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-neutral-500 dark:text-neutral-400"
           >
-            <option value="in_stock">Devices in Inventory</option>
-            <option value="sold">Sold Devices</option>
-            <option value="repair">In Repair</option>
-          </select>
-          
-          <select 
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none w-48 cursor-pointer"
-          >
-            <option value="all">All Device Models</option>
-            {uniqueModels.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-          
-          <select 
-            value={selectedColor}
-            onChange={(e) => setSelectedColor(e.target.value)}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none w-40 cursor-pointer"
-          >
-            <option value="all">All Colors</option>
-            {uniqueColors.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          
-          <select 
-            value={selectedCondition}
-            onChange={(e) => setSelectedCondition(e.target.value)}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none w-40 cursor-pointer"
-          >
-            <option value="all">All Conditions</option>
-            {uniqueConditions.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          
-          {/* Flat Search Box */}
-          <div className="relative flex-1 max-w-md ml-auto flex">
-            <input
-              type="text"
-              placeholder="Search IMEI, Model, PO, Inv..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-3 pr-12 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-sm focus:outline-none text-neutral-900 dark:text-neutral-100 font-mono"
-            />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')}
-                className="absolute right-10 top-1/2 -translate-y-1/2 text-xs text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer bg-transparent border-0"
-                title="Clear Search"
-              >
-                Clear
-              </button>
-            )}
-            <button className="px-3 bg-neutral-150 dark:bg-neutral-900 border border-l-0 border-neutral-300 dark:border-neutral-800 rounded-none hover:bg-neutral-200 dark:hover:bg-neutral-800 cursor-pointer flex items-center justify-center">
-              <Search size={14} className="text-neutral-500" />
-            </button>
-          </div>
+            <Search size={14} />
+          </button>
         </div>
       </div>
 
-      {/* Flat monospaced list details */}
-      <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none">
-        <table className="w-full text-left border-collapse font-mono text-[14px]">
+      {/* Table Content */}
+      <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
+        <table className="w-full text-left border-collapse bg-white dark:bg-black text-[15px]">
           <thead>
-            <tr className="bg-neutral-100 dark:bg-neutral-955 border-b border-neutral-300 dark:border-neutral-800 text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">
-              <th className="px-4 py-2 border-r border-neutral-300 dark:border-neutral-800 w-1/4">Model</th>
-              <th className="px-4 py-2 border-r border-neutral-300 dark:border-neutral-800 text-center w-24">Color</th>
-              <th className="px-4 py-2 border-r border-neutral-300 dark:border-neutral-800 text-center w-20">GB</th>
-              <th className="px-4 py-2 border-r border-neutral-300 dark:border-neutral-800 text-center w-20">Cond</th>
-              <th className="px-4 py-2 border-r border-neutral-300 dark:border-neutral-800 w-1/6">IMEI Number</th>
-              <th className="px-4 py-2 border-r border-neutral-300 dark:border-neutral-800 text-center w-24">PO #</th>
-              <th className="px-4 py-2 border-r border-neutral-300 dark:border-neutral-800 w-1/6">Date Entered</th>
-              <th className="px-4 py-2 text-center w-1/6">Invoice #</th>
+            <tr className="bg-neutral-100 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-850 text-[15px] font-semibold text-black dark:text-white">
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850">Model</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center w-24">Color</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center w-20">Storage</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center w-24">Condition</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-44">IMEI / Serial</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center w-28">PO #</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-28">Date Entered</th>
+              <th className="px-1.5 py-0.5 text-center w-28">Invoice #</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-200 dark:divide-neutral-850">
+          <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">
             {paginatedDevices.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center py-8 text-neutral-400 dark:text-neutral-500 italic text-sm">
+                <td colSpan={8} className="text-center py-6 text-neutral-400 dark:text-neutral-500 italic font-mono text-sm">
                   No matching devices found in inventory.
                 </td>
               </tr>
             ) : (
-              paginatedDevices.map((device, idx) => (
-                <tr key={device.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors bg-white dark:bg-black text-neutral-900 dark:text-neutral-100">
-                  <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800">
-                    <button 
-                      onClick={() => onSelectDevice(device.id)}
-                      className="text-[#0285b5] hover:underline text-left font-bold cursor-pointer bg-transparent border-0 p-0 text-sm"
-                    >
-                      {device.product_name}
-                    </button>
+              paginatedDevices.map((device) => (
+                <tr 
+                  key={device.id} 
+                  className="bg-white dark:bg-black hover:bg-neutral-200/70 dark:hover:bg-neutral-800 transition-colors cursor-pointer text-[15px]"
+                  onClick={() => onSelectDevice(device.id)}
+                >
+                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-900 dark:text-neutral-100 font-normal">
+                    {device.product_name}
                   </td>
-                  <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-center text-neutral-600 dark:text-neutral-400">{device.color || ''}</td>
-                  <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-center text-neutral-600 dark:text-neutral-400">{device.gb || ''}</td>
-                  <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-center text-neutral-600 dark:text-neutral-400">{device.condition || ''}</td>
-                  <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800">
-                    <button 
-                      onClick={() => onSelectDevice(device.id)}
-                      className="text-[#0285b5] hover:underline font-bold font-mono text-xs cursor-pointer bg-transparent border-0 p-0"
-                    >
-                      {device.imei}
-                    </button>
+                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center text-neutral-600 dark:text-neutral-400">
+                    {device.color || '-'}
                   </td>
-                  <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-center">
-                    {device.po_number && (
-                      <button 
-                        onClick={() => onSelectPO(device.po_number!)}
-                        className="text-[#0285b5] hover:underline flex items-center justify-center gap-1 mx-auto font-bold cursor-pointer bg-transparent border-0 p-0 text-xs"
-                      >
-                        <span>{device.po_number}</span>
+                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center text-neutral-600 dark:text-neutral-400">
+                    {device.gb || '-'}
+                  </td>
+                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center text-neutral-600 dark:text-neutral-400">
+                    {device.condition || '-'}
+                  </td>
+                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 font-mono text-neutral-800 dark:text-neutral-200">
+                    {device.imei}
+                  </td>
+                  <td 
+                    className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center"
+                    onClick={(e) => {
+                      if (device.po_number) {
+                        e.stopPropagation();
+                        onSelectPO(device.po_number);
+                      }
+                    }}
+                  >
+                    {device.po_number ? (
+                      <span className="text-blue-600 dark:text-blue-400 hover:underline flex items-center justify-center gap-1 font-mono">
+                        {device.po_number}
                         <ExternalLink size={12} />
-                      </button>
-                    )}
+                      </span>
+                    ) : '-'}
                   </td>
-                  <td className="px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 font-mono text-xs">
+                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400 font-mono">
                     {new Date(device.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-')}
                   </td>
-                  <td className="px-4 py-2 text-center text-neutral-500 dark:text-neutral-400 font-mono text-xs">
+                  <td className="px-1.5 py-0.5 text-center text-neutral-600 dark:text-neutral-400 font-mono">
                     {device.invoice_number || 'In Inventory'}
                   </td>
                 </tr>
@@ -275,46 +273,47 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
         </table>
       </div>
 
-      {/* Flat Pagination Footer */}
-      <div className="p-3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 mt-2 flex justify-between items-center text-xs text-neutral-500 dark:text-neutral-400">
+      {/* Footer Pagination */}
+      <div className="p-2 bg-white dark:bg-black border-t border-neutral-200 dark:border-neutral-850 flex justify-between items-center text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
         <div className="flex items-center gap-4">
-          <span className="font-bold">Items per page:</span>
           <select 
             value={pageSize}
             onChange={(e) => {
               setPageSize(Number(e.target.value));
               setCurrentPage(1);
             }}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-0.5 focus:outline-none text-neutral-900 dark:text-neutral-100 cursor-pointer"
+            className="bg-white text-neutral-900 border border-neutral-300 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none font-mono cursor-pointer"
           >
             {pageSizes.map(size => (
-              <option key={size} value={size} className="bg-white dark:bg-black text-black dark:text-white">{size}</option>
+              <option key={size} value={size}>{size}</option>
             ))}
           </select>
-          <span className="font-bold text-neutral-900 dark:text-neutral-100">{startIdx}-{endIdx}/{totalFiltered}</span>
+          <span className="font-normal font-mono">
+            {totalFiltered > 0 ? `${startIdx}-${endIdx}/${totalFiltered}` : '0/0'}
+          </span>
         </div>
         
         <div className="flex items-center gap-1">
           <button 
             disabled={currentPage === 1}
             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-            className="px-2 py-0.5 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-none cursor-pointer disabled:opacity-40 disabled:hover:bg-transparent"
+            className="px-2 py-0.5 border border-neutral-300 dark:border-neutral-800 rounded-none bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-850 text-neutral-850 dark:text-neutral-200 disabled:opacity-30 disabled:cursor-not-allowed font-mono text-xs cursor-pointer"
           >
             «
           </button>
           
           {getPageNumbers().map((p, i) => {
             if (p === '...') {
-              return <span key={`dots-${i}`} className="px-2 text-neutral-400">..</span>;
+              return <span key={`dots-${i}`} className="px-2 text-neutral-500 font-mono text-xs">..</span>;
             }
             return (
               <button 
                 key={`page-${p}`}
                 onClick={() => setCurrentPage(p as number)}
-                className={`px-3 py-0.5 rounded-none transition-colors border cursor-pointer font-bold ${
+                className={`px-3 py-0.5 rounded-none font-normal transition-colors font-mono text-xs cursor-pointer ${
                   currentPage === p 
-                    ? 'bg-[#0285b5] text-white border-[#0285b5]' 
-                    : 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                    ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black' 
+                    : 'bg-neutral-200 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-850 dark:text-neutral-200 hover:bg-neutral-300 dark:hover:bg-neutral-850'
                 }`}
               >
                 {p}
@@ -323,9 +322,9 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
           })}
           
           <button 
-            disabled={currentPage === totalPages}
+            disabled={currentPage === totalPages || totalPages === 0}
             onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-            className="px-2 py-0.5 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-none cursor-pointer disabled:opacity-40 disabled:hover:bg-transparent"
+            className="px-2 py-0.5 border border-neutral-300 dark:border-neutral-800 rounded-none bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-850 text-neutral-850 dark:text-neutral-200 disabled:opacity-30 disabled:cursor-not-allowed font-mono text-xs cursor-pointer"
           >
             »
           </button>

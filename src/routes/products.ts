@@ -59,10 +59,10 @@ router.get('/', async (req: any, res, next) => {
       LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
       ${whereClause}
       ORDER BY p.created_at DESC
-      LIMIT ${limit} OFFSET ${offset}
+      LIMIT ? OFFSET ?
     `;
     
-    const products = await query(productsSql, params);
+    const products = await query(productsSql, [...params, limit, offset]);
 
     const mapped = products.map((p: any) => ({
       ...p,

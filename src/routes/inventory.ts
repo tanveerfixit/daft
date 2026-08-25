@@ -527,24 +527,35 @@ router.get('/devices/:id', async (req: any, res, next) => {
 });
 
 const updateDeviceSchema = z.object({
-  color: z.string().optional(),
-  gb: z.string().optional(),
-  ram: z.string().optional(),
-  condition: z.string().optional(),
-  cost_price: z.number().or(z.string().transform(Number)).optional(),
-  selling_price: z.number().or(z.string().transform(Number)).optional(),
-  unlocked: z.boolean().or(z.number().transform(Boolean)).optional(),
-  imei_status: z.string().optional(),
-  carrier: z.string().optional()
+  color: z.string().nullable().optional(),
+  gb: z.union([z.string(), z.number()]).nullable().optional().transform(v => (v === null || v === undefined ? v : String(v))),
+  ram: z.union([z.string(), z.number()]).nullable().optional().transform(v => (v === null || v === undefined ? v : String(v))),
+  condition: z.string().nullable().optional(),
+  cost_price: z.union([z.number(), z.string()]).nullable().optional().transform(v => (v === null || v === undefined || v === '') ? null : Number(v)),
+  selling_price: z.union([z.number(), z.string()]).nullable().optional().transform(v => (v === null || v === undefined || v === '') ? null : Number(v)),
+  unlocked: z.union([z.string(), z.boolean(), z.number()]).nullable().optional().transform(v => (v === null || v === undefined ? v : String(v))),
+  imei_status: z.string().nullable().optional(),
+  carrier: z.string().nullable().optional()
 });
 
 // PUT /api/devices/:id
 router.put('/devices/:id', async (req: any, res, next) => {
-  const data = updateDeviceSchema.parse(req.body);
-  const { color, gb, ram, condition, cost_price, selling_price, unlocked, imei_status, carrier } = data;
   try {
+    const data = updateDeviceSchema.parse(req.body);
+    const { color, gb, ram, condition, cost_price, selling_price, unlocked, imei_status, carrier } = data;
+
     const old = await queryOne('SELECT * FROM devices WHERE id=? AND business_id=?', [req.params.id, req.user.business_id]);
     if (!old) return res.status(404).json({ error: 'Device not found' });
+
+    const newColor = color !== undefined ? color : old.color;
+    const newGb = gb !== undefined ? gb : old.gb;
+    const newRam = ram !== undefined ? ram : old.ram;
+    const newCondition = condition !== undefined ? condition : old.condition;
+    const newCostPrice = cost_price !== undefined ? cost_price : old.cost_price;
+    const newSellingPrice = selling_price !== undefined ? selling_price : old.selling_price;
+    const newUnlocked = unlocked !== undefined ? unlocked : old.unlocked;
+    const newImeiStatus = imei_status !== undefined ? imei_status : old.imei_status;
+    const newCarrier = carrier !== undefined ? carrier : old.carrier;
 
     await execute(`
       UPDATE devices SET 
@@ -552,30 +563,38 @@ router.put('/devices/:id', async (req: any, res, next) => {
         unlocked=?, imei_status=?, carrier=?
       WHERE id=? AND business_id=?
     `, [
-      color || old.color, gb || old.gb, ram || old.ram, condition || old.condition, 
-      cost_price || old.cost_price, selling_price || old.selling_price,
-      unlocked || old.unlocked, imei_status || old.imei_status, carrier || old.carrier,
+      newColor, newGb, newRam, newCondition, 
+      newCostPrice, newSellingPrice,
+      newUnlocked, newImeiStatus, newCarrier,
       req.params.id, req.user.business_id
     ]);
 
     // Log what changed
     const changes: string[] = [];
-    if (color && color !== old.color) changes.push(`Color: ${old.color} -> ${color}`);
-    if (gb && gb !== old.gb) changes.push(`GB: ${old.gb} -> ${gb}`);
-    if (ram && ram !== old.ram) changes.push(`RAM: ${old.ram} -> ${ram}`);
-    if (condition && condition !== old.condition) changes.push(`Condition: ${old.condition} -> ${condition}`);
-    if (cost_price && cost_price != old.cost_price) changes.push(`Cost: ${old.cost_price} -> ${cost_price}`);
-    if (selling_price && selling_price != old.selling_price) changes.push(`Selling: ${old.selling_price} -> ${selling_price}`);
+    if (color !== undefined && String(color ?? '') !== String(old.color ?? '')) changes.push(`Color: ${old.color || 'none'} -> ${color}`);
+    if (gb !== undefined && String(gb ?? '') !== String(old.gb ?? '')) changes.push(`GB: ${old.gb || 'none'} -> ${gb}`);
+    if (ram !== undefined && String(ram ?? '') !== String(old.ram ?? '')) changes.push(`RAM: ${old.ram || 'none'} -> ${ram}`);
+    if (condition !== undefined && String(condition ?? '') !== String(old.condition ?? '')) changes.push(`Condition: ${old.condition || 'none'} -> ${condition}`);
+    if (cost_price !== undefined && Number(cost_price || 0) !== Number(old.cost_price || 0)) changes.push(`Cost: ${old.cost_price} -> ${cost_price}`);
+    if (selling_price !== undefined && Number(selling_price || 0) !== Number(old.selling_price || 0)) changes.push(`Selling: ${old.selling_price} -> ${selling_price}`);
+    if (unlocked !== undefined && String(unlocked ?? '') !== String(old.unlocked ?? '')) changes.push(`Unlocked: ${old.unlocked || 'none'} -> ${unlocked}`);
+    if (imei_status !== undefined && String(imei_status ?? '') !== String(old.imei_status ?? '')) changes.push(`IMEI Status: ${old.imei_status || 'none'} -> ${imei_status}`);
+    if (carrier !== undefined && String(carrier ?? '') !== String(old.carrier ?? '')) changes.push(`Carrier: ${old.carrier || 'none'} -> ${carrier}`);
+
+    const userId = req.user?.id || req.userId || 1;
 
     if (changes.length > 0) {
       await execute('INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-        [req.params.id, req.userId, 'Device Updated', changes.join(', ')]);
+        [req.params.id, userId, 'Device Updated', changes.join(', ')]);
       await execute('INSERT INTO activity_logs (device_id, user_id, activity_type, description) VALUES (?, ?, ?, ?)',
-        [req.params.id, req.userId, 'Device Updated', changes.join(', ')]);
+        [req.params.id, userId, 'Device Updated', changes.join(', ')]);
     }
 
     res.json({ success: true });
-  } catch (e: any) { next(e); }
+  } catch (e: any) { 
+    console.error('[UpdateDevice] Error:', e);
+    next(e); 
+  }
 });
 
 // GET /api/devices/:id/activity

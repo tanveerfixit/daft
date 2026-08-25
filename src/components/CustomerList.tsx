@@ -75,66 +75,74 @@ export default function CustomerList({ onSelectCustomer, isActive = true }: Cust
   });
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full overflow-hidden" style={{ fontSize: '17px' }}>
-      {/* Header bar */}
-      <div className="flex justify-between items-center px-4 py-1.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 shrink-0 mb-2 rounded-none shadow-none">
-        <h2 className="text-xl font-bold text-black dark:text-white uppercase">Customers</h2>
-        <div className="flex gap-2">
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" size={16} />
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Search name, phone or email..."
-              className="w-full pl-10 pr-4 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-base focus:outline-none text-neutral-900 dark:text-neutral-100"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-3 rounded-none text-base flex items-center gap-2 transition-all"
-          >
-            <Plus size={16} />
-            Add Customer
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 py-2 select-none w-full" style={{ fontSize: '15px' }}>
+      {/* Header */}
+      <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
+        <h2 className="text-xl font-medium text-black dark:text-white">Customers</h2>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
+        >
+          <Plus size={16} />
+          <span>Add Customer</span>
+        </button>
+      </div>
+
+      {/* Filters & Search */}
+      <div className="p-2 flex flex-wrap gap-2 items-center bg-white dark:bg-black border-b border-neutral-200 dark:border-neutral-850 shrink-0">
+        <div className="relative flex-1 max-w-md ml-auto">
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search name, phone or email..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-3 pr-10 py-0.5 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-xs outline-none focus:border-neutral-400 h-7 font-mono"
+          />
+          <button className="absolute right-3 top-1/2 -translate-y-1/2">
+            <Search size={14} className="text-neutral-500 dark:text-neutral-400" />
           </button>
         </div>
       </div>
 
-      {/* Table — full width, no container */}
-      <div className="flex-1 overflow-auto border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black">
-        <table className="w-full text-left border-collapse">
-          <thead className="sticky top-0 z-10 bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">
-            <tr>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800">Name</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800">Phone</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800">Email</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800">Company</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right">Wallet</th>
-              <th className="px-2 py-1 text-center">Actions</th>
+      {/* Table Content */}
+      <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
+        <table className="w-full text-left border-collapse bg-white dark:bg-black text-[15px]">
+          <thead>
+            <tr className="bg-neutral-100 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-850 text-[15px] font-semibold text-black dark:text-white">
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850">Name</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-36">Phone</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-48">Email</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-40">Company</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right w-28">Wallet</th>
+              <th className="px-1.5 py-0.5 text-center w-28">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">
             {filtered.map(customer => (
-              <tr key={customer.id} className="border-b border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors text-base font-normal text-neutral-900 dark:text-neutral-100 bg-white dark:bg-black">
-                <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 font-normal text-neutral-900 dark:text-neutral-100 font-sans">
+              <tr 
+                key={customer.id} 
+                className="bg-white dark:bg-black hover:bg-neutral-200/70 dark:hover:bg-neutral-800 transition-colors cursor-pointer text-[15px]"
+                onClick={() => onSelectCustomer(customer.id)}
+              >
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 font-normal text-neutral-900 dark:text-neutral-100">
                   <button
-                    onClick={() => onSelectCustomer(customer.id)}
-                    className="hover:text-blue-500 dark:hover:text-blue-400 transition-colors text-left text-neutral-900 dark:text-neutral-100 font-normal font-sans"
+                    onClick={(e) => { e.stopPropagation(); onSelectCustomer(customer.id); }}
+                    className="hover:text-blue-500 dark:hover:text-blue-400 transition-colors text-left text-neutral-900 dark:text-neutral-100 font-normal"
                   >
                     {safeCustomerName(customer)}
                   </button>
                 </td>
-                <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 font-sans">{customer.phone || '—'}</td>
-                <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 font-sans">{customer.email || '—'}</td>
-                <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 font-sans">{customer.company || '—'}</td>
-                <td className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right font-normal text-emerald-600 dark:text-emerald-400">
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400">{customer.phone || '—'}</td>
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400">{customer.email || '—'}</td>
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400">{customer.company || '—'}</td>
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right font-normal text-emerald-600 dark:text-emerald-400 font-mono">
                   €{Number(customer.wallet_balance || 0).toFixed(2)}
                 </td>
-                <td className="px-2 py-1 text-center font-sans">
+                <td className="px-1.5 py-0.5 text-center">
                   <button
-                    onClick={() => onSelectCustomer(customer.id)}
-                    className="text-blue-500 hover:underline font-normal text-sm font-sans"
+                    onClick={(e) => { e.stopPropagation(); onSelectCustomer(customer.id); }}
+                    className="text-blue-500 hover:underline font-normal text-xs"
                   >
                     View History
                   </button>
@@ -143,13 +151,29 @@ export default function CustomerList({ onSelectCustomer, isActive = true }: Cust
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-2 py-16 text-center text-neutral-400 dark:text-neutral-500 bg-white dark:bg-black">
+                <td colSpan={6} className="px-2 py-16 text-center text-neutral-400 dark:text-neutral-500 bg-white dark:bg-black italic text-sm">
                   {searchQuery ? `No customers found for "${searchQuery}"` : 'No customers yet. Add your first customer.'}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Footer Pagination */}
+      <div className="p-2 bg-white dark:bg-black border-t border-neutral-200 dark:border-neutral-850 flex justify-between items-center text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
+        <div className="flex items-center gap-4">
+          <select className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none font-mono">
+            <option>auto</option>
+          </select>
+          <span className="font-normal">1-{filtered.length}/{customers.length}</span>
+        </div>
+        
+        <div className="flex items-center gap-1">
+          <button className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 rounded-none bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-850 text-neutral-850 dark:text-neutral-200">«</button>
+          <button className="px-3 py-0.5 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black rounded-none font-normal">1</button>
+          <button className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 rounded-none bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-850 text-neutral-850 dark:text-neutral-200">»</button>
+        </div>
       </div>
 
       {isModalOpen && (

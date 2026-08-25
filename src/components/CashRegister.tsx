@@ -55,12 +55,16 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>(() => {
     const bId = currentUser?.business_id;
-    const saved = bId ? (sessionStorage.getItem(`epos_cart_biz_${bId}`) || localStorage.getItem(`epos_cart_biz_${bId}`)) : null;
+    const brId = currentUser?.branch_id;
+    const key = bId ? `epos_cart_biz_${bId}_br_${brId || 0}` : null;
+    const saved = key ? (sessionStorage.getItem(key) || sessionStorage.getItem(`epos_cart_biz_${bId}`)) : null;
     try { return saved ? JSON.parse(saved) : []; } catch { return []; }
   });
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(() => {
     const bId = currentUser?.business_id;
-    const saved = bId ? (sessionStorage.getItem(`epos_customer_biz_${bId}`) || localStorage.getItem(`epos_customer_biz_${bId}`)) : null;
+    const brId = currentUser?.branch_id;
+    const key = bId ? `epos_customer_biz_${bId}_br_${brId || 0}` : null;
+    const saved = key ? (sessionStorage.getItem(key) || sessionStorage.getItem(`epos_customer_biz_${bId}`)) : null;
     try { return saved ? JSON.parse(saved) : null; } catch { return null; }
   });
   const [customerSearch, setCustomerSearch] = useState('');
@@ -70,7 +74,9 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const [availableMethods, setAvailableMethods] = useState<string[]>(['Cash', 'Card']);
   const [addedPayments, setAddedPayments] = useState<PaymentEntry[]>(() => {
     const bId = currentUser?.business_id;
-    const saved = bId ? (sessionStorage.getItem(`epos_payments_biz_${bId}`) || localStorage.getItem(`epos_payments_biz_${bId}`)) : null;
+    const brId = currentUser?.branch_id;
+    const key = bId ? `epos_payments_biz_${bId}_br_${brId || 0}` : null;
+    const saved = key ? (sessionStorage.getItem(key) || sessionStorage.getItem(`epos_payments_biz_${bId}`)) : null;
     try { return saved ? JSON.parse(saved) : []; } catch { return []; }
   });
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -79,30 +85,37 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const [printType, setPrintType] = useState<'Thermal' | 'A4'>('Thermal');
   const [activities, setActivities] = useState<Activity[]>(() => {
     const bId = currentUser?.business_id;
-    const saved = bId ? (sessionStorage.getItem(`epos_activities_biz_${bId}`) || localStorage.getItem(`epos_activities_biz_${bId}`)) : null;
+    const brId = currentUser?.branch_id;
+    const key = bId ? `epos_activities_biz_${bId}_br_${brId || 0}` : null;
+    const saved = key ? (sessionStorage.getItem(key) || sessionStorage.getItem(`epos_activities_biz_${bId}`)) : null;
     try { return saved ? JSON.parse(saved) : []; } catch { return []; }
   });
   
-  // Reload storage state if active business changes
+  // Reload storage state if active business or branch changes
   useEffect(() => {
     if (!currentUser?.business_id) return;
     const bId = currentUser.business_id;
+    const brId = currentUser.branch_id || 0;
+    const cartKey = `epos_cart_biz_${bId}_br_${brId}`;
+    const custKey = `epos_customer_biz_${bId}_br_${brId}`;
+    const payKey = `epos_payments_biz_${bId}_br_${brId}`;
+    const actKey = `epos_activities_biz_${bId}_br_${brId}`;
     try {
-      const savedCart = sessionStorage.getItem(`epos_cart_biz_${bId}`) || localStorage.getItem(`epos_cart_biz_${bId}`);
+      const savedCart = sessionStorage.getItem(cartKey) || sessionStorage.getItem(`epos_cart_biz_${bId}`);
       setCart(savedCart ? JSON.parse(savedCart) : []);
 
-      const savedCust = sessionStorage.getItem(`epos_customer_biz_${bId}`) || localStorage.getItem(`epos_customer_biz_${bId}`);
+      const savedCust = sessionStorage.getItem(custKey) || sessionStorage.getItem(`epos_customer_biz_${bId}`);
       setSelectedCustomer(savedCust ? JSON.parse(savedCust) : null);
 
-      const savedPay = sessionStorage.getItem(`epos_payments_biz_${bId}`) || localStorage.getItem(`epos_payments_biz_${bId}`);
+      const savedPay = sessionStorage.getItem(payKey) || sessionStorage.getItem(`epos_payments_biz_${bId}`);
       setAddedPayments(savedPay ? JSON.parse(savedPay) : []);
 
-      const savedAct = sessionStorage.getItem(`epos_activities_biz_${bId}`) || localStorage.getItem(`epos_activities_biz_${bId}`);
+      const savedAct = sessionStorage.getItem(actKey) || sessionStorage.getItem(`epos_activities_biz_${bId}`);
       setActivities(savedAct ? JSON.parse(savedAct) : []);
     } catch (e) {
       console.error('Error restoring business cart:', e);
     }
-  }, [currentUser?.business_id]);
+  }, [currentUser?.business_id, currentUser?.branch_id]);
 
   // New Customer Modal State
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
@@ -136,31 +149,43 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   // Tab-isolated persistence effects via sessionStorage
   useEffect(() => {
     if (currentUser?.business_id) {
-      sessionStorage.setItem(`epos_cart_biz_${currentUser.business_id}`, JSON.stringify(cart));
-      localStorage.removeItem(`epos_cart_biz_${currentUser.business_id}`);
+      const bId = currentUser.business_id;
+      const brId = currentUser.branch_id || 0;
+      sessionStorage.setItem(`epos_cart_biz_${bId}_br_${brId}`, JSON.stringify(cart));
+      localStorage.removeItem(`epos_cart_biz_${bId}`);
+      localStorage.removeItem(`epos_cart_biz_${bId}_br_${brId}`);
     }
-  }, [cart, currentUser?.business_id]);
+  }, [cart, currentUser?.business_id, currentUser?.branch_id]);
 
   useEffect(() => {
     if (currentUser?.business_id) {
-      sessionStorage.setItem(`epos_customer_biz_${currentUser.business_id}`, JSON.stringify(selectedCustomer));
-      localStorage.removeItem(`epos_customer_biz_${currentUser.business_id}`);
+      const bId = currentUser.business_id;
+      const brId = currentUser.branch_id || 0;
+      sessionStorage.setItem(`epos_customer_biz_${bId}_br_${brId}`, JSON.stringify(selectedCustomer));
+      localStorage.removeItem(`epos_customer_biz_${bId}`);
+      localStorage.removeItem(`epos_customer_biz_${bId}_br_${brId}`);
     }
-  }, [selectedCustomer, currentUser?.business_id]);
+  }, [selectedCustomer, currentUser?.business_id, currentUser?.branch_id]);
 
   useEffect(() => {
     if (currentUser?.business_id) {
-      sessionStorage.setItem(`epos_payments_biz_${currentUser.business_id}`, JSON.stringify(addedPayments));
-      localStorage.removeItem(`epos_payments_biz_${currentUser.business_id}`);
+      const bId = currentUser.business_id;
+      const brId = currentUser.branch_id || 0;
+      sessionStorage.setItem(`epos_payments_biz_${bId}_br_${brId}`, JSON.stringify(addedPayments));
+      localStorage.removeItem(`epos_payments_biz_${bId}`);
+      localStorage.removeItem(`epos_payments_biz_${bId}_br_${brId}`);
     }
-  }, [addedPayments, currentUser?.business_id]);
+  }, [addedPayments, currentUser?.business_id, currentUser?.branch_id]);
 
   useEffect(() => {
     if (currentUser?.business_id) {
-      sessionStorage.setItem(`epos_activities_biz_${currentUser.business_id}`, JSON.stringify(activities));
-      localStorage.removeItem(`epos_activities_biz_${currentUser.business_id}`);
+      const bId = currentUser.business_id;
+      const brId = currentUser.branch_id || 0;
+      sessionStorage.setItem(`epos_activities_biz_${bId}_br_${brId}`, JSON.stringify(activities));
+      localStorage.removeItem(`epos_activities_biz_${bId}`);
+      localStorage.removeItem(`epos_activities_biz_${bId}_br_${brId}`);
     }
-  }, [activities, currentUser?.business_id]);
+  }, [activities, currentUser?.business_id, currentUser?.branch_id]);
 
   // Effects
   useEffect(() => {
@@ -834,6 +859,11 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     // Clear persistence
     if (currentUser?.business_id) {
       const bId = currentUser.business_id;
+      const brId = currentUser.branch_id || 0;
+      sessionStorage.removeItem(`epos_cart_biz_${bId}_br_${brId}`);
+      sessionStorage.removeItem(`epos_customer_biz_${bId}_br_${brId}`);
+      sessionStorage.removeItem(`epos_payments_biz_${bId}_br_${brId}`);
+      sessionStorage.removeItem(`epos_activities_biz_${bId}_br_${brId}`);
       sessionStorage.removeItem(`epos_cart_biz_${bId}`);
       sessionStorage.removeItem(`epos_customer_biz_${bId}`);
       sessionStorage.removeItem(`epos_payments_biz_${bId}`);
@@ -842,6 +872,10 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       localStorage.removeItem(`epos_customer_biz_${bId}`);
       localStorage.removeItem(`epos_payments_biz_${bId}`);
       localStorage.removeItem(`epos_activities_biz_${bId}`);
+      localStorage.removeItem(`epos_cart_biz_${bId}_br_${brId}`);
+      localStorage.removeItem(`epos_customer_biz_${bId}_br_${brId}`);
+      localStorage.removeItem(`epos_payments_biz_${bId}_br_${brId}`);
+      localStorage.removeItem(`epos_activities_biz_${bId}_br_${brId}`);
     }
     sessionStorage.removeItem('epos_cart');
     sessionStorage.removeItem('epos_customer');
@@ -892,9 +926,9 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     <div className="flex flex-col h-full bg-slate-100/70 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans text-base p-3 select-none w-full overflow-hidden">
       {/* Header Area */}
       <div className="flex justify-between items-center shrink-0 mb-3 px-1">
-        <h2 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
-          <ShoppingBag size={20} className="text-blue-600 dark:text-blue-400" />
-          Cash Register
+        <h2 className="text-xl font-medium text-black dark:text-white flex items-center gap-2">
+          <ShoppingBag size={20} className="text-[var(--brand-primary)]" />
+          <span>Cash Register</span>
         </h2>
       </div>
 
@@ -1008,7 +1042,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 font-mono text-base">
           <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-sm overflow-hidden flex flex-col rounded-lg shadow-xl">
             <div className="bg-red-600 dark:bg-red-750 px-4 py-2 border-b border-red-700 dark:border-red-800">
-              <h3 className="text-white font-bold text-base uppercase">Discard Sale?</h3>
+              <h3 className="text-white font-semibold text-base">Discard Sale?</h3>
             </div>
             <div className="p-4 space-y-4 text-center">
               <p className="text-neutral-600 dark:text-neutral-400 text-sm">
@@ -1104,7 +1138,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
           <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-md overflow-hidden flex flex-col rounded-lg shadow-2xl text-base">
             {/* Modal Header */}
             <div className="bg-neutral-200 dark:bg-neutral-900 px-4 py-2.5 border-b border-neutral-300 dark:border-neutral-800 flex justify-between items-center">
-              <h3 className="text-base font-bold text-black dark:text-white uppercase">⚡ Quick Add Product</h3>
+              <h3 className="text-base font-semibold text-black dark:text-white">Quick Add Product</h3>
               <button
                 type="button"
                 onClick={() => {
@@ -1120,7 +1154,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
             {/* Modal Form */}
             <form onSubmit={handleQuickAddSubmit} className="p-4 space-y-4 flex-1 bg-white dark:bg-black">
               <div className="space-y-1">
-                <label className="block text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">Product Name *</label>
+                <label className="block text-[13px] font-semibold text-neutral-900 dark:text-neutral-100">Product Name *</label>
                 <input
                   type="text"
                   required
@@ -1134,7 +1168,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="block text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">SKU / Barcode</label>
+                  <label className="block text-[13px] font-semibold text-neutral-900 dark:text-neutral-100">SKU / Barcode</label>
                   <input
                     type="text"
                     placeholder="e.g. SKU12345"
@@ -1145,7 +1179,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <label className="block text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">Category *</label>
+                    <label className="block text-[13px] font-semibold text-neutral-900 dark:text-neutral-100">Category *</label>
                     <button
                       type="button"
                       onClick={() => setShowNewCategoryModal(true)}
@@ -1182,7 +1216,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-1">
-                  <label className="block text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">Cost (€)</label>
+                  <label className="block text-[13px] font-semibold text-neutral-900 dark:text-neutral-100">Cost (€)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1193,7 +1227,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">Selling (€) *</label>
+                  <label className="block text-[13px] font-semibold text-neutral-900 dark:text-neutral-100">Selling (€) *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1205,7 +1239,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider">Stock</label>
+                  <label className="block text-[13px] font-semibold text-neutral-900 dark:text-neutral-100">Stock</label>
                   <input
                     type="number"
                     min="0"
@@ -1250,14 +1284,14 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
           <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-2xl w-full max-w-md overflow-hidden font-mono text-base">
             <div className="px-4 py-2 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900">
-              <h3 className="text-base font-bold text-black dark:text-white uppercase">
+              <h3 className="text-base font-semibold text-black dark:text-white">
                 Add New Category
               </h3>
             </div>
             <form onSubmit={(e) => { e.preventDefault(); handleQuickAddCategory(); }}>
               <div className="p-4 space-y-4">
                 <div className="space-y-1">
-                  <label className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider block">Category Name *</label>
+                  <label className="text-[13px] font-semibold text-neutral-900 dark:text-neutral-100 block">Category Name *</label>
                   <input
                     type="text"
                     required

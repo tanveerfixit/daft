@@ -66,26 +66,20 @@ export default function PurchaseOrderList({
   }
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full overflow-hidden" style={{ fontSize: '17px' }}>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 py-2 select-none w-full" style={{ fontSize: '15px' }}>
       {/* Header */}
-      <div className="flex justify-between items-center shrink-0 mb-2 px-1 py-1">
-        <h2 className="text-xl font-bold text-black dark:text-white uppercase">Purchase Order</h2>
-        <button className="bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold py-1.5 px-4 rounded-none text-base flex items-center gap-2 transition-all shadow-none border-0 cursor-pointer">
+      <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
+        <h2 className="text-xl font-medium text-black dark:text-white">Purchase Orders</h2>
+        <button className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer">
           <Plus size={16} />
-          Create Purchase Order
+          <span>Create Purchase Order</span>
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="p-4 flex flex-wrap gap-2 items-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none mb-2">
-        <select className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none min-w-[150px] font-sans">
-          <option>Date, PO</option>
-          <option>Lot Ref. No.</option>
-          <option>Supplier Inv. No.</option>
-        </select>
-
+      {/* Filters & Search */}
+      <div className="p-2 flex flex-wrap gap-2 items-center bg-white dark:bg-black border-b border-neutral-200 dark:border-neutral-850 shrink-0">
         <select 
-          className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none min-w-[150px] font-sans"
+          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-400 h-7 font-mono font-bold text-xs"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         >
@@ -97,7 +91,7 @@ export default function PurchaseOrderList({
         </select>
 
         <select 
-          className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none min-w-[150px] font-sans"
+          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-400 h-7 font-mono font-bold text-xs min-w-[150px]"
           value={supplierFilter}
           onChange={(e) => setSupplierFilter(e.target.value)}
         >
@@ -108,52 +102,54 @@ export default function PurchaseOrderList({
         <div className="relative flex-1 max-w-md ml-auto">
           <input 
             type="text" 
-            placeholder="PO / Lot Ref./Suppliers Inv. No." 
-            className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none py-1.5 pl-3 pr-10 text-base focus:outline-none text-neutral-900 dark:text-neutral-100 font-sans"
+            placeholder="Search PO#, Lot Ref or Supplier..." 
+            className="w-full pl-3 pr-10 py-0.5 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-xs outline-none focus:border-neutral-400 h-7 font-mono"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <button className="absolute right-0 top-0 h-full px-3 bg-neutral-100 dark:bg-neutral-900 border-l border-neutral-300 dark:border-neutral-800 rounded-none hover:bg-neutral-200 dark:hover:bg-neutral-950 transition-colors border-0 cursor-pointer flex items-center justify-center">
-            <Search size={16} className="text-neutral-500" />
+          <button className="absolute right-3 top-1/2 -translate-y-1/2">
+            <Search size={14} className="text-neutral-500 dark:text-neutral-400" />
           </button>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black rounded-none shadow-none">
-        <table className="w-full text-left border-collapse">
+      {/* Table Content */}
+      <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
+        <table className="w-full text-left border-collapse bg-white dark:bg-black text-[15px]">
           <thead>
-            <tr className="bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800">Date</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800">PO</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800">Lot Ref. No.</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800">Supplier</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right">Sales Tax</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right">Shipping Cost</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right">Total</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800">Expected</th>
-              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800">Return</th>
-              <th className="px-2 py-1">Status</th>
+            <tr className="bg-neutral-100 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-850 text-[15px] font-semibold text-black dark:text-white">
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-24">Date</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-32">PO #</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850">Lot Ref. No.</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-44">Supplier</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right w-24">Tax</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right w-28">Shipping</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right w-28">Total</th>
+              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-28">Expected</th>
+              <th className="px-1.5 py-0.5 text-center w-24">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800 text-base font-normal">
+          <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">
             {filteredPos.map((po) => (
-              <tr key={po.id} className="hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors bg-white dark:bg-black text-neutral-900 dark:text-neutral-100">
-                <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 font-mono">{new Date(po.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-')}</td>
-                <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 font-mono font-bold text-blue-600 dark:text-blue-400">
-                  <button onClick={() => onSelectPO(po.id)} className="hover:underline font-mono font-bold text-left bg-transparent border-0 cursor-pointer">
+              <tr 
+                key={po.id} 
+                className="bg-white dark:bg-black hover:bg-neutral-200/70 dark:hover:bg-neutral-800 transition-colors cursor-pointer text-[15px]"
+                onClick={() => onSelectPO(po.id)}
+              >
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400 font-mono">{new Date(po.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-')}</td>
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 font-mono font-bold text-blue-600 dark:text-blue-400">
+                  <button onClick={(e) => { e.stopPropagation(); onSelectPO(po.id); }} className="hover:underline font-mono font-bold text-left bg-transparent border-0 cursor-pointer text-blue-600 dark:text-blue-400">
                     {po.po_number}
                   </button>
                 </td>
-                <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 font-sans">{po.lot_ref_no || po.po_number}</td>
-                <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 font-sans">{po.supplier_name}</td>
-                <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-mono">€{(Number(po.sales_tax) || 0).toFixed(2)}</td>
-                <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-mono">€{(Number(po.shipping_cost) || 0).toFixed(2)}</td>
-                <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 text-right font-mono font-bold">€{(Number(po.total) || 0).toFixed(2)}</td>
-                <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800 font-mono">{po.expected_at ? new Date(po.expected_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-') : ''}</td>
-                <td className="px-2 py-1 border-r border-neutral-200 dark:border-neutral-800"></td>
-                <td className="px-2 py-1">
-                  <span className={`px-2 py-0.5 rounded-none text-[10px] font-bold uppercase ${
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-900 dark:text-neutral-100">{po.lot_ref_no || po.po_number}</td>
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400">{po.supplier_name}</td>
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right font-mono text-neutral-900 dark:text-neutral-100">€{(Number(po.sales_tax) || 0).toFixed(2)}</td>
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right font-mono text-neutral-900 dark:text-neutral-100">€{(Number(po.shipping_cost) || 0).toFixed(2)}</td>
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">€{(Number(po.total) || 0).toFixed(2)}</td>
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 font-mono text-neutral-600 dark:text-neutral-400">{po.expected_at ? new Date(po.expected_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-') : '—'}</td>
+                <td className="px-1.5 py-0.5 text-center">
+                  <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
                     po.status === 'closed' ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400' : 
                     po.status === 'received' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' :
                     'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
@@ -165,7 +161,7 @@ export default function PurchaseOrderList({
             ))}
             {filteredPos.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-2 py-12 text-center text-neutral-400 dark:text-neutral-500 bg-white dark:bg-black font-sans italic">
+                <td colSpan={9} className="px-2 py-12 text-center text-neutral-400 dark:text-neutral-500 bg-white dark:bg-black italic text-sm">
                   No purchase orders found matching your filters.
                 </td>
               </tr>
@@ -174,22 +170,19 @@ export default function PurchaseOrderList({
         </table>
       </div>
 
-      {/* Pagination Footer */}
-      <div className="p-4 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none mt-2 flex justify-between items-center text-sm text-neutral-500 dark:text-neutral-400">
+      {/* Footer Pagination */}
+      <div className="p-2 bg-white dark:bg-black border-t border-neutral-200 dark:border-neutral-850 flex justify-between items-center text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
         <div className="flex items-center gap-4">
-          <select className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-2 py-1 focus:outline-none text-neutral-900 dark:text-neutral-100">
-            <option>25</option>
-            <option>50</option>
-            <option>100</option>
+          <select className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none font-mono">
+            <option>auto</option>
           </select>
-          <span className="font-bold">1-{filteredPos.length}/{filteredPos.length}</span>
+          <span className="font-normal">1-{filteredPos.length}/{pos.length}</span>
         </div>
 
         <div className="flex items-center gap-1">
-          <button className="px-2 py-1 border border-neutral-300 dark:border-neutral-800 rounded-none hover:bg-neutral-200 dark:hover:bg-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-900 dark:text-neutral-100" disabled>«</button>
-          <button className="px-2 py-1 border border-neutral-300 dark:border-neutral-800 rounded-none hover:bg-neutral-200 dark:hover:bg-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-900 dark:text-neutral-100" disabled>‹</button>
-          <button className="px-3 py-1 bg-neutral-300 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-800 rounded-none font-bold">1</button>
-          <button className="px-2 py-1 border border-neutral-300 dark:border-neutral-800 rounded-none hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100">»</button>
+          <button className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 rounded-none bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-850 text-neutral-850 dark:text-neutral-200">«</button>
+          <button className="px-3 py-0.5 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black rounded-none font-normal">1</button>
+          <button className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 rounded-none bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-850 text-neutral-850 dark:text-neutral-200">»</button>
         </div>
       </div>
     </div>

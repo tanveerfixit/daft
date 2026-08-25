@@ -417,7 +417,7 @@ const EndOfDayA4: React.FC<PrintProps> = ({
               <th>User</th>
               <th>Time</th>
               <th>Reference</th>
-              <th>Customer</th>
+              <th>Products / Items</th>
               <th>Method</th>
               <th className="text-right">Amount</th>
             </tr>
@@ -433,7 +433,9 @@ const EndOfDayA4: React.FC<PrintProps> = ({
                   <td className="font-medium text-sm">{p.user_name || 'Staff'}</td>
                   <td className="text-gray-500 text-sm">{p.paid_at ? new Date(p.paid_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '--:--'}</td>
                   <td className="font-mono text-xs">{p.invoice_number || 'DEPOSIT'}</td>
-                  <td className="text-sm">{p.customer_name || '--'}</td>
+                  <td className="text-sm max-w-[260px] truncate" title={p.products_summary || p.customer_name || '--'}>
+                    {p.products_summary || p.customer_name || '--'}
+                  </td>
                   <td>
                     {Number(p.amount) < 0 || String(p.method).toLowerCase().includes('refund') ? (
                       <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs font-bold uppercase">REFUND</span>
@@ -1217,7 +1219,7 @@ export default function EndOfDay() {
                     <th className="py-2.5 px-4">Staff / Operator</th>
                     <th className="py-2.5 px-4">Time</th>
                     <th className="py-2.5 px-4">Invoice / Ref</th>
-                    <th className="py-2.5 px-4">Customer</th>
+                    <th className="py-2.5 px-4">Products / Items</th>
                     <th className="py-2.5 px-4">Payment Method</th>
                     <th className="py-2.5 px-4 text-right">Amount</th>
                   </tr>
@@ -1247,14 +1249,22 @@ export default function EndOfDay() {
                               {payment.invoice_number || 'Deposit'}
                             </span>
                           </td>
-                          <td className="py-2.5 px-4 text-sm font-medium text-slate-700 dark:text-slate-300">
-                            {payment.customer_name || 'Walk-in Customer'}
+                          <td className="py-2.5 px-4 text-sm font-medium text-slate-700 dark:text-slate-300 max-w-[280px]">
+                            {payment.products_summary ? (
+                              <span className="line-clamp-2" title={payment.products_summary}>
+                                {payment.products_summary}
+                              </span>
+                            ) : (
+                              <span className="text-slate-500 dark:text-slate-400">
+                                {payment.customer_name || 'Walk-in Customer'}
+                              </span>
+                            )}
                           </td>
-                          <td className="py-2.5 px-4">
-                            <div className="flex items-center gap-2">
+                          <td className="py-1 px-3">
+                            <div className="flex items-center gap-1.5">
                               {isRefund && (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-800 rounded font-bold text-xs uppercase tracking-wider shrink-0">
-                                  <RotateCcw size={12} className="text-red-600 dark:text-red-400" />
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-800 rounded font-bold text-[10px] uppercase tracking-wider shrink-0">
+                                  <RotateCcw size={10} className="text-red-600 dark:text-red-400" />
                                   Refund
                                 </span>
                               )}
@@ -1265,10 +1275,14 @@ export default function EndOfDay() {
                                   const targetMethod = isRefund ? `Refund (${newBase})` : newBase;
                                   updatePaymentMethod(payment.id, targetMethod);
                                 }}
-                                className={`border rounded-md px-2.5 py-1 outline-none text-sm font-medium cursor-pointer transition-colors ${
+                                className={`border rounded px-2 py-0.5 outline-none text-xs font-semibold cursor-pointer transition-colors ${
                                   isRefund 
-                                    ? 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800 font-semibold' 
-                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+                                    ? 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800' 
+                                    : baseMethod === 'Card'
+                                    ? 'border-orange-500 text-orange-700 dark:text-orange-300 bg-orange-50/60 dark:bg-orange-950/30 font-bold'
+                                    : baseMethod === 'Cash'
+                                    ? 'border-green-600 text-green-700 dark:text-green-300 bg-green-50/60 dark:bg-green-950/30 font-bold'
+                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700'
                                 }`}
                               >
                                 <option value="Cash">Cash</option>

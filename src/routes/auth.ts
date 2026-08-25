@@ -36,6 +36,21 @@ function verifyToken(token: string | undefined): any {
   }
 }
 
+interface CachedUser {
+  user: any;
+  expiresAt: number;
+}
+
+const authUserCache = new Map<number, CachedUser>();
+
+export function invalidateUserAuthCache(userId?: number) {
+  if (userId) {
+    authUserCache.delete(userId);
+  } else {
+    authUserCache.clear();
+  }
+}
+
 export function requireAuth(req: any, res: any, next: any) {
   const token = req.headers['authorization']?.replace('Bearer ', '');
   const decoded = verifyToken(token);
@@ -51,8 +66,16 @@ export async function requireAuthAsync(req: any, res: any, next: any) {
   if (!decoded) return res.status(401).json({ error: 'Unauthorized' });
   
   try {
-    const user = await queryOne('SELECT * FROM users WHERE id=?', [decoded.userId]);
-    if (!user) return res.status(401).json({ error: 'User not found' });
+    const cached = authUserCache.get(decoded.userId);
+    let user: any;
+    if (cached && Date.now() < cached.expiresAt) {
+      user = cached.user;
+    } else {
+      user = await queryOne('SELECT * FROM users WHERE id=?', [decoded.userId]);
+      if (!user) return res.status(401).json({ error: 'User not found' });
+      authUserCache.set(decoded.userId, { user, expiresAt: Date.now() + 45000 });
+    }
+
     req._sessionToken = token;
     req.userId = decoded.userId;
     req.user = user;
@@ -69,7 +92,7 @@ export async function requireAdminAsync(req: any, res: any, next: any) {
   if (!decoded) return res.status(401).json({ error: 'Unauthorized' });
   
   try {
-    const user = await queryOne('SELECT * FROM users WHERE id=?', [decoded.userId]) as any;
+    const user = req.user || (await queryOne('SELECT * FROM users WHERE id=?', [decoded.userId]) as any);
     if (!user || user.role === 'staff' || !['tanveerfixit@gmail.com', 'support@techinbox.ie'].includes(user.email)) {
       return res.status(403).json({ error: 'Admin access required. Only Super Admin has access.' });
     }

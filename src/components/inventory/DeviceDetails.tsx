@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ChevronLeft, 
   Smartphone, 
@@ -9,7 +9,9 @@ import {
   Printer, 
   Plus, 
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  Camera,
+  X
 } from 'lucide-react';
 
 interface DeviceDetailsProps {
@@ -29,6 +31,9 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
   const [businessInfo, setBusinessInfo] = useState<any>(null);
   const [newNote, setNewNote] = useState('');
   const [editForm, setEditForm] = useState<any>({});
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchDevice();
@@ -273,6 +278,8 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
   };
 
   const handleUpdateDevice = async () => {
+    setIsUpdating(true);
+    setUpdateError(null);
     try {
       const res = await fetch(`/api/devices/${deviceId}`, {
         method: 'PUT',
@@ -283,23 +290,30 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
         setShowEditModal(false);
         fetchDevice();
         fetchActivity();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setUpdateError(data.error || 'Failed to update device. Please try again.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error updating device:', err);
+      setUpdateError(err?.message || 'Network error updating device.');
+    } finally {
+      setIsUpdating(false);
     }
   };
 
   const handleEditClick = () => {
+    setUpdateError(null);
     setEditForm({
-      color: device.color,
-      gb: device.gb,
-      ram: device.ram,
-      condition: device.condition,
-      cost_price: device.cost_price,
-      selling_price: device.selling_price,
-      unlocked: device.unlocked,
-      imei_status: device.imei_status,
-      carrier: device.carrier
+      color: device.color ?? '',
+      gb: device.gb ?? '',
+      ram: device.ram ?? '',
+      condition: device.condition ?? 'New',
+      cost_price: device.cost_price ?? '',
+      selling_price: device.selling_price ?? '',
+      unlocked: device.unlocked ?? 'Unknown',
+      imei_status: device.imei_status ?? 'Clean',
+      carrier: device.carrier ?? 'Unlocked'
     });
     setShowEditModal(true);
   };
@@ -322,6 +336,27 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
     }
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        setDevice((prev: any) => ({ ...prev, image_url: base64 }));
+        try {
+          await fetch(`/api/devices/${deviceId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...device, image_url: base64 })
+          });
+        } catch (err) {
+          console.error('Failed to save device image:', err);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to remove this device from inventory?')) return;
     try {
@@ -332,195 +367,243 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
     }
   };
 
-  if (isLoading) return <div className="p-8 text-center text-[var(--text-muted)] uppercase tracking-widest animate-pulse">Loading Device Details...</div>;
-  if (!device) return <div className="p-8 text-center text-[var(--brand-danger)] uppercase font-bold">Device not found</div>;
+  if (isLoading) return <div className="p-8 text-center text-neutral-500 font-mono text-xs uppercase tracking-widest animate-pulse">*** LOADING DEVICE DETAILS... PLEASE WAIT ***</div>;
+  if (!device) return <div className="p-8 text-center text-red-500 font-mono text-xs uppercase font-bold">*** DEVICE NOT FOUND ***</div>;
 
   return (
-    <div className="flex flex-col h-full bg-[#f4f7f9] dark:bg-slate-950 p-2 font-sans">
-      {/* Top Header with Back Button */}
-      <div className="flex justify-end mb-2">
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 py-2 select-none w-full overflow-auto" style={{ fontSize: '15px' }}>
+      {/* Top Header */}
+      <div className="sticky top-0 z-40 bg-white dark:bg-black border-b border-neutral-300 dark:border-neutral-800 shrink-0 flex justify-between items-center px-4 py-3 mb-2">
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-medium text-black dark:text-white">Device Details</h2>
+          <span className="text-xs font-medium px-2.5 py-0.5 rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 font-mono">
+            {device.imei}
+          </span>
+        </div>
         <button 
           onClick={onBack}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-semibold shadow-2xs transition-all cursor-pointer"
+          className="bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
         >
-          <span className="text-slate-400">☰</span>
-          Devices Inventory
+          <span>Back to Inventory</span>
         </button>
       </div>
 
       {/* Main Container */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-2xs overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none overflow-hidden flex flex-col flex-1">
         {/* Tabs Header */}
-        <div className="flex bg-[#f8f9fa] dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 shrink-0">
           <button 
             onClick={() => setActiveTab('info')}
-            className={`px-5 py-2 text-sm font-bold transition-all border-r border-slate-200 dark:border-slate-800 cursor-pointer ${activeTab === 'info' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white' : 'bg-[#f1f3f5] dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+            className={`px-4 py-1 text-xs uppercase font-mono font-bold transition-all border-r border-neutral-300 dark:border-neutral-800 cursor-pointer ${activeTab === 'info' ? 'bg-white dark:bg-black text-black dark:text-white' : 'text-neutral-500 hover:text-black dark:hover:text-white'}`}
           >
             Device Information
           </button>
           <button 
             onClick={() => setActiveTab('activity')}
-            className={`px-5 py-2 text-sm font-bold transition-all border-r border-slate-200 dark:border-slate-800 cursor-pointer ${activeTab === 'activity' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white' : 'bg-[#f1f3f5] dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+            className={`px-4 py-1 text-xs uppercase font-mono font-bold transition-all border-r border-neutral-300 dark:border-neutral-800 cursor-pointer ${activeTab === 'activity' ? 'bg-white dark:bg-black text-black dark:text-white' : 'text-neutral-500 hover:text-black dark:hover:text-white'}`}
           >
             Activity Log
           </button>
         </div>
 
         {/* Card Body */}
-        <div className="p-4">
+        <div className="p-4 flex-1 overflow-auto">
           {activeTab === 'info' ? (
             <div className="flex flex-col md:flex-row gap-5 items-start">
-              {/* Left Column: Icon */}
-              <div className="w-32 shrink-0 flex justify-center pt-2">
-                <div className="w-28 h-36 flex items-center justify-center">
-                  <svg viewBox="0 0 24 24" className="w-full h-full text-slate-800 dark:text-slate-200" fill="currentColor">
-                    <path d="M17,1H7A2,2 0 0,0 5,3V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V3A2,2 0 0,0 17,1M17,19H7V5H17V19M16,13H8V11H16V13M16,17H8V15H16V17M16,9H8V7H16V9Z" />
-                  </svg>
-                </div>
+              {/* Left Column: Device Photo / SVG Icon with Change Button */}
+              <div className="w-52 shrink-0 flex flex-col items-center justify-center p-4 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg self-stretch min-h-[240px]">
+                {device.image_url ? (
+                  <img 
+                    src={device.image_url} 
+                    alt={device.product_name} 
+                    className="w-36 h-44 object-contain rounded mb-2"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500 py-4">
+                    <Smartphone size={72} strokeWidth={1.2} className="text-neutral-600 dark:text-neutral-400" />
+                    <span className="text-xs mt-2 text-neutral-500 dark:text-neutral-400 font-sans">Device Photo</span>
+                  </div>
+                )}
+
+                <input 
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+
+                <button 
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="mt-2 text-xs bg-white dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 py-1.5 px-3 rounded-md shadow-xs font-sans font-medium flex items-center gap-1.5 cursor-pointer transition-all active:scale-[0.98]"
+                >
+                  <Camera size={13} />
+                  <span>{device.image_url ? 'Change Photo' : 'Upload Photo'}</span>
+                </button>
               </div>
 
-              {/* Middle Column: Details */}
-              <div className="flex-1 px-4 space-y-3">
-                <div>
-                  <a href="#" className="text-blue-600 dark:text-blue-400 text-xl font-bold hover:underline font-mono">
-                    {device.imei}
-                  </a>
+              {/* Right Column: Clean Borderless Specification Table & Action Buttons */}
+              <div className="flex-1 w-full flex flex-col gap-2">
+                <div className="bg-white dark:bg-black rounded-lg overflow-hidden">
+                  <table className="w-full text-[15px] font-mono border-collapse">
+                    <tbody>
+                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
+                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
+                          IMEI / Serial
+                        </td>
+                        <td className="py-0.5 px-2 font-mono font-bold text-blue-600 dark:text-blue-400">
+                          {device.imei}
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
+                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
+                          Model Name
+                        </td>
+                        <td className="py-0.5 px-2 font-bold text-black dark:text-white">
+                          {device.product_name}
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
+                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
+                          Specs (RAM / Storage)
+                        </td>
+                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100">
+                          {device.ram || '-'} RAM / {device.gb || '-'} Storage
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
+                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
+                          Condition
+                        </td>
+                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100">
+                          {device.condition || 'New'}
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
+                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
+                          Color
+                        </td>
+                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100">
+                          {device.color || '-'}
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
+                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
+                          Network / Unlocked
+                        </td>
+                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100">
+                          {device.unlocked || '-'} ({device.carrier || 'Unlocked'})
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
+                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
+                          Purchase Order #
+                        </td>
+                        <td className="py-0.5 px-2 font-mono text-neutral-900 dark:text-neutral-100">
+                          {device.po_number || 'Internal'}
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
+                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
+                          Cost Price
+                        </td>
+                        <td className="py-0.5 px-2 font-mono text-neutral-900 dark:text-neutral-100">
+                          €{Number(device.cost_price || 0).toFixed(2)}
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
+                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
+                          Selling Price
+                        </td>
+                        <td className="py-0.5 px-2 font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                          €{Number(device.selling_price || device.price || 0).toFixed(2)}
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
+                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
+                          Date Added
+                        </td>
+                        <td className="py-0.5 px-2 font-mono text-neutral-600 dark:text-neutral-400">
+                          {new Date(device.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date(device.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
 
-                <div className="space-y-2 text-base">
-                  <div className="flex gap-2">
-                    <span className="font-semibold text-slate-500 dark:text-slate-400 min-w-[130px]">Model:</span>
-                    <span className="text-slate-900 dark:text-white font-bold text-lg">{device.product_name}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="font-semibold text-slate-500 dark:text-slate-400 min-w-[130px]">Specs:</span>
-                    <span className="text-slate-900 dark:text-white font-medium text-base">{device.ram || '-'} RAM / {device.gb || '-'} Storage</span>
-                  </div>
-                  <div className="flex gap-2 items-center">
-                    <span className="font-semibold text-slate-500 dark:text-slate-400 min-w-[130px]">SKU/Barcode:</span>
-                    <span className="text-blue-600 dark:text-blue-400 font-mono text-base font-bold flex items-center gap-1">
-                      {device.sku_code || 'N/A'}
-                      <ExternalLink size={14} className="cursor-pointer" />
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="font-semibold text-slate-500 dark:text-slate-400 min-w-[130px]">Date Added:</span>
-                    <span className="text-slate-800 dark:text-slate-200 text-base">
-                      {new Date(device.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date(device.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                    </span>
-                  </div>
-                  <div className="flex gap-8 items-center pt-1">
-                    <div className="flex gap-2 items-center">
-                      <span className="font-semibold text-slate-500 dark:text-slate-400 min-w-[35px]">PO:</span>
-                      <span className="text-blue-600 dark:text-blue-400 font-semibold text-base flex items-center gap-1">
-                        {device.po_number || 'Internal'}
-                        <ExternalLink size={14} className="cursor-pointer" />
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="font-semibold text-slate-500 dark:text-slate-400">Cost:</span>
-                      <span className="text-slate-900 dark:text-white font-mono font-bold text-lg">€{Number(device.cost_price).toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2 pt-3">
+                {/* Modern Action Buttons Under Details */}
+                <div className="flex flex-wrap items-center gap-2.5 pt-1.5 border-t border-neutral-100 dark:border-neutral-900">
                   <button 
                     onClick={handleEditClick}
-                    className="px-4 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded text-sm font-semibold uppercase tracking-wider transition-all cursor-pointer"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-1.5 px-4 rounded-md shadow-xs hover:shadow transition-all flex items-center gap-2 cursor-pointer font-sans active:scale-[0.98]"
                   >
-                    Edit
-                  </button>
-                  <button 
-                    onClick={() => alert('(contact Admin)')}
-                    className="px-4 py-1.5 bg-slate-200 dark:bg-slate-800 cursor-not-allowed text-slate-400 rounded text-sm font-semibold uppercase tracking-wider transition-all"
-                  >
-                    Remove
+                    <Edit2 size={15} />
+                    <span>Edit</span>
                   </button>
                   <button 
                     onClick={handlePrintLabel}
-                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-semibold uppercase tracking-wider transition-all cursor-pointer"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm py-1.5 px-4 rounded-md shadow-xs hover:shadow transition-all flex items-center gap-2 cursor-pointer font-sans active:scale-[0.98]"
                   >
-                    Barcode Print
+                    <Printer size={15} />
+                    <span>Barcode Label Print</span>
                   </button>
-                </div>
-              </div>
-
-              {/* Vertical Separator */}
-              <div className="hidden md:block w-[1px] bg-slate-200 dark:border-slate-800 self-stretch my-1" />
-
-              {/* Right Column: Status */}
-              <div className="w-80 pl-4 space-y-0 text-base">
-                <div className="py-2 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                  <span className="font-semibold text-slate-500 dark:text-slate-400">Device Unlocked:</span>
-                  <span className="text-slate-900 dark:text-white font-bold text-base">{device.unlocked || '-'}</span>
-                </div>
-                <div className="py-2 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                  <span className="font-semibold text-slate-500 dark:text-slate-400">IMEI Status:</span>
-                  <span className="text-slate-900 dark:text-white font-bold text-base">{device.imei_status || '-'}</span>
-                </div>
-                <div className="py-2 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                  <span className="font-semibold text-slate-500 dark:text-slate-400">Carrier:</span>
-                  <span className="text-slate-900 dark:text-white font-bold text-base">{device.carrier || '-'}</span>
+                  <button 
+                    onClick={handleDelete}
+                    className="bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800 font-medium text-sm py-1.5 px-4 rounded-md shadow-xs transition-all flex items-center gap-2 cursor-pointer font-sans active:scale-[0.98]"
+                  >
+                    <Trash2 size={15} />
+                    <span>Remove from Inventory</span>
+                  </button>
                 </div>
               </div>
             </div>
           ) : (
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-base font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">History Log</h3>
+            <div className="space-y-2">
+              <div className="p-2 bg-neutral-200 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 flex justify-between items-center shrink-0">
+                <h3 className="text-sm font-semibold text-black dark:text-white">History Log</h3>
                 <div className="flex gap-2 items-center">
-                  <select className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-2.5 py-1 rounded text-sm text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer">
+                  <select className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 px-2 py-0.5 text-xs text-neutral-900 dark:text-neutral-100 outline-none cursor-pointer">
                     <option>All Activities</option>
                   </select>
                   <button 
                     onClick={() => setShowNoteModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold transition-all shadow-2xs cursor-pointer"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-0.5 px-3 text-xs rounded-md shadow-xs transition-all cursor-pointer font-sans active:scale-[0.98]"
                   >
-                    <Plus size={15} />
-                    Add Note
+                    + Add Note
                   </button>
                 </div>
               </div>
 
-              <div className="border border-slate-200 dark:border-slate-800 rounded overflow-hidden">
-                <table className="w-full text-left text-base border-collapse">
+              <div className="border border-neutral-300 dark:border-neutral-800 overflow-hidden">
+                <table className="w-full text-left text-[15px] font-mono border-collapse">
                   <thead>
-                    <tr className="bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 font-bold uppercase tracking-wider text-sm text-slate-700 dark:text-slate-300">
-                      <th className="py-1.5 px-3 border-r border-slate-200 dark:border-slate-800 w-32">Date</th>
-                      <th className="py-1.5 px-3 border-r border-slate-200 dark:border-slate-800 w-28">Time</th>
-                      <th className="py-1.5 px-3 border-r border-slate-200 dark:border-slate-800 w-40">User</th>
-                      <th className="py-1.5 px-3 border-r border-slate-200 dark:border-slate-800 w-48">Activity</th>
-                      <th className="py-1.5 px-3">Details</th>
+                    <tr className="bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 font-semibold text-[15px] text-black dark:text-white">
+                      <th className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 w-28">Date</th>
+                      <th className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 w-24">Time</th>
+                      <th className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 w-36">User</th>
+                      <th className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 w-44">Activity</th>
+                      <th className="py-0.5 px-1.5">Details</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                  <tbody className="divide-y divide-neutral-200 dark:divide-neutral-900">
                     {activities.length > 0 ? (
                       activities.map((act) => (
-                        <tr key={act.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors text-slate-900 dark:text-slate-100 text-base">
-                          <td className="py-1.5 px-3 border-r border-slate-100 dark:border-slate-800">{new Date(act.created_at).toLocaleDateString('en-GB')}</td>
-                          <td className="py-1.5 px-3 border-r border-slate-100 dark:border-slate-800">{new Date(act.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</td>
-                          <td className="py-1.5 px-3 border-r border-slate-100 dark:border-slate-800">{act.user_name || 'System'}</td>
-                          <td className="py-1.5 px-3 border-r border-slate-100 dark:border-slate-800">{act.activity}</td>
-                          <td className="py-1.5 px-3">{act.details}</td>
+                        <tr key={act.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-neutral-900 dark:text-neutral-100 text-[15px]">
+                          <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{new Date(act.created_at).toLocaleDateString('en-GB')}</td>
+                          <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{new Date(act.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</td>
+                          <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{act.user_name || 'System'}</td>
+                          <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800">{act.activity}</td>
+                          <td className="py-0.5 px-1.5">{act.details}</td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={5} className="py-4 text-center text-slate-400 italic text-base">No activities recorded yet</td>
+                        <td colSpan={5} className="py-6 text-center text-neutral-500 italic text-sm">No activities recorded yet</td>
                       </tr>
                     )}
                   </tbody>
                 </table>
-              </div>
-
-              <div className="mt-2 flex justify-between items-center text-xs font-medium text-slate-500 dark:text-slate-400">
-                <span>Showing 1 - {activities.length} of {activities.length}</span>
-                <div className="flex gap-1">
-                  <button disabled className="px-2 py-0.5 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 disabled:opacity-40 text-xs cursor-pointer">«</button>
-                  <button disabled className="px-2 py-0.5 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 disabled:opacity-40 text-xs cursor-pointer">»</button>
-                </div>
               </div>
             </div>
           )}
@@ -529,32 +612,37 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
 
       {/* Note Modal */}
       {showNoteModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[150] p-4 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-300">
-            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/60">
-              <h3 className="text-lg font-bold uppercase tracking-wider text-slate-900 dark:text-white">Add Device Note</h3>
-              <button onClick={() => setShowNoteModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl font-bold cursor-pointer">✕</button>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-[150] p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden font-sans">
+            <div className="px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center bg-white dark:bg-neutral-900">
+              <h3 className="text-base font-semibold text-neutral-900 dark:text-white">Add Device Note</h3>
+              <button 
+                onClick={() => setShowNoteModal(false)} 
+                className="text-neutral-400 hover:text-neutral-700 dark:hover:text-white p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <div className="p-6">
+            <div className="p-5">
               <textarea 
                 autoFocus
                 value={newNote}
                 onChange={(e) => setNewNote(e.target.value)}
                 placeholder="Enter device activity details or notes here..."
-                className="w-full h-40 border border-slate-300 dark:border-slate-700 rounded-md p-3.5 text-base text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400 resize-none transition-all bg-white dark:bg-slate-800"
+                className="w-full h-32 border border-neutral-300 dark:border-neutral-700 rounded-lg p-3 text-sm text-neutral-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 placeholder:text-neutral-400 resize-none font-mono bg-white dark:bg-neutral-950 transition-all"
               />
             </div>
-            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex gap-3 bg-slate-50 dark:bg-slate-800/60">
+            <div className="px-5 py-3 bg-neutral-50 dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2.5">
               <button 
                 onClick={() => setShowNoteModal(false)}
-                className="flex-1 py-2.5 rounded-md font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all uppercase text-xs tracking-wider cursor-pointer"
+                className="px-4 py-1.5 rounded-lg font-medium text-neutral-700 dark:text-neutral-200 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sm cursor-pointer shadow-xs transition-all active:scale-[0.98]"
               >
                 Cancel
               </button>
               <button 
                 onClick={handleAddNote}
                 disabled={!newNote.trim()}
-                className="flex-1 py-2.5 rounded-md font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all uppercase text-xs tracking-wider disabled:opacity-50 cursor-pointer shadow-xs"
+                className="px-4 py-1.5 rounded-lg font-medium text-white bg-blue-600 hover:bg-blue-700 text-sm disabled:opacity-40 cursor-pointer shadow-xs hover:shadow transition-all active:scale-[0.98]"
               >
                 Save Note
               </button>
@@ -565,46 +653,65 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
 
       {/* Edit Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[150] p-4 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-300">
-            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/60">
-              <h3 className="text-xl font-bold tracking-wider text-slate-900 dark:text-white">Edit Device Details</h3>
-              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl font-bold cursor-pointer">✕</button>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-[150] p-4">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden font-sans">
+            <div className="px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center bg-white dark:bg-neutral-900">
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-semibold text-neutral-900 dark:text-white">Edit Device Details</h3>
+                <span className="text-xs font-mono text-neutral-500 dark:text-neutral-400">({device.imei})</span>
+              </div>
+              <button 
+                onClick={() => setShowEditModal(false)} 
+                className="text-neutral-400 hover:text-neutral-700 dark:hover:text-white p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <div className="p-6 grid grid-cols-2 gap-4">
+            
+            {updateError && (
+              <div className="mx-5 mt-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                <AlertCircle size={16} className="shrink-0" />
+                <span>{updateError}</span>
+              </div>
+            )}
+            
+            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Color</label>
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">Color</label>
                 <input 
                   type="text" 
                   value={editForm.color} 
                   onChange={e => setEditForm({...editForm, color: e.target.value})}
-                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  placeholder="e.g. Space Gray, Silver"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Storage (GB)</label>
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">Storage (GB)</label>
                 <input 
                   type="text" 
                   value={editForm.gb} 
                   onChange={e => setEditForm({...editForm, gb: e.target.value})}
-                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono"
+                  placeholder="e.g. 128GB, 256GB"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">RAM</label>
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">RAM</label>
                 <input 
                   type="text" 
                   value={editForm.ram} 
                   onChange={e => setEditForm({...editForm, ram: e.target.value})}
-                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono"
+                  placeholder="e.g. 6GB, 8GB"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Condition</label>
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">Condition</label>
                 <select 
                   value={editForm.condition} 
                   onChange={e => setEditForm({...editForm, condition: e.target.value})}
-                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+                  className="w-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer h-9.5"
                 >
                   <option value="New">New</option>
                   <option value="Grade A">Grade A</option>
@@ -614,54 +721,65 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Cost Price (€)</label>
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">Cost Price (€)</label>
                 <input 
                   type="number" 
+                  step="0.01"
                   value={editForm.cost_price} 
                   onChange={e => setEditForm({...editForm, cost_price: e.target.value})}
-                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base font-mono focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white rounded-lg px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  placeholder="0.00"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Selling Price (€)</label>
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">Selling Price (€)</label>
                 <input 
                   type="number" 
+                  step="0.01"
                   value={editForm.selling_price} 
                   onChange={e => setEditForm({...editForm, selling_price: e.target.value})}
-                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base font-mono font-bold focus:ring-2 focus:ring-blue-500 outline-none text-blue-600 dark:text-blue-400"
+                  className="w-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white rounded-lg px-3 py-2 text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-blue-600 dark:text-blue-400"
+                  placeholder="0.00"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Unlocked Status</label>
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">Network / Unlocked</label>
                 <input 
                   type="text" 
                   value={editForm.unlocked} 
                   onChange={e => setEditForm({...editForm, unlocked: e.target.value})}
-                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  placeholder="e.g. Unlocked, Vodafone"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">IMEI Status</label>
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">IMEI Status</label>
                 <input 
                   type="text" 
                   value={editForm.imei_status} 
                   onChange={e => setEditForm({...editForm, imei_status: e.target.value})}
-                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-md px-3.5 py-2 text-base focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  placeholder="e.g. Clean, Blacklisted"
                 />
               </div>
             </div>
-            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
+            
+            <div className="px-5 py-3.5 bg-neutral-50 dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2.5 font-sans">
               <button 
+                type="button"
                 onClick={() => setShowEditModal(false)}
-                className="px-5 py-2 border border-slate-300 dark:border-slate-700 rounded-md text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                disabled={isUpdating}
+                className="px-4 py-2 rounded-lg font-medium text-neutral-700 dark:text-neutral-200 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sm cursor-pointer shadow-xs transition-all active:scale-[0.98] disabled:opacity-40"
               >
                 Cancel
               </button>
               <button 
+                type="button"
                 onClick={handleUpdateDevice}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-bold uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                disabled={isUpdating}
+                className="px-5 py-2 rounded-lg font-medium text-white bg-blue-600 hover:bg-blue-700 text-sm cursor-pointer shadow-xs hover:shadow transition-all active:scale-[0.98] disabled:opacity-40 flex items-center gap-2"
               >
-                Save Changes
+                {isUpdating ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>

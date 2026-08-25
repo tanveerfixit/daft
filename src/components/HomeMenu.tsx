@@ -38,7 +38,10 @@ const HomeMenu: React.FC<HomeMenuProps> = ({ onNavigate }) => {
   ];
 
   return (
-    <div className="p-4 bg-[var(--bg-app)] h-full overflow-auto transition-colors duration-300">
+    <div 
+      className="p-4 bg-[var(--bg-app)] h-full overflow-auto transition-colors duration-300 select-none"
+      style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
+    >
       <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 2xl:grid-cols-14 gap-3 max-w-[1600px]">
         {menuTiles.map((tile) => (
           <button
@@ -46,10 +49,10 @@ const HomeMenu: React.FC<HomeMenuProps> = ({ onNavigate }) => {
             onClick={() => onNavigate(tile.id)}
             className="flex flex-col items-center justify-center bg-[rgb(2,133,181)] text-white p-2 rounded-lg shadow-md transition-all aspect-square group w-full border border-[rgb(2,133,181)] hover:-translate-y-1 hover:brightness-110 cursor-pointer"
           >
-            <div className="mb-1 group-hover:scale-110 transition-all duration-200">
-              <tile.icon size={28} strokeWidth={1.5} className="text-white" />
+            <div className="mb-1 group-hover:scale-110 transition-all duration-200 flex items-center justify-center">
+              <tile.icon size={30} strokeWidth={1.5} className="text-white" />
             </div>
-            <span className="text-[14px] font-medium text-center leading-tight px-0.5 mt-1 text-white">
+            <span className="text-[14px] font-normal text-center leading-tight px-0.5 mt-1 text-white">
               {tile.label}
             </span>
           </button>

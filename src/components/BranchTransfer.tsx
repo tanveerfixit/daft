@@ -259,30 +259,26 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
   });
 
   return (
-    <div className="h-full flex flex-col bg-[var(--bg-app)]">
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 py-2 select-none w-full" style={{ fontSize: '15px' }}>
       {/* Header */}
-      <div className="p-6 border-b border-[var(--border-base)] bg-[var(--bg-card)] flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold text-[var(--text-main)] font-sans">B2B & Branch Transfers</h2>
-            <span className="px-2.5 py-0.5 text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 rounded flex items-center gap-1">
-              <ShieldCheck size={13} /> Strict Business Isolation
-            </span>
-          </div>
-          <p className="text-sm text-[var(--text-muted)] mt-0.5 font-sans">
-            Fast, clean transfer of serial devices with attached IMEI/Serial and automatic SKU replication to other businesses.
-          </p>
+      <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-medium text-black dark:text-white">B2B & Branch Transfers</h2>
+          <span className="px-2 py-0.5 text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 rounded flex items-center gap-1">
+            <ShieldCheck size={13} /> Strict Isolation
+          </span>
         </div>
         <button
           onClick={() => { loadTransfers(); loadDestinations(); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-main)] bg-[var(--bg-hover)] border border-[var(--border-base)] rounded transition"
+          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
         >
-          <RefreshCw size={13} /> Refresh
+          <RefreshCw size={14} />
+          <span>Refresh</span>
         </button>
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-1 px-6 pt-3 bg-[var(--bg-card)] border-b border-[var(--border-base)]">
+      <div className="flex gap-1 px-4 bg-white dark:bg-black border-b border-neutral-200 dark:border-neutral-850 shrink-0">
         {[
           { id: 'create', label: 'Fast Transfer', icon: ArrowUpRight },
           { id: 'list', label: `Transfer History (${transfers.length})`, icon: Package },
@@ -294,10 +290,10 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
               setTab(t.id as any);
               if (t.id === 'list') loadTransfers();
             }}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition duration-150 ${
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold border-b-2 transition duration-150 cursor-pointer ${
               tab === t.id
-                ? 'border-[var(--brand-primary)] text-[var(--brand-primary)] bg-[var(--bg-hover)]/40'
-                : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
+                ? 'border-[var(--brand-primary)] text-[var(--brand-primary)] bg-neutral-100 dark:bg-neutral-900/60'
+                : 'border-transparent text-neutral-500 hover:text-black dark:hover:text-white hover:bg-neutral-50 dark:hover:bg-neutral-900'
             }`}
           >
             <t.icon size={15} />
@@ -307,7 +303,7 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
       </div>
 
       {/* Main Body */}
-      <div className="flex-1 overflow-auto p-6 font-sans">
+      <div className="flex-1 overflow-auto p-4 font-sans bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
         {/* TAB 1: FAST CLEAN TRANSFER */}
         {tab === 'create' && (
           <div className="max-w-2xl mx-auto space-y-5">
@@ -327,20 +323,33 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
               </div>
             )}
 
-            <form onSubmit={handleDispatchTransfer} className="space-y-5 bg-[var(--bg-card)] border border-[var(--border-base)] p-6 rounded-xl shadow-sm">
-              {/* STEP 1: DESTINATION BUSINESS & BRANCH */}
+            <form onSubmit={handleDispatchTransfer} className="space-y-5 bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850 p-6 rounded-lg shadow-sm">
+              {/* CURRENT LOGGED-IN BRANCH (FIXED ORIGIN) */}
+              <div className="p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-neutral-500 uppercase">Transfer From:</span>
+                  <span className="font-bold text-neutral-900 dark:text-neutral-100">
+                    {currentUser?.business_name ? `${currentUser.business_name} — ` : ''}{currentUser?.branch_name || 'Current Branch'}
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded font-semibold text-[11px]">
+                  Logged-in Branch
+                </span>
+              </div>
+
+              {/* STEP 1: DESTINATION BUSINESS & BRANCH (TRANSFER TO) */}
               <div>
-                <label className="block text-xs font-bold text-[var(--text-main)] uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <label className="block text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                   <Building2 size={15} className="text-[var(--brand-primary)]" />
-                  1. Select Recipient Business & Branch <span className="text-red-500">*</span>
+                  1. Transfer To (Select Recipient Branch / Business) <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={toBranch}
                   onChange={e => setToBranch(e.target.value)}
                   required
-                  className="w-full bg-[var(--bg-input)] border border-[var(--border-base)] rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] text-[var(--text-main)] font-semibold"
+                  className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded px-3.5 py-2 text-sm focus:outline-none focus:border-neutral-400 text-neutral-900 dark:text-neutral-100 font-semibold"
                 >
-                  <option value="">-- Choose Recipient Business & Branch --</option>
+                  <option value="">-- Choose Recipient Branch to Transfer To --</option>
                   {destinations
                     .filter(d => d.branch_id !== currentUser?.branch_id)
                     .map(d => (
@@ -353,9 +362,9 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
 
               {/* STEP 2: SEARCH PRODUCT BY NAME OR IMEI */}
               <div className="relative">
-                <label className="block text-xs font-bold text-[var(--text-main)] uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <label className="block text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                   <Search size={15} className="text-[var(--brand-primary)]" />
-                  2. Search Item by Product Name or IMEI <span className="text-red-500">*</span>
+                  2. Search Item to Transfer (From Current Stock) <span className="text-red-500">*</span>
                 </label>
                 
                 {!selectedItem ? (

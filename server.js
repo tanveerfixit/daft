@@ -17,6 +17,7 @@ var __export = (target, all) => {
 // src/mysql.ts
 var mysql_exports = {};
 __export(mysql_exports, {
+  CURRENT_SCHEMA_VERSION: () => CURRENT_SCHEMA_VERSION,
   ensureSuperAdmin: () => ensureSuperAdmin,
   execute: () => execute,
   initSchema: () => initSchema,
@@ -39,9 +40,35 @@ async function execute(sql, params) {
   const [result] = await pool.execute(sql, params);
   return result;
 }
+async function ensureIndex(conn, tableName, indexName, columns) {
+  try {
+    const [rows] = await conn.query(
+      `SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1`,
+      [tableName, indexName]
+    );
+    if (rows.length === 0) {
+      await conn.query(`CREATE INDEX \`${indexName}\` ON \`${tableName}\` (${columns})`);
+      console.log(`[MySQL] Index applied: ${tableName}.${indexName}`);
+    }
+  } catch (e) {
+  }
+}
 async function initSchema() {
   const conn = await pool.getConnection();
   try {
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS _schema_meta (
+        key_name VARCHAR(100) PRIMARY KEY,
+        value VARCHAR(255) NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+    const [metaRows] = await conn.query(`SELECT value FROM _schema_meta WHERE key_name = 'schema_version' LIMIT 1`);
+    const currentVersion = metaRows[0]?.value;
+    if (currentVersion === CURRENT_SCHEMA_VERSION) {
+      console.log("[MySQL] Schema is cached and up-to-date. Skipping redundant DDL checks.");
+      return;
+    }
     await conn.query("SET FOREIGN_KEY_CHECKS = 0");
     await conn.query(`
       CREATE TABLE IF NOT EXISTS businesses (
@@ -824,7 +851,30 @@ async function initSchema() {
     } catch (e) {
       console.warn("[MySQL] Customer name cleanup migration warning:", e.message);
     }
-    console.log("[MySQL] Schema initialised successfully");
+    await ensureIndex(conn, "invoices", "idx_invoices_biz_branch_date", "business_id, branch_id, created_at");
+    await ensureIndex(conn, "invoices", "idx_invoices_number", "invoice_number");
+    await ensureIndex(conn, "invoices", "idx_invoices_biz_date", "business_id, created_at");
+    await ensureIndex(conn, "jobs", "idx_jobs_biz_branch_status", "business_id, branch_id, status");
+    await ensureIndex(conn, "jobs", "idx_jobs_biz_date", "business_id, created_at");
+    await ensureIndex(conn, "jobs", "idx_jobs_customer", "customer_id");
+    await ensureIndex(conn, "products", "idx_products_biz_del_date", "business_id, deleted_at, created_at");
+    await ensureIndex(conn, "products", "idx_products_biz_name", "business_id, name");
+    await ensureIndex(conn, "product_skus", "idx_skus_barcode", "barcode");
+    await ensureIndex(conn, "product_skus", "idx_skus_prod_sku", "product_id, sku_code");
+    await ensureIndex(conn, "devices", "idx_devices_biz_branch_status", "business_id, branch_id, status");
+    await ensureIndex(conn, "devices", "idx_devices_sku_status", "sku_id, status, business_id");
+    await ensureIndex(conn, "customers", "idx_customers_biz_branch_del", "business_id, branch_id, deleted_at");
+    await ensureIndex(conn, "customers", "idx_customers_biz_phone", "business_id, phone");
+    await ensureIndex(conn, "payments", "idx_payments_invoice_paid", "invoice_id, paid_at");
+    await ensureIndex(conn, "payments", "idx_payments_customer_paid", "customer_id, paid_at");
+    await ensureIndex(conn, "closing_reports", "idx_closing_biz_branch_date", "business_id, branch_id, report_date");
+    await ensureIndex(conn, "inventory_movements", "idx_inv_mov_biz_branch_type_date", "business_id, branch_id, movement_type, created_at");
+    await conn.query(
+      `INSERT INTO _schema_meta (key_name, value) VALUES ('schema_version', ?) 
+       ON DUPLICATE KEY UPDATE value = ?`,
+      [CURRENT_SCHEMA_VERSION, CURRENT_SCHEMA_VERSION]
+    );
+    console.log("[MySQL] Schema initialised and cached successfully");
   } finally {
     conn.release();
   }
@@ -935,7 +985,7 @@ async function ensureSuperAdmin() {
   );
   console.log("[MySQL] Superadmin and developer roles ensured.");
 }
-var pool;
+var pool, CURRENT_SCHEMA_VERSION;
 var init_mysql = __esm({
   "src/mysql.ts"() {
     dotenv.config();
@@ -949,8 +999,10 @@ var init_mysql = __esm({
       user: process.env.DB_USER,
       password: process.env.DB_PASS,
       waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0,
+      connectionLimit: Number(process.env.DB_CONNECTION_LIMIT) || 15,
+      maxIdle: Number(process.env.DB_MAX_IDLE) || 10,
+      idleTimeout: Number(process.env.DB_IDLE_TIMEOUT) || 6e4,
+      queueLimit: Number(process.env.DB_QUEUE_LIMIT) || 0,
       connectTimeout: 2e4,
       decimalNumbers: true,
       timezone: "Z",
@@ -958,6 +1010,7 @@ var init_mysql = __esm({
       keepAliveInitialDelay: 1e4,
       charset: "utf8mb4_unicode_ci"
     });
+    CURRENT_SCHEMA_VERSION = "2026_08_OPTIMIZATION_V1";
   }
 });
 
@@ -1187,6 +1240,7 @@ var auth_exports = {};
 __export(auth_exports, {
   adminRouter: () => adminRouter,
   default: () => auth_default,
+  invalidateUserAuthCache: () => invalidateUserAuthCache,
   requireAdminAsync: () => requireAdminAsync,
   requireAuth: () => requireAuth,
   requireAuthAsync: () => requireAuthAsync,
@@ -1210,6 +1264,13 @@ function verifyToken(token) {
     return null;
   }
 }
+function invalidateUserAuthCache(userId) {
+  if (userId) {
+    authUserCache.delete(userId);
+  } else {
+    authUserCache.clear();
+  }
+}
 function requireAuth(req, res, next) {
   const token = req.headers["authorization"]?.replace("Bearer ", "");
   const decoded = verifyToken(token);
@@ -1223,8 +1284,15 @@ async function requireAuthAsync(req, res, next) {
   const decoded = verifyToken(token);
   if (!decoded) return res.status(401).json({ error: "Unauthorized" });
   try {
-    const user = await queryOne("SELECT * FROM users WHERE id=?", [decoded.userId]);
-    if (!user) return res.status(401).json({ error: "User not found" });
+    const cached = authUserCache.get(decoded.userId);
+    let user;
+    if (cached && Date.now() < cached.expiresAt) {
+      user = cached.user;
+    } else {
+      user = await queryOne("SELECT * FROM users WHERE id=?", [decoded.userId]);
+      if (!user) return res.status(401).json({ error: "User not found" });
+      authUserCache.set(decoded.userId, { user, expiresAt: Date.now() + 45e3 });
+    }
     req._sessionToken = token;
     req.userId = decoded.userId;
     req.user = user;
@@ -1239,7 +1307,7 @@ async function requireAdminAsync(req, res, next) {
   const decoded = verifyToken(token);
   if (!decoded) return res.status(401).json({ error: "Unauthorized" });
   try {
-    const user = await queryOne("SELECT * FROM users WHERE id=?", [decoded.userId]);
+    const user = req.user || await queryOne("SELECT * FROM users WHERE id=?", [decoded.userId]);
     if (!user || user.role === "staff" || !["tanveerfixit@gmail.com", "support@techinbox.ie"].includes(user.email)) {
       return res.status(403).json({ error: "Admin access required. Only Super Admin has access." });
     }
@@ -1254,7 +1322,7 @@ async function requireAdminAsync(req, res, next) {
 function slugify(text) {
   return text.toString().toLowerCase().trim().replace(/\s+/g, "-").replace(/[^\w-]+/g, "").replace(/--+/g, "-");
 }
-var JWT_SECRET, revokedTokens, userPasswordResets, _cleanup, router, signupSchema, loginSchema, resetPasswordSchema, adminRouter, auth_default;
+var JWT_SECRET, revokedTokens, userPasswordResets, _cleanup, authUserCache, router, signupSchema, loginSchema, resetPasswordSchema, adminRouter, auth_default;
 var init_auth = __esm({
   "src/routes/auth.ts"() {
     init_mysql();
@@ -1266,6 +1334,7 @@ var init_auth = __esm({
       revokedTokens.clear();
     }, 60 * 60 * 1e3);
     if (typeof _cleanup.unref === "function") _cleanup.unref();
+    authUserCache = /* @__PURE__ */ new Map();
     router = Router();
     signupSchema = z.object({
       name: z.string().min(2, "Business Name is required"),
@@ -1891,9 +1960,9 @@ var init_products = __esm({
       LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
       ${whereClause}
       ORDER BY p.created_at DESC
-      LIMIT ${limit} OFFSET ${offset}
+      LIMIT ? OFFSET ?
     `;
-        const products = await query(productsSql, params);
+        const products = await query(productsSql, [...params, limit, offset]);
         const mapped = products.map((p) => ({
           ...p,
           name: p.product_name + (p.sku_code ? ` (${p.sku_code})` : "")
@@ -3791,7 +3860,21 @@ var init_reports = __esm({
         const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
         const branchId = req.user.branch_id;
         const invoicePayments = await query(`
-      SELECT p.*, u.name as user_name, i.invoice_number, i.status as invoice_status, c.name as customer_name
+      SELECT p.*, u.name as user_name, i.invoice_number, i.status as invoice_status, c.name as customer_name,
+        (
+          SELECT GROUP_CONCAT(
+            CONCAT(
+              IF(ii.quantity > 1, CONCAT(ii.quantity, 'x '), ''),
+              COALESCE(pr.name, ii.notes, 'Item'),
+              IF(d.imei IS NOT NULL AND d.imei != '', CONCAT(' (', d.imei, ')'), '')
+            ) SEPARATOR ', '
+          )
+          FROM invoice_items ii
+          LEFT JOIN product_skus s ON ii.sku_id = s.id
+          LEFT JOIN products pr ON s.product_id = pr.id
+          LEFT JOIN devices d ON ii.device_id = d.id
+          WHERE ii.invoice_id = i.id
+        ) as products_summary
       FROM payments p
       LEFT JOIN invoices i ON p.invoice_id=i.id
       LEFT JOIN users u ON i.user_id=u.id
@@ -3801,7 +3884,8 @@ var init_reports = __esm({
       ORDER BY p.id ASC
     `, !isSuper && branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
         const otherMovements = await query(`
-      SELECT p.*, 'System' as user_name, c.name as customer_name 
+      SELECT p.*, 'System' as user_name, c.name as customer_name,
+        COALESCE(p.type, 'Customer Deposit') as products_summary
       FROM payments p
       LEFT JOIN customers c ON p.customer_id=c.id
       WHERE DATE(p.paid_at)=? AND p.invoice_id IS NULL AND (c.business_id=? OR c.business_id IS NULL)
@@ -4865,59 +4949,73 @@ var init_inventory = __esm({
       }
     });
     updateDeviceSchema = z7.object({
-      color: z7.string().optional(),
-      gb: z7.string().optional(),
-      ram: z7.string().optional(),
-      condition: z7.string().optional(),
-      cost_price: z7.number().or(z7.string().transform(Number)).optional(),
-      selling_price: z7.number().or(z7.string().transform(Number)).optional(),
-      unlocked: z7.boolean().or(z7.number().transform(Boolean)).optional(),
-      imei_status: z7.string().optional(),
-      carrier: z7.string().optional()
+      color: z7.string().nullable().optional(),
+      gb: z7.union([z7.string(), z7.number()]).nullable().optional().transform((v) => v === null || v === void 0 ? v : String(v)),
+      ram: z7.union([z7.string(), z7.number()]).nullable().optional().transform((v) => v === null || v === void 0 ? v : String(v)),
+      condition: z7.string().nullable().optional(),
+      cost_price: z7.union([z7.number(), z7.string()]).nullable().optional().transform((v) => v === null || v === void 0 || v === "" ? null : Number(v)),
+      selling_price: z7.union([z7.number(), z7.string()]).nullable().optional().transform((v) => v === null || v === void 0 || v === "" ? null : Number(v)),
+      unlocked: z7.union([z7.string(), z7.boolean(), z7.number()]).nullable().optional().transform((v) => v === null || v === void 0 ? v : String(v)),
+      imei_status: z7.string().nullable().optional(),
+      carrier: z7.string().nullable().optional()
     });
     router8.put("/devices/:id", async (req, res, next) => {
-      const data = updateDeviceSchema.parse(req.body);
-      const { color, gb, ram, condition, cost_price, selling_price, unlocked, imei_status, carrier } = data;
       try {
+        const data = updateDeviceSchema.parse(req.body);
+        const { color, gb, ram, condition, cost_price, selling_price, unlocked, imei_status, carrier } = data;
         const old = await queryOne("SELECT * FROM devices WHERE id=? AND business_id=?", [req.params.id, req.user.business_id]);
         if (!old) return res.status(404).json({ error: "Device not found" });
+        const newColor = color !== void 0 ? color : old.color;
+        const newGb = gb !== void 0 ? gb : old.gb;
+        const newRam = ram !== void 0 ? ram : old.ram;
+        const newCondition = condition !== void 0 ? condition : old.condition;
+        const newCostPrice = cost_price !== void 0 ? cost_price : old.cost_price;
+        const newSellingPrice = selling_price !== void 0 ? selling_price : old.selling_price;
+        const newUnlocked = unlocked !== void 0 ? unlocked : old.unlocked;
+        const newImeiStatus = imei_status !== void 0 ? imei_status : old.imei_status;
+        const newCarrier = carrier !== void 0 ? carrier : old.carrier;
         await execute(`
       UPDATE devices SET 
         color=?, gb=?, ram=?, \`condition\`=?, cost_price=?, selling_price=?, 
         unlocked=?, imei_status=?, carrier=?
       WHERE id=? AND business_id=?
     `, [
-          color || old.color,
-          gb || old.gb,
-          ram || old.ram,
-          condition || old.condition,
-          cost_price || old.cost_price,
-          selling_price || old.selling_price,
-          unlocked || old.unlocked,
-          imei_status || old.imei_status,
-          carrier || old.carrier,
+          newColor,
+          newGb,
+          newRam,
+          newCondition,
+          newCostPrice,
+          newSellingPrice,
+          newUnlocked,
+          newImeiStatus,
+          newCarrier,
           req.params.id,
           req.user.business_id
         ]);
         const changes = [];
-        if (color && color !== old.color) changes.push(`Color: ${old.color} -> ${color}`);
-        if (gb && gb !== old.gb) changes.push(`GB: ${old.gb} -> ${gb}`);
-        if (ram && ram !== old.ram) changes.push(`RAM: ${old.ram} -> ${ram}`);
-        if (condition && condition !== old.condition) changes.push(`Condition: ${old.condition} -> ${condition}`);
-        if (cost_price && cost_price != old.cost_price) changes.push(`Cost: ${old.cost_price} -> ${cost_price}`);
-        if (selling_price && selling_price != old.selling_price) changes.push(`Selling: ${old.selling_price} -> ${selling_price}`);
+        if (color !== void 0 && String(color ?? "") !== String(old.color ?? "")) changes.push(`Color: ${old.color || "none"} -> ${color}`);
+        if (gb !== void 0 && String(gb ?? "") !== String(old.gb ?? "")) changes.push(`GB: ${old.gb || "none"} -> ${gb}`);
+        if (ram !== void 0 && String(ram ?? "") !== String(old.ram ?? "")) changes.push(`RAM: ${old.ram || "none"} -> ${ram}`);
+        if (condition !== void 0 && String(condition ?? "") !== String(old.condition ?? "")) changes.push(`Condition: ${old.condition || "none"} -> ${condition}`);
+        if (cost_price !== void 0 && Number(cost_price || 0) !== Number(old.cost_price || 0)) changes.push(`Cost: ${old.cost_price} -> ${cost_price}`);
+        if (selling_price !== void 0 && Number(selling_price || 0) !== Number(old.selling_price || 0)) changes.push(`Selling: ${old.selling_price} -> ${selling_price}`);
+        if (unlocked !== void 0 && String(unlocked ?? "") !== String(old.unlocked ?? "")) changes.push(`Unlocked: ${old.unlocked || "none"} -> ${unlocked}`);
+        if (imei_status !== void 0 && String(imei_status ?? "") !== String(old.imei_status ?? "")) changes.push(`IMEI Status: ${old.imei_status || "none"} -> ${imei_status}`);
+        if (carrier !== void 0 && String(carrier ?? "") !== String(old.carrier ?? "")) changes.push(`Carrier: ${old.carrier || "none"} -> ${carrier}`);
+        const userId = req.user?.id || req.userId || 1;
         if (changes.length > 0) {
           await execute(
             "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-            [req.params.id, req.userId, "Device Updated", changes.join(", ")]
+            [req.params.id, userId, "Device Updated", changes.join(", ")]
           );
           await execute(
             "INSERT INTO activity_logs (device_id, user_id, activity_type, description) VALUES (?, ?, ?, ?)",
-            [req.params.id, req.userId, "Device Updated", changes.join(", ")]
+            [req.params.id, userId, "Device Updated", changes.join(", ")]
           );
         }
         res.json({ success: true });
       } catch (e) {
+        console.error("[UpdateDevice] Error:", e);
         next(e);
       }
     });

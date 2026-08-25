@@ -468,7 +468,7 @@ function AppInner() {
               className="transition-all hover:scale-115 p-2 text-[var(--brand-primary)] flex items-center justify-center"
               title="Home Menu"
             >
-              <LayoutGrid size={24} />
+              <LayoutGrid size={26} />
             </button>
           </div>
           
@@ -477,8 +477,8 @@ function AppInner() {
             className="pl-2 flex flex-col items-start font-sans cursor-pointer hover:opacity-85 transition-opacity"
             title="Home Menu"
           >
-            <h1 className="text-[20px] font-bold text-[var(--brand-primary)] font-sans tracking-tight leading-none uppercase">
-              {currentUser?.branch_name || 'EPOS'}
+            <h1 className="text-[22px] font-bold text-[var(--brand-primary)] font-sans tracking-tight leading-none">
+              {currentUser?.business_name || currentUser?.branch_name || 'EPOS'}
             </h1>
           </button>
         </div>
@@ -500,7 +500,7 @@ function AppInner() {
             
             {showSuggestions && suggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-[var(--bg-card)] border border-[var(--border-base)] rounded-xl shadow-lg z-[9999] overflow-hidden py-1.5 max-h-60 overflow-y-auto">
-                <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-semibold">Suggested Invoices</div>
+                <div className="px-3 py-1 text-[11px] text-[var(--text-muted)] font-medium">Suggested Invoices</div>
                 {suggestions.map((inv) => (
                   <button
                     key={inv.id}
@@ -554,7 +554,7 @@ function AppInner() {
           {isAdmin && (
             <button 
               onClick={() => setShowAdminPortal(true)}
-              className="h-8 overflow-hidden group bg-transparent text-[var(--text-main)] px-3 rounded-full text-[11px] uppercase tracking-widest transition-all cursor-pointer"
+              className="h-8 overflow-hidden group bg-transparent text-[var(--text-main)] px-3 rounded-full text-xs font-medium transition-all cursor-pointer"
             >
               <div className="flex flex-col transition-transform duration-500 group-hover:-translate-y-8 ease-in-out">
                 <div className="h-8 flex items-center justify-center whitespace-nowrap">
@@ -572,7 +572,7 @@ function AppInner() {
               logout();
               navigate('/');
             }}
-            className="h-8 overflow-hidden group bg-[var(--bg-card)] text-[var(--text-main)] px-5 rounded-full text-[11px] uppercase tracking-widest transition-all border border-[var(--border-base)] shadow-sm cursor-pointer"
+            className="h-8 overflow-hidden group bg-[var(--bg-card)] text-[var(--text-main)] px-5 rounded-full text-xs font-medium transition-all border border-[var(--border-base)] shadow-sm cursor-pointer"
           >
             <div className="flex flex-col transition-transform duration-500 group-hover:-translate-y-8 ease-in-out">
               <div className="h-8 flex items-center justify-center whitespace-nowrap">
@@ -600,9 +600,9 @@ function AppInner() {
                     : 'border-transparent text-slate-200 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <item.icon size={25} strokeWidth={1.6} className="transition-transform duration-150 group-hover:scale-105" />
-                <span className={`text-[15px] mt-2 text-center select-none font-medium leading-tight transition-colors ${
-                  currentView === item.id ? 'text-white' : 'text-slate-200 group-hover:text-white'
+                <item.icon size={26} strokeWidth={1.5} className="transition-transform duration-150 group-hover:scale-105" />
+                <span className={`text-[15px] mt-2 text-center select-none font-normal leading-tight transition-colors ${
+                  currentView === item.id ? 'text-white font-normal' : 'text-slate-300 group-hover:text-white font-normal'
                 }`}>
                   {item.label}
                 </span>

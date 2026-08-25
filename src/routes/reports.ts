@@ -152,7 +152,21 @@ router.get('/eod-data', async (req: any, res, next) => {
     const branchId = req.user.branch_id;
 
     const invoicePayments = await query(`
-      SELECT p.*, u.name as user_name, i.invoice_number, i.status as invoice_status, c.name as customer_name
+      SELECT p.*, u.name as user_name, i.invoice_number, i.status as invoice_status, c.name as customer_name,
+        (
+          SELECT GROUP_CONCAT(
+            CONCAT(
+              IF(ii.quantity > 1, CONCAT(ii.quantity, 'x '), ''),
+              COALESCE(pr.name, ii.notes, 'Item'),
+              IF(d.imei IS NOT NULL AND d.imei != '', CONCAT(' (', d.imei, ')'), '')
+            ) SEPARATOR ', '
+          )
+          FROM invoice_items ii
+          LEFT JOIN product_skus s ON ii.sku_id = s.id
+          LEFT JOIN products pr ON s.product_id = pr.id
+          LEFT JOIN devices d ON ii.device_id = d.id
+          WHERE ii.invoice_id = i.id
+        ) as products_summary
       FROM payments p
       LEFT JOIN invoices i ON p.invoice_id=i.id
       LEFT JOIN users u ON i.user_id=u.id
@@ -163,7 +177,8 @@ router.get('/eod-data', async (req: any, res, next) => {
     `, (!isSuper && branchId) ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
 
     const otherMovements = await query(`
-      SELECT p.*, 'System' as user_name, c.name as customer_name 
+      SELECT p.*, 'System' as user_name, c.name as customer_name,
+        COALESCE(p.type, 'Customer Deposit') as products_summary
       FROM payments p
       LEFT JOIN customers c ON p.customer_id=c.id
       WHERE DATE(p.paid_at)=? AND p.invoice_id IS NULL AND (c.business_id=? OR c.business_id IS NULL)

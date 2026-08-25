@@ -154,7 +154,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
   return (
     <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-3 py-2 select-none w-full overflow-auto">
       {/* Header */}
-      <div className="p-3 flex justify-between items-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 sticky top-0 z-10 rounded-none shadow-none mb-2.5">
+      <div className="py-2 flex justify-between items-center sticky top-0 z-10 mb-2.5">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-bold text-black dark:text-white uppercase">View Invoice - {invoice.invoice_number}</h2>
           {invoice.status === 'void' && (
@@ -395,59 +395,59 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
         </div>
 
         {/* Activity Log */}
-        <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
-          <div className="bg-neutral-200 dark:bg-neutral-900 px-3 py-1.5 border-b border-neutral-300 dark:border-neutral-800 flex justify-between items-center">
-            <h3 className="text-xs font-bold text-black dark:text-white uppercase tracking-wider">Activity Log</h3>
-            <div className="flex gap-2">
-              <select className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 px-2 py-0.5 text-xs text-neutral-900 dark:text-neutral-100 focus:outline-none rounded-none">
+        <div className="bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850 rounded-none shadow-none overflow-hidden">
+          <div className="bg-neutral-100 dark:bg-neutral-900/60 px-3 py-1.5 border-b border-neutral-200 dark:border-neutral-850 flex justify-between items-center">
+            <h3 className="text-sm font-semibold text-black dark:text-white">Activity Log</h3>
+            <div className="flex gap-2 items-center">
+              <select className="bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 px-2 py-0.5 text-xs text-neutral-900 dark:text-neutral-100 outline-none rounded-none">
                 <option>All Activities</option>
               </select>
-              <button className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 px-2.5 py-0.5 text-xs font-bold text-black dark:text-white hover:bg-neutral-200 dark:hover:bg-neutral-900 rounded-none">
-                Add New Note
+              <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-0.5 px-3 text-xs rounded-md shadow-xs transition-all cursor-pointer font-sans active:scale-[0.98]">
+                + Add Note
               </button>
             </div>
           </div>
-          <table className="w-full text-left border-collapse text-base">
+          <table className="w-full text-left border-collapse text-[15px]">
             <thead>
-              <tr className="bg-neutral-100 dark:bg-neutral-950 border-b border-neutral-300 dark:border-neutral-800 text-sm font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
-                <th className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800 w-32">Date</th>
-                <th className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800 w-28">Time</th>
-                <th className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800 w-40">User</th>
-                <th className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800 w-48">Activity</th>
-                <th className="px-3 py-1.5">Details</th>
+              <tr className="bg-neutral-100 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-850 text-[15px] font-semibold text-black dark:text-white">
+                <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-28">Date</th>
+                <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-24">Time</th>
+                <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-36">User</th>
+                <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-44">Activity</th>
+                <th className="px-1.5 py-0.5">Details</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800 text-base">
+            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900 text-[15px]">
               {invoice.activities && invoice.activities.length > 0 ? (
                 invoice.activities.map((activity) => (
-                  <tr key={activity.id} className="border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100">
-                    <td className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800">{formatDate(activity.created_at)}</td>
-                    <td className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800">{formatTime(activity.created_at)}</td>
-                    <td className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800">{activity.user_name || 'System'}</td>
-                    <td className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-800">{activity.activity}</td>
-                    <td className="px-3 py-1.5">{activity.details}</td>
+                  <tr key={activity.id} className="border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black hover:bg-neutral-50/80 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100">
+                    <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400">{formatDate(activity.created_at)}</td>
+                    <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400">{formatTime(activity.created_at)}</td>
+                    <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400">{activity.user_name || 'System'}</td>
+                    <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850">{activity.activity}</td>
+                    <td className="px-1.5 py-0.5">{activity.details}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-3 py-4 text-center text-neutral-400 dark:text-neutral-500 italic text-base">
+                  <td colSpan={5} className="px-3 py-4 text-center text-neutral-400 dark:text-neutral-500 italic text-sm">
                     No activities recorded for this invoice.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
-          <div className="p-1.5 bg-white dark:bg-black border-t border-neutral-300 dark:border-neutral-800 flex justify-between items-center text-xs text-neutral-500 dark:text-neutral-400">
+          <div className="p-1.5 bg-white dark:bg-black border-t border-neutral-200 dark:border-neutral-850 flex justify-between items-center text-xs text-neutral-500 dark:text-neutral-400">
             <div className="flex items-center gap-2">
-              <select className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 px-1 py-0.5 focus:outline-none rounded-none">
+              <select className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-1 py-0.5 outline-none font-mono">
                 <option>auto</option>
               </select>
               <span className="font-bold">1-1/1</span>
             </div>
             <div className="flex items-center gap-1">
-              <button className="px-1.5 py-0.5 border border-neutral-300 dark:border-neutral-800 rounded-none hover:bg-neutral-200 dark:hover:bg-neutral-900">«</button>
-              <button className="px-2 py-0.5 bg-neutral-300 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none font-bold">1</button>
-              <button className="px-1.5 py-0.5 border border-neutral-300 dark:border-neutral-800 rounded-none hover:bg-neutral-200 dark:hover:bg-neutral-900">»</button>
+              <button className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 rounded-none bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-850 text-neutral-850 dark:text-neutral-200">«</button>
+              <button className="px-3 py-0.5 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black rounded-none font-normal">1</button>
+              <button className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 rounded-none bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-850 text-neutral-850 dark:text-neutral-200">»</button>
             </div>
           </div>
         </div>

@@ -14,8 +14,10 @@ export const pool = mysql.createPool({
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
   waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
+  connectionLimit: Number(process.env.DB_CONNECTION_LIMIT) || 15,
+  maxIdle: Number(process.env.DB_MAX_IDLE) || 10,
+  idleTimeout: Number(process.env.DB_IDLE_TIMEOUT) || 60000,
+  queueLimit: Number(process.env.DB_QUEUE_LIMIT) || 0,
   connectTimeout: 20000,
   decimalNumbers: true,
   timezone: 'Z',
@@ -43,9 +45,43 @@ export async function execute(sql: string, params?: any[]): Promise<mysql.Result
 
 // ─── Schema Initialisation ───────────────────────────────────────────────────
 
+export const CURRENT_SCHEMA_VERSION = '2026_08_OPTIMIZATION_V1';
+
+async function ensureIndex(conn: any, tableName: string, indexName: string, columns: string) {
+  try {
+    const [rows] = await conn.query(
+      `SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1`,
+      [tableName, indexName]
+    );
+    if ((rows as any[]).length === 0) {
+      await conn.query(`CREATE INDEX \`${indexName}\` ON \`${tableName}\` (${columns})`);
+      console.log(`[MySQL] Index applied: ${tableName}.${indexName}`);
+    }
+  } catch (e: any) {
+    // Non-fatal if table doesn't exist yet or index already exists
+  }
+}
+
 export async function initSchema() {
   const conn = await pool.getConnection();
   try {
+    // Fast path: Check if schema is already up-to-date to avoid 65+ DDL queries on every server start
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS _schema_meta (
+        key_name VARCHAR(100) PRIMARY KEY,
+        value VARCHAR(255) NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+
+    const [metaRows] = await conn.query(`SELECT value FROM _schema_meta WHERE key_name = 'schema_version' LIMIT 1`);
+    const currentVersion = (metaRows as any[])[0]?.value;
+
+    if (currentVersion === CURRENT_SCHEMA_VERSION) {
+      console.log('[MySQL] Schema is cached and up-to-date. Skipping redundant DDL checks.');
+      return;
+    }
+
     // Disable FK checks during setup
     await conn.query('SET FOREIGN_KEY_CHECKS = 0');
 
@@ -897,7 +933,34 @@ export async function initSchema() {
       console.warn('[MySQL] Customer name cleanup migration warning:', e.message);
     }
 
-    console.log('[MySQL] Schema initialised successfully');
+    // Ensure all performance composite indexes exist
+    await ensureIndex(conn, 'invoices', 'idx_invoices_biz_branch_date', 'business_id, branch_id, created_at');
+    await ensureIndex(conn, 'invoices', 'idx_invoices_number', 'invoice_number');
+    await ensureIndex(conn, 'invoices', 'idx_invoices_biz_date', 'business_id, created_at');
+    await ensureIndex(conn, 'jobs', 'idx_jobs_biz_branch_status', 'business_id, branch_id, status');
+    await ensureIndex(conn, 'jobs', 'idx_jobs_biz_date', 'business_id, created_at');
+    await ensureIndex(conn, 'jobs', 'idx_jobs_customer', 'customer_id');
+    await ensureIndex(conn, 'products', 'idx_products_biz_del_date', 'business_id, deleted_at, created_at');
+    await ensureIndex(conn, 'products', 'idx_products_biz_name', 'business_id, name');
+    await ensureIndex(conn, 'product_skus', 'idx_skus_barcode', 'barcode');
+    await ensureIndex(conn, 'product_skus', 'idx_skus_prod_sku', 'product_id, sku_code');
+    await ensureIndex(conn, 'devices', 'idx_devices_biz_branch_status', 'business_id, branch_id, status');
+    await ensureIndex(conn, 'devices', 'idx_devices_sku_status', 'sku_id, status, business_id');
+    await ensureIndex(conn, 'customers', 'idx_customers_biz_branch_del', 'business_id, branch_id, deleted_at');
+    await ensureIndex(conn, 'customers', 'idx_customers_biz_phone', 'business_id, phone');
+    await ensureIndex(conn, 'payments', 'idx_payments_invoice_paid', 'invoice_id, paid_at');
+    await ensureIndex(conn, 'payments', 'idx_payments_customer_paid', 'customer_id, paid_at');
+    await ensureIndex(conn, 'closing_reports', 'idx_closing_biz_branch_date', 'business_id, branch_id, report_date');
+    await ensureIndex(conn, 'inventory_movements', 'idx_inv_mov_biz_branch_type_date', 'business_id, branch_id, movement_type, created_at');
+
+    // Update cached schema version
+    await conn.query(
+      `INSERT INTO _schema_meta (key_name, value) VALUES ('schema_version', ?) 
+       ON DUPLICATE KEY UPDATE value = ?`,
+      [CURRENT_SCHEMA_VERSION, CURRENT_SCHEMA_VERSION]
+    );
+
+    console.log('[MySQL] Schema initialised and cached successfully');
   } finally {
     conn.release();
   }

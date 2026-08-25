@@ -188,324 +188,337 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
   };
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full overflow-auto" style={{ fontSize: '17px' }}>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 py-2 select-none w-full overflow-auto" style={{ fontSize: '15px' }}>
       {/* Header bar */}
-      <div className="flex justify-between items-center px-4 py-1.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 shrink-0 mb-2 rounded-none shadow-none">
-        <h2 className="text-xl font-bold text-black dark:text-white uppercase">Create a New Product</h2>
+      <div className="sticky top-0 z-40 bg-white dark:bg-black border-b border-neutral-300 dark:border-neutral-800 shrink-0 flex justify-between items-center px-4 py-3 mb-2">
+        <h2 className="text-xl font-medium text-black dark:text-white">Create Product</h2>
         <button 
           onClick={onCancel}
-          className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-3 rounded-none text-base flex items-center gap-2 transition-all shadow-none"
+          className="bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
         >
-          <List size={16} />
-          List Products
+          <List size={15} />
+          <span>Back to Products</span>
         </button>
       </div>
 
-      <form onSubmit={handleSave} className="space-y-4">
+      <form onSubmit={handleSave} className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 p-4 space-y-4 rounded-none">
         {/* Basic Information */}
-        <section className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
-          <div className="px-4 py-1.5 bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800">
-            <h3 className="text-base font-bold text-black dark:text-white uppercase">Basic Information</h3>
+        <div className="space-y-3">
+          <div className="pb-1 border-b border-neutral-200 dark:border-neutral-800">
+            <h3 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-widest">Basic Information</h3>
           </div>
-          <div className="p-4 space-y-4">
+          
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider block">
+              Product Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              ref={nameInputRef}
+              type="text"
+              placeholder="e.g., iPhone 15 Screen Replacement, Charging Cable, Labor Fee"
+              className="w-full px-2.5 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-xs text-neutral-900 dark:text-neutral-100 font-mono outline-none focus:border-neutral-500"
+              value={formData.name}
+              onChange={e => setFormData({ ...formData, name: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider block">Product Name *</label>
-              <input
-                ref={nameInputRef}
-                type="text"
-                placeholder="e.g., Replace charging port, includes parts and labor"
-                className="w-full p-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-base focus:outline-none text-neutral-900 dark:text-neutral-100 font-normal"
-                value={formData.name}
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider block">Manufacturer / Brand</label>
-                <div className="flex gap-2">
-                  <select
-                    className="flex-1 p-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-base focus:outline-none text-neutral-900 dark:text-neutral-100 font-normal"
-                    value={formData.manufacturer_id}
-                    onChange={e => setFormData({ ...formData, manufacturer_id: e.target.value })}
-                  >
-                    <option value="">Select Manufacturer</option>
-                    {manufacturers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
-                  <button 
-                    type="button" 
-                    onClick={() => setShowNewManufacturerModal(true)}
-                    className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 p-2 rounded-none transition-colors"
-                    title="Add New Manufacturer"
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
-              </div>
-              
-              <div className="space-y-1">
-                <label className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider block">Category <span className="text-red-500">*</span></label>
-                <div className="flex gap-2">
-                  <select
-                    required
-                    className="flex-1 p-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-base focus:outline-none text-neutral-900 dark:text-neutral-100 font-normal"
-                    value={formData.category_id}
-                    onChange={e => setFormData({ ...formData, category_id: e.target.value })}
-                  >
-                    <option value="">Select Category *</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  <button 
-                    type="button" 
-                    onClick={() => setShowNewCategoryModal(true)}
-                    className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 p-2 rounded-none transition-colors"
-                    title="Add New Category"
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
+              <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider block">
+                Category <span className="text-red-500">*</span>
+              </label>
+              <div className="flex gap-1.5">
+                <select
+                  required
+                  className="flex-1 px-2.5 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-xs text-neutral-900 dark:text-neutral-100 font-mono outline-none focus:border-neutral-500 cursor-pointer h-7 font-bold"
+                  value={formData.category_id}
+                  onChange={e => setFormData({ ...formData, category_id: e.target.value })}
+                >
+                  <option value="">Select Category *</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <button 
+                  type="button" 
+                  onClick={() => setShowNewCategoryModal(true)}
+                  className="px-2.5 py-1 bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-800 rounded-none text-xs transition-colors cursor-pointer"
+                  title="Add New Category"
+                >
+                  <Plus size={14} />
+                </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider block">Selling Price</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  className="w-full p-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-base focus:outline-none text-neutral-900 dark:text-neutral-100 font-normal"
-                  value={formData.selling_price}
-                  onChange={e => setFormData({ ...formData, selling_price: e.target.value })}
-                />
-                <p className="text-xs text-neutral-500">The price the customer pays</p>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider block">SKU / Barcode</label>
-                <input
-                  type="text"
-                  placeholder="e.g., ZG001AQA"
-                  className="w-full p-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-base focus:outline-none text-neutral-900 dark:text-neutral-100 font-normal"
-                  value={formData.sku_code}
-                  onChange={e => setFormData({ ...formData, sku_code: e.target.value })}
-                />
-                <p className="text-xs text-neutral-500">Unique product identifier (Optional)</p>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider block">
+                Manufacturer / Brand
+              </label>
+              <div className="flex gap-1.5">
+                <select
+                  className="flex-1 px-2.5 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-xs text-neutral-900 dark:text-neutral-100 font-mono outline-none focus:border-neutral-500 cursor-pointer h-7"
+                  value={formData.manufacturer_id}
+                  onChange={e => setFormData({ ...formData, manufacturer_id: e.target.value })}
+                >
+                  <option value="">Select Manufacturer (Optional)</option>
+                  {manufacturers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+                <button 
+                  type="button" 
+                  onClick={() => setShowNewManufacturerModal(true)}
+                  className="px-2.5 py-1 bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-800 rounded-none text-xs transition-colors cursor-pointer"
+                  title="Add New Manufacturer"
+                >
+                  <Plus size={14} />
+                </button>
               </div>
             </div>
           </div>
-        </section>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider block">Selling Price (€)</label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                className="w-full px-2.5 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-xs font-mono text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-500"
+                value={formData.selling_price}
+                onChange={e => setFormData({ ...formData, selling_price: e.target.value })}
+              />
+              <p className="text-[10px] text-neutral-500">Retail price charged to customer at checkout</p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider block">SKU / Barcode</label>
+              <input
+                type="text"
+                placeholder="e.g., SKU-104928"
+                className="w-full px-2.5 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-xs font-mono text-neutral-900 dark:text-neutral-100 outline-none focus:border-neutral-500"
+                value={formData.sku_code}
+                onChange={e => setFormData({ ...formData, sku_code: e.target.value })}
+              />
+              <p className="text-[10px] text-neutral-500">Unique barcode or internal SKU code</p>
+            </div>
+          </div>
+        </div>
 
         {/* Inventory & Tracking */}
-        <section className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
-          <div className="px-4 py-1.5 bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800">
-            <h3 className="text-base font-bold text-black dark:text-white uppercase">Inventory & Tracking</h3>
+        <div className="space-y-3 pt-2">
+          <div className="pb-1 border-b border-neutral-200 dark:border-neutral-800">
+            <h3 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-widest">Inventory & Tracking</h3>
           </div>
-          <div className="p-4 space-y-4">
-            <p className="text-base font-normal text-neutral-600 dark:text-neutral-400">Select how stock will be tracked for this item:</p>
-            
-            <div className="grid grid-cols-1 gap-3">
-              {/* Track Stock */}
-              <div 
-                className={`p-3 border rounded-none cursor-pointer transition-colors ${formData.tracking_type === 'stock' ? 'bg-neutral-100 dark:bg-neutral-900 border-neutral-500 dark:border-neutral-600' : 'border-neutral-350 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-950'}`}
-                onClick={() => setFormData({ ...formData, tracking_type: 'stock' })}
-              >
-                <div className="flex items-start gap-3">
-                  <input
-                    type="radio"
-                    name="tracking_type"
-                    className="mt-1"
-                    checked={formData.tracking_type === 'stock'}
-                    readOnly
-                  />
-                  <div className="flex-1">
-                    <p className="text-base font-bold text-neutral-900 dark:text-neutral-100">Track Stock</p>
-                    <p className="text-sm text-neutral-500">For physical goods (parts, cases, cables) where quantity levels must be exact.</p>
-                    
-                    {formData.tracking_type === 'stock' && (
-                      <div className="mt-2.5 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          id="has_serial"
-                          className="w-4 h-4 rounded-none accent-black dark:accent-white"
-                          checked={formData.has_serial}
-                          onChange={e => setFormData({ ...formData, has_serial: e.target.checked })}
-                        />
-                        <label htmlFor="has_serial" className="text-sm font-normal text-neutral-700 dark:text-neutral-300">
-                          This item has a Serial Number / IMEI / Unique ID on each piece
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {/* Track Stock */}
+            <div 
+              className={`p-2.5 border rounded-none transition-all cursor-pointer ${
+                formData.tracking_type === 'stock' 
+                  ? 'bg-neutral-100 dark:bg-neutral-900 border-neutral-500 dark:border-neutral-400' 
+                  : 'border-neutral-300 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-950'
+              }`}
+              onClick={() => setFormData({ ...formData, tracking_type: 'stock' })}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <input
+                  type="radio"
+                  name="tracking_type"
+                  checked={formData.tracking_type === 'stock'}
+                  readOnly
+                />
+                <span className="text-xs font-bold text-neutral-900 dark:text-white">Track Stock</span>
               </div>
+              <p className="text-[11px] text-neutral-500 pl-5">For physical parts, cases, cables with exact quantity.</p>
+            </div>
 
-              {/* Labor */}
-              <div 
-                className={`p-3 border rounded-none cursor-pointer transition-colors ${formData.tracking_type === 'non-inventory' ? 'bg-neutral-100 dark:bg-neutral-900 border-neutral-500 dark:border-neutral-600' : 'border-neutral-350 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-955'}`}
-                onClick={() => setFormData({ ...formData, tracking_type: 'non-inventory' })}
-              >
-                <div className="flex items-start gap-3">
-                  <input
-                    type="radio"
-                    name="tracking_type"
-                    className="mt-1"
-                    checked={formData.tracking_type === 'non-inventory'}
-                    readOnly
-                  />
-                  <div>
-                    <p className="text-base font-bold text-neutral-900 dark:text-neutral-100">Labor, Fees & Non-Inventory</p>
-                    <p className="text-sm text-neutral-500">For labor charges, diagnostics, fees, and items where quantities are not tracked.</p>
-                  </div>
-                </div>
+            {/* Labor / Services */}
+            <div 
+              className={`p-2.5 border rounded-none transition-all cursor-pointer ${
+                formData.tracking_type === 'non-inventory' 
+                  ? 'bg-neutral-100 dark:bg-neutral-900 border-neutral-500 dark:border-neutral-400' 
+                  : 'border-neutral-300 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-950'
+              }`}
+              onClick={() => setFormData({ ...formData, tracking_type: 'non-inventory' })}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <input
+                  type="radio"
+                  name="tracking_type"
+                  checked={formData.tracking_type === 'non-inventory'}
+                  readOnly
+                />
+                <span className="text-xs font-bold text-neutral-900 dark:text-white">Labor & Fees</span>
               </div>
+              <p className="text-[11px] text-neutral-500 pl-5">For diagnostics, repairs, service fees without stock count.</p>
+            </div>
 
-              {/* Bundles */}
-              <div 
-                className={`p-3 border rounded-none cursor-pointer transition-colors ${formData.tracking_type === 'bundle' ? 'bg-neutral-100 dark:bg-neutral-900 border-neutral-500 dark:border-neutral-600' : 'border-neutral-350 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-955'}`}
-                onClick={() => setFormData({ ...formData, tracking_type: 'bundle' })}
-              >
-                <div className="flex items-start gap-3">
-                  <input
-                    type="radio"
-                    name="tracking_type"
-                    className="mt-1"
-                    checked={formData.tracking_type === 'bundle'}
-                    readOnly
-                  />
-                  <div>
-                    <p className="text-base font-bold text-neutral-900 dark:text-neutral-100">Bundles</p>
-                    <p className="text-sm text-neutral-500">Group multiple existing products or services to sell as a package.</p>
-                  </div>
-                </div>
+            {/* Bundles */}
+            <div 
+              className={`p-2.5 border rounded-none transition-all cursor-pointer ${
+                formData.tracking_type === 'bundle' 
+                  ? 'bg-neutral-100 dark:bg-neutral-900 border-neutral-500 dark:border-neutral-400' 
+                  : 'border-neutral-300 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-950'
+              }`}
+              onClick={() => setFormData({ ...formData, tracking_type: 'bundle' })}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <input
+                  type="radio"
+                  name="tracking_type"
+                  checked={formData.tracking_type === 'bundle'}
+                  readOnly
+                />
+                <span className="text-xs font-bold text-neutral-900 dark:text-white">Product Bundle</span>
               </div>
+              <p className="text-[11px] text-neutral-500 pl-5">Group multiple products or services together.</p>
             </div>
           </div>
-        </section>
 
-        {/* Product Details */}
-        <section className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
-          <div className="px-4 py-1.5 bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800">
-            <h3 className="text-base font-bold text-black dark:text-white uppercase">Product Details</h3>
+          {formData.tracking_type === 'stock' && (
+            <div className="p-2 bg-neutral-50 dark:bg-neutral-900/50 border border-neutral-300 dark:border-neutral-800 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="has_serial"
+                className="w-3.5 h-3.5 rounded-none cursor-pointer"
+                checked={formData.has_serial}
+                onChange={e => setFormData({ ...formData, has_serial: e.target.checked })}
+              />
+              <label htmlFor="has_serial" className="text-xs font-normal text-neutral-800 dark:text-neutral-200 cursor-pointer">
+                This item has a Serial Number / IMEI tracked on each piece (e.g. phones, tablets)
+              </label>
+            </div>
+          )}
+        </div>
+
+        {/* Product Details & Policies */}
+        <div className="space-y-3 pt-2">
+          <div className="pb-1 border-b border-neutral-200 dark:border-neutral-800">
+            <h3 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-widest">Product Details & Rules</h3>
           </div>
-          <div className="p-4 space-y-4">
-            <div className="flex items-start gap-2">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="flex items-start gap-2 p-2 border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer transition-colors">
               <input
                 type="checkbox"
                 id="is_taxable"
-                className="mt-1 w-4 h-4 rounded-none accent-black dark:accent-white"
+                className="mt-0.5 w-3.5 h-3.5 rounded-none cursor-pointer"
                 checked={formData.is_taxable}
                 onChange={e => setFormData({ ...formData, is_taxable: e.target.checked })}
               />
               <div>
-                <label htmlFor="is_taxable" className="text-base font-bold text-neutral-900 dark:text-neutral-100">Taxable</label>
-                <p className="text-xs text-neutral-500">Apply standard store tax rate at checkout</p>
+                <span className="text-xs font-bold text-neutral-900 dark:text-white block">Taxable Item</span>
+                <span className="text-[10px] text-neutral-500">Apply standard VAT rate on POS checkout</span>
               </div>
-            </div>
+            </label>
 
-            <div className="flex items-start gap-2">
+            <label className="flex items-start gap-2 p-2 border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer transition-colors">
               <input
                 type="checkbox"
                 id="require_note"
-                className="mt-1 w-4 h-4 rounded-none accent-black dark:accent-white"
+                className="mt-0.5 w-3.5 h-3.5 rounded-none cursor-pointer"
                 checked={formData.require_note}
                 onChange={e => setFormData({ ...formData, require_note: e.target.checked })}
               />
               <div>
-                <label htmlFor="require_note" className="text-base font-bold text-neutral-900 dark:text-neutral-100">Require Reference Note to Sell</label>
-                <p className="text-xs text-neutral-500">Force employee to enter a specific reference note/imei at checkout</p>
+                <span className="text-xs font-bold text-neutral-900 dark:text-white block">Require Reference Note</span>
+                <span className="text-[10px] text-neutral-500">Prompt cashier for reference details when selling</span>
               </div>
-            </div>
+            </label>
+          </div>
 
-            {formData.tracking_type === 'stock' && (
-              <div className="border-t border-neutral-200 dark:border-neutral-800 pt-3 space-y-3">
-                <div className="space-y-1">
-                  <label className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider block">Minimum Stock Level</label>
-                  <input
-                    type="number"
-                    className="w-48 p-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-base focus:outline-none text-neutral-900 dark:text-neutral-100 font-normal"
-                    value={formData.min_stock_level}
-                    onChange={e => setFormData({ ...formData, min_stock_level: e.target.value })}
-                  />
-                  <p className="text-xs text-neutral-500">Low stock alert trigger quantity</p>
-                </div>
+          {formData.tracking_type === 'stock' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider block">Minimum Stock Level</label>
+                <input
+                  type="number"
+                  className="w-full px-2.5 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-xs font-mono text-neutral-900 dark:text-white outline-none focus:border-neutral-500"
+                  value={formData.min_stock_level}
+                  onChange={e => setFormData({ ...formData, min_stock_level: e.target.value })}
+                />
+                <p className="text-[10px] text-neutral-500">Trigger low inventory alert below this quantity</p>
+              </div>
 
-                <div className="flex items-start gap-2">
+              <div className="flex items-center pt-4">
+                <label className="flex items-start gap-2 p-2 w-full border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer transition-colors">
                   <input
                     type="checkbox"
                     id="allow_overselling"
-                    className="mt-1 w-4 h-4 rounded-none accent-black dark:accent-white"
+                    className="mt-0.5 w-3.5 h-3.5 rounded-none cursor-pointer"
                     checked={formData.allow_overselling}
                     onChange={e => setFormData({ ...formData, allow_overselling: e.target.checked })}
                   />
                   <div>
-                    <label htmlFor="allow_overselling" className="text-base font-bold text-neutral-900 dark:text-neutral-100">Allow Overselling</label>
-                    <p className="text-xs text-neutral-500">Allow sale of this product when quantity on hand is 0</p>
+                    <span className="text-xs font-bold text-neutral-900 dark:text-white block">Allow Overselling</span>
+                    <span className="text-[10px] text-neutral-500">Allow item to be sold even when on-hand stock is 0</span>
                   </div>
-                </div>
+                </label>
               </div>
-            )}
-          </div>
-        </section>
+            </div>
+          )}
+        </div>
 
-        {/* Additional Details */}
-        <section className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
+        {/* Additional Details (Collapsible) */}
+        <div className="pt-2">
           <button
             type="button"
-            className="w-full px-4 py-2.5 bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 flex items-center justify-between text-left"
+            className="w-full flex items-center justify-between py-1.5 px-2 bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 text-left cursor-pointer"
             onClick={() => setIsAdditionalDetailsOpen(!isAdditionalDetailsOpen)}
           >
-            <h3 className="text-base font-bold text-black dark:text-white uppercase">Additional Details</h3>
-            {isAdditionalDetailsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-widest">
+              [+] Additional Details & Notes
+            </span>
+            <span className="text-neutral-500">
+              {isAdditionalDetailsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </span>
           </button>
           
           {isAdditionalDetailsOpen && (
-            <div className="p-4 space-y-4">
+            <div className="space-y-3 pt-3 p-2 border-x border-b border-neutral-300 dark:border-neutral-800">
               <div className="space-y-1">
-                <label className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider block">Minimum Sales Price</label>
+                <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider block">Minimum Sales Price (€)</label>
                 <input
                   type="number"
                   step="0.01"
                   placeholder="0.00"
-                  className="w-64 p-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-base focus:outline-none text-neutral-900 dark:text-neutral-100 font-normal"
+                  className="w-full sm:w-60 px-2.5 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-xs font-mono text-neutral-900 dark:text-white outline-none focus:border-neutral-500"
                   value={formData.min_sales_price}
                   onChange={e => setFormData({ ...formData, min_sales_price: e.target.value })}
                 />
-                <p className="text-xs text-neutral-500">Prevents sale below this price without override permission</p>
+                <p className="text-[10px] text-neutral-500">Prevents selling below this price without manager override</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider block">Additional Description</label>
+                  <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider block">Receipt Description</label>
                   <textarea
-                    rows={3}
-                    className="w-full p-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-base focus:outline-none text-neutral-900 dark:text-neutral-100 font-normal"
+                    rows={2}
+                    placeholder="Extra notes to print under item name on receipt..."
+                    className="w-full px-2.5 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-xs text-neutral-900 dark:text-white outline-none focus:border-neutral-500 resize-none font-mono"
                     value={formData.additional_description}
                     onChange={e => setFormData({ ...formData, additional_description: e.target.value })}
                   />
-                  <p className="text-xs text-neutral-500">Product description printed on receipt</p>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider block">Alert Message</label>
+                  <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider block">Cart Alert / Upsell Reminder</label>
                   <textarea
-                    rows={3}
-                    className="w-full p-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-base focus:outline-none text-neutral-900 dark:text-neutral-100 font-normal"
+                    rows={2}
+                    placeholder="e.g., Offer tempered glass screen protector..."
+                    className="w-full px-2.5 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-xs text-neutral-900 dark:text-white outline-none focus:border-neutral-500 resize-none font-mono"
                     value={formData.alert_message}
                     onChange={e => setFormData({ ...formData, alert_message: e.target.value })}
                   />
-                  <p className="text-xs text-neutral-500">Upsell reminder or warning alert popup when added to cart</p>
                 </div>
               </div>
             </div>
           )}
-        </section>
+        </div>
 
-        {/* Footer Buttons */}
-        <div className="flex justify-end items-center gap-3 pt-2 pb-8">
+        {/* Action Buttons */}
+        <div className="flex flex-wrap justify-end items-center gap-2 pt-3 border-t border-neutral-300 dark:border-neutral-800">
           <button
             type="button"
             onClick={onCancel}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1.5 px-4 rounded-none text-base transition-colors"
+            className="px-3.5 py-1.5 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 rounded-md font-medium text-xs cursor-pointer font-sans shadow-xs transition-all active:scale-[0.98]"
           >
             Cancel
           </button>
@@ -513,14 +526,14 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
             type="button"
             onClick={handleSaveAndAddAnother}
             disabled={isSaving}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1.5 px-4 rounded-none text-base transition-colors"
+            className="px-3.5 py-1.5 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-900 dark:text-white border border-neutral-300 dark:border-neutral-700 rounded-md font-medium text-xs cursor-pointer font-sans shadow-xs transition-all active:scale-[0.98] disabled:opacity-40"
           >
             {isSaving ? 'Saving...' : 'Save & Add Another'}
           </button>
           <button
             type="submit"
             disabled={isSaving}
-            className="bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold py-1.5 px-6 rounded-none text-base transition-colors"
+            className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md text-xs flex items-center gap-1.5 cursor-pointer font-sans shadow-xs hover:shadow transition-all active:scale-[0.98] disabled:opacity-40"
           >
             {isSaving ? 'Saving...' : 'Save Product'}
           </button>
@@ -530,18 +543,28 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
       {/* Quick Add Modals */}
       {(showNewCategoryModal || showNewManufacturerModal) && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none w-full max-w-md overflow-hidden font-mono text-base" style={{ fontSize: '17px' }}>
-            <div className="px-4 py-2 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900">
-              <h3 className="text-base font-bold text-black dark:text-white uppercase">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-md shadow-lg w-full max-w-md overflow-hidden font-mono text-sm" style={{ fontSize: '15px' }}>
+            <div className="px-4 py-2 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900 flex justify-between items-center">
+              <h3 className="text-xs font-bold text-black dark:text-white uppercase tracking-wider">
                 {showNewCategoryModal ? 'Add New Category' : 'Add New Manufacturer'}
               </h3>
+              <button 
+                onClick={() => {
+                  setShowNewCategoryModal(false);
+                  setShowNewManufacturerModal(false);
+                  setNewItemName('');
+                }}
+                className="text-neutral-500 hover:text-black dark:hover:text-white text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-3">
               <div className="space-y-1">
-                <label className="text-[13px] font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider block">Name</label>
+                <label className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider block">Name</label>
                 <input
                   type="text"
-                  className="w-full p-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-base focus:outline-none text-neutral-900 dark:text-neutral-100 font-normal"
+                  className="w-full px-2.5 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-xs text-neutral-900 dark:text-white focus:border-neutral-500 font-mono outline-none"
                   placeholder="Enter name..."
                   value={newItemName}
                   onChange={(e) => setNewItemName(e.target.value)}
@@ -549,20 +572,20 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
                 />
               </div>
             </div>
-            <div className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-950 border-t border-neutral-300 dark:border-neutral-800 flex justify-end gap-3">
+            <div className="px-4 py-2 bg-neutral-100 dark:bg-neutral-950 border-t border-neutral-300 dark:border-neutral-800 flex justify-end gap-2 font-sans">
               <button
                 onClick={() => {
                   setShowNewCategoryModal(false);
                   setShowNewManufacturerModal(false);
                   setNewItemName('');
                 }}
-                className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-3 rounded-none text-base transition-colors"
+                className="px-3 py-1 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 rounded-md text-xs font-medium cursor-pointer shadow-xs transition-all active:scale-[0.98]"
               >
                 Cancel
               </button>
               <button
                 onClick={showNewCategoryModal ? handleQuickAddCategory : handleQuickAddManufacturer}
-                className="bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold py-1 px-4 rounded-none text-base transition-colors"
+                className="px-3.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md text-xs cursor-pointer shadow-xs transition-all active:scale-[0.98]"
               >
                 Add Now
               </button>
