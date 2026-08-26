@@ -657,6 +657,8 @@ async function initSchema() {
         status VARCHAR(50) DEFAULT 'pending',
         initiated_by INT,
         notes TEXT,
+        product_name VARCHAR(255) NULL,
+        sku_code VARCHAR(255) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP NULL,
         FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
@@ -1027,7 +1029,7 @@ var init_mysql = __esm({
       keepAliveInitialDelay: 1e4,
       charset: "utf8mb4_unicode_ci"
     });
-    CURRENT_SCHEMA_VERSION = "2026_08_OPTIMIZATION_V1";
+    CURRENT_SCHEMA_VERSION = "2026_08_OPTIMIZATION_V3";
   }
 });
 
@@ -5324,23 +5326,53 @@ var init_inventory = __esm({
             );
           }
         }
-        const [tr] = await conn.execute(
-          `INSERT INTO device_transfers 
-       (business_id, from_branch_id, to_branch_id, device_id, sku_id, quantity, status, initiated_by, notes, product_name, sku_code) 
-       VALUES (?, ?, ?, ?, ?, ?, 'in_transit', ?, ?, ?, ?)`,
-          [
-            sourceBusinessId,
-            sourceBranchId,
-            to_branch_id,
-            finalDeviceId || null,
-            finalSkuId || null,
-            quantity,
-            req.userId,
-            notes || null,
-            cleanProductName || product_name || null,
-            cleanSkuCode || sku_code || null
-          ]
-        );
+        let tr;
+        try {
+          [tr] = await conn.execute(
+            `INSERT INTO device_transfers 
+         (business_id, from_branch_id, to_branch_id, device_id, sku_id, quantity, status, initiated_by, notes, product_name, sku_code) 
+         VALUES (?, ?, ?, ?, ?, ?, 'in_transit', ?, ?, ?, ?)`,
+            [
+              sourceBusinessId,
+              sourceBranchId,
+              to_branch_id,
+              finalDeviceId || null,
+              finalSkuId || null,
+              quantity,
+              req.userId,
+              notes || null,
+              cleanProductName || product_name || null,
+              cleanSkuCode || sku_code || null
+            ]
+          );
+        } catch (insertErr) {
+          if (insertErr.message?.includes("Unknown column")) {
+            try {
+              await conn.query("ALTER TABLE device_transfers ADD COLUMN product_name VARCHAR(255) NULL AFTER notes");
+              await conn.query("ALTER TABLE device_transfers ADD COLUMN sku_code VARCHAR(255) NULL AFTER product_name");
+            } catch (mErr) {
+            }
+            [tr] = await conn.execute(
+              `INSERT INTO device_transfers 
+           (business_id, from_branch_id, to_branch_id, device_id, sku_id, quantity, status, initiated_by, notes, product_name, sku_code) 
+           VALUES (?, ?, ?, ?, ?, ?, 'in_transit', ?, ?, ?, ?)`,
+              [
+                sourceBusinessId,
+                sourceBranchId,
+                to_branch_id,
+                finalDeviceId || null,
+                finalSkuId || null,
+                quantity,
+                req.userId,
+                notes || null,
+                cleanProductName || product_name || null,
+                cleanSkuCode || sku_code || null
+              ]
+            );
+          } else {
+            throw insertErr;
+          }
+        }
         if (finalSkuId) {
           await conn.execute(
             `INSERT INTO inventory_movements 
@@ -5389,6 +5421,39 @@ var init_inventory = __esm({
         const params = isSuper ? [] : [req.user.business_id, req.user.business_id];
         res.json(await query(sql, params));
       } catch (e) {
+        if (e.message?.includes("Unknown column")) {
+          try {
+            const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
+            const fallbackSql = `
+          SELECT t.*,
+                 fb.name as from_branch_name, fb.business_id as from_business_id,
+                 fbz.name as from_business_name,
+                 tb.name as to_branch_name, tb.business_id as to_business_id,
+                 tbz.name as to_business_name,
+                 d.imei, d.imei_serial, d.color, d.gb, d.\`condition\`, d.cost_price, d.selling_price,
+                 COALESCE(p.name, 'Stock Item') as product_name,
+                 COALESCE(s.sku_code, '') as sku_code,
+                 u.name as initiated_by_name
+          FROM device_transfers t
+          LEFT JOIN branches fb ON t.from_branch_id=fb.id
+          LEFT JOIN businesses fbz ON fb.business_id=fbz.id
+          LEFT JOIN branches tb ON t.to_branch_id=tb.id
+          LEFT JOIN businesses tbz ON tb.business_id=tbz.id
+          LEFT JOIN devices d ON t.device_id=d.id
+          LEFT JOIN product_skus s ON COALESCE(d.sku_id, t.sku_id)=s.id
+          LEFT JOIN products p ON s.product_id=p.id
+          LEFT JOIN users u ON t.initiated_by=u.id
+          WHERE (
+            ${isSuper ? "1=1" : "(fb.business_id = ? OR tb.business_id = ?)"}
+          )
+          ORDER BY t.created_at DESC
+        `;
+            const params = isSuper ? [] : [req.user.business_id, req.user.business_id];
+            return res.json(await query(fallbackSql, params));
+          } catch (err) {
+            return next(err);
+          }
+        }
         next(e);
       }
     });

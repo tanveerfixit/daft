@@ -45,7 +45,7 @@ export async function execute(sql: string, params?: any[]): Promise<mysql.Result
 
 // ─── Schema Initialisation ───────────────────────────────────────────────────
 
-export const CURRENT_SCHEMA_VERSION = '2026_08_OPTIMIZATION_V1';
+export const CURRENT_SCHEMA_VERSION = '2026_08_OPTIMIZATION_V3';
 
 async function ensureIndex(conn: any, tableName: string, indexName: string, columns: string) {
   try {
@@ -710,6 +710,8 @@ export async function initSchema() {
         status VARCHAR(50) DEFAULT 'pending',
         initiated_by INT,
         notes TEXT,
+        product_name VARCHAR(255) NULL,
+        sku_code VARCHAR(255) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP NULL,
         FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
