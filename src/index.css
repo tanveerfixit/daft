@@ -211,8 +211,8 @@ body {
   background-color: var(--text-muted);
 }
 
-input:focus {
-  @apply ring-4 ring-blue-500/10 border-blue-500/50 outline-none;
+input:focus-visible {
+  outline: none;
 }
 
 /* Custom Animations */

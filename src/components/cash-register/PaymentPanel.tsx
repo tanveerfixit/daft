@@ -1,5 +1,4 @@
 import React from 'react';
-import { CreditCard, Plus, Trash2, Banknote, Wallet } from 'lucide-react';
 import { PaymentEntry } from './types';
 
 interface PaymentPanelProps {
@@ -8,7 +7,7 @@ interface PaymentPanelProps {
   setPaymentMethod: (method: string) => void;
   paymentAmount: string;
   setPaymentAmount: (amount: string) => void;
-  onAddPayment: () => void;
+  onAddPayment: (method?: string, amount?: number) => void;
   onRemovePayment: (index: number) => void;
   remainingAmount: number;
   customerBalance?: number;
@@ -25,130 +24,88 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
   onRemovePayment,
   remainingAmount,
   customerBalance = 0,
-  availableMethods = ['Cash', 'Card']
+  availableMethods = ['Cash', 'Card', 'Other']
 }) => {
-  const paymentMethods = [...availableMethods];
-  if (customerBalance > 0 && !paymentMethods.includes('Wallet')) {
-    paymentMethods.push('Wallet');
+  const methods = ['Cash', 'Card', 'Other'];
+  if (customerBalance > 0 && !methods.includes('Wallet')) {
+    methods.push('Wallet');
   }
 
-  const getMethodIcon = (method: string) => {
-    switch (method.toLowerCase()) {
-      case 'cash': return <Banknote size={15} />;
-      case 'card': return <CreditCard size={15} />;
-      case 'wallet': return <Wallet size={15} />;
-      default: return null;
-    }
-  };
-
-  const getMethodColor = (method: string, isActive: boolean) => {
-    if (!isActive) {
-      return 'bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800';
-    }
-    switch (method.toLowerCase()) {
-      case 'cash':
-        return 'bg-emerald-600 border-emerald-600 hover:bg-emerald-700 text-white shadow-xs';
-      case 'card':
-        return 'bg-blue-600 border-blue-600 hover:bg-blue-700 text-white shadow-xs';
-      case 'wallet':
-        return 'bg-purple-600 border-purple-600 hover:bg-purple-700 text-white shadow-xs';
-      default:
-        return 'bg-slate-800 text-white border-slate-700';
+  const handleMethodClick = (m: string) => {
+    setPaymentMethod(m);
+    // If user clicks the method button directly, apply currently typed or remaining amount with this method immediately
+    const parsed = parseFloat(paymentAmount);
+    const amt = !isNaN(parsed) && parsed > 0 ? parsed : remainingAmount;
+    if (amt > 0) {
+      onAddPayment(m, amt);
     }
   };
 
   return (
-    <div className="p-3.5 bg-white dark:bg-slate-900 text-base font-sans">
-      <div className="flex items-center gap-2 mb-2.5">
-        <CreditCard size={16} className="text-blue-600 dark:text-blue-400" />
-        <h3 className="font-bold text-slate-900 dark:text-white text-sm uppercase tracking-wider">Payment</h3>
-        {customerBalance > 0 && (
-          <span className="ml-auto text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 font-mono">
-            Wallet: €{(Number(customerBalance) || 0).toFixed(2)}
-          </span>
-        )}
+    <div className="pay-widget bg-white border border-[#d8d8d8] rounded p-4 flex flex-col gap-3 text-lg" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+      <div className="flex items-center justify-between text-[#333333]">
+        <span>Remaining:</span>
+        <span className="pay-widget-remaining font-semibold text-xl">
+          €{Math.max(0, remainingAmount).toFixed(2)}
+        </span>
       </div>
 
-      <div className="space-y-3">
-        {/* Payment Method Buttons */}
-        <div className="flex gap-2 w-full font-sans">
-          {paymentMethods.map((method) => {
-            const isActive = paymentMethod === method;
-            return (
-              <button
-                key={method}
-                onClick={() => setPaymentMethod(method)}
-                className={`
-                  flex-1 py-2 px-3 text-sm font-bold rounded-lg cursor-pointer transition-all border flex items-center justify-center gap-1.5 font-sans
-                  ${getMethodColor(method, isActive)}
-                `}
-              >
-                {getMethodIcon(method)}
-                <span>{method}</span>
-              </button>
-            );
-          })}
-        </div>
+      <input 
+        type="number" 
+        step="0.01" 
+        min="0" 
+        placeholder="Enter amount" 
+        className="pay-widget-amount border border-[#d8d8d8] rounded px-3 py-2 outline-none text-[#333333] placeholder-[#757575] text-lg bg-white"
+        value={paymentAmount}
+        onChange={(e) => setPaymentAmount(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            onAddPayment();
+          }
+        }}
+      />
 
-        {/* Amount Input and Action Button */}
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-base">€</span>
-              <input 
-                type="number"
-                className="w-full pl-7 pr-4 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700 rounded-lg text-lg font-mono font-bold focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:border-blue-500 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 shadow-2xs"
-                placeholder="0.00"
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
-                onFocus={(e) => e.target.select()}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    onAddPayment();
-                  }
-                }}
-              />
-            </div>
-          </div>
-          
-          <button 
-            onClick={onAddPayment}
-            className={`w-full py-2.5 rounded-lg font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer border transition-all shadow-xs ${
-              getMethodColor(paymentMethod, true)
-            }`}
-          >
-            <Plus size={16} strokeWidth={3} />
-            <span>Apply €{Number(paymentAmount || 0).toFixed(2)} as {paymentMethod}</span>
-          </button>
-        </div>
+      <div className={`grid ${methods.length > 3 ? 'grid-cols-4' : 'grid-cols-3'} gap-2`}>
+        {methods.map((m) => {
+          const isActive = paymentMethod.toLowerCase() === m.toLowerCase();
+          return (
+            <button
+              key={m}
+              type="button"
+              onClick={() => handleMethodClick(m)}
+              className={`pay-widget-btn border border-[#d8d8d8] rounded py-2.5 font-semibold text-base transition-colors cursor-pointer ${
+                isActive ? 'bg-[#e5e7eb] text-[#333333]' : 'bg-white text-[#333333] hover:bg-gray-50'
+              }`}
+            >
+              {m}
+            </button>
+          );
+        })}
+      </div>
 
-        {addedPayments.length > 0 && (
-          <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800">
-            {addedPayments.map((p, idx) => (
-              <div key={idx} className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-2 border border-slate-200 dark:border-slate-700 text-base rounded-lg shadow-2xs">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold bg-white dark:bg-slate-900 px-2 py-0.5 rounded text-slate-700 dark:text-slate-300 uppercase text-xs border border-slate-200 dark:border-slate-700">{p.method}</span>
-                  <span className="font-mono font-bold text-slate-900 dark:text-white">€{(Number(p.amount) || 0).toFixed(2)}</span>
-                </div>
-                <button 
-                  onClick={() => onRemovePayment(idx)}
-                  className="text-slate-400 hover:text-rose-600 transition-colors cursor-pointer border-0 bg-transparent p-1"
+      {addedPayments.length > 0 && (
+        <div className="pay-widget-list flex flex-col gap-1 text-base text-[#333333] pt-2 border-t border-[#d8d8d8]">
+          {addedPayments.map((p, i) => (
+            <div key={i} className="flex items-center justify-between py-1">
+              <span className="font-medium">{p.method}</span>
+              <span className="flex items-center gap-2">
+                <span className="font-semibold">€{Number(p.amount).toFixed(2)}</span>
+                <button
+                  type="button"
+                  onClick={() => onRemovePayment(i)}
+                  aria-label="Remove payment"
+                  className="pay-widget-remove text-[#757575] hover:text-[#ff6347] leading-none text-xl p-0.5 cursor-pointer bg-transparent border-0"
                 >
-                  <Trash2 size={15} />
+                  &times;
                 </button>
-              </div>
-            ))}
-
-            <div className="flex justify-between items-center px-1 pt-0.5 text-base">
-              <span className="font-bold text-slate-400 uppercase tracking-wider text-xs">Remaining</span>
-              <span className={`font-mono font-bold text-base ${remainingAmount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                €{Math.max(0, remainingAmount).toFixed(2)}
               </span>
             </div>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
+

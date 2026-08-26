@@ -119,6 +119,7 @@ export interface Payment {
   user_name?: string;
   invoice_number?: string;
   customer_name?: string;
+  products_summary?: string;
 }
 
 export interface ClosingReport {

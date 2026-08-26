@@ -29,6 +29,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
   const [showEditModal, setShowEditModal] = useState(false);
   const [printerSettings, setPrinterSettings] = useState<any>(null);
   const [businessInfo, setBusinessInfo] = useState<any>(null);
+  const [availableProducts, setAvailableProducts] = useState<any[]>([]);
   const [newNote, setNewNote] = useState('');
   const [editForm, setEditForm] = useState<any>({});
   const [isUpdating, setIsUpdating] = useState(false);
@@ -40,7 +41,20 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
     fetchActivity();
     fetchPrinterSettings();
     fetchBusinessInfo();
+    fetchAvailableProducts();
   }, [deviceId]);
+
+  const fetchAvailableProducts = async () => {
+    try {
+      const res = await fetch('/api/products?product_type=serialized&limit=500');
+      if (res.ok) {
+        const data = await res.json();
+        setAvailableProducts(Array.isArray(data.products) ? data.products : (Array.isArray(data) ? data : []));
+      }
+    } catch (err) {
+      console.error('Error fetching serialized products:', err);
+    }
+  };
 
   const fetchDevice = async () => {
     try {
@@ -305,6 +319,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
   const handleEditClick = () => {
     setUpdateError(null);
     setEditForm({
+      sku_id: device.sku_id ?? '',
       color: device.color ?? '',
       gb: device.gb ?? '',
       ram: device.ram ?? '',
@@ -315,6 +330,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
       imei_status: device.imei_status ?? 'Clean',
       carrier: device.carrier ?? 'Unlocked'
     });
+    fetchAvailableProducts();
     setShowEditModal(true);
   };
 
@@ -676,6 +692,29 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
             )}
             
             <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">
+                  Product / Device Model Name <span className="text-blue-600 dark:text-blue-400 font-normal">(Reassign IMEI to another model)</span>
+                </label>
+                <select
+                  value={editForm.sku_id}
+                  onChange={e => setEditForm({ ...editForm, sku_id: e.target.value ? Number(e.target.value) : '' })}
+                  className="w-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-semibold cursor-pointer"
+                >
+                  {/* Current product option if not yet in available list */}
+                  {device.sku_id && !availableProducts.some(p => p.id === device.sku_id) && (
+                    <option value={device.sku_id}>
+                      {device.product_name} (Current)
+                    </option>
+                  )}
+                  {availableProducts.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.product_name || p.name} {p.sku_code ? `(${p.sku_code})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">Color</label>
                 <input 

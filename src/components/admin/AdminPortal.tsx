@@ -757,7 +757,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                           </div>
                         </div>
                         <button
-                          onClick={() => setAccessSettings(a => ({ ...a, [policy.id]: !a.active }))}
+                          onClick={() => setAccessSettings(a => ({ ...a, [policy.id]: !(a as any)[policy.id] }))}
                           className={`w-20 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-colors ${
                             policy.active 
                               ? 'bg-emerald-600 text-white' 

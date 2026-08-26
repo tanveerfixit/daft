@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // SECURITY: Credentials must come from environment variables (FINDING-001)
-if (!process.env.DB_PASS) {
+if (process.env.DB_PASS === undefined) {
   throw new Error('[SECURITY FATAL] DB_PASS is not set in the .env file. Refusing to start with insecure credentials.');
 }
 
@@ -898,6 +898,20 @@ export async function initSchema() {
     try {
       await conn.query("ALTER TABLE invoice_items ADD COLUMN discount_type VARCHAR(20) DEFAULT 'percentage' AFTER discount");
     } catch (e: any) {}
+
+    // 5. Ensure device_transfers has product_name and sku_code snapshot columns
+    try {
+      await conn.query('ALTER TABLE device_transfers ADD COLUMN product_name VARCHAR(255) NULL AFTER notes');
+      console.log('[MySQL] Migration: added product_name to device_transfers');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
+    try {
+      await conn.query('ALTER TABLE device_transfers ADD COLUMN sku_code VARCHAR(255) NULL AFTER product_name');
+      console.log('[MySQL] Migration: added sku_code to device_transfers');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
 
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');
 

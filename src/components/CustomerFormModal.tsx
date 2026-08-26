@@ -144,7 +144,7 @@ export default function CustomerFormModal({ onClose, onSave, initialData }: Cust
                   <input
                     type="checkbox"
                     className="w-4 h-4 rounded-none border-neutral-350 dark:border-neutral-800 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 focus:ring-0 focus:ring-offset-0 focus:outline-none"
-                    checked={formData.offers_email}
+                    checked={Boolean(formData.offers_email)}
                     onChange={e => setFormData({ ...formData, offers_email: e.target.checked })}
                   />
                 </div>

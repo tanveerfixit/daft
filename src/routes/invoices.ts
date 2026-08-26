@@ -665,8 +665,8 @@ router.post('/', async (req: any, res, next) => {
       if (!isNaN(lastNum)) nextNum = lastNum + 1;
     }
     const invoiceNumber = `${prefix}-${String(nextNum).padStart(3, '0')}`;
-    const grandTotalNum = parseFloat(grand_total) || 0;
-    const rawTotalPaid = (payments || []).reduce((s: number, p: any) => s + (parseFloat(p.amount) || 0), 0);
+    const grandTotalNum = Number(grand_total) || 0;
+    const rawTotalPaid = (payments || []).reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0);
     const totalPaid = Math.min(grandTotalNum, rawTotalPaid);
     const dueAmount = Math.max(0, grandTotalNum - rawTotalPaid);
     let status = 'paid';
@@ -719,7 +719,7 @@ router.post('/', async (req: any, res, next) => {
     // Standard POS settlement: adjust excess cash tender for change given
     let excessChange = Math.max(0, rawTotalPaid - grandTotalNum);
     const settledPayments = (payments || []).map((p: any) => {
-      let amt = parseFloat(p.amount) || 0;
+      let amt = Number(p.amount) || 0;
       const isCash = (p.method || '').toLowerCase().includes('cash');
       if (isCash && excessChange > 0) {
         const deduct = Math.min(amt, excessChange);
@@ -738,7 +738,7 @@ router.post('/', async (req: any, res, next) => {
       }
     }
 
-    const logDetails = `Invoice ${invoiceNumber} created for €${(parseFloat(grand_total) || 0).toFixed(2)}`;
+    const logDetails = `Invoice ${invoiceNumber} created for €${(Number(grand_total) || 0).toFixed(2)}`;
     if (finalCustomerId) {
       await conn.execute('INSERT INTO customer_activity (customer_id,user_id,activity,details) VALUES (?,?,?,?)',
         [finalCustomerId, req.userId, 'Invoice Created', logDetails]);

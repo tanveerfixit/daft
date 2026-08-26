@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, X, Camera, Plus } from 'lucide-react';
+import { Search, X, Plus, Grid } from 'lucide-react';
 
 interface ProductSearchBarProps {
   searchQuery: string;
@@ -19,46 +19,57 @@ export const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
   inputRef
 }) => {
   return (
-    <div className="relative group font-sans">
-      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-        <Search className="h-4 w-4 text-slate-400" />
-      </div>
-      <input
-        ref={inputRef}
-        type="text"
-        className="block w-full pl-10 pr-32 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50/50 dark:bg-slate-800/60 focus:bg-white dark:focus:bg-slate-900 transition-all text-base focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 placeholder:text-slate-400 text-slate-900 dark:text-slate-100 font-sans shadow-2xs"
-        placeholder="Scan barcode / IMEI or search product..."
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        onKeyDown={onKeyDown}
-        autoFocus
-        autoComplete="off"
-        autoCorrect="off"
-        spellCheck="false"
-      />
-      <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center gap-2.5">
+    <div 
+      className="flex items-stretch gap-3 bg-white border border-[#d8d8d8] focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 rounded p-3 transition-all" 
+      style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}
+    >
+      <div className="flex items-center flex-1 w-full border-0 outline-none bg-transparent">
+        <Search className="w-5 h-5 text-[#757575] shrink-0 mr-2.5" />
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder="Scan or Search Item..."
+          className="w-full flex-1 py-1.5 text-[#333333] placeholder-[#757575] bg-transparent text-base !outline-none !border-none !ring-0 !shadow-none focus:!outline-none focus:!border-none focus:!ring-0 focus:!shadow-none"
+          style={{ outline: 'none', border: 'none', boxShadow: 'none' }}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={onKeyDown}
+          autoFocus
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck="false"
+        />
         {searchQuery && (
           <button
-            onClick={onClear}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 border-r border-slate-200 dark:border-slate-700 pr-2.5 mr-1 bg-transparent border-0 cursor-pointer"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-        <button className="text-blue-500 hover:text-blue-600 transition-colors bg-transparent border-0 cursor-pointer p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800" title="Search by Lens">
-          <Camera className="h-4 w-4" />
-        </button>
-        {onQuickAddClick && (
-          <button 
             type="button"
-            onClick={onQuickAddClick}
-            className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 transition-colors bg-transparent border-0 cursor-pointer p-1 rounded hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-            title="Quick Add Product"
+            onClick={onClear}
+            className="text-[#757575] hover:text-[#333333] p-1 bg-transparent border-0 cursor-pointer ml-1"
+            title="Clear search"
           >
-            <Plus className="h-4 w-4" />
+            <X className="w-4 h-4" />
           </button>
         )}
       </div>
+
+      {onQuickAddClick && (
+        <button
+          type="button"
+          onClick={onQuickAddClick}
+          className="flex items-center justify-center w-11 h-11 border border-[#d8d8d8] rounded hover:bg-gray-50 text-[#333333] transition-colors cursor-pointer shrink-0"
+          title="Quick Add Product"
+        >
+          <Plus className="w-5 h-5" />
+        </button>
+      )}
+
+      <button
+        type="button"
+        className="flex items-center justify-center w-11 h-11 border border-[#d8d8d8] rounded hover:bg-gray-50 text-[#333333] transition-colors cursor-pointer shrink-0"
+        title="View Product Grid"
+      >
+        <Grid className="w-5 h-5" />
+      </button>
     </div>
   );
 };
+

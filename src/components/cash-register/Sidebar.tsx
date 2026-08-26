@@ -20,13 +20,16 @@ interface SidebarProps {
   tax: number;
   discount: number;
   total: number;
+  totalQty?: number;
+  taxOption?: string;
+  setTaxOption?: (opt: string) => void;
   
   addedPayments: PaymentEntry[];
   paymentMethod: string;
   setPaymentMethod: (method: string) => void;
   paymentAmount: string;
   setPaymentAmount: (amount: string) => void;
-  onAddPayment: () => void;
+  onAddPayment: (method?: string, amount?: number) => void;
   onRemovePayment: (index: number) => void;
   remainingAmount: number;
   
@@ -40,61 +43,57 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = (props) => {
   return (
-    <div className="w-[390px] h-full flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden rounded-xl shadow-xs">
-      {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar divide-y divide-slate-100 dark:divide-slate-800">
-        <div>
-          <CustomerSelector 
-            selectedCustomer={props.selectedCustomer}
-            customerSearch={props.customerSearch}
-            setCustomerSearch={props.setCustomerSearch}
-            customerResults={props.customerResults}
-            onSelectCustomer={props.onSelectCustomer}
-            onClearCustomer={props.onClearCustomer}
-            onOpenNewCustomerModal={props.onOpenNewCustomerModal}
-            onOpenDepositModal={props.onOpenDepositModal}
-          />
-        </div>
-        
-        <div>
-          <TotalsPanel 
-            subtotal={props.subtotal}
-            tax={props.tax}
-            discount={props.discount}
-            total={props.total}
-          />
-        </div>
-        
-        <div>
-          <PaymentPanel 
-            addedPayments={props.addedPayments}
-            paymentMethod={props.paymentMethod}
-            setPaymentMethod={props.setPaymentMethod}
-            paymentAmount={props.paymentAmount}
-            setPaymentAmount={props.setPaymentAmount}
-            onAddPayment={props.onAddPayment}
-            onRemovePayment={props.onRemovePayment}
-            remainingAmount={props.remainingAmount}
-            customerBalance={props.selectedCustomer?.wallet_balance || 0}
-            availableMethods={props.availableMethods}
-          />
-        </div>
-      </div>
-      
-      {/* Sticky Footer Area */}
-      <div className="shrink-0 p-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">
-        <CheckoutActions 
-          onCheckout={props.onCheckout}
-          onQuickCheckout={props.onQuickCheckout}
-          onClearCart={props.onClearCart}
-          isCartEmpty={props.isCartEmpty}
-          isPaymentComplete={props.isPaymentComplete}
-          remainingAmount={props.remainingAmount}
-          paymentMethod={props.paymentMethod}
-          addedPaymentsCount={props.addedPayments.length}
-          paymentAmount={props.paymentAmount}
-        />
-      </div>
-    </div>
+    <aside className="flex flex-col gap-4 text-[18px] w-full lg:w-[400px] shrink-0" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+      {/* Customer Search */}
+      <CustomerSelector 
+        selectedCustomer={props.selectedCustomer}
+        customerSearch={props.customerSearch}
+        setCustomerSearch={props.setCustomerSearch}
+        customerResults={props.customerResults}
+        onSelectCustomer={props.onSelectCustomer}
+        onClearCustomer={props.onClearCustomer}
+        onOpenNewCustomerModal={props.onOpenNewCustomerModal}
+        onOpenDepositModal={props.onOpenDepositModal}
+      />
+
+      {/* Totals */}
+      <TotalsPanel 
+        subtotal={props.subtotal}
+        tax={props.tax}
+        discount={props.discount}
+        total={props.total}
+        totalQty={props.totalQty}
+        taxOption={props.taxOption}
+        setTaxOption={props.setTaxOption}
+      />
+
+      {/* Quick Payment */}
+      <PaymentPanel 
+        addedPayments={props.addedPayments}
+        paymentMethod={props.paymentMethod}
+        setPaymentMethod={props.setPaymentMethod}
+        paymentAmount={props.paymentAmount}
+        setPaymentAmount={props.setPaymentAmount}
+        onAddPayment={props.onAddPayment}
+        onRemovePayment={props.onRemovePayment}
+        remainingAmount={props.remainingAmount}
+        customerBalance={props.selectedCustomer?.wallet_balance || 0}
+        availableMethods={props.availableMethods}
+      />
+
+      {/* Actions */}
+      <CheckoutActions 
+        onCheckout={props.onCheckout}
+        onQuickCheckout={props.onQuickCheckout}
+        onClearCart={props.onClearCart}
+        isCartEmpty={props.isCartEmpty}
+        isPaymentComplete={props.isPaymentComplete}
+        remainingAmount={props.remainingAmount}
+        paymentMethod={props.paymentMethod}
+        addedPaymentsCount={props.addedPayments.length}
+        paymentAmount={props.paymentAmount}
+      />
+    </aside>
   );
 };
+

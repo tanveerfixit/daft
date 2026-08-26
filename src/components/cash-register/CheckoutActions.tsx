@@ -1,5 +1,4 @@
 import React from 'react';
-import { Check, Trash2, Zap } from 'lucide-react';
 
 interface CheckoutActionsProps {
   onCheckout: () => void;
@@ -24,56 +23,44 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
   addedPaymentsCount,
   paymentAmount = ''
 }) => {
-  const getMethodColorClass = (method: string) => {
-    switch (method.toLowerCase()) {
-      case 'cash':
-        return 'bg-emerald-600 border-emerald-600 hover:bg-emerald-700 text-white';
-      case 'card':
-        return 'bg-blue-600 border-blue-600 hover:bg-blue-700 text-white';
-      case 'wallet':
-        return 'bg-purple-600 border-purple-600 hover:bg-purple-700 text-white';
-      default:
-        return 'bg-amber-400 border-amber-500 hover:bg-amber-500 text-slate-900';
+  const handlePrimaryClick = () => {
+    if (isCartEmpty) return;
+    if (isPaymentComplete) {
+      onCheckout();
+    } else {
+      onQuickCheckout();
     }
   };
 
-  const typedAmount = parseFloat(paymentAmount) || 0;
-
   return (
-    <div className="space-y-2.5 font-sans">
-      {isPaymentComplete ? (
-        <button 
-          onClick={onCheckout}
-          disabled={isCartEmpty}
-          className="w-full py-3.5 rounded-lg font-bold text-base uppercase tracking-wider flex items-center justify-center gap-2 border border-amber-500 bg-amber-400 text-slate-900 hover:bg-amber-500 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400 disabled:cursor-not-allowed disabled:border-slate-200 dark:disabled:border-slate-700 disabled:opacity-50 cursor-pointer transition-all shadow-sm"
-        >
-          <Check size={20} strokeWidth={3} />
-          <span>Complete Checkout</span>
-        </button>
-      ) : (
-        <button 
-          onClick={onQuickCheckout}
-          disabled={isCartEmpty}
-          className={`w-full py-3.5 rounded-lg font-bold text-base uppercase tracking-wider flex items-center justify-center gap-2 border cursor-pointer transition-all disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400 disabled:cursor-not-allowed disabled:border-slate-200 dark:disabled:border-slate-700 disabled:opacity-50 shadow-sm ${
-            isCartEmpty ? '' : getMethodColorClass(paymentMethod)
-          }`}
-        >
-          <Zap size={20} strokeWidth={3} className="animate-pulse" />
-          <span>
-            {addedPaymentsCount > 0 
-              ? `Pay Remaining €${Math.max(0, remainingAmount).toFixed(2)} & Finish` 
-              : `Quick Pay €${Math.max(0, remainingAmount).toFixed(2)} (${paymentMethod})`}
-          </span>
-        </button>
-      )}
-      
-      <button 
-        onClick={onClearCart}
-        className="w-full py-2.5 rounded-lg font-semibold text-sm uppercase tracking-wider flex items-center justify-center gap-2 border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/60 cursor-pointer transition-colors"
+    <div className="flex flex-col gap-3 font-sans" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+      <button
+        id="checkout-btn"
+        type="button"
+        onClick={handlePrimaryClick}
+        disabled={isCartEmpty}
+        className={`border rounded py-3 font-semibold text-base transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+          isPaymentComplete
+            ? 'bg-green-500 hover:bg-green-600 border-green-500 text-white'
+            : 'bg-[#e6e6e6] hover:bg-[#d8d8d8] border-[#d8d8d8] text-[#333333]'
+        }`}
       >
-        <Trash2 size={16} />
-        Discard Transaction
+        {isPaymentComplete
+          ? 'Checkout & Complete'
+          : addedPaymentsCount > 0
+            ? `Pay Remaining €${Math.max(0, remainingAmount).toFixed(2)} & Complete`
+            : `Checkout & Complete (${paymentMethod})`}
+      </button>
+
+      <button
+        id="clear-sale-btn"
+        type="button"
+        onClick={onClearCart}
+        className="bg-[#f9fafb] border border-[#ff6347] text-[#ff6347] hover:bg-orange-50 rounded py-3 font-semibold text-base transition-colors cursor-pointer"
+      >
+        Clear Sale & Start Over
       </button>
     </div>
   );
 };
+

@@ -653,11 +653,12 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     }
   };
 
-  const handleAddPayment = () => {
-    const amount = parseFloat(paymentAmount);
+  const handleAddPayment = (overrideMethod?: string, overrideAmount?: number) => {
+    const methodToUse = overrideMethod || paymentMethod;
+    const amount = overrideAmount !== undefined ? overrideAmount : parseFloat(paymentAmount);
     if (isNaN(amount) || amount <= 0) return;
 
-    if (paymentMethod === 'Wallet') {
+    if (methodToUse === 'Wallet') {
       const balance = selectedCustomer?.wallet_balance || 0;
       if (amount > balance) {
         alert(`Insufficient wallet balance. Available: €${balance.toFixed(2)}`);
@@ -665,9 +666,10 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       }
     }
 
-    setAddedPayments(prev => [...prev, { method: paymentMethod, amount }]);
+    setPaymentMethod(methodToUse);
+    setAddedPayments(prev => [...prev, { method: methodToUse, amount }]);
     setPaymentAmount('');
-    addActivity('Payment Added', `€${amount.toFixed(2)} via ${paymentMethod}`, 'sale');
+    addActivity('Payment Added', `€${amount.toFixed(2)} via ${methodToUse}`, 'sale');
   };
 
   const removePayment = (index: number) => {
@@ -894,6 +896,9 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     }, 100);
   };
 
+  // Tax Option State
+  const [taxOption, setTaxOption] = useState<string>('0-excluded');
+
   // Calculations
   const subtotal = cart.reduce((sum, item) => sum + Number(item.customPrice ?? item.selling_price ?? 0) * (Number(item.quantity) || 1), 0);
   
@@ -908,7 +913,20 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     }
   }, 0);
 
-  const total = Math.max(0, subtotal - discountTotal);
+  const taxableTotal = Math.max(0, subtotal - discountTotal);
+  const totalQty = cart.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+
+  let taxAmount = 0;
+  let total = taxableTotal;
+
+  if (taxOption === '23-excluded') {
+    taxAmount = taxableTotal * 0.23;
+    total = taxableTotal + taxAmount;
+  } else if (taxOption === '23-included') {
+    taxAmount = taxableTotal * (23 / 123);
+    total = taxableTotal;
+  }
+
   const paidAmount = addedPayments.reduce((sum, p) => sum + p.amount, 0);
   const remainingAmount = total - paidAmount;
   const changeDue = Math.max(0, paidAmount - total);
@@ -923,21 +941,18 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   }, [remainingAmount]);
 
   return (
-    <div className="flex flex-col h-full bg-slate-100/70 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans text-base p-3 select-none w-full overflow-hidden">
-      {/* Header Area */}
-      <div className="flex justify-between items-center shrink-0 mb-3 px-1">
-        <h2 className="text-xl font-medium text-black dark:text-white flex items-center gap-2">
-          <ShoppingBag size={20} className="text-[var(--brand-primary)]" />
-          <span>Cash Register</span>
-        </h2>
-      </div>
+    <div className="flex flex-col h-full bg-[#f9fafb] text-[#333333] select-none w-full overflow-hidden" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+      {/* Top Bar */}
+      <header className="flex items-center justify-between bg-[#f9fafb] px-6 py-4 shrink-0">
+        <h1 className="text-2xl text-[#333333] font-normal">Cash Register</h1>
+      </header>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden gap-3">
-        {/* Left Side: Product Search & Cart */}
-        <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs p-3.5 min-w-0">
-          {/* Search Bar & Results (Floating setup) */}
-          <div ref={searchContainerRef} className="shrink-0 mb-3 relative z-50">
+      {/* Main Content */}
+      <main className="p-4 grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-4 flex-1 overflow-y-auto">
+        {/* Left Column */}
+        <section className="flex flex-col gap-4 min-w-0">
+          {/* Search / Scan bar */}
+          <div ref={searchContainerRef} className="relative z-50">
             <ProductSearchBar 
               inputRef={searchInputRef}
               searchQuery={searchQuery}
@@ -977,25 +992,22 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
             />
           </div>
 
-          {/* Scrollable Content Area */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4">
-            {/* Cart Table */}
-            <CartTable 
-              cart={cart}
-              onUpdateQuantity={updateQuantity}
-              onUpdatePrice={updatePrice}
-              onRemove={removeFromCart}
-              onOpenImeiSelector={handleOpenImeiSelector}
-              onEdit={handleEditItem}
-              onSelectProduct={onSelectProduct}
-            />
+          {/* Cart Table */}
+          <CartTable 
+            cart={cart}
+            onUpdateQuantity={updateQuantity}
+            onUpdatePrice={updatePrice}
+            onRemove={removeFromCart}
+            onOpenImeiSelector={handleOpenImeiSelector}
+            onEdit={handleEditItem}
+            onSelectProduct={onSelectProduct}
+          />
 
-            {/* Activity Log */}
-            <ActivityLog activities={activities} />
-          </div>
-        </div>
+          {/* Activity Log */}
+          <ActivityLog activities={activities} />
+        </section>
 
-        {/* Right Side: Sidebar (Customer, Totals, Payment) */}
+        {/* Right Column: Sidebar (Customer, Totals, Payment) */}
         <Sidebar 
           selectedCustomer={selectedCustomer}
           customerSearch={customerSearch}
@@ -1014,10 +1026,13 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
           onOpenNewCustomerModal={() => setShowNewCustomerModal(true)}
           onOpenDepositModal={() => setShowDepositModal(true)}
           
-          subtotal={subtotal}
-          tax={0}
+          subtotal={taxableTotal}
+          tax={taxAmount}
           discount={discountTotal}
           total={total}
+          totalQty={totalQty}
+          taxOption={taxOption}
+          setTaxOption={setTaxOption}
           
           addedPayments={addedPayments}
           paymentMethod={paymentMethod}
@@ -1035,7 +1050,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
           isPaymentComplete={isPaymentComplete}
           availableMethods={availableMethods}
         />
-      </div>
+      </main>
 
       {/* Modals */}
       {showDiscardConfirm && (

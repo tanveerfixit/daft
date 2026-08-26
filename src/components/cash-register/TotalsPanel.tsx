@@ -1,46 +1,63 @@
 import React from 'react';
-import { Calculator } from 'lucide-react';
 
 interface TotalsPanelProps {
   subtotal: number;
   tax: number;
   discount: number;
   total: number;
+  totalQty?: number;
+  taxOption?: string;
+  setTaxOption?: (opt: string) => void;
 }
 
 export const TotalsPanel: React.FC<TotalsPanelProps> = ({
   subtotal,
   tax,
   discount,
-  total
+  total,
+  totalQty = 0,
+  taxOption = '0-excluded',
+  setTaxOption
 }) => {
   return (
-    <div className="p-3.5 bg-white dark:bg-slate-900 font-sans">
-      <div className="flex items-center gap-2 mb-2.5">
-        <Calculator size={16} className="text-blue-600 dark:text-blue-400" />
-        <h3 className="font-bold text-slate-900 dark:text-white text-sm uppercase tracking-wider">Summary</h3>
+    <div className="bg-white border border-[#d8d8d8] rounded p-5 flex flex-col gap-4" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+      <div className="flex items-center justify-between">
+        <span className="font-semibold text-[#333333]">Taxable Total :</span>
+        <span className="text-[#333333]">€{subtotal.toFixed(2)}</span>
       </div>
-      
-      <div className="space-y-1.5">
-        <div className="flex justify-between text-base">
-          <span className="text-slate-500 dark:text-slate-400 font-medium">Subtotal</span>
-          <span className="font-mono font-bold text-slate-900 dark:text-white">€{subtotal.toFixed(2)}</span>
+
+      {discount > 0 && (
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-emerald-600">Discount :</span>
+          <span className="text-emerald-600 font-medium">-€{discount.toFixed(2)}</span>
         </div>
-        <div className="flex justify-between text-base">
-          <span className="text-slate-500 dark:text-slate-400 font-medium">Tax (0%)</span>
-          <span className="font-mono font-bold text-slate-900 dark:text-white">€{tax.toFixed(2)}</span>
-        </div>
-        {discount > 0 && (
-          <div className="flex justify-between text-base">
-            <span className="text-slate-500 dark:text-slate-400 font-medium">Discount</span>
-            <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">-€{discount.toFixed(2)}</span>
-          </div>
-        )}
-        <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-baseline mt-2">
-          <span className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-sm">Total Amount</span>
-          <span className="font-mono text-2xl font-bold text-blue-600 dark:text-blue-400 leading-none">€{total.toFixed(2)}</span>
-        </div>
+      )}
+
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-semibold text-[#333333]">Tax:</span>
+        <select 
+          value={taxOption}
+          onChange={(e) => setTaxOption?.(e.target.value)}
+          className="w-28 border border-[#d8d8d8] rounded px-2 py-1.5 bg-white text-[#333333] text-sm outline-none"
+        >
+          <option value="0-excluded">0%</option>
+          <option value="23-excluded">23% Ex.</option>
+          <option value="23-included">23% Inc.</option>
+        </select>
+        <span className="text-[#333333]">€{tax.toFixed(2)}</span>
+      </div>
+
+      <hr className="border-[#d8d8d8]" />
+
+      <div className="text-[#333333]">
+        Total Time/QTY: <span className="font-semibold">{totalQty}</span>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className="font-bold text-[#333333]">Grand Total :</span>
+        <span className="font-bold text-[#333333] text-xl">€{total.toFixed(2)}</span>
       </div>
     </div>
   );
 };
+

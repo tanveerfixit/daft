@@ -11,6 +11,7 @@ interface ProductFormModalProps {
 export default function ProductFormModal({ onClose, onSave, initialData }: ProductFormModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
+  const [existingProducts, setExistingProducts] = useState<Product[]>([]);
   const [formData, setFormData] = useState<Partial<Product>>({
     product_name: '',
     category_id: undefined,
@@ -26,7 +27,36 @@ export default function ProductFormModal({ onClose, onSave, initialData }: Produ
   useEffect(() => {
     fetch('/api/categories').then(res => res.json()).then(setCategories);
     fetch('/api/manufacturers').then(res => res.json()).then(setManufacturers);
+    fetch('/api/products?limit=500')
+      .then(res => res.json())
+      .then(data => {
+        if (data && Array.isArray(data.products)) {
+          setExistingProducts(data.products);
+        } else if (Array.isArray(data)) {
+          setExistingProducts(data);
+        }
+      })
+      .catch(err => console.error('Error fetching existing products for suggestions:', err));
   }, []);
+
+  const handleProductNameSelect = (selectedName: string) => {
+    const matched = existingProducts.find(
+      p => (p.product_name || p.name || '').toLowerCase() === selectedName.trim().toLowerCase()
+    );
+    if (matched) {
+      setFormData(prev => ({
+        ...prev,
+        product_name: selectedName,
+        category_id: matched.category_id || prev.category_id,
+        manufacturer_id: matched.manufacturer_id || prev.manufacturer_id,
+        product_type: matched.product_type || prev.product_type,
+        selling_price: matched.selling_price !== undefined ? Number(matched.selling_price) : prev.selling_price,
+        cost_price: matched.cost_price !== undefined ? Number(matched.cost_price) : prev.cost_price
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, product_name: selectedName }));
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +64,15 @@ export default function ProductFormModal({ onClose, onSave, initialData }: Produ
     if (!formData.category_id) return alert('Please select a category');
     onSave(formData);
   };
+
+  // Distinct product names sorted alphabetically
+  const productSuggestions = Array.from(
+    new Set(
+      existingProducts
+        .map(p => p.product_name || p.name)
+        .filter(Boolean)
+    )
+  ).sort();
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 font-mono text-base select-none" style={{ fontSize: '17px' }}>
@@ -51,13 +90,22 @@ export default function ProductFormModal({ onClose, onSave, initialData }: Produ
           <div className="space-y-4">
             <div className="flex items-center">
               <label className="w-1/3 text-base font-bold text-black dark:text-white uppercase">Product Name<span className="text-red-500">*</span></label>
-              <input
-                required
-                type="text"
-                className="w-2/3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none"
-                value={formData.product_name}
-                onChange={e => setFormData({ ...formData, product_name: e.target.value })}
-              />
+              <div className="w-2/3 relative">
+                <input
+                  required
+                  list="product-name-suggestions"
+                  type="text"
+                  placeholder="Select or type product name..."
+                  className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                  value={formData.product_name}
+                  onChange={e => handleProductNameSelect(e.target.value)}
+                />
+                <datalist id="product-name-suggestions">
+                  {productSuggestions.map((name, i) => (
+                    <option key={i} value={name} />
+                  ))}
+                </datalist>
+              </div>
             </div>
 
             <div className="flex items-center">

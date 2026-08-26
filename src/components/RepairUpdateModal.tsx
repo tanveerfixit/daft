@@ -150,7 +150,7 @@ export default function RepairUpdateModal({ repair, onClose, onSaved }: RepairUp
                     name="status"
                     value={opt.value}
                     checked={status === opt.value}
-                    onChange={() => setStatus(opt.value)}
+                    onChange={() => setStatus(opt.value as Repair['status'])}
                     className="accent-[var(--brand-primary)]"
                   />
                   <span className="font-bold text-sm">{opt.label}</span>
