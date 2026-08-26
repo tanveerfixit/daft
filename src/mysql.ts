@@ -45,7 +45,7 @@ export async function execute(sql: string, params?: any[]): Promise<mysql.Result
 
 // ─── Schema Initialisation ───────────────────────────────────────────────────
 
-export const CURRENT_SCHEMA_VERSION = '2026_08_OPTIMIZATION_V3';
+export const CURRENT_SCHEMA_VERSION = '2026_08_OPTIMIZATION_V4';
 
 async function ensureIndex(conn: any, tableName: string, indexName: string, columns: string) {
   try {
@@ -901,7 +901,7 @@ export async function initSchema() {
       await conn.query("ALTER TABLE invoice_items ADD COLUMN discount_type VARCHAR(20) DEFAULT 'percentage' AFTER discount");
     } catch (e: any) {}
 
-    // 5. Ensure device_transfers has product_name and sku_code snapshot columns
+    // 5. Ensure device_transfers has product_name, sku_code, and completed_at columns
     try {
       await conn.query('ALTER TABLE device_transfers ADD COLUMN product_name VARCHAR(255) NULL AFTER notes');
       console.log('[MySQL] Migration: added product_name to device_transfers');
@@ -914,6 +914,18 @@ export async function initSchema() {
     } catch (e: any) {
       if (!e.message?.includes('Duplicate column')) throw e;
     }
+    try {
+      await conn.query('ALTER TABLE device_transfers ADD COLUMN completed_at TIMESTAMP NULL AFTER created_at');
+      console.log('[MySQL] Migration: added completed_at to device_transfers');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
+
+    // 6. Ensure product_skus does not have an overly strict global unique constraint on sku_code across businesses
+    try {
+      await conn.query('ALTER TABLE product_skus DROP INDEX sku_code');
+      console.log('[MySQL] Migration: dropped global unique constraint on product_skus.sku_code');
+    } catch (e: any) {}
 
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');
 

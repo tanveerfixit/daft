@@ -843,6 +843,17 @@ async function initSchema() {
     } catch (e) {
       if (!e.message?.includes("Duplicate column")) throw e;
     }
+    try {
+      await conn.query("ALTER TABLE device_transfers ADD COLUMN completed_at TIMESTAMP NULL AFTER created_at");
+      console.log("[MySQL] Migration: added completed_at to device_transfers");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE product_skus DROP INDEX sku_code");
+      console.log("[MySQL] Migration: dropped global unique constraint on product_skus.sku_code");
+    } catch (e) {
+    }
     await conn.query("SET FOREIGN_KEY_CHECKS = 1");
     try {
       await conn.query(`
@@ -1029,7 +1040,7 @@ var init_mysql = __esm({
       keepAliveInitialDelay: 1e4,
       charset: "utf8mb4_unicode_ci"
     });
-    CURRENT_SCHEMA_VERSION = "2026_08_OPTIMIZATION_V3";
+    CURRENT_SCHEMA_VERSION = "2026_08_OPTIMIZATION_V4";
   }
 });
 
@@ -5558,11 +5569,24 @@ var init_inventory = __esm({
           if (destSkuRows.length > 0) {
             destSkuId = destSkuRows[0].id;
           } else {
-            const [sIns] = await conn.execute(
-              "INSERT INTO product_skus (product_id, sku_code, cost_price, selling_price) VALUES (?, ?, ?, ?)",
-              [destProductId, resolvedSkuCode, transfer.cost_price || 0, transfer.selling_price || 0]
-            );
-            destSkuId = sIns.insertId;
+            try {
+              const [sIns] = await conn.execute(
+                "INSERT INTO product_skus (product_id, sku_code, cost_price, selling_price) VALUES (?, ?, ?, ?)",
+                [destProductId, resolvedSkuCode, transfer.cost_price || 0, transfer.selling_price || 0]
+              );
+              destSkuId = sIns.insertId;
+            } catch (skuErr) {
+              if (skuErr.message?.includes("Duplicate") || skuErr.code === "ER_DUP_ENTRY") {
+                const uniqueSku = `${resolvedSkuCode}-${destBusinessId}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+                const [sIns] = await conn.execute(
+                  "INSERT INTO product_skus (product_id, sku_code, cost_price, selling_price) VALUES (?, ?, ?, ?)",
+                  [destProductId, uniqueSku, transfer.cost_price || 0, transfer.selling_price || 0]
+                );
+                destSkuId = sIns.insertId;
+              } else {
+                throw skuErr;
+              }
+            }
           }
         }
         if (transfer.device_id) {
@@ -5585,25 +5609,37 @@ var init_inventory = __esm({
           }
         } else if (destSkuId) {
           await conn.execute(
-            "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)",
-            [destBranchId, destSkuId, transfer.quantity || 1]
+            "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE quantity=quantity+?",
+            [destBranchId, destSkuId, transfer.quantity || 1, transfer.quantity || 1]
           );
         }
         if (destSkuId) {
-          await conn.execute(
-            `INSERT INTO inventory_movements 
-         (business_id, branch_id, sku_id, movement_type, quantity, unit_cost, reference_type, reference_id) 
-         VALUES (?, ?, ?, 'transfer_in', ?, ?, 'device_transfers', ?)`,
-            [destBusinessId, destBranchId, destSkuId, transfer.quantity || 1, transfer.cost_price || 0, transfer.id]
-          );
+          try {
+            await conn.execute(
+              `INSERT INTO inventory_movements 
+           (business_id, branch_id, sku_id, movement_type, quantity, unit_cost, reference_type, reference_id) 
+           VALUES (?, ?, ?, 'transfer_in', ?, ?, 'device_transfers', ?)`,
+              [destBusinessId, destBranchId, destSkuId, transfer.quantity || 1, transfer.cost_price || 0, transfer.id]
+            );
+          } catch (imErr) {
+            console.warn("[PUT /api/transfers/:id/complete] Inventory movement warning:", imErr.message);
+          }
         }
-        await conn.execute("UPDATE device_transfers SET status='completed', completed_at=NOW() WHERE id=?", [transfer.id]);
+        try {
+          await conn.execute("UPDATE device_transfers SET status='completed', completed_at=NOW() WHERE id=?", [transfer.id]);
+        } catch (uErr) {
+          if (uErr.message?.includes("Unknown column")) {
+            await conn.execute("UPDATE device_transfers SET status='completed' WHERE id=?", [transfer.id]);
+          } else {
+            throw uErr;
+          }
+        }
         await conn.commit();
         res.json({ success: true, message: "Transfer received and inventory synchronized" });
       } catch (e) {
         await conn.rollback();
         console.error("[PUT /api/transfers/:id/complete] Error:", e.message);
-        next(e);
+        res.status(400).json({ error: e.message });
       } finally {
         conn.release();
       }
