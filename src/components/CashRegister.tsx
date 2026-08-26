@@ -1296,12 +1296,22 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
       {/* Quick Add Category Modal */}
       {showNewCategoryModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-2xl w-full max-w-md overflow-hidden font-mono text-base">
-            <div className="px-4 py-2 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[120] p-4">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-lg shadow-2xl w-full max-w-md overflow-hidden font-mono text-base">
+            <div className="px-4 py-2.5 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900 flex justify-between items-center">
               <h3 className="text-base font-semibold text-black dark:text-white">
                 Add New Category
               </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNewCategoryModal(false);
+                  setNewCategoryName('');
+                }}
+                className="text-neutral-500 hover:text-neutral-750 dark:hover:text-neutral-350 transition-colors border-0 bg-transparent p-0 cursor-pointer"
+              >
+                <XCircle size={18} />
+              </button>
             </div>
             <form onSubmit={(e) => { e.preventDefault(); handleQuickAddCategory(); }}>
               <div className="p-4 space-y-4">
