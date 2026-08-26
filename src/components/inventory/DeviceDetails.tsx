@@ -150,8 +150,6 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
               box-sizing: border-box;
               display: flex;
               flex-direction: column;
-              align-items: center;
-              justify-content: space-between;
               text-align: center;
               page-break-after: avoid;
               break-after: avoid;
@@ -166,7 +164,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
               display: flex;
               flex-direction: column;
               align-items: center;
-              justify-content: center;
+              justify-content: space-between;
               padding: 0;
               color: #000;
               overflow: hidden;
@@ -176,14 +174,14 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
               font-weight: 800;
               font-size: 1.05em;
               text-transform: uppercase;
-              line-height: 1.1;
+              line-height: 1.15;
               word-break: break-word;
               display: -webkit-box;
               -webkit-line-clamp: 2;
               -webkit-box-orient: vertical;
               overflow: hidden;
               text-overflow: ellipsis;
-              max-height: 2.25em;
+              max-height: 2.3em;
               margin: 0;
               padding: 0;
               text-align: center;
@@ -191,21 +189,21 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
             }
             .specs {
               font-size: 0.9em;
-              line-height: 1.1;
-              font-weight: 500;
+              line-height: 1.15;
+              font-weight: 600;
               margin: 0;
               padding: 0;
             }
             .price {
               font-weight: 900;
-              font-size: 1.15em;
-              line-height: 1.1;
-              margin: 1px 0;
+              font-size: 1.18em;
+              line-height: 1.15;
+              margin: 0;
               padding: 0;
             }
             .barcode-wrapper {
-              width: 92%;
-              max-width: 175px;
+              width: 94%;
+              max-width: 185px;
               margin: 0 auto;
               display: flex;
               flex-direction: column;
@@ -223,7 +221,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
             #barcode {
               width: 100% !important;
               max-width: 100% !important;
-              height: 30px !important;
+              height: ${isLandscape ? '28px' : '36px'} !important;
               display: block !important;
               padding: 0 !important;
               margin: 0 !important;
@@ -232,7 +230,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
               width: 100%;
               display: flex;
               justify-content: space-between;
-              font-size: 8px;
+              font-size: 8.5px;
               font-family: monospace;
               font-weight: 700;
               line-height: 1;

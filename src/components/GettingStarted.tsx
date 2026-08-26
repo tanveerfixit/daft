@@ -2607,7 +2607,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                   <div className="bg-slate-100 border border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-3">Live Label Preview ({printerSettings.font_size === 'Small' ? '9px' : printerSettings.font_size === 'Large' ? '13px' : '11px'})</span>
                     <div 
-                      className="bg-white border-2 border-dashed border-slate-400 rounded p-1 flex flex-col items-center justify-center text-center shadow-md select-none overflow-hidden"
+                      className="bg-white border-2 border-dashed border-slate-400 rounded p-1 flex flex-col items-center justify-between text-center shadow-md select-none overflow-hidden"
                       style={{
                         width: printerSettings.orientation === 'Landscape' ? '210px' : '130px',
                         height: printerSettings.orientation === 'Landscape' ? '125px' : '210px',
@@ -2620,22 +2620,22 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                       }}
                     >
                       {/* 1. Device Name (Wraps to 2 lines if long) */}
-                      <div className="font-extrabold uppercase tracking-tight text-slate-900 leading-tight px-0.5 w-full line-clamp-2 break-words text-center" style={{ fontSize: '1.05em', maxHeight: '2.25em' }}>
+                      <div className="font-extrabold uppercase tracking-tight text-slate-900 leading-tight px-0.5 w-full line-clamp-2 break-words text-center" style={{ fontSize: '1.05em', maxHeight: '2.3em' }}>
                         Apple iPhone 14 Pro Max
                       </div>
 
                       {/* 2. Ram / Storage */}
-                      <div className="text-slate-700 font-medium leading-none truncate px-0.5 w-full" style={{ fontSize: '0.9em' }}>
+                      <div className="text-slate-700 font-semibold leading-none truncate px-0.5 w-full" style={{ fontSize: '0.9em' }}>
                         6GB / 128GB
                       </div>
 
                       {/* 3. Price (Bold) */}
-                      <div className="font-black text-black leading-tight tracking-tight my-0.5 w-full" style={{ fontSize: '1.15em' }}>
+                      <div className="font-black text-black leading-tight tracking-tight my-0 w-full" style={{ fontSize: '1.18em' }}>
                         {(settings.currency || '€').split(',')[0].trim()}499.00
                       </div>
 
                       {/* 4. Barcode + Equal Width Spaced IMEI */}
-                      <div className="w-[92%] max-w-[175px] mx-auto flex flex-col items-stretch p-0 m-0">
+                      <div className="w-[94%] max-w-[185px] mx-auto flex flex-col items-stretch p-0 m-0">
                         <div className="w-full flex items-center justify-center p-0 m-0 overflow-hidden leading-none">
                           <svg className="w-full h-7 text-black p-0 m-0 block" viewBox="0 0 160 30" preserveAspectRatio="none">
                             <rect x="0" y="0" width="160" height="30" fill="white" />
@@ -2674,7 +2674,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                         </div>
 
                         {/* 5. IMEI / Serial with space between digits matching barcode width */}
-                        <div className="w-full flex justify-between text-[8px] font-mono font-bold text-black leading-none mt-[1px] pt-[1px] px-[2px] select-none">
+                        <div className="w-full flex justify-between text-[8.5px] font-mono font-bold text-black leading-none mt-[1px] pt-[1px] px-[2px] select-none">
                           {'350967681605412'.split('').map((ch, idx) => (
                             <span key={idx} className="inline-block text-center">{ch}</span>
                           ))}
