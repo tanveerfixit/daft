@@ -90,7 +90,7 @@ const ProductListRoute = ({ isActive }: { isActive?: boolean }) => {
   const branchSlug = slugify(useAuth().currentUser?.branch_name || 'branch');
   return (
     <ProductList 
-      onCreateProduct={() => navigate(`/${branchSlug}/create-product`)} 
+      onCreateProduct={(type) => navigate(`/${branchSlug}/create-product${type ? `?type=${type}` : ''}`)} 
       onSelectProduct={(id) => navigate(`/${branchSlug}/products/${id}`)}
       isActive={isActive}
     />

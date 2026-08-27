@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Search } from 'lucide-react';
 import { Product, Category, Manufacturer } from '../types';
-import ProductTypeModal, { ProductTypeKey } from './ProductTypeModal';
 
 export default function ProductList({ 
   onCreateProduct,
   onSelectProduct,
   isActive = true
 }: { 
-  onCreateProduct: (type?: ProductTypeKey) => void;
+  onCreateProduct: () => void;
   onSelectProduct: (id: number) => void;
   isActive?: boolean;
 }) {
@@ -17,7 +16,6 @@ export default function ProductList({
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
-  const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -164,7 +162,7 @@ export default function ProductList({
       <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
         <h2 className="text-xl font-medium text-black dark:text-white">Products</h2>
         <button 
-          onClick={() => setIsTypeModalOpen(true)}
+          onClick={onCreateProduct}
           className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
         >
           <Plus size={16} />
@@ -325,16 +323,6 @@ export default function ProductList({
           </button>
         </div>
       </div>
-
-      {/* Product Type Selection Modal */}
-      <ProductTypeModal
-        isOpen={isTypeModalOpen}
-        onClose={() => setIsTypeModalOpen(false)}
-        onSelectType={(type) => {
-          setIsTypeModalOpen(false);
-          onCreateProduct(type);
-        }}
-      />
     </div>
   );
 }
