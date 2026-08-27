@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { ChevronDown, ChevronUp, Plus, List } from 'lucide-react';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
+import { ChevronDown, ChevronUp, Plus, List, AlertTriangle, ArrowRight } from 'lucide-react';
 import { Product, Category, Manufacturer } from '../types';
 import { ProductTypeKey } from './ProductTypeModal';
 
@@ -10,6 +10,8 @@ interface CreateProductProps {
 }
 
 export default function CreateProduct({ onCancel, onSave }: CreateProductProps) {
+  const navigate = useNavigate();
+  const { branchSlug } = useParams<{ branchSlug?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialType = (searchParams.get('type') as ProductTypeKey) || 'stock';
 
@@ -187,6 +189,16 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
       nameInputRef.current?.focus();
       return false;
     }
+
+    // Check if product with the exact same name already exists
+    const duplicate = existingProducts.find(
+      p => (p.product_name || p.name || '').trim().toLowerCase() === formData.name.trim().toLowerCase()
+    );
+    if (duplicate) {
+      alert('You already have a product with the same name. Add to inventory instead of creating a new product.');
+      return false;
+    }
+
     if (!formData.category_id) {
       alert('Please select a category');
       return false;
@@ -378,7 +390,11 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
                     ? 'Type at least 3 characters (e.g. Screen, Battery, Diagnostic)...'
                     : 'Type at least 3 characters to search existing or create new...'
                 }
-                className="w-full px-3 py-1.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-sm text-neutral-900 dark:text-neutral-100 font-mono outline-none focus:border-neutral-500"
+                className={`w-full px-3 py-1.5 bg-white dark:bg-black border ${
+                  matchedExistingProduct 
+                    ? 'border-amber-400 dark:border-amber-600' 
+                    : 'border-neutral-300 dark:border-neutral-800'
+                } rounded-none text-sm text-neutral-900 dark:text-neutral-100 font-mono outline-none focus:border-neutral-500`}
                 value={formData.name}
                 onFocus={() => setShowSuggestions(true)}
                 onChange={e => handleNameChange(e.target.value)}
@@ -424,6 +440,26 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
                 </div>
               )}
             </div>
+
+            {/* Duplicate Product Warning Banner with Shortcut to Add Inventory */}
+            {matchedExistingProduct && (
+              <div className="p-3 bg-amber-50 dark:bg-neutral-900 border border-amber-300 dark:border-amber-800 text-amber-950 dark:text-amber-200 text-xs font-mono flex flex-wrap items-center justify-between gap-2 mt-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="font-bold">
+                    You already have a product with the same name. Add to inventory instead of creating a new product.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/${branchSlug || 'branch'}/add-inventory/${matchedExistingProduct.id}`)}
+                  className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs uppercase tracking-wider shrink-0 flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <span>Add to Inventory</span>
+                  <ArrowRight size={13} />
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

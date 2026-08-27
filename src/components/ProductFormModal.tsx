@@ -62,6 +62,17 @@ export default function ProductFormModal({ onClose, onSave, initialData }: Produ
     e.preventDefault();
     if (!formData.product_name?.trim()) return alert('Please enter a product name');
     if (!formData.category_id) return alert('Please select a category');
+
+    // Prevent duplicate product names for new products
+    if (!initialData?.id) {
+      const duplicate = existingProducts.find(
+        p => (p.product_name || p.name || '').trim().toLowerCase() === formData.product_name?.trim().toLowerCase()
+      );
+      if (duplicate) {
+        return alert('You already have a product with the same name. Add to inventory instead of creating a new product.');
+      }
+    }
+
     onSave(formData);
   };
 

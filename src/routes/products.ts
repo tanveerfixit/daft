@@ -522,6 +522,19 @@ router.post('/', async (req: any, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+
+    // Check if product with same name already exists
+    const [existingByName] = await conn.execute(
+      'SELECT id FROM products WHERE business_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND deleted_at IS NULL LIMIT 1',
+      [businessId, name]
+    );
+    if ((existingByName as any[]).length > 0) {
+      await conn.rollback();
+      return res.status(400).json({ 
+        error: 'You already have a product with the same name. Add to inventory instead of creating a new product.' 
+      });
+    }
+
     const [pr] = await conn.execute(
       'INSERT INTO products (business_id,name,category_id,manufacturer_id,product_type,allow_overselling,min_stock_level,is_taxable,require_note,min_sales_price,additional_description,alert_message) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
       [
@@ -574,6 +587,18 @@ router.post('/quick-add', async (req: any, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+
+    // Check if product with same name already exists
+    const [existingByName] = await conn.execute(
+      'SELECT id FROM products WHERE business_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND deleted_at IS NULL LIMIT 1',
+      [businessId, name]
+    );
+    if ((existingByName as any[]).length > 0) {
+      await conn.rollback();
+      return res.status(400).json({ 
+        error: 'You already have a product with the same name. Add to inventory instead of creating a new product.' 
+      });
+    }
 
     // 1. Create Product
     const [pr] = await conn.execute(
