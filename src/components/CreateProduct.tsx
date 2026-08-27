@@ -289,7 +289,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
   return (
     <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono select-none w-full overflow-auto p-2" style={{ fontSize: '16px' }}>
       {/* Header bar */}
-      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 shrink-0 flex justify-between items-center px-4 py-3 mb-2">
+      <div className="shrink-0 flex justify-between items-center px-1 py-2 mb-2">
         <h2 className="text-xl font-bold text-black dark:text-white uppercase tracking-wider">
           Create Product
         </h2>
