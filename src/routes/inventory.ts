@@ -64,6 +64,29 @@ router.post('/add', async (req: any, res, next) => {
     );
 
     if (productInfo.product_type === 'serialized') {
+      // 1. Check in-batch duplicate IMEIs (double scan prevention)
+      const imeiList = validItems.map((it: any) => it.imei.trim());
+      const lowerImeis = imeiList.map(s => s.toLowerCase());
+      const duplicateInBatch = lowerImeis.find((s, idx) => lowerImeis.indexOf(s) !== idx);
+      if (duplicateInBatch) {
+        await conn.rollback();
+        return res.status(400).json({ error: `Double-scan detected: Duplicate IMEI "${duplicateInBatch}" in current batch.` });
+      }
+
+      // 2. Check existing database inventory for all IMEIs
+      for (const item of validItems) {
+        const cleanImei = item.imei.trim();
+        const [existing] = await conn.execute(
+          'SELECT id, imei, status FROM devices WHERE (imei = ? OR imei_serial = ?) AND business_id = ? LIMIT 1',
+          [cleanImei, cleanImei, req.user.business_id]
+        );
+        if ((existing as any[]).length > 0) {
+          const dev = (existing as any[])[0];
+          await conn.rollback();
+          return res.status(400).json({ error: `IMEI "${cleanImei}" already exists in inventory (Status: ${dev.status}).` });
+        }
+      }
+
       for (const item of validItems) {
         await conn.execute(
           "INSERT INTO devices (business_id,branch_id,sku_id,imei,cost_price,selling_price,color,gb,`condition`,po_number,status) VALUES (?,?,?,?,?,?,?,?,?,?,'in_stock')",

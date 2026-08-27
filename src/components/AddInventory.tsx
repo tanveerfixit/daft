@@ -235,10 +235,29 @@ export default function AddInventory({
       const currentItem = items[idx];
       const currentImei = currentItem?.imei?.trim();
       
-      if (currentImei) {
-        // Validate current IMEI
-        checkImeiDuplicate(currentImei, idx, items);
+      if (!currentImei) {
+        return;
       }
+
+      // Check if this exact IMEI was already entered in another row (double scan check)
+      const isDoubleScan = items.some((it, i) => i !== idx && it.imei.trim().toLowerCase() === currentImei.toLowerCase());
+      if (isDoubleScan) {
+        setItems(prev => {
+          const updated = [...prev];
+          if (updated[idx]) {
+            updated[idx] = {
+              ...updated[idx],
+              duplicateError: '⚠️ Double-Scan: This IMEI is already in the list'
+            };
+          }
+          return updated;
+        });
+        imeiInputRefs.current[idx]?.select();
+        return;
+      }
+
+      // Validate current IMEI against database
+      checkImeiDuplicate(currentImei, idx, items);
 
       if (idx === items.length - 1) {
         // We are on the last line: auto create next line and copy GB & Condition from current row
@@ -267,6 +286,14 @@ export default function AddInventory({
         return alert('Please enter at least one device with an IMEI / Serial number.');
       }
 
+      // 1. Strict batch uniqueness check
+      const imeiList = validSerializedItems.map(it => it.imei.trim().toLowerCase());
+      const dupImei = imeiList.find((imei, i) => imeiList.indexOf(imei) !== i);
+      if (dupImei) {
+        return alert(`Cannot save: Double-scan detected! Duplicate IMEI "${dupImei}" is entered multiple times in this batch.`);
+      }
+
+      // 2. Check duplicate errors
       const duplicateErrors = validSerializedItems.filter(it => it.duplicateError);
       if (duplicateErrors.length > 0) {
         return alert(`Cannot save: ${duplicateErrors.length} item(s) have duplicate/invalid IMEIs. Please resolve errors before saving.`);

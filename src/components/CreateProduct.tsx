@@ -74,19 +74,49 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
   const [showNewManufacturerModal, setShowNewManufacturerModal] = useState(false);
   const [newItemName, setNewItemName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestionsContainerRef = useRef<HTMLDivElement>(null);
 
-  // Distinct suggestions for the active product type
-  const productSuggestions = Array.from(
-    new Set(
-      existingProducts
-        .filter(p => !p.product_type || p.product_type === activeType || activeType === 'serialized')
-        .map(p => p.product_name || p.name)
-        .filter(Boolean)
-    )
-  ).sort();
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (suggestionsContainerRef.current && !suggestionsContainerRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filter existing products when at least 3 characters are typed
+  const searchQuery = formData.name.trim().toLowerCase();
+  const filteredSuggestions = searchQuery.length >= 3
+    ? existingProducts.filter(p => {
+        const pName = (p.product_name || p.name || '').toLowerCase();
+        const pSku = (p.sku_code || '').toLowerCase();
+        const pBarcode = (p.barcode || '').toLowerCase();
+        return pName.includes(searchQuery) || pSku.includes(searchQuery) || pBarcode.includes(searchQuery);
+      }).slice(0, 10)
+    : [];
+
+  const selectProductSuggestion = (matched: Product) => {
+    const prodName = matched.product_name || matched.name || '';
+    setMatchedExistingProduct(matched);
+    setFormData(prev => ({
+      ...prev,
+      name: prodName,
+      category_id: matched.category_id ? String(matched.category_id) : prev.category_id,
+      manufacturer_id: matched.manufacturer_id ? String(matched.manufacturer_id) : prev.manufacturer_id,
+      selling_price: matched.selling_price !== undefined ? String(matched.selling_price) : prev.selling_price,
+      cost_price: matched.cost_price !== undefined ? String(matched.cost_price) : prev.cost_price,
+      sku_code: matched.sku_code || prev.sku_code
+    }));
+    setShowSuggestions(false);
+  };
 
   // Smart handler when typing or picking a name
   const handleNameChange = (val: string) => {
+    setShowSuggestions(true);
     const trimmed = val.trim().toLowerCase();
     const matched = existingProducts.find(
       p => (p.product_name || p.name || '').trim().toLowerCase() === trimmed
@@ -339,25 +369,60 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
             <div className="relative">
               <input
                 ref={nameInputRef}
-                list="product-name-suggestions"
                 type="text"
+                autoComplete="off"
                 placeholder={
                   activeType === 'serialized'
-                    ? 'Select or type device name (e.g. iPhone 15 Pro, Galaxy S24)...'
+                    ? 'Type at least 3 characters (e.g. iPhone, Samsung, iPad)...'
                     : activeType === 'service'
-                    ? 'Select or type service name (e.g. Screen Replacement Labor)...'
-                    : 'Select or type product name...'
+                    ? 'Type at least 3 characters (e.g. Screen, Battery, Diagnostic)...'
+                    : 'Type at least 3 characters to search existing or create new...'
                 }
                 className="w-full px-3 py-1.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-sm text-neutral-900 dark:text-neutral-100 font-mono outline-none focus:border-neutral-500"
                 value={formData.name}
+                onFocus={() => setShowSuggestions(true)}
                 onChange={e => handleNameChange(e.target.value)}
                 required
               />
-              <datalist id="product-name-suggestions">
-                {productSuggestions.map((name, i) => (
-                  <option key={i} value={name} />
-                ))}
-              </datalist>
+
+              {/* Custom High-Contrast Dropdown Matching EPOS Layout */}
+              {showSuggestions && searchQuery.length >= 3 && filteredSuggestions.length > 0 && (
+                <div 
+                  ref={suggestionsContainerRef}
+                  className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 shadow-lg z-50 max-h-64 overflow-y-auto font-mono text-sm"
+                >
+                  <div className="px-3 py-1.5 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-[11px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider flex justify-between items-center">
+                    <span>Database Matches ({filteredSuggestions.length})</span>
+                    <span className="text-[10px] text-neutral-500">Click to autofill</span>
+                  </div>
+                  {filteredSuggestions.map((item, idx) => (
+                    <div
+                      key={idx}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        selectProductSuggestion(item);
+                      }}
+                      className="px-3 py-2 border-b border-neutral-200 dark:border-neutral-800 last:border-b-0 hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer flex justify-between items-center transition-colors"
+                    >
+                      <div className="min-w-0 flex-1 pr-2">
+                        <span className="font-bold text-neutral-900 dark:text-neutral-100 block text-xs truncate">
+                          {item.product_name || item.name}
+                        </span>
+                        <span className="text-[11px] text-neutral-500 block truncate">
+                          {item.category_name ? `${item.category_name} • ` : ''}
+                          {item.manufacturer_name ? `${item.manufacturer_name} • ` : ''}
+                          SKU: {item.sku_code || 'N/A'}
+                        </span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="font-bold text-neutral-900 dark:text-neutral-100 text-xs px-2 py-0.5 bg-neutral-100 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800">
+                          €{Number(item.selling_price || 0).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
