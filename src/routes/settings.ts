@@ -18,6 +18,7 @@ router.get('/settings', async (req: any, res, next) => {
 });
 
 const settingsSchema = z.object({
+  currency: z.string().optional(),
   timezone: z.string().optional(),
   date_format: z.string().optional(),
   time_format: z.string().optional(),
@@ -26,10 +27,10 @@ const settingsSchema = z.object({
 
 router.post('/settings', async (req: any, res, next) => {
   const data = settingsSchema.parse(req.body);
-  const { timezone, date_format, time_format, language } = data;
+  const { currency, timezone, date_format, time_format, language } = data;
   try {
-    await execute('UPDATE settings SET timezone=?,date_format=?,time_format=?,language=? WHERE business_id=?',
-      [timezone, date_format, time_format, language, req.user.business_id]);
+    await execute('UPDATE settings SET currency=?,timezone=?,date_format=?,time_format=?,language=? WHERE business_id=?',
+      [currency || '€, Euro', timezone, date_format, time_format, language, req.user.business_id]);
     res.json({ success: true });
   } catch (e: any) { next(e); }
 });
@@ -132,13 +133,22 @@ router.post('/payment-methods', async (req: any, res, next) => {
 
 router.get('/printer-settings', async (req: any, res, next) => {
   try {
-    const branchId = req.user?.branch_id;
-    let s = await queryOne('SELECT * FROM printer_settings WHERE business_id=? AND branch_id=?', [req.user.business_id, branchId]);
-    if (!s) {
-      await execute('INSERT INTO printer_settings (business_id,branch_id) VALUES (?,?)', [req.user.business_id, branchId]);
-      s = await queryOne('SELECT * FROM printer_settings WHERE business_id=? AND branch_id=?', [req.user.business_id, branchId]);
+    const branchId = req.user?.branch_id ?? null;
+    let s = await queryOne(
+      'SELECT * FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL))',
+      [req.user.business_id, branchId, branchId]
+    );
+    if (!s && branchId !== null) {
+      s = await queryOne('SELECT * FROM printer_settings WHERE business_id=? AND branch_id IS NULL', [req.user.business_id]);
     }
-    res.json(s);
+    if (!s) {
+      await execute('INSERT INTO printer_settings (business_id, branch_id) VALUES (?, ?)', [req.user.business_id, branchId]);
+      s = await queryOne(
+        'SELECT * FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL))',
+        [req.user.business_id, branchId, branchId]
+      );
+    }
+    res.json(s || {});
   } catch (e: any) { next(e); }
 });
 
@@ -150,17 +160,42 @@ const printerSettingsSchema = z.object({
   margin_bottom: z.number().or(z.string().transform(Number)).optional(),
   margin_right: z.number().or(z.string().transform(Number)).optional(),
   orientation: z.string().optional(),
-  font_size: z.number().or(z.string().transform(Number)).optional(),
+  font_size: z.string().optional(),
   font_family: z.string().optional()
 });
 
 router.post('/printer-settings', async (req: any, res, next) => {
-  const branchId = req.user?.branch_id;
+  const branchId = req.user?.branch_id ?? null;
   const data = printerSettingsSchema.parse(req.body);
-  const { label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family } = data;
+  const { 
+    label_size = '2.25" (57mm) x 1.25" (32mm) Dymo 11354 / 30334', 
+    barcode_length = 20, 
+    margin_top = 2, 
+    margin_left = 2, 
+    margin_bottom = 2, 
+    margin_right = 2, 
+    orientation = 'Landscape', 
+    font_size = 'Medium', 
+    font_family = 'Arial' 
+  } = data;
+
   try {
-    await execute('UPDATE printer_settings SET label_size=?,barcode_length=?,margin_top=?,margin_left=?,margin_bottom=?,margin_right=?,orientation=?,font_size=?,font_family=? WHERE business_id=? AND branch_id=?',
-      [label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family, req.user.business_id, branchId]);
+    const existing = await queryOne(
+      'SELECT id FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL))',
+      [req.user.business_id, branchId, branchId]
+    );
+
+    if (existing) {
+      await execute(
+        'UPDATE printer_settings SET label_size=?, barcode_length=?, margin_top=?, margin_left=?, margin_bottom=?, margin_right=?, orientation=?, font_size=?, font_family=? WHERE id=?',
+        [label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family, existing.id]
+      );
+    } else {
+      await execute(
+        'INSERT INTO printer_settings (business_id, branch_id, label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [req.user.business_id, branchId, label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family]
+      );
+    }
     res.json({ success: true });
   } catch (e: any) { next(e); }
 });

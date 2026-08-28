@@ -4,6 +4,12 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.tsx';
 import './index.css';
 
+// Permanently enforce light mode
+document.documentElement.classList.remove('dark');
+try {
+  localStorage.removeItem('theme');
+} catch (e) {}
+
 // Global fetch interceptor to attach JWT token and handle 401 Unauthorized globally
 const originalFetch = window.fetch;
 window.fetch = async (resource: any, config: any = {}) => {

@@ -798,9 +798,11 @@ router.post('/', async (req: any, res, next) => {
 });
 
 router.post('/:id/refund', async (req: any, res, next) => {
-  const { method } = req.body;
+  const { method = 'Cash', restock = true, items, is_full_refund, notes } = req.body;
   const conn = await pool.getConnection();
   try {
+    await conn.beginTransaction();
+
     const isDeveloper = req.user.role === 'developer';
     const branchId = req.user.branch_id;
     const checkSql = `SELECT * FROM invoices WHERE id=? AND business_id=? ${(!isDeveloper && branchId) ? 'AND branch_id=?' : ''}`;
@@ -809,24 +811,135 @@ router.post('/:id/refund', async (req: any, res, next) => {
 
     const invoice = (invRows as any[])[0];
     if (!invoice) throw new Error('Invoice not found or access denied');
-    if (invoice.status==='void') throw new Error('Invoice already refunded');
-    await conn.execute("UPDATE invoices SET status='void' WHERE id=?", [req.params.id]);
-    await conn.execute('INSERT INTO payments (invoice_id,method,amount) VALUES (?,?,?)',
-      [req.params.id, `Refund (${method})`, -invoice.grand_total]);
-    const [itemRows] = await conn.execute('SELECT * FROM invoice_items WHERE invoice_id=?', [req.params.id]);
-    for (const item of itemRows as any[]) {
-      await conn.execute(`
-        INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,?)
-        ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)
-      `, [invoice.branch_id, item.sku_id, item.quantity]);
-      if (item.device_id) await conn.execute("UPDATE devices SET status='in_stock' WHERE id=?", [item.device_id]);
+    if (invoice.status === 'void') throw new Error('This invoice has already been fully refunded');
+
+    const [itemRows] = await conn.execute(`
+      SELECT ii.*, p.name as product_name, d.imei
+      FROM invoice_items ii
+      JOIN product_skus s ON ii.sku_id = s.id
+      JOIN products p ON s.product_id = p.id
+      LEFT JOIN devices d ON ii.device_id = d.id
+      WHERE ii.invoice_id = ?
+    `, [req.params.id]);
+
+    const currentItems = itemRows as any[];
+    if (currentItems.length === 0) throw new Error('No items found on this invoice');
+
+    let totalRefundAmount = 0;
+    const refundSummaries: string[] = [];
+    const itemsToProcess: Array<{ id: number; sku_id: number; device_id: number | null; qty: number; unitPrice: number; name: string }> = [];
+
+    if (Array.isArray(items) && items.length > 0 && !is_full_refund) {
+      // Partial item refund based on selection
+      for (const reqItem of items) {
+        const item = currentItems.find(ci => ci.id === reqItem.item_id);
+        if (!item) continue;
+
+        const returnableQty = item.quantity - (Number(item.refunded_quantity) || 0);
+        const qtyToRefund = Math.min(returnableQty, Math.max(0, Number(reqItem.quantity) || 0));
+        if (qtyToRefund <= 0) continue;
+
+        const unitEffectivePrice = Number(item.total) / Number(item.quantity);
+        const itemRefundTotal = unitEffectivePrice * qtyToRefund;
+        totalRefundAmount += itemRefundTotal;
+
+        itemsToProcess.push({
+          id: item.id,
+          sku_id: item.sku_id,
+          device_id: item.device_id,
+          qty: qtyToRefund,
+          unitPrice: unitEffectivePrice,
+          name: item.product_name || 'Product'
+        });
+
+        refundSummaries.push(`${qtyToRefund}x ${item.product_name} (€${itemRefundTotal.toFixed(2)})`);
+      }
+    } else {
+      // Full refund of all remaining unrefunded items
+      for (const item of currentItems) {
+        const returnableQty = item.quantity - (Number(item.refunded_quantity) || 0);
+        if (returnableQty <= 0) continue;
+
+        const unitEffectivePrice = Number(item.total) / Number(item.quantity);
+        const itemRefundTotal = unitEffectivePrice * returnableQty;
+        totalRefundAmount += itemRefundTotal;
+
+        itemsToProcess.push({
+          id: item.id,
+          sku_id: item.sku_id,
+          device_id: item.device_id,
+          qty: returnableQty,
+          unitPrice: unitEffectivePrice,
+          name: item.product_name || 'Product'
+        });
+
+        refundSummaries.push(`${returnableQty}x ${item.product_name} (€${itemRefundTotal.toFixed(2)})`);
+      }
     }
-    await conn.execute('INSERT INTO invoice_activity (invoice_id,user_id,activity,details) VALUES (?,?,?,?)',
-      [req.params.id, req.userId, 'Refund Created', `Refund issued via ${method} for €${invoice.grand_total.toFixed(2)}`]);
+
+    if (itemsToProcess.length === 0 || totalRefundAmount <= 0) {
+      throw new Error('No returnable items selected for refund');
+    }
+
+    // Process item updates & restocking
+    for (const pItem of itemsToProcess) {
+      await conn.execute(
+        'UPDATE invoice_items SET refunded_quantity = COALESCE(refunded_quantity, 0) + ? WHERE id = ?',
+        [pItem.qty, pItem.id]
+      );
+
+      if (restock) {
+        await conn.execute(`
+          INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, ?)
+          ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
+        `, [invoice.branch_id || 1, pItem.sku_id, pItem.qty]);
+
+        if (pItem.device_id) {
+          await conn.execute("UPDATE devices SET status='in_stock' WHERE id=?", [pItem.device_id]);
+        }
+      }
+    }
+
+    // Insert negative payment transaction for End of Day balance & accounting
+    await conn.execute(
+      'INSERT INTO payments (invoice_id, method, amount) VALUES (?, ?, ?)',
+      [req.params.id, `Refund (${method})`, -totalRefundAmount]
+    );
+
+    // Evaluate new invoice status
+    const [updatedItems] = await conn.execute(
+      'SELECT SUM(quantity) as total_qty, SUM(COALESCE(refunded_quantity, 0)) as total_refunded FROM invoice_items WHERE invoice_id=?',
+      [req.params.id]
+    );
+    const totalQty = Number((updatedItems as any[])[0]?.total_qty || 0);
+    const totalRefunded = Number((updatedItems as any[])[0]?.total_refunded || 0);
+
+    const isFullyRefunded = totalRefunded >= totalQty;
+    const newStatus = isFullyRefunded ? 'void' : 'partially_refunded';
+    await conn.execute('UPDATE invoices SET status=? WHERE id=?', [newStatus, req.params.id]);
+
+    // Record activity audit trail
+    const activityLabel = isFullyRefunded ? 'Refund Created' : 'Partial Refund';
+    const detailMsg = `${activityLabel} issued via ${method} for €${totalRefundAmount.toFixed(2)} [${refundSummaries.join(', ')}]. ${restock ? 'Restocked to inventory.' : 'No restock.'}${notes ? ` Note: ${notes}` : ''}`;
+
+    await conn.execute(
+      'INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+      [req.params.id, req.userId, activityLabel, detailMsg]
+    );
+
     await conn.commit();
-    res.json({ success: true });
-  } catch (e: any) { await conn.rollback(); next(e); }
-  finally { conn.release(); }
+    res.json({ 
+      success: true, 
+      status: newStatus,
+      refundAmount: totalRefundAmount,
+      refundedItems: itemsToProcess
+    });
+  } catch (e: any) { 
+    await conn.rollback(); 
+    next(e); 
+  } finally { 
+    conn.release(); 
+  }
 });
 
 router.post('/:id/send-email', async (req: any, res, next) => {

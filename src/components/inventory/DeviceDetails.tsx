@@ -109,16 +109,16 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
     } = printerSettings;
 
     const fontSizeMap: Record<string, string> = {
-      'Small': '9px',
-      'Medium': '11px',
-      'Large': '13px',
-      'Regular': '11px'
+      'Small': '10px',
+      'Medium': '12px',
+      'Large': '14px',
+      'Regular': '12px'
     };
 
     const isLandscape = orientation === 'Landscape';
     const width = isLandscape ? '57mm' : '32mm';
     const height = isLandscape ? '32mm' : '57mm';
-    const baseFontSize = fontSizeMap[font_size] || '11px';
+    const baseFontSize = fontSizeMap[font_size] || '12px';
 
     const priceVal = device.selling_price || device.price;
     const ramText = device.ram ? (device.ram.toLowerCase().includes('gb') ? device.ram : `${device.ram}GB`) : '';

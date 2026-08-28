@@ -893,12 +893,15 @@ export async function initSchema() {
       await conn.query('ALTER TABLE devices ADD CONSTRAINT fk_devices_product_id FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE');
     } catch (e) {}
 
-    // 4. Ensure invoice_items has notes and discount_type columns
+    // 4. Ensure invoice_items has notes, discount_type, and refunded_quantity columns
     try {
       await conn.query('ALTER TABLE invoice_items ADD COLUMN notes TEXT NULL AFTER total');
     } catch (e: any) {}
     try {
       await conn.query("ALTER TABLE invoice_items ADD COLUMN discount_type VARCHAR(20) DEFAULT 'percentage' AFTER discount");
+    } catch (e: any) {}
+    try {
+      await conn.query("ALTER TABLE invoice_items ADD COLUMN refunded_quantity INT DEFAULT 0 AFTER quantity");
     } catch (e: any) {}
 
     // 5. Ensure device_transfers has product_name, sku_code, and completed_at columns
@@ -926,6 +929,16 @@ export async function initSchema() {
       await conn.query('ALTER TABLE product_skus DROP INDEX sku_code');
       console.log('[MySQL] Migration: dropped global unique constraint on product_skus.sku_code');
     } catch (e: any) {}
+
+    // 7. Ensure activity_logs has multi-tenant & audit columns (business_id, branch_id, user_name, ip_address, user_agent, reference fields)
+    try { await conn.query('ALTER TABLE activity_logs ADD COLUMN business_id INT NULL AFTER id'); } catch (e: any) {}
+    try { await conn.query('ALTER TABLE activity_logs ADD COLUMN branch_id INT NULL AFTER business_id'); } catch (e: any) {}
+    try { await conn.query('ALTER TABLE activity_logs ADD COLUMN user_name VARCHAR(100) NULL AFTER user_id'); } catch (e: any) {}
+    try { await conn.query('ALTER TABLE activity_logs ADD COLUMN reference_type VARCHAR(50) NULL AFTER description'); } catch (e: any) {}
+    try { await conn.query('ALTER TABLE activity_logs ADD COLUMN reference_id INT NULL AFTER reference_type'); } catch (e: any) {}
+    try { await conn.query('ALTER TABLE activity_logs ADD COLUMN ip_address VARCHAR(50) NULL AFTER reference_link'); } catch (e: any) {}
+    try { await conn.query('ALTER TABLE activity_logs ADD COLUMN user_agent VARCHAR(255) NULL AFTER ip_address'); } catch (e: any) {}
+    try { await conn.query('ALTER TABLE activity_logs ADD INDEX idx_activity_biz (business_id, created_at)'); } catch (e: any) {}
 
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');
 
@@ -1129,4 +1142,56 @@ export async function ensureSuperAdmin() {
 
   console.log('[MySQL] Superadmin and developer roles ensured.');
 }
+
+// ─── Universal Activity Logger ────────────────────────────────────────────────
+
+export async function logActivity({
+  business_id,
+  branch_id,
+  user_id,
+  user_name,
+  activity_type,
+  description,
+  reference_type,
+  reference_id,
+  reference_link,
+  ip_address,
+  user_agent
+}: {
+  business_id?: number | null;
+  branch_id?: number | null;
+  user_id?: number | null;
+  user_name?: string | null;
+  activity_type: string;
+  description: string;
+  reference_type?: string | null;
+  reference_id?: number | null;
+  reference_link?: string | null;
+  ip_address?: string | null;
+  user_agent?: string | null;
+}) {
+  try {
+    await execute(
+      `INSERT INTO activity_logs 
+        (business_id, branch_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link, ip_address, user_agent, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [
+        business_id ?? null,
+        branch_id ?? null,
+        user_id ?? null,
+        user_name ?? null,
+        activity_type,
+        description,
+        reference_type ?? null,
+        reference_id ?? null,
+        reference_link ?? null,
+        ip_address ?? null,
+        user_agent ?? null
+      ]
+    );
+  } catch (err: any) {
+    console.error('[ActivityLog] Failed to record activity:', err.message);
+  }
+}
+
 

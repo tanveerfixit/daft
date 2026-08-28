@@ -113,62 +113,6 @@
   --bg-header: #E7E9EB;
 }
 
-.dark {
-  --bg-header: #0f172a;
-  /* --- Surfaces & Brand Foundation --- */
-  --bg-app: #020617;
-  /* Deep background for reduced eye strain in low light */
-  --bg-surface-secondary: #0f172a;
-  /* Secondary deep surface for structural bars */
-  --bg-sidebar: #020617;
-  /* Unified deep navigation container */
-  --bg-card: #1e293b;
-  /* Raised surface for content cards in dark mode */
-  --bg-hover: #334155;
-  /* Highlight feedback on dark surfaces */
-  --bg-zebra: #1e293b;
-  /* Low-contrast alternating list surface */
-  --bg-accent-subtle: #0f172a;
-  /* Deep structural accent for headers/segments */
-  --bg-input: #0f172a;
-  /* Deep background for form fields */
-
-  /* --- Text & Typography --- */
-  --text-main: #f8fafc;
-  /* High-readability light text for dark backgrounds */
-  --text-muted: #94a3b8;
-  /* Muted descriptive text for dark mode */
-  --text-muted-more: #64748b;
-  /* Auxiliary meta-data on dark surfaces */
-  --text-danger: #ff6b6b;
-  /* Adjusted danger text for dark mode visibility */
-  --text-neutral-dark: #cbd5e1;
-  /* Inverted neutral text for dark mode */
-
-  /* --- Borders & Dividers --- */
-  --border-base: #334155;
-  /* Muted dark divider for list items */
-  --border-header: #1e293b;
-  /* Structural dark dividing line */
-  --border-input: #475569;
-  /* Deep form boundary for dark inputs */
-  --border-focus: #3498db;
-  /* High-contrast focus state for dark mode */
-  --border-dashed: #475569;
-  /* Dark mode equivalent for dashed separators */
-
-  /* Accents (Fixed for Brand Consistency) */
-  --brand-primary: #3498db;
-  --brand-primary-hover: #2980b9;
-  --brand-danger: #e74c3c;
-  --brand-success: #27ae60;
-  --brand-warning: #f1c40f;
-  --brand-warning-hover: #f39c12;
-  --brand-accent: #00e5ff;
-  --brand-accent-hover: #00d4eb;
-  --brand-success-bright: #00c853;
-}
-
 html, body, button, input, select, textarea {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   text-rendering: optimizeLegibility;
@@ -268,4 +212,97 @@ input:focus-visible {
   background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.3), transparent);
   animation: shine 1.5s infinite linear;
   transform: skewX(-20deg);
+}
+
+/* ==========================================================================
+   Senior QA Visual & Behavioral Standards (UI / Presentation Layer Only)
+   ========================================================================== */
+
+/* 1. Global Form Inputs & Focus Standards */
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+select,
+textarea {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted-more);
+  opacity: 0.85;
+}
+
+/* Accessible focus ring across all form inputs */
+input:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible) {
+  outline: none;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18) !important;
+}
+
+/* Disabled input state standards */
+input:disabled,
+select:disabled,
+textarea:disabled,
+button:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.65;
+}
+
+/* Error validation input highlights */
+.input-error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
+}
+
+/* 3. Text Overflow & Layout Resilience */
+.truncate-safe {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.break-words-safe {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+/* 4. Tabular & Grid Alignment Standards */
+.table-num-cell {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table-badge-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  line-height: 1;
+}
+
+/* Smooth layout container */
+.qa-layout-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }

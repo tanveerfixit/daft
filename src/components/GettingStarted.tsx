@@ -899,7 +899,19 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
           return res.json();
         })
         .then(data => {
-          if (data) setPrinterSettings(data);
+          if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+            setPrinterSettings(prev => ({
+              label_size: data.label_size || prev.label_size,
+              barcode_length: data.barcode_length !== undefined ? Number(data.barcode_length) : prev.barcode_length,
+              margin_top: data.margin_top !== undefined ? Number(data.margin_top) : prev.margin_top,
+              margin_left: data.margin_left !== undefined ? Number(data.margin_left) : prev.margin_left,
+              margin_bottom: data.margin_bottom !== undefined ? Number(data.margin_bottom) : prev.margin_bottom,
+              margin_right: data.margin_right !== undefined ? Number(data.margin_right) : prev.margin_right,
+              orientation: data.orientation || prev.orientation,
+              font_size: data.font_size || prev.font_size,
+              font_family: data.font_family || prev.font_family
+            }));
+          }
         })
         .catch(err => console.error('Error fetching printer settings:', err));
     } else if (activeTab === 'manage-thermal-printer' || activeTab === 'manage-eod-report') {
@@ -1019,7 +1031,8 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
       if (response.ok) {
         setMessage({ type: 'success', text: 'Printer settings saved successfully!' });
       } else {
-        setMessage({ type: 'error', text: 'Failed to save printer settings.' });
+        const errorData = await response.json().catch(() => ({}));
+        setMessage({ type: 'error', text: errorData.error || errorData.message || 'Failed to save printer settings.' });
       }
     } catch (err) {
       setMessage({ type: 'error', text: 'An error occurred.' });
@@ -1200,17 +1213,17 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
     } = printerSettings;
 
     const fontSizeMap: Record<string, string> = {
-      'Small': '9px',
-      'Medium': '11px',
-      'Large': '13px',
-      'Regular': '11px'
+      'Small': '10px',
+      'Medium': '12px',
+      'Large': '14px',
+      'Regular': '12px'
     };
 
     const isLandscape = orientation === 'Landscape';
     const width = isLandscape ? '57mm' : '32mm';
     const height = isLandscape ? '32mm' : '57mm';
     const currSymbol = (settings.currency || '€').split(',')[0].trim() || '€';
-    const baseFontSize = fontSizeMap[font_size] || '11px';
+    const baseFontSize = fontSizeMap[font_size] || '12px';
 
     printWindow.document.write(`
       <html>
@@ -2451,66 +2464,71 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
               </p>
 
               <div className="bg-white border border-slate-200 rounded p-6 space-y-8">
-                <div className="bg-slate-50 border border-slate-200 rounded p-4 flex gap-4 text-xs text-slate-600 italic">
-                  <div className="bg-slate-300 w-1 h-auto rounded-full"></div>
-                  <p>
+                <div className="bg-slate-50 border border-slate-200 rounded p-4 flex gap-4 text-xs text-slate-600 italic items-center">
+                  <div className="bg-slate-300 w-1 self-stretch rounded-full shrink-0"></div>
+                  <p className="leading-relaxed">
                     Our software uses your browser to print from so it does not require anything special. You should be able to print from any printer that your browser allows you to print to. We have found that many users like the Dymo Labelwriter 450 if you want a suggestion.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <label className="text-sm font-bold text-slate-700">Label Size</label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+                  <div>
+                    <label className="text-sm font-bold text-slate-700 block">Label Size</label>
+                    <span className="text-[11px] text-slate-500">Standard adhesive label format</span>
+                  </div>
                   <div className="md:col-span-2 space-y-3">
-                    {[
-                      '2.25" (57mm) x 1.25" (32mm) Dymo 11354 / 30334',
-                      '2.12" (54mm) x 1" (25mm) Dymo 30336',
-                      '2.4" (62mm) x 1.1" (28mm) Brother DK1209',
-                      'Custom'
-                    ].map(size => (
-                      <label key={size} className="flex items-center gap-3 cursor-pointer group">
-                        <input 
-                          type="radio" 
-                          name="label_size" 
-                          checked={printerSettings.label_size === size}
-                          onChange={() => setPrinterSettings({ ...printerSettings, label_size: size })}
-                          className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-slate-700 group-hover:text-blue-600 transition-colors">{size}</span>
-                      </label>
-                    ))}
+                    <div className="space-y-2.5">
+                      {[
+                        '2.25" (57mm) x 1.25" (32mm) Dymo 11354 / 30334',
+                        '2.12" (54mm) x 1" (25mm) Dymo 30336',
+                        '2.4" (62mm) x 1.1" (28mm) Brother DK1209',
+                        'Custom'
+                      ].map(size => (
+                        <label key={size} className="flex items-center gap-3 cursor-pointer group select-none">
+                          <input 
+                            type="radio" 
+                            name="label_size" 
+                            checked={printerSettings.label_size === size}
+                            onChange={() => setPrinterSettings({ ...printerSettings, label_size: size })}
+                            className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span className="text-sm font-medium text-slate-700 group-hover:text-blue-600 transition-colors">{size}</span>
+                        </label>
+                      ))}
+                    </div>
 
-                    <div className="bg-red-50 border border-red-100 rounded p-4 mt-4 space-y-2">
+                    <div className="bg-red-50 border border-red-100 rounded p-4 mt-3 space-y-3">
                       <p className="text-xs font-bold text-red-800">The label-size you chose:</p>
                       <ul className="text-[11px] text-red-700 space-y-1 ml-4 list-disc">
                         <li>might produce tiny barcode, so please consider checking Preview with your Scanner</li>
                         <li>might contain 6 lines of information including Barcode</li>
                         <li>might contain 34 characters in each line</li>
                       </ul>
-                      <div className="flex items-center gap-4 pt-2">
+                      <div className="flex items-center gap-3 pt-2 border-t border-red-200/60">
                         <span className="text-xs font-bold text-red-800 whitespace-nowrap">Regular Barcode Length:</span>
                         <input 
                           type="range" 
                           min="5" 
                           max="50" 
                           value={printerSettings.barcode_length}
-                          onChange={(e) => setPrinterSettings({ ...printerSettings, barcode_length: parseInt(e.target.value) })}
+                          onChange={(e) => setPrinterSettings({ ...printerSettings, barcode_length: parseInt(e.target.value) || 20 })}
                           className="flex-1 h-2 bg-red-200 rounded-lg appearance-none cursor-pointer accent-red-600"
                         />
-                        <span className="text-xs font-bold text-red-800 w-8">{printerSettings.barcode_length} character</span>
+                        <span className="text-xs font-bold font-mono text-red-800 whitespace-nowrap min-w-[70px] text-right">{printerSettings.barcode_length} chars</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
                   <div>
                     <label className="text-sm font-bold text-slate-700 block">Margins (Padding)</label>
-                    <span className="text-[11px] text-slate-500">Tight margins recommended</span>
-                    <div className="flex gap-1.5 mt-2">
+                    <span className="text-[11px] text-slate-500 block mb-2.5">Tight margins recommended</span>
+                    <div className="flex flex-wrap gap-1.5">
                       {[
                         { label: 'Tight (2px)', val: 2 },
-                        { label: 'Compact (1px)', val: 1 },
-                        { label: 'Zero (0px)', val: 0 },
+                        { label: 'Normal (3px)', val: 3 },
+                        { label: 'Wide (5px)', val: 5 },
                       ].map(preset => (
                         <button
                           key={preset.label}
@@ -2522,17 +2540,17 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                             margin_bottom: preset.val,
                             margin_right: preset.val
                           })}
-                          className="text-[10px] px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded border border-slate-300 transition"
+                          className="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded border border-slate-300 transition-colors"
                         >
                           {preset.label}
                         </button>
                       ))}
                     </div>
                   </div>
-                  <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {['top', 'left', 'bottom', 'right'].map(side => (
-                      <div key={side} className="flex items-center">
-                        <span className="bg-slate-100 border border-slate-300 border-r-0 rounded-l px-2 py-1.5 text-[10px] font-bold text-slate-500 uppercase w-12 text-center">
+                      <div key={side} className="flex items-stretch rounded border border-slate-300 focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500 overflow-hidden bg-white">
+                        <span className="bg-slate-100 border-r border-slate-300 px-2.5 py-2 text-[11px] font-bold text-slate-500 uppercase flex items-center justify-center min-w-[52px] select-none">
                           {side}
                         </span>
                         <input 
@@ -2541,20 +2559,23 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                           max="20"
                           value={printerSettings[`margin_${side}` as keyof PrinterSettingsData]}
                           onChange={(e) => setPrinterSettings({ ...printerSettings, [`margin_${side}`]: parseInt(e.target.value) || 0 })}
-                          className="w-full border border-slate-300 rounded-r px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                          className="w-full px-2.5 py-2 text-sm focus:outline-none font-mono text-slate-800 text-center"
                         />
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-6">
-                  <label className="text-sm font-bold text-slate-700">Orientation</label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                  <div>
+                    <label className="text-sm font-bold text-slate-700 block">Orientation</label>
+                    <span className="text-[11px] text-slate-500">Page orientation for printing</span>
+                  </div>
                   <div className="md:col-span-2">
                     <select 
                       value={printerSettings.orientation}
                       onChange={(e) => setPrinterSettings({ ...printerSettings, orientation: e.target.value })}
-                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white font-medium text-slate-800"
                     >
                       <option value="Landscape">Landscape</option>
                       <option value="Portrait">Portrait</option>
@@ -2562,31 +2583,34 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
                   <div>
                     <label className="text-sm font-bold text-slate-700 block">Font Size</label>
-                    <span className="text-[11px] text-slate-500">Small (9px), Medium (11px), Large (13px)</span>
+                    <span className="text-[11px] text-slate-500">Small (10px), Medium (12px), Large (14px)</span>
                   </div>
                   <div className="md:col-span-2">
                     <select 
                       value={printerSettings.font_size}
                       onChange={(e) => setPrinterSettings({ ...printerSettings, font_size: e.target.value })}
-                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white font-medium text-slate-800"
                     >
-                      <option value="Small">Small (9px)</option>
-                      <option value="Medium">Medium (11px)</option>
-                      <option value="Large">Large (13px)</option>
+                      <option value="Small">Small (10px)</option>
+                      <option value="Medium">Medium (12px)</option>
+                      <option value="Large">Large (14px)</option>
                     </select>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-6">
-                  <label className="text-sm font-bold text-slate-700">Font Family</label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                  <div>
+                    <label className="text-sm font-bold text-slate-700 block">Font Family</label>
+                    <span className="text-[11px] text-slate-500">Typography style for labels</span>
+                  </div>
                   <div className="md:col-span-2">
                     <select 
                       value={printerSettings.font_family}
                       onChange={(e) => setPrinterSettings({ ...printerSettings, font_family: e.target.value })}
-                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white font-medium text-slate-800"
                     >
                       <option value="Arial">Arial</option>
                       <option value="Helvetica">Helvetica</option>
@@ -2596,16 +2620,16 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="bg-slate-50 border border-slate-200 rounded p-4 flex gap-4 text-xs text-slate-600 italic">
-                    <div className="bg-slate-300 w-1 h-auto rounded-full"></div>
-                    <p>
+                <div className="space-y-4 pt-2">
+                  <div className="bg-slate-50 border border-slate-200 rounded p-4 flex gap-4 text-xs text-slate-600 italic items-center">
+                    <div className="bg-slate-300 w-1 self-stretch rounded-full shrink-0"></div>
+                    <p className="leading-relaxed">
                       Live Label Preview (matches 57mm x 32mm Dymo/Zebra standard). Layout: Device Name, RAM/Storage, Price (Bold), Barcode, IMEI/Serial with tight padding.
                     </p>
                   </div>
 
                   <div className="bg-slate-100 border border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-3">Live Label Preview ({printerSettings.font_size === 'Small' ? '9px' : printerSettings.font_size === 'Large' ? '13px' : '11px'})</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-3">Live Label Preview ({printerSettings.font_size === 'Small' ? '10px' : printerSettings.font_size === 'Large' ? '14px' : '12px'})</span>
                     <div 
                       className="bg-white border-2 border-dashed border-slate-400 rounded p-1 flex flex-col items-center justify-between text-center shadow-md select-none overflow-hidden"
                       style={{
@@ -2616,7 +2640,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                         paddingBottom: `${printerSettings.margin_bottom}px`,
                         paddingRight: `${printerSettings.margin_right}px`,
                         fontFamily: printerSettings.font_family,
-                        fontSize: printerSettings.font_size === 'Small' ? '9px' : printerSettings.font_size === 'Large' ? '13px' : '11px'
+                        fontSize: printerSettings.font_size === 'Small' ? '10px' : printerSettings.font_size === 'Large' ? '14px' : '12px'
                       }}
                     >
                       {/* 1. Device Name (Wraps to 2 lines if long) */}

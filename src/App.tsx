@@ -8,8 +8,6 @@ import {
   LayoutGrid, 
   Smartphone,
   Search,
-  Sun,
-  Moon,
   ShoppingBag,
   Banknote,
   ArrowLeftRight
@@ -38,6 +36,7 @@ import AddInventory from './components/AddInventory';
 import DeviceDetailView from './components/inventory/DeviceDetails';
 import GettingStarted from './components/GettingStarted';
 import BranchTransfer from './components/BranchTransfer';
+import ActivityReport from './components/ActivityReport';
 import AdminPortal from './components/admin/AdminPortal';
 import LoginPage from './components/auth/LoginPage';
 import SignupPage from './components/auth/SignupPage';
@@ -274,10 +273,13 @@ function AppInner() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem('theme');
-    return saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  });
+
+  // Enforce light mode globally
+  useEffect(() => {
+    document.documentElement.classList.remove('dark');
+    localStorage.removeItem('theme');
+    localStorage.setItem('theme', 'light');
+  }, []);
 
   // Dynamically update browser tab/page title with Business Name
   useEffect(() => {
@@ -323,16 +325,6 @@ function AppInner() {
       return () => clearTimeout(timer);
     }
   }, [searchError]);
-
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [isDarkMode]);
 
   useEffect(() => {
     const q = searchQuery.trim();
@@ -543,14 +535,6 @@ function AppInner() {
         </div>
 
         <div className="flex items-center gap-3 px-6">
-          <button 
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-[var(--text-main)] flex items-center justify-center"
-            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-          >
-            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
-
           {isAdmin && (
             <button 
               onClick={() => setShowAdminPortal(true)}
@@ -651,20 +635,23 @@ function AppInner() {
               'home', 'dashboard', 'register', 'products', 'invoices', 
               'customers', 'repairs', 'devices', 'transfers', 'purchase-orders'
             ].includes(currentView)) && (
-              <Routes>
-                <Route path="/:branchSlug/products/:id" element={<ProductDetailsRoute />} />
-                <Route path="/:branchSlug/create-product" element={<CreateProduct onCancel={() => navigate(`/${branchSlug}/products`)} onSave={() => navigate(`/${branchSlug}/products`)} />} />
-                <Route path="/:branchSlug/add-inventory/:id" element={<AddInventoryRoute />} />
-                <Route path="/:branchSlug/invoices/:id" element={<InvoiceDetailsRoute />} />
-                <Route path="/:branchSlug/customers/:id" element={<CustomerDetailsRoute />} />
-                <Route path="/:branchSlug/devices/:id" element={<DeviceDetailRoute />} />
-                <Route path="/:branchSlug/sku-devices/:id" element={<SkuDeviceDetailsRoute />} />
-                <Route path="/:branchSlug/purchase-orders/:id" element={<PurchaseOrderDetailRoute />} />
-                <Route path="/:branchSlug/manage-data" element={<ManageData />} />
-                <Route path="/:branchSlug/end-of-day" element={<EndOfDay />} />
-                <Route path="/:branchSlug/getting-started" element={<GettingStartedRoute />} />
-                <Route path="*" element={<Navigate to={`/${branchSlug}/dashboard`} replace />} />
-              </Routes>
+              <div className="h-full">
+                <Routes>
+                  <Route path="/:branchSlug/products/:id" element={<ProductDetailsRoute />} />
+                  <Route path="/:branchSlug/create-product" element={<CreateProduct onCancel={() => navigate(`/${branchSlug}/products`)} onSave={() => navigate(`/${branchSlug}/products`)} />} />
+                  <Route path="/:branchSlug/add-inventory/:id" element={<AddInventoryRoute />} />
+                  <Route path="/:branchSlug/invoices/:id" element={<InvoiceDetailsRoute />} />
+                  <Route path="/:branchSlug/customers/:id" element={<CustomerDetailsRoute />} />
+                  <Route path="/:branchSlug/devices/:id" element={<DeviceDetailRoute />} />
+                  <Route path="/:branchSlug/sku-devices/:id" element={<SkuDeviceDetailsRoute />} />
+                  <Route path="/:branchSlug/purchase-orders/:id" element={<PurchaseOrderDetailRoute />} />
+                  <Route path="/:branchSlug/manage-data" element={<ManageData />} />
+                  <Route path="/:branchSlug/end-of-day" element={<EndOfDay />} />
+                  <Route path="/:branchSlug/getting-started" element={<GettingStartedRoute />} />
+                  <Route path="/:branchSlug/activity-log" element={<ActivityReport />} />
+                  <Route path="*" element={<Navigate to={`/${branchSlug}/dashboard`} replace />} />
+                </Routes>
+              </div>
             )}
           </ErrorBoundary>
         </main>

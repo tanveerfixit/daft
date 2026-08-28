@@ -76,6 +76,7 @@ export interface InvoiceItem {
   allow_overselling?: number;
   max_stock?: number;
   notes?: string;
+  refunded_quantity?: number;
 }
 
 export interface InvoiceActivity {

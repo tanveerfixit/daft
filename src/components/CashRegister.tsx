@@ -778,8 +778,8 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const handleFinalizeTransaction = async (printPreference: 'Thermal' | 'A4' | null) => {
     const invoiceData = {
       customer_id: selectedCustomer?.id || null,
-      subtotal,
-      tax_total: 0,
+      subtotal: taxableTotal,
+      tax_total: taxAmount,
       discount_total: discountTotal,
       grand_total: total,
       items: cart.map(item => {
@@ -1026,7 +1026,8 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
           onOpenNewCustomerModal={() => setShowNewCustomerModal(true)}
           onOpenDepositModal={() => setShowDepositModal(true)}
           
-          subtotal={taxableTotal}
+          subtotal={subtotal}
+          taxableTotal={taxableTotal}
           tax={taxAmount}
           discount={discountTotal}
           total={total}

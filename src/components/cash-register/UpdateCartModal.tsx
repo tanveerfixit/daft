@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Info, Plus, Minus } from 'lucide-react';
+import { X, Save, Plus, Minus } from 'lucide-react';
 import { CartItem } from './types';
 
 interface UpdateCartModalProps {
@@ -107,50 +107,40 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 bg-black/65 flex items-center justify-center z-[110] p-2 sm:p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 font-sans animate-in fade-in duration-150"
       onKeyDown={handleKeyDown}
     >
-      <div className="bg-[var(--bg-card)] w-full max-w-lg overflow-hidden border border-[var(--border-base)] rounded-lg shadow-2xl">
+      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg overflow-hidden shadow-2xl rounded-none flex flex-col">
         {/* Modal Header */}
-        <div className="px-5 py-3 border-b border-[var(--border-base)] flex justify-between items-center bg-[var(--bg-header)]">
-          <h3 className="text-base font-black text-[var(--text-main)] uppercase tracking-wider">
-            Update Cart Item
-          </h3>
+        <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
+          <div className="min-w-0 pr-2">
+            <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 truncate">
+              {item.product_name}
+            </h3>
+            <div className="flex items-center gap-2 text-xs text-neutral-500 font-mono">
+              {item.sku_code && <span>SKU: {item.sku_code}</span>}
+              {item.imei && <span className="text-blue-600 dark:text-blue-400 font-semibold">IMEI: {item.imei}</span>}
+            </div>
+          </div>
           <button 
             type="button"
             onClick={onClose}
-            className="p-1.5 hover:bg-[var(--bg-hover)] text-[var(--text-muted-more)] hover:text-[var(--text-main)] transition-colors rounded-sm cursor-pointer"
+            className="text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer shrink-0"
           >
-            <X size={22} />
+            <X size={20} />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 sm:p-5 space-y-4">
-          {/* Product Banner */}
-          <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-md">
-            <Info size={20} className="text-blue-600 dark:text-blue-400 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="text-base font-bold text-blue-900 dark:text-blue-200 truncate">{item.product_name}</p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-xs text-blue-700 dark:text-blue-400 font-mono font-semibold uppercase">{item.sku_code || 'No SKU'}</span>
-                {item.imei && (
-                  <span className="text-xs text-blue-800 dark:text-blue-300 font-mono font-bold bg-blue-100 dark:bg-blue-900/50 px-1.5 py-0.2 rounded-xs">
-                    IMEI: {item.imei}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+        <div className="p-6 space-y-4 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 text-sm">
+          <div className="grid grid-cols-2 gap-4">
             {/* Unit Price */}
             <div>
-              <label className="text-xs font-bold text-[var(--text-main)] uppercase tracking-wider mb-1 block">
+              <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider mb-1 block">
                 Unit Price (€)
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono font-bold text-sm text-[var(--text-muted)]">€</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono font-bold text-sm text-neutral-500">€</span>
                 <input 
                   ref={priceInputRef}
                   type="text"
@@ -164,7 +154,7 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
                       setUnitPrice(parsed.toFixed(2));
                     }
                   }}
-                  className="w-full bg-[var(--bg-app)] border border-[var(--border-base)] pl-8 pr-3 py-2 text-base font-mono font-bold text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                  className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 pl-8 pr-3 py-2 text-sm font-mono font-bold text-neutral-900 dark:text-neutral-100 outline-none focus:border-blue-500 rounded-none"
                   placeholder="0.00"
                 />
               </div>
@@ -172,7 +162,7 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
 
             {/* Quantity */}
             <div>
-              <label className="text-xs font-bold text-[var(--text-main)] uppercase tracking-wider mb-1 block">
+              <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider mb-1 block">
                 Quantity {item.product_type === 'serialized' ? '(Fixed)' : ''}
               </label>
               <div className="flex items-center gap-1">
@@ -181,7 +171,7 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
                     type="button"
                     onClick={() => handleStepQuantity(-1)}
                     disabled={(parseInt(quantity) || 1) <= 1}
-                    className="w-9 h-10 flex items-center justify-center rounded border border-[var(--border-base)] bg-[var(--bg-app)] hover:bg-[var(--bg-hover)] text-[var(--text-main)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                    className="w-9 h-9 flex items-center justify-center rounded-none border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
                   >
                     <Minus size={14} />
                   </button>
@@ -193,8 +183,8 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
                   onChange={(e) => setQuantity(e.target.value.replace(/[^0-9]/g, ''))}
                   onFocus={(e) => e.target.select()}
                   disabled={item.product_type === 'serialized'}
-                  className={`w-full bg-[var(--bg-app)] border border-[var(--border-base)] px-3 py-2 text-base font-mono font-bold text-center text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 rounded ${
-                    item.product_type === 'serialized' ? 'opacity-50 cursor-not-allowed bg-neutral-200 dark:bg-neutral-900' : ''
+                  className={`w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 px-3 py-2 text-sm font-mono font-bold text-center text-neutral-900 dark:text-neutral-100 outline-none focus:border-blue-500 rounded-none ${
+                    item.product_type === 'serialized' ? 'opacity-50 cursor-not-allowed bg-neutral-100 dark:bg-neutral-900' : ''
                   }`}
                   placeholder="1"
                 />
@@ -202,7 +192,7 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
                   <button
                     type="button"
                     onClick={() => handleStepQuantity(1)}
-                    className="w-9 h-10 flex items-center justify-center rounded border border-[var(--border-base)] bg-[var(--bg-app)] hover:bg-[var(--bg-hover)] text-[var(--text-main)] cursor-pointer shrink-0"
+                    className="w-9 h-9 flex items-center justify-center rounded-none border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 cursor-pointer shrink-0"
                   >
                     <Plus size={14} />
                   </button>
@@ -214,29 +204,11 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
             </div>
           </div>
 
-          {/* Discount Section with Quick Chips (5, 10, 15) */}
+          {/* Discount Section with Quick Chips Below Input */}
           <div>
-            <div className="flex justify-between items-center mb-1">
-              <label className="text-xs font-bold text-[var(--text-main)] uppercase tracking-wider block">
-                Discount
-              </label>
-              <div className="flex gap-1.5">
-                {[5, 10, 15].map((val) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => setQuickDiscount(val)}
-                    className={`text-xs font-mono font-bold px-2.5 py-0.5 rounded border transition-all cursor-pointer ${
-                      parseFloat(discount) === val
-                        ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
-                        : 'border-[var(--border-base)] bg-[var(--bg-app)] text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
-                    }`}
-                  >
-                    {discountType === 'percentage' ? `${val}%` : `€${val}`}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <label className="text-xs font-bold text-neutral-800 uppercase tracking-wider mb-1 block">
+              Discount
+            </label>
             <div className="flex gap-2">
               <input 
                 type="text"
@@ -244,62 +216,81 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
                 value={discount}
                 onChange={(e) => setDiscount(e.target.value.replace(/[^0-9.]/g, ''))}
                 onFocus={(e) => e.target.select()}
-                className="flex-1 bg-[var(--bg-app)] border border-[var(--border-base)] px-3.5 py-2 text-base font-mono font-bold text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                className="flex-1 bg-white border border-neutral-300 px-3 py-2 text-sm font-mono font-bold text-neutral-900 outline-none focus:border-blue-500 rounded-none"
                 placeholder="0"
               />
               <select 
                 value={discountType}
                 onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'fixed')}
-                className="bg-[var(--bg-app)] border border-[var(--border-base)] px-4 py-2 text-base font-bold text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 rounded font-mono cursor-pointer"
+                className="bg-white border border-neutral-300 px-3 py-2 text-sm font-bold text-neutral-900 outline-none focus:border-blue-500 rounded-none font-mono cursor-pointer"
               >
                 <option value="fixed">€</option>
                 <option value="percentage">%</option>
               </select>
             </div>
+
+            {/* Quick Selection Buttons Under the Input Field on Left Side */}
+            <div className="flex items-center gap-1.5 mt-2 justify-start">
+              {[5, 10, 15, 20].map((val) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setQuickDiscount(val)}
+                  className={`text-xs font-mono font-bold px-2.5 py-1 rounded-none border transition-all cursor-pointer ${
+                    parseFloat(discount) === val
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'border-neutral-300 bg-neutral-100 text-neutral-800 hover:bg-neutral-200'
+                  }`}
+                >
+                  {discountType === 'percentage' ? `${val}%` : `€${val}`}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Notes */}
           <div>
-            <label className="text-xs font-bold text-[var(--text-main)] uppercase tracking-wider mb-1 block">
+            <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider mb-1 block">
               Item Notes (Printed on Receipt & Invoice)
             </label>
             <textarea 
+              rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full bg-[var(--bg-app)] border border-[var(--border-base)] px-3.5 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[60px] rounded placeholder:text-[var(--text-muted-more)]"
+              className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 px-3 py-2 text-xs text-neutral-900 dark:text-neutral-100 outline-none focus:border-blue-500 rounded-none resize-none"
               placeholder="e.g., Replacement screen warranty, customer request notes..."
             />
           </div>
 
           {/* Subtotal / Total Summary */}
-          <div className="pt-2.5 border-t border-[var(--border-base)] grid grid-cols-2 items-center">
+          <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
             <div>
-              <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Subtotal</p>
-              <p className="text-lg font-mono font-bold text-[var(--text-main)]">€{subtotal.toFixed(2)}</p>
+              <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Subtotal</p>
+              <p className="text-base font-mono font-bold text-neutral-800 dark:text-neutral-200">€{subtotal.toFixed(2)}</p>
             </div>
             <div className="text-right">
-              <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Final Total</p>
-              <p className="text-2xl font-mono font-black text-blue-600 dark:text-blue-400">€{total.toFixed(2)}</p>
+              <p className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider">Final Total</p>
+              <p className="text-2xl font-mono font-black text-amber-500">€{total.toFixed(2)}</p>
             </div>
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="px-5 py-3 bg-[var(--bg-app)] border-t border-[var(--border-base)] flex gap-3">
+        <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-3">
           <button 
             type="button"
             onClick={onClose}
-            className="flex-1 py-2.5 font-bold text-[var(--text-main)] hover:bg-[var(--bg-hover)] border border-[var(--border-base)] uppercase text-xs tracking-widest transition-colors rounded cursor-pointer"
+            className="px-5 py-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 font-semibold text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-none text-sm cursor-pointer"
           >
             Cancel [ESC]
           </button>
           <button 
             type="button"
             onClick={handleSave}
-            className="flex-1 py-2.5 font-bold text-white bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2 uppercase text-xs tracking-widest transition-colors rounded shadow-sm cursor-pointer"
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-none text-sm transition-all cursor-pointer flex items-center gap-2"
           >
             <Save size={16} />
-            Update Item [ENTER]
+            <span>Save Changes</span>
           </button>
         </div>
       </div>

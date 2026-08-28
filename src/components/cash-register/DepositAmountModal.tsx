@@ -25,18 +25,18 @@ export const DepositAmountModal: React.FC<DepositAmountModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-      <div className="bg-[var(--bg-card)] w-full max-w-sm rounded-lg shadow-2xl animate-in zoom-in-95 duration-300 border border-[var(--border-base)] overflow-hidden">
-        
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 font-sans animate-in fade-in duration-150">
+      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-md overflow-hidden shadow-2xl rounded-none flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-base)] bg-[var(--bg-accent-subtle)]">
+        <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <Wallet size={18} className="text-[var(--brand-primary)]" />
-            <h2 className="text-sm font-black text-[var(--text-main)] uppercase tracking-tight">Deposit to Wallet</h2>
+            <Wallet size={18} className="text-blue-600 dark:text-blue-400" />
+            <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Deposit to Wallet</h3>
           </div>
           <button 
+            type="button"
             onClick={onClose}
-            className="text-[var(--text-muted-more)] hover:text-[var(--text-main)] transition-colors rounded-sm"
+            className="text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer"
           >
             <X size={20} />
           </button>
@@ -44,19 +44,23 @@ export const DepositAmountModal: React.FC<DepositAmountModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit}>
-          <div className="p-6 space-y-4">
+          <div className="p-6 space-y-4 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 text-sm">
             {customer && (
-              <div className="px-4 py-3 bg-[var(--brand-primary)]/10 border border-[var(--brand-primary)]/20 mb-6 rounded-md">
-                <p className="text-[10px] font-bold text-[var(--brand-primary)] uppercase tracking-widest mb-1">Customer</p>
-                <p className="text-sm font-bold text-[var(--text-main)]">{safeCustomerName(customer)}</p>
-                <p className="text-xs font-semibold text-[var(--brand-success)] mt-1">Current Balance: €{(customer.wallet_balance || 0).toFixed(2)}</p>
+              <div className="p-3 bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800">
+                <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-0.5">Customer</p>
+                <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{safeCustomerName(customer)}</p>
+                <p className="text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
+                  Current Balance: €{(customer.wallet_balance || 0).toFixed(2)}
+                </p>
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest mb-2">Amount to Deposit</label>
+              <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider mb-1 block">
+                Amount to Deposit (€)
+              </label>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted-more)] font-bold text-lg">€</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 font-mono font-bold text-base">€</span>
                 <input
                   type="number"
                   step="0.01"
@@ -64,7 +68,7 @@ export const DepositAmountModal: React.FC<DepositAmountModalProps> = ({
                   autoFocus
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-[var(--bg-app)] border border-[var(--border-base)] text-2xl font-black text-[var(--text-main)] focus:outline-none focus:border-[var(--brand-primary)] focus:ring-1 focus:ring-[var(--brand-primary)] transition-all font-mono rounded"
+                  className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 pl-8 pr-3 py-2 text-xl font-mono font-bold text-neutral-900 dark:text-neutral-100 outline-none focus:border-blue-500 rounded-none"
                   placeholder="0.00"
                 />
               </div>
@@ -72,23 +76,22 @@ export const DepositAmountModal: React.FC<DepositAmountModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex border-t border-[var(--border-base)]">
+          <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-3">
             <button 
               type="button"
               onClick={onClose}
-              className="flex-1 py-3.5 font-bold text-[var(--text-muted)] bg-[var(--bg-app)] hover:bg-[var(--bg-hover)] uppercase tracking-widest text-xs transition-colors border-r border-[var(--border-base)] cursor-pointer"
+              className="px-5 py-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 font-semibold text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-none text-sm cursor-pointer"
             >
               Cancel
             </button>
             <button 
               type="submit"
-              className="flex-1 py-3.5 font-bold text-white bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] uppercase tracking-widest text-xs transition-colors cursor-pointer"
+              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-none text-sm transition-all cursor-pointer"
             >
               Add to Cart
             </button>
           </div>
         </form>
-
       </div>
     </div>
   );

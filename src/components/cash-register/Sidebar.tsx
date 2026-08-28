@@ -17,6 +17,7 @@ interface SidebarProps {
   onOpenDepositModal?: () => void;
   
   subtotal: number;
+  taxableTotal?: number;
   tax: number;
   discount: number;
   total: number;
@@ -59,6 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
       {/* Totals */}
       <TotalsPanel 
         subtotal={props.subtotal}
+        taxableTotal={props.taxableTotal}
         tax={props.tax}
         discount={props.discount}
         total={props.total}

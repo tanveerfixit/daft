@@ -1,5 +1,5 @@
 import React from 'react';
-import { Minus, Plus, Trash2, Pencil, Smartphone } from 'lucide-react';
+import { Minus, Plus, Trash2, Pencil, ExternalLink } from 'lucide-react';
 import { CartItem } from './types';
 
 interface CartRowProps {
@@ -38,115 +38,129 @@ export const CartRow: React.FC<CartRowProps> = ({
   total = Math.max(0, isNaN(total) ? 0 : total);
 
   return (
-    <tr className="cart-row border-b border-[#d8d8d8] hover:bg-gray-50/50 transition-colors bg-white text-[#333333]">
+    <tr className="cart-row border-b border-[#d8d8d8] dark:border-neutral-800 hover:bg-neutral-50/70 dark:hover:bg-neutral-900/40 transition-colors bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 text-[16px]">
       {/* Index Column */}
-      <td className="text-center px-0.5 py-2 border-r border-[#d8d8d8]">
+      <td className="text-center px-1 py-2 border-r border-[#d8d8d8] dark:border-neutral-800 text-neutral-500 font-mono w-10 text-[15px]">
         {index + 1}
       </td>
 
-      {/* Description Column */}
-      <td className="text-left px-3 py-2 border-r border-[#d8d8d8]">
-        <div className="flex flex-col">
-          <div className="flex items-center justify-between gap-1 flex-wrap">
-            <span className="font-medium text-[#333333] leading-tight">
-              {item.product_name}
-            </span>
+      {/* Description Column: Product Name (Not bold, 16px) + SKU + Serial/IMEI all on the same line */}
+      <td className="text-left px-3 py-2 border-r border-[#d8d8d8] dark:border-neutral-800">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Product Name (Not Bold, 16px) */}
+          <span className="font-normal text-neutral-900 dark:text-neutral-100 text-[16px]">
+            {item.product_name}
+          </span>
+
+          {/* SKU next to name */}
+          {(item.sku_code || item.barcode) && (
             <button 
               type="button"
               onClick={() => onSelectProduct?.(item.id)}
-              className="text-xs text-blue-600 hover:underline font-mono"
+              className="text-[14px] text-blue-600 dark:text-blue-400 hover:underline font-mono inline-flex items-center gap-0.5 cursor-pointer"
               title="View Product"
             >
-              {item.sku_code || item.barcode || `SKU-${item.id}`}
+              <span>({item.sku_code || item.barcode})</span>
+              <ExternalLink size={12} className="inline opacity-70" />
             </button>
-          </div>
-          
-          <div className="flex items-center gap-2 mt-1 flex-wrap text-xs">
-            {item.device_id && (
-              <span className="inline-flex items-center gap-1 bg-gray-100 text-[#333333] px-1.5 py-0.5 rounded border border-[#d8d8d8] font-mono">
-                <Smartphone className="w-3 h-3" />
-                {item.imei}
-              </span>
-            )}
-            {item.discount && (
-              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                -{item.discount}{item.discountType === 'percentage' ? '%' : '€'}
-              </span>
-            )}
-            {item.product_type !== 'serialized' && (
-              <div className="inline-flex items-center gap-1 border border-[#d8d8d8] rounded px-1 py-0.5 bg-gray-50">
-                <button 
-                  type="button"
-                  onClick={() => onUpdateQuantity(item.id, -1, item.device_id)}
-                  className="text-[#333333] hover:text-black p-0.5"
-                  title="Decrease Qty"
-                >
-                  <Minus className="w-3 h-3" />
-                </button>
-                <span className="font-semibold px-1 min-w-4 text-center">{item.quantity}</span>
-                <button 
-                  type="button"
-                  onClick={() => onUpdateQuantity(item.id, 1, item.device_id)}
-                  className="text-[#333333] hover:text-black p-0.5"
-                  title="Increase Qty"
-                >
-                  <Plus className="w-3 h-3" />
-                </button>
-              </div>
-            )}
-          </div>
+          )}
+
+          {/* Serial / IMEI next to name */}
+          {item.imei && (
+            <span className="text-[14px] text-blue-600 dark:text-blue-400 hover:underline font-mono inline-flex items-center gap-0.5 cursor-pointer">
+              <span>({item.imei})</span>
+              <ExternalLink size={12} className="inline opacity-70" />
+            </span>
+          )}
+
+          {/* Discount Tag (if any) */}
+          {item.discount ? (
+            <span className="text-[14px] font-semibold text-emerald-600 dark:text-emerald-400 font-mono">
+              (-{item.discount}{item.discountType === 'percentage' ? '%' : '€'})
+            </span>
+          ) : null}
+
+          {/* Item Notes (if any) */}
           {item.notes && (
-            <p className="text-xs text-[#757575] italic mt-0.5 line-clamp-1">"{item.notes}"</p>
+            <span className="text-[13px] text-neutral-500 italic">
+              - "{item.notes}"
+            </span>
           )}
         </div>
       </td>
 
-      {/* Need/Have/OnPO Column */}
-      <td className="text-center px-2 py-2 border-r border-[#d8d8d8] whitespace-nowrap">
-        <div className="flex items-center justify-center gap-1 font-mono text-sm">
-          <span className="text-[#757575]">0</span>
-          <span className="text-[#d8d8d8]">/</span>
-          <span className={`font-semibold ${(item.total_stock || 0) > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-            {item.total_stock !== undefined ? item.total_stock : 'Have'}
+      {/* Need / Have / OnPO Column */}
+      <td className="text-center px-2 py-2 border-r border-[#d8d8d8] dark:border-neutral-800 whitespace-nowrap w-28 font-mono text-[16px]">
+        <div className="flex items-center justify-center gap-1.5">
+          {/* Subtle minus button for non-serialized */}
+          {item.product_type !== 'serialized' && (Number(item.quantity) || 1) > 1 && (
+            <button
+              type="button"
+              onClick={() => onUpdateQuantity(item.id, -1, item.device_id)}
+              className="text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors p-0.5 cursor-pointer"
+              title="Decrease quantity"
+            >
+              <Minus size={13} />
+            </button>
+          )}
+
+          <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+            {item.quantity || 1}
           </span>
-          <span className="text-[#d8d8d8]">/</span>
-          <span className="text-[#757575]">0</span>
+
+          {/* Subtle plus button for non-serialized */}
+          {item.product_type !== 'serialized' && (
+            <button
+              type="button"
+              onClick={() => onUpdateQuantity(item.id, 1, item.device_id)}
+              className="text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors p-0.5 cursor-pointer"
+              title="Increase quantity"
+            >
+              <Plus size={13} />
+            </button>
+          )}
+
+          <span className="text-neutral-300 dark:text-neutral-700">/</span>
+          <span className={`font-semibold ${(item.total_stock || 0) > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+            {item.total_stock !== undefined ? item.total_stock : '0'}
+          </span>
+          <span className="text-neutral-300 dark:text-neutral-700">/</span>
+          <span className="text-neutral-400">0</span>
         </div>
       </td>
 
       {/* Unit Price Column */}
-      <td className="text-right px-2 py-2 border-r border-[#d8d8d8] whitespace-nowrap font-mono">
+      <td className="text-right px-3 py-2 border-r border-[#d8d8d8] dark:border-neutral-800 whitespace-nowrap font-mono text-[16px] text-neutral-800 dark:text-neutral-200 w-24">
         €{itemPrice.toFixed(2)}
       </td>
 
       {/* Total Column */}
-      <td className="cart-row-total text-right px-2 py-2 border-r border-[#d8d8d8] whitespace-nowrap font-mono font-medium">
+      <td className="cart-row-total text-right px-3 py-2 border-r border-[#d8d8d8] dark:border-neutral-800 whitespace-nowrap font-mono font-semibold text-[16px] text-neutral-900 dark:text-neutral-100 w-24">
         €{total.toFixed(2)}
       </td>
 
       {/* Actions Column */}
-      <td className="text-center px-1 py-2 whitespace-nowrap">
-        <div className="flex items-center justify-center gap-1">
+      <td className="text-center px-2 py-2 whitespace-nowrap w-14">
+        <div className="flex items-center justify-center gap-2">
           <button 
             type="button"
             onClick={() => onEdit(item)}
-            className="text-[#757575] hover:text-[#333333] transition-colors p-1 cursor-pointer"
+            className="text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors p-0.5 cursor-pointer"
             title="Edit Item"
           >
-            <Pencil className="w-3.5 h-3.5" />
+            <Pencil size={15} />
           </button>
           <button 
             type="button" 
             onClick={() => onRemove(item.id, item.device_id)}
-            className="remove-row-btn text-[#333333] hover:text-[#ff6347] transition-colors p-1 cursor-pointer" 
+            className="remove-row-btn text-neutral-400 hover:text-red-600 dark:hover:text-red-400 transition-colors p-0.5 cursor-pointer" 
             aria-label="Remove item"
             title="Remove Item"
           >
-            <Trash2 className="w-3.5 h-3.5 inline-block" />
+            <Trash2 size={15} />
           </button>
         </div>
       </td>
     </tr>
   );
 };
-

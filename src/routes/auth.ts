@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pool, query, queryOne, execute } from '../mysql.js';
+import { pool, query, queryOne, execute, logActivity } from '../mysql.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { sendAccountPending, sendAccountApproved, sendAccountRejected, sendAccountDeactivated, sendOtpCode, sendGeneratedPassword, sendTestEmail, invalidateMailTransporter } from '../services/mailer.js';
@@ -259,6 +259,48 @@ router.post('/login', async (req: any, res, next) => {
     await execute('UPDATE users SET last_login=NOW() WHERE id=?', [user.id]);
     const branch = await queryOne('SELECT * FROM branches WHERE id=?', [user.branch_id]) as any;
     const business = await queryOne('SELECT name FROM businesses WHERE id=?', [user.business_id]) as any;
+
+    // Capture IP Address & User Agent for Activity Log
+    try {
+      const rawIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+      const ipAddress = (typeof rawIp === 'string' ? rawIp.split(',')[0].trim() : String(rawIp)).replace(/^::ffff:/, '');
+      const userAgent = req.headers['user-agent'] || '';
+
+      const parseDevice = (ua: string) => {
+        let os = 'Unknown OS';
+        if (ua.includes('Windows')) os = 'Windows';
+        else if (ua.includes('Macintosh') || ua.includes('Mac OS')) os = 'macOS';
+        else if (ua.includes('iPhone')) os = 'iOS';
+        else if (ua.includes('iPad')) os = 'iPadOS';
+        else if (ua.includes('Android')) os = 'Android';
+        else if (ua.includes('Linux')) os = 'Linux';
+
+        let browser = 'Browser';
+        if (ua.includes('Edg/')) browser = 'Edge';
+        else if (ua.includes('Chrome')) browser = 'Chrome';
+        else if (ua.includes('Safari')) browser = 'Safari';
+        else if (ua.includes('Firefox')) browser = 'Firefox';
+
+        return `${browser} on ${os}`;
+      };
+
+      const deviceSummary = parseDevice(userAgent);
+      const loginDescription = `Logged in from IP ${ipAddress || '127.0.0.1'} (${deviceSummary})`;
+
+      await logActivity({
+        business_id: user.business_id,
+        branch_id: user.branch_id,
+        user_id: user.id,
+        user_name: user.name,
+        activity_type: 'User Login',
+        description: loginDescription,
+        ip_address: ipAddress || '127.0.0.1',
+        user_agent: userAgent
+      });
+    } catch (logErr: any) {
+      console.error('[Auth] Failed to log user login activity:', logErr.message);
+    }
+
     res.json({
       token,
       user: { id: user.id, name: user.name, email: user.email, role: user.role, status: user.status,
