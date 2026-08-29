@@ -210,6 +210,7 @@ router.get('/eod-data', async (req: any, res, next) => {
       summary, 
       date,
       startingBalance: existingReport ? Number(existingReport.starting_balance) : null,
+      cashCounted: existingReport?.cash_counted != null ? Number(existingReport.cash_counted) : null,
       comments: existingReport?.comments || ''
     });
   } catch (e: any) { next(e); }

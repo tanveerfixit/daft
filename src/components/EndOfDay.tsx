@@ -531,41 +531,36 @@ const CashCounter: React.FC<CashCounterProps> = ({ onClose, onConfirm }) => {
   const total = Object.entries(counts).reduce((sum, [val, count]) => sum + (Number(val) * count), 0);
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-md flex flex-col max-h-[85vh] rounded-xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 shadow-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-              <Calculator size={18} />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Cash Drawer Calculator</h3>
-              <p className="text-xs text-slate-500">Count denominations</p>
-            </div>
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+      <div className="bg-[#f2f2f2] dark:bg-slate-900 w-full max-w-md flex flex-col max-h-[85vh] border border-[#cccccc] dark:border-slate-800 text-black dark:text-slate-100 shadow-md overflow-hidden rounded">
+        <div className="px-4 py-2.5 border-b border-[#dfdfdf] dark:border-slate-800 flex justify-between items-center bg-[#f0f0f0] dark:bg-slate-800/50">
+          <div className="flex items-center gap-2">
+            <Calculator size={18} className="text-black dark:text-slate-200" />
+            <h3 className="text-base font-semibold text-black dark:text-white">Cash Drawer Calculator</h3>
           </div>
           <button 
             onClick={onClose} 
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-1 hover:bg-[#91c9f7] hover:text-black text-[#707070] dark:hover:text-slate-200 rounded cursor-pointer"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-4 space-y-1.5 divide-y divide-slate-100 dark:divide-slate-800/50">
+        <div className="flex-1 overflow-y-auto p-4 space-y-1 bg-white dark:bg-slate-900">
           {denominations.map((d) => (
-            <div key={d.value} className="flex items-center justify-between pt-1.5 pb-0.5 first:pt-0">
-              <span className="text-sm font-semibold w-16 text-slate-800 dark:text-slate-200">{d.label}</span>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-slate-400">×</span>
+            <div key={d.value} className="flex items-center justify-between py-1 px-2 border-b border-[#dfdfdf] dark:border-slate-800/50 hover:bg-[#91c9f7]/40 last:border-none">
+              <span className="text-sm font-medium w-16 text-black dark:text-slate-300">{d.label}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-[#707070]">×</span>
                 <input 
                   type="number" 
                   min="0"
                   value={counts[d.value] || ''}
                   onChange={(e) => setCounts(prev => ({ ...prev, [d.value]: parseInt(e.target.value) || 0 }))}
-                  className="w-20 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-right text-sm outline-none text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 font-mono font-medium"
+                  className="w-20 px-2 py-0.5 bg-white dark:bg-slate-800 border border-[#cccccc] dark:border-slate-700 text-right text-sm outline-none text-black dark:text-slate-100 font-mono focus:border-[#91c9f7] rounded"
                   placeholder="0"
                 />
-                <span className="text-sm font-mono font-bold w-24 text-right text-slate-900 dark:text-slate-100">
+                <span className="text-sm font-mono font-semibold w-24 text-right text-black dark:text-slate-100">
                   €{(counts[d.value] * d.value).toFixed(2)}
                 </span>
               </div>
@@ -573,14 +568,14 @@ const CashCounter: React.FC<CashCounterProps> = ({ onClose, onConfirm }) => {
           ))}
         </div>
 
-        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+        <div className="p-3 bg-[#f0f0f0] dark:bg-slate-800/50 border-t border-[#dfdfdf] dark:border-slate-800 flex justify-between items-center">
           <div>
-            <p className="text-xs uppercase tracking-wider font-semibold text-slate-500">Total Counted</p>
-            <p className="text-xl font-mono font-bold text-slate-900 dark:text-white">€{total.toFixed(2)}</p>
+            <span className="text-sm text-[#707070] mr-2">Total:</span>
+            <span className="text-lg font-mono font-bold text-black dark:text-white">€{total.toFixed(2)}</span>
           </div>
           <button 
             onClick={() => onConfirm(total)}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm shadow-sm transition-all cursor-pointer"
+            className="px-4 py-1.5 bg-[#91c9f7] hover:bg-[#7dbff2] text-black font-semibold border border-[#70aee0] text-sm transition-colors rounded cursor-pointer"
           >
             Apply Total
           </button>
@@ -590,8 +585,233 @@ const CashCounter: React.FC<CashCounterProps> = ({ onClose, onConfirm }) => {
   );
 };
 
+// Date Utility Functions
+const padZero = (n: number) => String(n).padStart(2, '0');
+
+const parseDateString = (dateStr: string) => {
+  if (!dateStr) return new Date();
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [y, m, d] = parts.map(Number);
+    return new Date(y, m - 1, d);
+  }
+  return new Date();
+};
+
+const formatDateString = (d: Date) => {
+  const y = d.getFullYear();
+  const m = padZero(d.getMonth() + 1);
+  const day = padZero(d.getDate());
+  return `${y}-${m}-${day}`;
+};
+
+const getTodayString = () => formatDateString(new Date());
+
+const getYesterdayString = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return formatDateString(d);
+};
+
+const formatDisplayDate = (dateStr: string) => {
+  const d = parseDateString(dateStr);
+  return d.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+};
+
+interface CalendarPickerProps {
+  selectedDate: string;
+  onSelectDate: (date: string) => void;
+  onClose: () => void;
+}
+
+const CleanCalendarPicker: React.FC<CalendarPickerProps> = ({
+  selectedDate,
+  onSelectDate,
+  onClose,
+}) => {
+  const selectedDateObj = parseDateString(selectedDate);
+  const todayStr = getTodayString();
+
+  const [viewYear, setViewYear] = useState(selectedDateObj.getFullYear());
+  const [viewMonth, setViewMonth] = useState(selectedDateObj.getMonth());
+
+  useEffect(() => {
+    const d = parseDateString(selectedDate);
+    setViewYear(d.getFullYear());
+    setViewMonth(d.getMonth());
+  }, [selectedDate]);
+
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const weekDays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+
+  const handlePrevMonth = () => {
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear(prev => prev - 1);
+    } else {
+      setViewMonth(prev => prev - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear(prev => prev + 1);
+    } else {
+      setViewMonth(prev => prev + 1);
+    }
+  };
+
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const startDayOffset = (firstDay + 6) % 7;
+
+  const daysInCurrentMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+
+  const calendarDays: Array<{
+    dateStr: string;
+    dayNumber: number;
+    isCurrentMonth: boolean;
+    isToday: boolean;
+    isSelected: boolean;
+  }> = [];
+
+  for (let i = startDayOffset - 1; i >= 0; i--) {
+    const dayNum = daysInPrevMonth - i;
+    const prevMonthDate = new Date(viewYear, viewMonth - 1, dayNum);
+    const dateStr = formatDateString(prevMonthDate);
+    calendarDays.push({
+      dateStr,
+      dayNumber: dayNum,
+      isCurrentMonth: false,
+      isToday: dateStr === todayStr,
+      isSelected: dateStr === selectedDate,
+    });
+  }
+
+  for (let dayNum = 1; dayNum <= daysInCurrentMonth; dayNum++) {
+    const curDate = new Date(viewYear, viewMonth, dayNum);
+    const dateStr = formatDateString(curDate);
+    calendarDays.push({
+      dateStr,
+      dayNumber: dayNum,
+      isCurrentMonth: true,
+      isToday: dateStr === todayStr,
+      isSelected: dateStr === selectedDate,
+    });
+  }
+
+  const remainingCells = (7 - (calendarDays.length % 7)) % 7;
+  for (let dayNum = 1; dayNum <= remainingCells; dayNum++) {
+    const nextMonthDate = new Date(viewYear, viewMonth + 1, dayNum);
+    const dateStr = formatDateString(nextMonthDate);
+    calendarDays.push({
+      dateStr,
+      dayNumber: dayNum,
+      isCurrentMonth: false,
+      isToday: dateStr === todayStr,
+      isSelected: dateStr === selectedDate,
+    });
+  }
+
+  return (
+    <div className="w-72 p-3 bg-[#f2f2f2] dark:bg-slate-900 border border-[#cccccc] dark:border-slate-700 shadow-md z-50 text-sm select-none rounded">
+      {/* Month Navigation */}
+      <div className="flex items-center justify-between mb-2 pb-1 border-b border-[#dfdfdf] dark:border-slate-800">
+        <button
+          type="button"
+          onClick={handlePrevMonth}
+          className="p-1 text-black dark:text-slate-400 hover:bg-[#91c9f7] hover:text-black rounded cursor-pointer"
+        >
+          <ChevronLeft size={18} />
+        </button>
+        <span className="font-semibold text-black dark:text-slate-100 text-sm">
+          {monthNames[viewMonth]} {viewYear}
+        </span>
+        <button
+          type="button"
+          onClick={handleNextMonth}
+          className="p-1 text-black dark:text-slate-400 hover:bg-[#91c9f7] hover:text-black rounded cursor-pointer"
+        >
+          <ChevronRight size={18} />
+        </button>
+      </div>
+
+      {/* Weekdays */}
+      <div className="grid grid-cols-7 text-center text-[#707070] dark:text-slate-400 mb-1 text-xs font-semibold">
+        {weekDays.map((day, idx) => (
+          <div key={idx} className="h-6 flex items-center justify-center">
+            {day}
+          </div>
+        ))}
+      </div>
+
+      {/* Days */}
+      <div className="grid grid-cols-7 gap-0.5 text-center">
+        {calendarDays.map((d, idx) => {
+          let btnClass = 'w-8 h-8 mx-auto flex items-center justify-center text-sm rounded cursor-pointer ';
+          if (d.isSelected) {
+            btnClass += 'bg-[#91c9f7] text-black font-semibold border border-[#70aee0]';
+          } else if (d.isToday) {
+            btnClass += 'text-black font-semibold border border-[#91c9f7] hover:bg-[#91c9f7]';
+          } else if (!d.isCurrentMonth) {
+            btnClass += 'text-[#a0a0a0] dark:text-slate-600 hover:bg-[#91c9f7]/50 hover:text-black';
+          } else {
+            btnClass += 'text-black dark:text-slate-200 hover:bg-[#91c9f7] hover:text-black';
+          }
+
+          return (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => {
+                onSelectDate(d.dateStr);
+                onClose();
+              }}
+              className={btnClass}
+            >
+              {d.dayNumber}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Footer */}
+      <div className="mt-2 pt-2 border-t border-[#dfdfdf] dark:border-slate-800 flex justify-between items-center text-[#707070] dark:text-slate-400 text-sm">
+        <button
+          type="button"
+          onClick={() => {
+            onSelectDate(todayStr);
+            onClose();
+          }}
+          className="px-2 py-0.5 text-black hover:bg-[#91c9f7] font-semibold rounded cursor-pointer"
+        >
+          Today
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-2 py-0.5 hover:bg-[#91c9f7] hover:text-black rounded cursor-pointer"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export default function EndOfDay() {
-  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reportDate, setReportDate] = useState(getTodayString());
+  const [showCalendar, setShowCalendar] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -607,15 +827,15 @@ export default function EndOfDay() {
 
   // Date Navigation Handlers
   const handlePrevDay = () => {
-    const d = new Date(reportDate);
+    const d = parseDateString(reportDate);
     d.setDate(d.getDate() - 1);
-    setReportDate(d.toISOString().split('T')[0]);
+    setReportDate(formatDateString(d));
   };
 
   const handleNextDay = () => {
-    const d = new Date(reportDate);
+    const d = parseDateString(reportDate);
     d.setDate(d.getDate() + 1);
-    setReportDate(d.toISOString().split('T')[0]);
+    setReportDate(formatDateString(d));
   };
 
   const [invoicePayments, setInvoicePayments] = useState<Payment[]>([]);
@@ -665,10 +885,15 @@ export default function EndOfDay() {
       setOtherMovements(data.otherMovements || []);
       if (data.startingBalance !== null && data.startingBalance !== undefined) {
         setStartingBalance(Number(data.startingBalance));
+      } else {
+        setStartingBalance(0);
       }
-      if (data.comments) {
-        setComments(data.comments);
+      if (data.cashCounted !== null && data.cashCounted !== undefined) {
+        setCountedValues(prev => ({ ...prev, 'Cash': Number(data.cashCounted) }));
+      } else {
+        setCountedValues(prev => ({ ...prev, 'Cash': 0 }));
       }
+      setComments(data.comments || '');
     } catch (error) {
       console.error('Error fetching EOD data:', error);
     } finally {
@@ -815,7 +1040,7 @@ export default function EndOfDay() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400">
+      <div className="h-full flex items-center justify-center bg-[#f2f2f2] dark:bg-slate-950 text-slate-600 dark:text-slate-400">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-sm font-medium tracking-wide">Loading End of Day Report...</span>
@@ -825,55 +1050,71 @@ export default function EndOfDay() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-100/60 dark:bg-slate-950 text-slate-800 dark:text-slate-200 text-sm">
+    <div className="flex flex-col h-full bg-[#f2f2f2] dark:bg-slate-950 text-black dark:text-slate-200 text-base font-sans">
       {/* Header Bar */}
-      <div className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 px-6 py-3 shadow-xs">
+      <div className="sticky top-0 z-30 bg-[#f2f2f2] dark:bg-slate-900 border-b border-[#cccccc] dark:border-slate-800 shrink-0 px-6 py-2.5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           {/* Title & Date Selector */}
           <div className="flex items-center gap-4">
             <div>
-              <h1 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <FileText size={20} className="text-blue-600 dark:text-blue-400" />
+              <h1 className="text-xl font-semibold text-black dark:text-white flex items-center gap-2">
+                <FileText size={22} className="text-black dark:text-blue-400" />
                 End of Day Closing Report
               </h1>
             </div>
 
-            {/* Date Navigator */}
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 border border-slate-200 dark:border-slate-700">
+            {/* Clean Windows Date Navigator */}
+            <div className="relative inline-flex items-center border border-[#cccccc] dark:border-slate-700 bg-white dark:bg-slate-900 rounded">
               <button 
                 onClick={handlePrevDay}
-                className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-md text-slate-600 dark:text-slate-300 transition-colors"
+                className="p-1.5 hover:bg-[#91c9f7] hover:text-black text-black dark:text-slate-400 rounded-l cursor-pointer"
                 title="Previous Day"
               >
-                <ChevronLeft size={16} />
+                <ChevronLeft size={18} />
               </button>
               
-              <div className="relative px-3 py-1 flex items-center gap-2 cursor-pointer font-medium text-xs text-slate-700 dark:text-slate-200">
-                <Calendar size={14} className="text-blue-600 dark:text-blue-400" />
+              <button
+                type="button"
+                onClick={() => setShowCalendar(prev => !prev)}
+                className="flex items-center gap-2 px-3 py-1.5 text-base text-black dark:text-slate-200 hover:bg-[#91c9f7] hover:text-black border-x border-[#cccccc] dark:border-slate-700 font-medium cursor-pointer"
+              >
+                <Calendar size={17} className="text-[#707070] dark:text-slate-400" />
                 <span>{reportDate.split('-').reverse().join('-')}</span>
-                <input 
-                  type="date"
-                  value={reportDate}
-                  onChange={(e) => setReportDate(e.target.value)}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                />
-              </div>
+                <ChevronDown size={15} className="text-[#707070] dark:text-slate-400" />
+              </button>
 
               <button 
                 onClick={handleNextDay}
-                className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-md text-slate-600 dark:text-slate-300 transition-colors"
+                className="p-1.5 hover:bg-[#91c9f7] hover:text-black text-black dark:text-slate-400 rounded-r cursor-pointer"
                 title="Next Day"
               >
-                <ChevronRight size={16} />
+                <ChevronRight size={18} />
               </button>
+
+              {/* Simple Calendar Popover */}
+              {showCalendar && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setShowCalendar(false)} 
+                  />
+                  <div className="absolute left-0 top-full mt-1 z-50">
+                    <CleanCalendarPicker 
+                      selectedDate={reportDate}
+                      onSelectDate={(newDate) => setReportDate(newDate)}
+                      onClose={() => setShowCalendar(false)}
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
           
           {/* Top Actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {isRefreshing && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-medium">
-                <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full animate-ping"></div>
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-blue-900/30 text-black dark:text-blue-400 border border-[#cccccc] text-sm font-medium rounded">
+                <div className="w-2 h-2 bg-[#91c9f7] dark:bg-blue-400 rounded-full animate-ping"></div>
                 <span>Syncing</span>
               </div>
             )}
@@ -882,29 +1123,29 @@ export default function EndOfDay() {
             <div className="relative">
               <button 
                 onClick={() => setShowPrintOptions(!showPrintOptions)}
-                className="flex items-center gap-2 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 font-medium text-xs rounded-lg shadow-xs transition-colors"
+                className="flex items-center gap-2 px-3.5 py-1.5 bg-white dark:bg-slate-800 border border-[#cccccc] dark:border-slate-700 text-black dark:text-slate-200 hover:bg-[#91c9f7] hover:text-black font-medium text-sm transition-colors rounded cursor-pointer"
               >
-                <Printer size={15} />
+                <Printer size={16} />
                 <span>Print Report</span>
-                <ChevronDown size={14} className="text-slate-400" />
+                <ChevronDown size={14} className="text-[#707070]" />
               </button>
 
               {showPrintOptions && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowPrintOptions(false)} />
-                  <div className="absolute right-0 mt-1.5 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 p-1.5">
+                  <div className="absolute right-0 mt-1 w-52 bg-[#f2f2f2] dark:bg-slate-900 border border-[#cccccc] dark:border-slate-800 shadow-md z-50 py-1 rounded">
                     <button 
                       onClick={() => { setPrintLayout('a4'); setShowPrintOptions(false); }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-colors text-left"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm font-normal text-black dark:text-slate-200 hover:bg-[#91c9f7] hover:text-black transition-colors text-left rounded-none cursor-pointer"
                     >
-                      <FileText size={14} />
+                      <FileText size={16} />
                       <span>Full Page (A4 PDF)</span>
                     </button>
                     <button 
                       onClick={() => { setPrintLayout('thermal'); setShowPrintOptions(false); }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-colors text-left"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm font-normal text-black dark:text-slate-200 hover:bg-[#91c9f7] hover:text-black transition-colors text-left rounded-none cursor-pointer"
                     >
-                      <Printer size={14} />
+                      <Printer size={16} />
                       <span>Thermal Slip (80mm)</span>
                     </button>
                   </div>
@@ -916,9 +1157,9 @@ export default function EndOfDay() {
             <button 
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-2 px-4 py-1.5 bg-[#91c9f7] hover:bg-[#7dbff2] text-black font-semibold border border-[#70aee0] text-sm transition-all disabled:opacity-50 rounded cursor-pointer"
             >
-              <Save size={15} />
+              <Save size={16} />
               <span>{saving ? 'Saving...' : 'Save Report'}</span>
             </button>
           </div>
@@ -926,76 +1167,76 @@ export default function EndOfDay() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-auto p-6 space-y-6">
-        <div className="max-w-7xl mx-auto space-y-6">
+      <div className="flex-1 overflow-auto p-5 space-y-5">
+        <div className="max-w-7xl mx-auto space-y-5">
           {message && (
-            <div className={`p-4 rounded-xl flex items-center gap-3 border shadow-xs ${
+            <div className={`p-3.5 flex items-center gap-3 border rounded ${
               message.type === 'success' 
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' 
-                : 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' 
+                : 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
             }`}>
               {message.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
               <span className="font-medium text-sm">{message.text}</span>
-              <button onClick={() => setMessage(null)} className="ml-auto text-xs underline font-semibold cursor-pointer">Dismiss</button>
+              <button onClick={() => setMessage(null)} className="ml-auto text-sm underline font-medium cursor-pointer">Dismiss</button>
             </div>
           )}
 
           {/* KPI Metrics Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
             {/* 1. Cash Sale */}
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cash Sale</p>
-              <p className="text-2xl font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-1">€{totalCashSales.toFixed(2)}</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">{allPayments.filter(p => isCashPayment(p.method) && !isRefundPayment(p)).length} cash payments</p>
+            <div className="bg-white dark:bg-slate-900 p-3.5 rounded">
+              <p className="text-sm font-semibold uppercase tracking-wider text-[#707070] dark:text-slate-400">Cash Sale</p>
+              <p className="text-[26px] font-mono font-bold text-emerald-700 dark:text-emerald-400 mt-1">€{totalCashSales.toFixed(2)}</p>
+              <p className="text-xs text-[#707070] dark:text-slate-400 mt-0.5">{allPayments.filter(p => isCashPayment(p.method) && !isRefundPayment(p)).length} cash payments</p>
             </div>
 
             {/* 2. Card Sale */}
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Card Sale</p>
-              <p className="text-2xl font-mono font-bold text-blue-600 dark:text-blue-400 mt-1">€{totalCardSales.toFixed(2)}</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">{allPayments.filter(p => isCardPayment(p.method) && !isRefundPayment(p)).length} card payments</p>
+            <div className="bg-white dark:bg-slate-900 p-3.5 rounded">
+              <p className="text-sm font-semibold uppercase tracking-wider text-[#707070] dark:text-slate-400">Card Sale</p>
+              <p className="text-[26px] font-mono font-bold text-blue-700 dark:text-blue-400 mt-1">€{totalCardSales.toFixed(2)}</p>
+              <p className="text-xs text-[#707070] dark:text-slate-400 mt-0.5">{allPayments.filter(p => isCardPayment(p.method) && !isRefundPayment(p)).length} card payments</p>
             </div>
 
             {/* 3. Opening Balance */}
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Opening Balance</p>
-              <p className="text-2xl font-mono font-bold text-slate-800 dark:text-slate-100 mt-1">€{startingBalance.toFixed(2)}</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Starting drawer float</p>
+            <div className="bg-white dark:bg-slate-900 p-3.5 rounded">
+              <p className="text-sm font-semibold uppercase tracking-wider text-[#707070] dark:text-slate-400">Opening Balance</p>
+              <p className="text-[26px] font-mono font-bold text-black dark:text-slate-100 mt-1">€{startingBalance.toFixed(2)}</p>
+              <p className="text-xs text-[#707070] dark:text-slate-400 mt-0.5">Starting drawer float</p>
             </div>
 
             {/* 4. Total Sale */}
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Sale</p>
-              <p className="text-2xl font-mono font-bold text-indigo-600 dark:text-indigo-400 mt-1">€{totalSales.toFixed(2)}</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Net revenue ({allPayments.length} transactions)</p>
+            <div className="bg-white dark:bg-slate-900 p-3.5 rounded">
+              <p className="text-sm font-semibold uppercase tracking-wider text-[#707070] dark:text-slate-400">Total Sale</p>
+              <p className="text-[26px] font-mono font-bold text-black dark:text-indigo-400 mt-1">€{totalSales.toFixed(2)}</p>
+              <p className="text-xs text-[#707070] dark:text-slate-400 mt-0.5">Net revenue ({allPayments.length} transactions)</p>
             </div>
 
             {/* 5. Cash Difference */}
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cash Difference</p>
+            <div className="bg-white dark:bg-slate-900 p-3.5 rounded">
+              <p className="text-sm font-semibold uppercase tracking-wider text-[#707070] dark:text-slate-400">Cash Difference</p>
               {startingBalance > 0 ? (
                 <>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className={`text-2xl font-mono font-bold ${
+                    <span className={`text-[26px] font-mono font-bold ${
                       Math.abs(cashDifference) < 0.01 
-                        ? 'text-emerald-600 dark:text-emerald-400' 
-                        : 'text-rose-600 dark:text-rose-400'
+                        ? 'text-emerald-700 dark:text-emerald-400' 
+                        : 'text-rose-700 dark:text-rose-400'
                     }`}>
                       {cashDifference > 0 ? '+' : ''}€{cashDifference.toFixed(2)}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p className="text-xs text-[#707070] dark:text-slate-400 mt-0.5">
                     {Math.abs(cashDifference) < 0.01 ? '✓ Balanced (Zero discrepancy)' : cashDifference > 0 ? 'Surplus (+ discrepancy)' : 'Shortage (- discrepancy)'}
                   </p>
                 </>
               ) : (
                 <>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-2xl font-mono font-bold text-slate-400 dark:text-slate-500">
+                    <span className="text-[26px] font-mono font-bold text-[#a0a0a0] dark:text-slate-500">
                       --
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p className="text-xs text-[#707070] dark:text-slate-400 mt-0.5">
                     Enter starting balance below
                   </p>
                 </>
@@ -1004,42 +1245,36 @@ export default function EndOfDay() {
           </div>
 
           {/* Cash Reconciliation Form & Payment Methods Cards */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
             {/* Left: Drawer Cash Count Form */}
-            <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-5 space-y-5">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-                <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                  <Euro size={16} />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">Cash Drawer Entry</h2>
-                  <p className="text-xs text-slate-500">Record cash counted and starting float</p>
-                </div>
+            <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-[#cccccc] dark:border-slate-800 p-4 space-y-4 rounded">
+              <div className="pb-2 border-b border-[#dfdfdf] dark:border-slate-800">
+                <h2 className="text-base font-semibold text-black dark:text-white">Cash Drawer Entry</h2>
               </div>
 
               {/* Cash Drawer Counted */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <label className="text-sm font-medium text-black dark:text-slate-300">
                   Cash Drawer Counted
                 </label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">€</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#707070] text-sm">€</span>
                     <input 
                       ref={cashInputRef}
                       type="number" 
                       value={countedValues['Cash'] || ''}
                       onChange={(e) => setCountedValues(prev => ({ ...prev, 'Cash': parseFloat(e.target.value) || 0 }))}
-                      className="w-full pl-7 pr-3 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono font-bold text-base outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 transition-colors"
+                      className="w-full pl-7 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-[#cccccc] dark:border-slate-700 text-black dark:text-slate-100 font-mono text-base outline-none focus:border-[#91c9f7] rounded"
                       placeholder="0.00"
                     />
                   </div>
                   <button 
                     onClick={() => setShowCashCounter('counted')}
-                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="px-3 py-1.5 bg-[#f2f2f2] hover:bg-[#91c9f7] hover:text-black text-black dark:text-slate-200 border border-[#cccccc] dark:border-slate-700 text-sm font-medium flex items-center gap-1.5 rounded cursor-pointer"
                     title="Open Denomination Calculator"
                   >
-                    <Calculator size={15} />
+                    <Calculator size={16} />
                     <span>Count</span>
                   </button>
                 </div>
@@ -1047,91 +1282,81 @@ export default function EndOfDay() {
 
               {/* Starting Balance */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <label className="text-sm font-medium text-black dark:text-slate-300">
                   Starting Balance (Opening Float)
                 </label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">€</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#707070] text-sm">€</span>
                     <input 
                       type="number" 
                       value={startingBalance || ''}
                       onChange={(e) => setStartingBalance(parseFloat(e.target.value) || 0)}
-                      className="w-full pl-7 pr-3 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 font-mono font-bold text-base outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 transition-colors"
+                      className="w-full pl-7 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-[#cccccc] dark:border-slate-700 text-black dark:text-slate-100 font-mono text-base outline-none focus:border-[#91c9f7] rounded"
                       placeholder="0.00"
                     />
                   </div>
                   <button 
                     onClick={() => setShowCashCounter('starting')}
-                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="px-3 py-1.5 bg-[#f2f2f2] hover:bg-[#91c9f7] hover:text-black text-black dark:text-slate-200 border border-[#cccccc] dark:border-slate-700 text-sm font-medium flex items-center gap-1.5 rounded cursor-pointer"
                     title="Open Denomination Calculator"
                   >
-                    <Calculator size={15} />
+                    <Calculator size={16} />
                     <span>Count</span>
                   </button>
                 </div>
               </div>
 
               {/* Manager Notes */}
-              <div className="space-y-1.5 pt-2">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <div className="space-y-1.5 pt-1">
+                <label className="text-sm font-medium text-black dark:text-slate-300">
                   Closing Notes & Remarks
                 </label>
                 <textarea 
                   value={comments}
                   onChange={(e) => setComments(e.target.value)}
-                  className="w-full min-h-[80px] p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-xs outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 transition-colors"
+                  className="w-full min-h-[80px] p-2.5 bg-white dark:bg-slate-800 border border-[#cccccc] dark:border-slate-700 text-black dark:text-slate-100 text-sm outline-none focus:border-[#91c9f7] rounded"
                   placeholder="Add any discrepancies, drawer notes, or comments..."
                 />
               </div>
             </div>
 
             {/* Right: Payment Breakdown Table */}
-            <div className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col justify-between">
+            <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-[#e5e5e5] dark:border-slate-800 overflow-hidden flex flex-col justify-between rounded">
               <div>
-                <div className="p-5 pb-3.5 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900 dark:text-white">Payment Method Summary</h2>
-                    <p className="text-xs text-slate-500">Reconcile calculated system receipts with counted totals</p>
-                  </div>
+                <div className="p-3 bg-white dark:bg-slate-900 border-b border-[#e5e5e5] dark:border-slate-800">
+                  <h2 className="text-base font-semibold text-black dark:text-white">Payment Method Summary</h2>
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left">
+                  <table className="w-full text-left text-[14px] bg-white dark:bg-slate-900">
                     <thead>
-                      <tr className="bg-slate-50/80 dark:bg-slate-800/60 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
-                        <th className="py-2.5 px-4">Method</th>
-                        <th className="py-2.5 px-4 text-right">System Calculated</th>
-                        <th className="py-2.5 px-4 text-right">Counted / Confirmed</th>
-                        <th className="py-2.5 px-4 text-right">Difference</th>
+                      <tr className="bg-white dark:bg-slate-900 text-[#707070] dark:text-slate-300 font-semibold border-b border-[#e5e5e5] dark:border-slate-800 text-[13px]">
+                        <th className="py-3 px-6">Method</th>
+                        <th className="py-3 px-6 text-right">Calculated</th>
+                        <th className="py-3 px-6 text-right">Counted</th>
+                        <th className="py-3 px-6 text-right">Difference</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                    <tbody className="divide-y divide-[#ececec] dark:divide-slate-800/50 bg-white dark:bg-slate-900">
                       {/* Cash Row */}
-                      <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="py-3 px-4 text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                      <tr>
+                        <td className="py-3 px-6 font-medium text-black dark:text-white">
                           Cash Sales
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-base sm:text-lg text-slate-900 dark:text-slate-100">
+                        <td className="py-3 px-6 text-right font-mono text-black dark:text-slate-100 text-[15px]">
                           €{totalCashSales.toFixed(2)}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-base sm:text-lg text-slate-900 dark:text-slate-100">
+                        <td className="py-3 px-6 text-right font-mono text-black dark:text-slate-100 text-[15px]">
                           €{((cashCounted - startingBalance) > 0 ? (cashCounted - startingBalance) : 0).toFixed(2)}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold">
+                        <td className="py-3 px-6 text-right font-mono font-medium text-[15px]">
                           {startingBalance > 0 ? (
-                            <span className={`inline-block px-2.5 py-1 rounded-md text-sm ${
-                              Math.abs(cashDifference) < 0.01 
-                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' 
-                                : 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
-                            }`}>
+                            <span className={Math.abs(cashDifference) < 0.01 ? 'text-emerald-700 font-semibold' : 'text-rose-700 font-semibold'}>
                               {cashDifference > 0 ? '+' : ''}€{cashDifference.toFixed(2)}
                             </span>
                           ) : (
-                            <span className="inline-block px-2.5 py-1 rounded-md text-sm text-slate-400 bg-slate-100 dark:bg-slate-800">
-                              --
-                            </span>
+                            <span className="text-[#a0a0a0]">--</span>
                           )}
                         </td>
                       </tr>
@@ -1141,45 +1366,42 @@ export default function EndOfDay() {
                         const isRefundRow = s.payment_type === 'Refunds';
 
                         return (
-                          <tr key={idx} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${isRefundRow ? 'bg-red-50/30 dark:bg-red-950/20' : ''}`}>
-                            <td className="py-3 px-4 text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
-                              <span className={`w-2.5 h-2.5 rounded-full ${
-                                isRefundRow ? 'bg-red-500' : s.payment_type === 'Card' ? 'bg-blue-500' : 'bg-amber-500'
-                              }`}></span>
+                          <tr key={idx} className={isRefundRow ? 'bg-red-50/30 dark:bg-red-950/10' : ''}>
+                            <td className="py-3 px-6 font-medium text-black dark:text-white">
                               {isRefundRow ? 'Total Refunds' : s.payment_type}
                             </td>
-                            <td className={`py-3 px-4 text-right font-mono font-bold text-base sm:text-lg ${isRefundRow ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-slate-100'}`}>
+                            <td className={`py-3 px-6 text-right font-mono text-[15px] ${isRefundRow ? 'text-rose-700 font-semibold' : 'text-black dark:text-slate-100'}`}>
                               {isRefundRow ? '-' : ''}€{s.calculated.toFixed(2)}
                             </td>
-                            <td className="py-3 px-4 text-right">
+                            <td className="py-3 px-6 text-right">
                               {isRefundRow ? (
-                                <span className="font-mono text-red-600 dark:text-red-400 font-bold text-base sm:text-lg px-2">
+                                <span className="font-mono text-rose-700 font-semibold text-[15px]">
                                   -€{s.calculated.toFixed(2)}
                                 </span>
                               ) : (
-                                <div className="relative inline-flex items-center justify-end w-32">
-                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">€</span>
+                                <div className="relative inline-flex items-center justify-end w-36">
+                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#707070] text-[13px]">€</span>
                                   <input 
                                     type="number" 
                                     value={s.counted || ''}
                                     onChange={(e) => setCountedValues(prev => ({ ...prev, [s.payment_type]: parseFloat(e.target.value) || 0 }))}
-                                    className="w-full pl-7 pr-3 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-right font-mono font-bold text-sm sm:text-base outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 shadow-2xs"
+                                    className={`w-full pl-6 pr-2.5 py-1.5 bg-white dark:bg-slate-800 text-black dark:text-slate-100 text-right font-mono text-[15px] outline-none focus:border-[#91c9f7] rounded ${
+                                      s.payment_type === 'Card'
+                                        ? 'border border-blue-500 dark:border-blue-600'
+                                        : s.payment_type === 'Cash'
+                                        ? 'border border-emerald-500 dark:border-emerald-600'
+                                        : 'border border-amber-500 dark:border-amber-600'
+                                    }`}
                                     placeholder="0.00"
                                   />
                                 </div>
                               )}
                             </td>
-                            <td className="py-3 px-4 text-right font-mono font-bold">
+                            <td className="py-3 px-6 text-right font-mono font-medium text-[15px]">
                               {isRefundRow ? (
-                                <span className="inline-block px-2.5 py-1 rounded-md text-sm text-slate-400 bg-slate-100 dark:bg-slate-800">
-                                  --
-                                </span>
+                                <span className="text-[#a0a0a0]">--</span>
                               ) : (
-                                <span className={`inline-block px-2.5 py-1 rounded-md text-sm ${
-                                  Math.abs(s.difference) < 0.01 
-                                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' 
-                                    : 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
-                                }`}>
+                                <span className={Math.abs(s.difference) < 0.01 ? 'text-emerald-700 font-semibold' : 'text-rose-700 font-semibold'}>
                                   {s.difference > 0 ? '+' : ''}€{s.difference.toFixed(2)}
                                 </span>
                               )}
@@ -1193,42 +1415,42 @@ export default function EndOfDay() {
               </div>
 
               {/* Total Revenue Footer */}
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <span className="text-sm uppercase font-bold text-slate-700 dark:text-slate-200">Total System Revenue</span>
-                <span className="text-xl font-mono font-black text-blue-600 dark:text-blue-400">€{totalSales.toFixed(2)}</span>
+              <div className="p-4 bg-white dark:bg-slate-900 border-t border-[#e5e5e5] dark:border-slate-800 flex items-center justify-between px-6">
+                <span className="text-[15px] font-semibold text-black dark:text-slate-200 uppercase">Total Revenue</span>
+                <span className="text-[19px] font-mono font-bold text-black dark:text-blue-400">€{totalSales.toFixed(2)}</span>
               </div>
             </div>
           </div>
 
           {/* Detailed Transaction Breakdown */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 border border-[#e5e5e5] dark:border-slate-800 overflow-hidden rounded">
+            <div className="p-4 bg-white dark:bg-slate-900 border-b border-[#e5e5e5] dark:border-slate-800 flex items-center justify-between px-6">
               <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white">Transaction Breakdown</h2>
-                <p className="text-sm text-slate-500">All registered invoice and deposit payments for this date</p>
+                <h2 className="text-base font-semibold text-black dark:text-white">Transaction Breakdown</h2>
+                <p className="text-[13px] text-[#707070]">All registered payments for this date</p>
               </div>
-              <span className="text-sm font-semibold px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-md text-slate-600 dark:text-slate-300">
+              <span className="text-[13px] text-[#707070] font-medium">
                 {allPayments.length} Transactions
               </span>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
+              <table className="w-full text-left text-[14px] bg-white dark:bg-slate-900">
                 <thead>
-                  <tr className="bg-slate-50/70 dark:bg-slate-800/40 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                    <th className="py-2.5 px-4">Staff / Operator</th>
-                    <th className="py-2.5 px-4">Time</th>
-                    <th className="py-2.5 px-4">Invoice / Ref</th>
-                    <th className="py-2.5 px-4">Products / Items</th>
-                    <th className="py-2.5 px-4">Payment Method</th>
-                    <th className="py-2.5 px-4 text-right">Amount</th>
+                  <tr className="bg-white dark:bg-slate-900 text-[#707070] dark:text-slate-300 font-semibold border-b border-[#e5e5e5] dark:border-slate-800 text-[13px]">
+                    <th className="py-3 px-6">Staff</th>
+                    <th className="py-3 px-6">Time</th>
+                    <th className="py-3 px-6">Invoice / Ref</th>
+                    <th className="py-3 px-6">Products / Items</th>
+                    <th className="py-3 px-6">Payment Method</th>
+                    <th className="py-3 px-6 text-right">Amount</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                <tbody className="divide-y divide-[#ececec] dark:divide-slate-800/50 bg-white dark:bg-slate-900">
                   {allPayments.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400 text-base">
-                        No transactions or payments registered for this date.
+                      <td colSpan={6} className="py-10 text-center text-[#a0a0a0] text-[14px]">
+                        No transactions registered for this date.
                       </td>
                     </tr>
                   ) : (
@@ -1237,34 +1459,25 @@ export default function EndOfDay() {
                       const baseMethod = getBasePaymentMethod(payment.method);
 
                       return (
-                        <tr key={idx} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${isRefund ? 'bg-red-50/40 dark:bg-red-950/20' : ''}`}>
-                          <td className="py-2.5 px-4 text-sm font-medium text-slate-700 dark:text-slate-300">
+                        <tr key={idx} className={isRefund ? 'bg-red-50/30 dark:bg-red-950/10' : ''}>
+                          <td className="py-3 px-6 text-black dark:text-slate-300 font-medium">
                             {payment.user_name || 'Staff'}
                           </td>
-                          <td className="py-2.5 px-4 text-sm font-mono text-slate-500">
+                          <td className="py-3 px-6 font-mono text-[#707070]">
                             {payment.paid_at ? new Date(payment.paid_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '--:--'}
                           </td>
-                          <td className="py-2.5 px-4 text-sm font-semibold">
-                            <span className={isRefund ? 'text-red-600 dark:text-red-400 font-bold' : 'text-blue-600 dark:text-blue-400'}>
+                          <td className="py-3 px-6 font-mono font-medium">
+                            <span className={isRefund ? 'text-rose-700 font-semibold' : 'text-blue-700 dark:text-blue-400'}>
                               {payment.invoice_number || 'Deposit'}
                             </span>
                           </td>
-                          <td className="py-2.5 px-4 text-sm font-medium text-slate-700 dark:text-slate-300 max-w-[280px]">
-                            {payment.products_summary ? (
-                              <span className="line-clamp-2" title={payment.products_summary}>
-                                {payment.products_summary}
-                              </span>
-                            ) : (
-                              <span className="text-slate-500 dark:text-slate-400">
-                                {payment.customer_name || 'Walk-in Customer'}
-                              </span>
-                            )}
+                          <td className="py-3 px-6 text-black dark:text-slate-300 max-w-[280px] truncate" title={payment.products_summary || payment.customer_name || '--'}>
+                            {payment.products_summary || payment.customer_name || 'Walk-in Customer'}
                           </td>
-                          <td className="py-1 px-3">
+                          <td className="py-2.5 px-6">
                             <div className="flex items-center gap-1.5">
                               {isRefund && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-400 border border-red-300 dark:border-red-800 rounded font-bold text-[10px] uppercase tracking-wider shrink-0">
-                                  <RotateCcw size={10} className="text-red-600 dark:text-red-400" />
+                                <span className="text-[11px] text-rose-700 dark:text-rose-400 font-semibold uppercase">
                                   Refund
                                 </span>
                               )}
@@ -1275,14 +1488,14 @@ export default function EndOfDay() {
                                   const targetMethod = isRefund ? `Refund (${newBase})` : newBase;
                                   updatePaymentMethod(payment.id, targetMethod);
                                 }}
-                                className={`border rounded px-2 py-0.5 outline-none text-xs font-semibold cursor-pointer transition-colors ${
+                                className={`px-2.5 py-1 text-[13px] bg-white dark:bg-slate-800 outline-none cursor-pointer rounded transition-colors ${
                                   isRefund 
-                                    ? 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800' 
-                                    : baseMethod === 'Card'
-                                    ? 'border-orange-500 text-orange-700 dark:text-orange-300 bg-orange-50/60 dark:bg-orange-950/30 font-bold'
+                                    ? 'border border-rose-400 text-rose-700 dark:text-rose-400 dark:border-rose-700' 
                                     : baseMethod === 'Cash'
-                                    ? 'border-green-600 text-green-700 dark:text-green-300 bg-green-50/60 dark:bg-green-950/30 font-bold'
-                                    : 'bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700'
+                                    ? 'border border-emerald-500 text-black dark:text-emerald-300 dark:border-emerald-700'
+                                    : baseMethod === 'Card'
+                                    ? 'border border-blue-500 text-black dark:text-blue-300 dark:border-blue-700'
+                                    : 'border border-amber-500 text-black dark:text-amber-300 dark:border-amber-700'
                                 }`}
                               >
                                 <option value="Cash">Cash</option>
@@ -1291,7 +1504,7 @@ export default function EndOfDay() {
                               </select>
                             </div>
                           </td>
-                          <td className={`py-2.5 px-4 text-right font-mono font-bold text-base ${isRefund ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>
+                          <td className={`py-3 px-6 text-right font-mono font-medium text-[15px] ${isRefund ? 'text-rose-700 font-semibold' : 'text-black dark:text-white'}`}>
                             {isRefund ? '-' : ''}€{Math.abs(Number(payment.amount) || 0).toFixed(2)}
                           </td>
                         </tr>
@@ -1301,11 +1514,11 @@ export default function EndOfDay() {
                 </tbody>
                 {allPayments.length > 0 && (
                   <tfoot>
-                    <tr className="bg-slate-50 dark:bg-slate-800/40 border-t border-slate-200 dark:border-slate-700 font-bold">
-                      <td colSpan={5} className="py-3 px-4 text-right text-sm uppercase text-slate-600 dark:text-slate-300">
-                        Total Registered Payments
+                    <tr className="bg-white dark:bg-slate-900 border-t border-[#e5e5e5] dark:border-slate-800 font-semibold">
+                      <td colSpan={5} className="py-3 px-6 text-right text-[15px] uppercase text-[#707070] dark:text-slate-300">
+                        Total
                       </td>
-                      <td className="py-3 px-4 text-right text-lg font-mono text-blue-600 dark:text-blue-400">
+                      <td className="py-3 px-6 text-right text-[17px] font-mono text-black dark:text-blue-400">
                         €{allPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}
                       </td>
                     </tr>

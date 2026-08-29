@@ -477,7 +477,7 @@ function AppInner() {
 
         <div className="flex-1 max-w-xl px-12 z-[9999]">
           <div className="relative">
-            <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${searchLoading ? 'text-blue-500 animate-pulse' : 'text-[var(--text-muted)]'}`} size={16} />
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${searchLoading ? 'text-blue-500 animate-pulse' : 'text-[var(--text-muted)]'}`} size={16} />
             <input 
               type="text" 
               value={searchQuery}
@@ -487,12 +487,14 @@ function AppInner() {
               onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
               placeholder="Search invoices by number (e.g. SA-001)..." 
               disabled={searchLoading}
-              className="w-full bg-[var(--bg-card)] border border-[var(--border-base)] rounded-full py-1.5 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-[var(--text-muted)] text-[var(--text-main)] disabled:opacity-75"
+              className="w-full bg-[var(--bg-card)] border border-[var(--border-base)] rounded py-1.5 pl-9 pr-3 text-sm focus:outline-none focus:border-blue-500 transition-all placeholder:text-[var(--text-muted)] text-[var(--text-main)] disabled:opacity-75"
             />
             
             {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-[var(--bg-card)] border border-[var(--border-base)] rounded-xl shadow-lg z-[9999] overflow-hidden py-1.5 max-h-60 overflow-y-auto">
-                <div className="px-3 py-1 text-[11px] text-[var(--text-muted)] font-medium">Suggested Invoices</div>
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--border-base)] rounded shadow-lg z-[9999] overflow-hidden py-1 max-h-72 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800">
+                <div className="px-3 py-1.5 text-[11px] text-[var(--text-muted)] font-semibold uppercase tracking-wider bg-[var(--bg-app)] border-b border-[var(--border-base)]">
+                  Suggested Invoices ({suggestions.length})
+                </div>
                 {suggestions.map((inv) => (
                   <button
                     key={inv.id}
@@ -502,21 +504,21 @@ function AppInner() {
                       setShowSuggestions(false);
                       navigate(`/${branchSlug}/invoices/${inv.id}`);
                     }}
-                    className="w-full text-left px-3 py-2 hover:bg-[var(--bg-app)] flex items-center justify-between text-xs transition-colors group cursor-pointer"
+                    className="w-full text-left px-3.5 py-2.5 hover:bg-[var(--bg-app)] flex items-center justify-between text-sm transition-colors group cursor-pointer"
                   >
                     <div className="flex flex-col">
-                      <span className="font-semibold text-[var(--text-main)] group-hover:text-[var(--brand-primary)] transition-colors">
+                      <span className="font-semibold font-mono text-[var(--text-main)] group-hover:text-blue-600 transition-colors">
                         {inv.invoice_number}
                       </span>
-                      <span className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                      <span className="text-xs text-[var(--text-muted)] mt-0.5">
                         {inv.customer_name || 'Walk-in Customer'}
                       </span>
                     </div>
                     <div className="text-right flex flex-col items-end">
-                      <span className="font-bold text-[var(--text-main)]">
+                      <span className="font-bold font-mono text-[var(--text-main)]">
                         €{(parseFloat(inv.grand_total) || 0).toFixed(2)}
                       </span>
-                      <span className="text-[9px] text-[var(--text-muted)] mt-0.5">
+                      <span className="text-[11px] text-[var(--text-muted)] mt-0.5">
                         {new Date(inv.created_at).toLocaleDateString()}
                       </span>
                     </div>
@@ -526,7 +528,7 @@ function AppInner() {
             )}
 
             {searchError && (
-              <div className="absolute top-full left-4 right-4 mt-2 bg-red-500/10 border border-red-500/20 text-red-500 text-[11px] py-1.5 px-3 rounded-lg flex items-center gap-2 z-50 animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-red-500/10 border border-red-500/20 text-red-500 text-xs py-1.5 px-3 rounded flex items-center gap-2 z-50 animate-in fade-in slide-in-from-top-1 duration-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
                 <span>{searchError}</span>
               </div>
@@ -534,17 +536,17 @@ function AppInner() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 px-6">
+        <div className="flex items-center gap-2 px-6">
           {isAdmin && (
             <button 
               onClick={() => setShowAdminPortal(true)}
-              className="h-8 overflow-hidden group bg-transparent text-[var(--text-main)] px-3 rounded-full text-xs font-medium transition-all cursor-pointer"
+              className="h-8 overflow-hidden group bg-transparent text-[var(--text-main)] px-3 rounded text-xs font-medium border border-transparent hover:border-[var(--border-base)] transition-all cursor-pointer"
             >
               <div className="flex flex-col transition-transform duration-500 group-hover:-translate-y-8 ease-in-out">
                 <div className="h-8 flex items-center justify-center whitespace-nowrap">
                   Admin
                 </div>
-                <div className="h-8 flex items-center justify-center whitespace-nowrap text-blue-600">
+                <div className="h-8 flex items-center justify-center whitespace-nowrap text-blue-600 font-semibold">
                   Log In
                 </div>
               </div>
@@ -556,13 +558,13 @@ function AppInner() {
               logout();
               navigate('/');
             }}
-            className="h-8 overflow-hidden group bg-[var(--bg-card)] text-[var(--text-main)] px-5 rounded-full text-xs font-medium transition-all border border-[var(--border-base)] shadow-sm cursor-pointer"
+            className="h-8 overflow-hidden group bg-[var(--bg-card)] text-[var(--text-main)] px-4 rounded text-xs font-medium transition-all border border-[var(--border-base)] shadow-sm hover:border-neutral-400 cursor-pointer"
           >
             <div className="flex flex-col transition-transform duration-500 group-hover:-translate-y-8 ease-in-out">
               <div className="h-8 flex items-center justify-center whitespace-nowrap">
                 {currentUser.name}
               </div>
-              <div className="h-8 flex items-center justify-center whitespace-nowrap text-red-500">
+              <div className="h-8 flex items-center justify-center whitespace-nowrap text-red-600 font-semibold">
                 Log Out
               </div>
             </div>

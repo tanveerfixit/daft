@@ -33,20 +33,16 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-3 font-sans" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+    <div className="flex flex-col gap-2.5 font-sans" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
       <button
         id="checkout-btn"
         type="button"
         onClick={handlePrimaryClick}
         disabled={isCartEmpty}
-        className={`border rounded py-3 font-semibold text-base transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-          isPaymentComplete
-            ? 'bg-green-500 hover:bg-green-600 border-green-500 text-white'
-            : 'bg-[#e6e6e6] hover:bg-[#d8d8d8] border-[#d8d8d8] text-[#333333]'
-        }`}
+        className="bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-600 rounded py-3.5 font-bold text-base shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {isPaymentComplete
-          ? 'Checkout & Complete'
+          ? '✓ Complete Sale'
           : addedPaymentsCount > 0
             ? `Pay Remaining €${Math.max(0, remainingAmount).toFixed(2)} & Complete`
             : `Checkout & Complete (${paymentMethod})`}
@@ -56,7 +52,8 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
         id="clear-sale-btn"
         type="button"
         onClick={onClearCart}
-        className="bg-[#f9fafb] border border-[#ff6347] text-[#ff6347] hover:bg-orange-50 rounded py-3 font-semibold text-base transition-colors cursor-pointer"
+        disabled={isCartEmpty}
+        className="bg-white border border-neutral-300 text-neutral-600 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50/50 rounded py-2 font-medium text-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Clear Sale & Start Over
       </button>

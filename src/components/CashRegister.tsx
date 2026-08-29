@@ -3,7 +3,9 @@ import {
   ShoppingBag, 
   XCircle,
   Loader2,
-  Plus
+  Plus,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import ThermalReceipt from './ThermalReceipt';
 import { Product, Customer, Invoice } from '../types';
@@ -1053,34 +1055,50 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
         />
       </main>
 
-      {/* Modals */}
+      {/* Discard Sale Confirmation Modal */}
       {showDiscardConfirm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 font-mono text-base">
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-sm overflow-hidden flex flex-col rounded-lg shadow-xl">
-            <div className="bg-red-600 dark:bg-red-750 px-4 py-2 border-b border-red-700 dark:border-red-800">
-              <h3 className="text-white font-semibold text-base">Discard Sale?</h3>
-            </div>
-            <div className="p-4 space-y-4 text-center">
-              <p className="text-neutral-600 dark:text-neutral-400 text-sm">
-                Are you sure you want to clear the current cart and reset the transaction? This action will completely clear all items and activity logs.
-              </p>
-              <div className="flex gap-2 justify-center pt-2">
-                <button 
-                  onClick={() => setShowDiscardConfirm(false)}
-                  className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-4 rounded text-base transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={() => {
-                    resetRegister();
-                    setShowDiscardConfirm(false);
-                  }}
-                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-4 rounded text-base border border-red-750 dark:border-red-800 transition-colors cursor-pointer"
-                >
-                  Discard
-                </button>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[110] p-4 font-sans select-none">
+          <div className="bg-white dark:bg-neutral-900 border border-[#cccccc] dark:border-neutral-700 w-full max-w-sm overflow-hidden flex flex-col rounded shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-4 py-2.5 border-b border-[#dfdfdf] dark:border-neutral-800 flex justify-between items-center bg-[#f2f2f2] dark:bg-neutral-800">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={17} className="text-amber-600 dark:text-amber-400" />
+                <h3 className="text-sm font-semibold text-black dark:text-white">Discard Current Sale?</h3>
               </div>
+              <button 
+                onClick={() => setShowDiscardConfirm(false)}
+                className="p-1 hover:bg-[#91c9f7] hover:text-black text-[#707070] dark:text-slate-300 rounded cursor-pointer transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-4 bg-white dark:bg-neutral-900 space-y-2">
+              <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-normal">
+                Are you sure you want to clear the cart and reset this sale? All scanned items and attached customer details will be cleared.
+              </p>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="px-4 py-2.5 bg-[#f2f2f2] dark:bg-neutral-800/60 border-t border-[#dfdfdf] dark:border-neutral-800 flex justify-end gap-2">
+              <button 
+                type="button"
+                onClick={() => setShowDiscardConfirm(false)}
+                className="px-3.5 py-1.5 bg-white dark:bg-neutral-800 hover:bg-neutral-100 text-neutral-800 dark:text-slate-200 border border-[#cccccc] dark:border-neutral-700 text-sm font-medium rounded transition-colors cursor-pointer"
+              >
+                Keep Sale
+              </button>
+              <button 
+                type="button"
+                onClick={() => {
+                  resetRegister();
+                  setShowDiscardConfirm(false);
+                }}
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold border border-rose-700 text-sm rounded shadow-xs transition-colors cursor-pointer"
+              >
+                Discard Sale
+              </button>
             </div>
           </div>
         </div>

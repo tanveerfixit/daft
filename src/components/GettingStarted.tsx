@@ -1425,7 +1425,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
   ];
 
   return (
-    <div className="flex flex-col h-full bg-[#f4f7f9]">
+    <div className="flex flex-col h-full bg-[#f2f2f2]">
       <div className="p-4 bg-white border-b border-slate-200">
         <h2 className="text-xl font-medium text-slate-700">Getting Started</h2>
       </div>

@@ -193,10 +193,12 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
                 <td colSpan={9} className="py-8 text-center text-neutral-500 italic text-sm">No sales invoices found for this period.</td>
               </tr>
             ) : (
-              filteredInvoices.map((invoice) => (
+              filteredInvoices.map((invoice, index) => (
                 <tr 
                   key={invoice.id} 
-                  className="bg-white dark:bg-black hover:bg-neutral-200/70 dark:hover:bg-neutral-800 transition-colors cursor-pointer text-[15px]"
+                  className={`${
+                    index % 2 === 0 ? 'bg-white dark:bg-black' : 'bg-[#f8f9fa] dark:bg-neutral-900/40'
+                  } hover:bg-[#91c9f7]/40 dark:hover:bg-neutral-800 transition-colors cursor-pointer text-[15px]`}
                   onClick={() => onSelectInvoice(invoice.id)}
                 >
                   <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400">{formatDate(invoice.created_at)}</td>

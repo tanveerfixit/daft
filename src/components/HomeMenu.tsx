@@ -47,7 +47,7 @@ const HomeMenu: React.FC<HomeMenuProps> = ({ onNavigate }) => {
           <button
             key={tile.id}
             onClick={() => onNavigate(tile.id)}
-            className="flex flex-col items-center justify-center bg-[rgb(2,133,181)] text-white p-2 rounded-lg shadow-md transition-all aspect-square group w-full border border-[rgb(2,133,181)] hover:-translate-y-1 hover:brightness-110 cursor-pointer"
+            className="flex flex-col items-center justify-center bg-[rgb(2,133,181)] text-white p-2 rounded shadow-md transition-all aspect-square group w-full border border-[rgb(2,133,181)] hover:-translate-y-1 hover:brightness-110 cursor-pointer"
           >
             <div className="mb-1 group-hover:scale-110 transition-all duration-200 flex items-center justify-center">
               <tile.icon size={30} strokeWidth={1.5} className="text-white" />

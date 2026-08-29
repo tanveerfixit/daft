@@ -46,7 +46,7 @@
 
 :root {
   /* --- Surfaces & Brand Foundation --- */
-  --bg-app: #f4f7f9;
+  --bg-app: #f2f2f2;
   /* Global background behind all cards and content */
   --bg-surface-secondary: #E7E9EB;
   /* Structural surface for non-content areas (headers, bars) */
@@ -133,6 +133,30 @@ body {
   color: var(--text-main);
   @apply antialiased selection:bg-blue-100 selection:text-blue-900;
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Default page background across full web app */
+.bg-neutral-100 {
+  background-color: #f2f2f2;
+}
+
+/* Tables: Global Default White & Zebra #f8f9fa Striping */
+table {
+  background-color: #ffffff;
+}
+
+:not(.dark) table tbody tr:nth-child(odd) {
+  background-color: #ffffff;
+}
+
+:not(.dark) table tbody tr:nth-child(even) {
+  background-color: #f8f9fa;
+}
+
+/* Only clickable rows get blue hover highlight */
+:not(.dark) table tbody tr.cursor-pointer:hover,
+:not(.dark) table tbody tr[onclick]:hover {
+  background-color: rgba(145, 201, 247, 0.35);
 }
 
 /* Custom Scrollbar */

@@ -70,13 +70,31 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
       <div className={`grid ${methods.length > 3 ? 'grid-cols-4' : 'grid-cols-3'} gap-2`}>
         {methods.map((m) => {
           const isActive = paymentMethod.toLowerCase() === m.toLowerCase();
+
+          let activeClasses = '';
+          let inactiveClasses = '';
+
+          if (m.toLowerCase() === 'cash') {
+            activeClasses = 'bg-emerald-600 border-emerald-600 text-white shadow-sm font-bold';
+            inactiveClasses = 'bg-white border-neutral-300 text-neutral-800 hover:border-emerald-500 hover:bg-emerald-50/50';
+          } else if (m.toLowerCase() === 'card') {
+            activeClasses = 'bg-blue-600 border-blue-600 text-white shadow-sm font-bold';
+            inactiveClasses = 'bg-white border-neutral-300 text-neutral-800 hover:border-blue-500 hover:bg-blue-50/50';
+          } else if (m.toLowerCase() === 'wallet') {
+            activeClasses = 'bg-purple-600 border-purple-600 text-white shadow-sm font-bold';
+            inactiveClasses = 'bg-white border-neutral-300 text-neutral-800 hover:border-purple-500 hover:bg-purple-50/50';
+          } else {
+            activeClasses = 'bg-amber-600 border-amber-600 text-white shadow-sm font-bold';
+            inactiveClasses = 'bg-white border-neutral-300 text-neutral-800 hover:border-amber-500 hover:bg-amber-50/50';
+          }
+
           return (
             <button
               key={m}
               type="button"
               onClick={() => handleMethodClick(m)}
-              className={`pay-widget-btn border border-[#d8d8d8] rounded py-2.5 font-semibold text-base transition-colors cursor-pointer ${
-                isActive ? 'bg-[#e5e7eb] text-[#333333]' : 'bg-white text-[#333333] hover:bg-gray-50'
+              className={`pay-widget-btn border rounded py-2.5 font-semibold text-base transition-all cursor-pointer ${
+                isActive ? activeClasses : inactiveClasses
               }`}
             >
               {m}
