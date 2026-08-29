@@ -15,7 +15,8 @@ import {
   X,
   ExternalLink,
   Calendar,
-  RotateCcw
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
 import { Payment, ClosingReport, ClosingReportPayment } from '../types';
 import { useThermalSettings, ThermalPrinterSettings, CompanyInfo } from '../hooks/useThermalSettings';
@@ -1181,6 +1182,66 @@ export default function EndOfDay() {
     };
   });
 
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const handleSaveEndOfDay = async () => {
+    setIsSaving(true);
+    setSaveSuccess(false);
+    try {
+      const payload = {
+        report_date: reportDate,
+        starting_balance: startingBalance,
+        cash_counted: cashCounted,
+        calculated_cash: totalCashSales,
+        difference: diffCash,
+        total_sales: totalSales,
+        total_deposits: 0,
+        total_cash_in_drawer: cashCounted,
+        comments: comments,
+        payment_summaries: [
+          {
+            payment_type: 'Cash',
+            calculated: totalCashSales,
+            counted: countedCashNet,
+            difference: diffCash
+          },
+          {
+            payment_type: 'Card',
+            calculated: totalCardSales,
+            counted: cardCounted,
+            difference: diffCard
+          },
+          ...(totalOtherSales > 0 || otherCounted > 0 ? [{
+            payment_type: 'Other',
+            calculated: totalOtherSales,
+            counted: otherCounted,
+            difference: diffOther
+          }] : [])
+        ]
+      };
+
+      const res = await fetch('/api/reports/eod', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } else {
+        const err = await res.json();
+        alert('Failed to save End of Day report: ' + (err.error || 'Server error'));
+      }
+    } catch (e: any) {
+      console.error('Error saving EOD:', e);
+      alert('Error saving End of Day report: ' + (e.message || e));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center bg-[#f2f2f2] dark:bg-slate-950 text-slate-600 dark:text-slate-400">
@@ -1393,18 +1454,18 @@ export default function EndOfDay() {
                   </tr>
 
                   {/* Row 3: Calculated Cash Summary */}
-                  <tr className="bg-[#f8f9fa] dark:bg-slate-800/60">
-                    <td className="border border-[#dcdcdc] dark:border-slate-700 text-right font-medium text-slate-700 dark:text-slate-300 pr-4 py-2 px-3.5">
+                  <tr className="bg-[#f8f9fa] dark:bg-slate-800/60 font-semibold text-slate-900 dark:text-slate-100">
+                    <td className="border border-[#dcdcdc] dark:border-slate-700 text-right font-bold text-slate-900 dark:text-slate-100 pr-4 py-2 px-3.5">
                       Calculated Cash :
                     </td>
-                    <td className="border border-[#dcdcdc] dark:border-slate-700 text-right font-mono font-medium text-slate-800 dark:text-slate-200 py-2 px-3.5" id="dispCalculatedCash">
+                    <td className="border border-[#dcdcdc] dark:border-slate-700 text-right font-mono font-bold text-slate-900 dark:text-white py-2 px-3.5 text-[16px]" id="dispCalculatedCash">
                       {formatMoney(totalCashSales)}
                     </td>
-                    <td className="border border-[#dcdcdc] dark:border-slate-700 text-right font-mono font-medium text-slate-800 dark:text-slate-200 py-2 px-3.5" id="dispCountedCashNet">
+                    <td className="border border-[#dcdcdc] dark:border-slate-700 text-right font-mono font-bold text-slate-900 dark:text-white py-2 px-3.5 text-[16px]" id="dispCountedCashNet">
                       {formatMoney(countedCashNet)}
                     </td>
                     <td className="border border-[#dcdcdc] dark:border-slate-700 p-1.5">
-                      <div className={getDiffBoxClass(diffCash)} id="dispDiffCash">
+                      <div className={getDiffBoxClass(diffCash, true)} id="dispDiffCash">
                         {formatMoney(diffCash, true)}
                       </div>
                     </td>
@@ -1492,19 +1553,48 @@ export default function EndOfDay() {
               </table>
             </div>
 
-            {/* Comments / Discrepancies Textarea */}
+            {/* Comments / Discrepancies Textarea & Saving Button */}
             <div className="flex flex-col sm:flex-row items-start gap-4 pt-2">
               <label htmlFor="comments" className="w-28 text-left sm:text-right font-medium text-slate-700 dark:text-slate-300 text-[16px] pt-2 shrink-0">
                 Comments :
               </label>
-              <textarea 
-                id="comments" 
-                rows={2} 
-                value={comments}
-                onChange={(e) => setComments(e.target.value)}
-                placeholder="Enter reconciliation notes or register discrepancies..." 
-                className="w-full border border-slate-300 dark:border-slate-700 rounded p-2.5 text-[16px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 bg-white dark:bg-slate-800 transition shadow-inner"
-              ></textarea>
+              <div className="w-full flex flex-col items-end gap-3">
+                <textarea 
+                  id="comments" 
+                  rows={2} 
+                  value={comments}
+                  onChange={(e) => setComments(e.target.value)}
+                  placeholder="Enter reconciliation notes or register discrepancies..." 
+                  className="w-full border border-slate-300 dark:border-slate-700 rounded p-2.5 text-[16px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 bg-white dark:bg-slate-800 transition shadow-inner"
+                ></textarea>
+
+                {/* Save End of Day Button in Bottom Right */}
+                <div className="flex items-center gap-3">
+                  {saveSuccess && (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-sm flex items-center gap-1.5 animate-in fade-in">
+                      <CheckCircle2 size={16} /> Saved Successfully
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleSaveEndOfDay}
+                    disabled={isSaving}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded shadow transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={16} />
+                        <span>Save</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
 
           </div>
