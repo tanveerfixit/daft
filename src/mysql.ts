@@ -383,6 +383,8 @@ export async function initSchema() {
         type VARCHAR(50) DEFAULT 'sale',
         subtotal DECIMAL(10,2),
         tax_total DECIMAL(10,2),
+        tax_rate DECIMAL(5,2) DEFAULT 0,
+        tax_type VARCHAR(20) DEFAULT 'excluded',
         discount_total DECIMAL(10,2),
         grand_total DECIMAL(10,2),
         paid_amount DECIMAL(10,2) DEFAULT 0,
@@ -937,8 +939,9 @@ export async function initSchema() {
     try { await conn.query('ALTER TABLE activity_logs ADD COLUMN reference_type VARCHAR(50) NULL AFTER description'); } catch (e: any) {}
     try { await conn.query('ALTER TABLE activity_logs ADD COLUMN reference_id INT NULL AFTER reference_type'); } catch (e: any) {}
     try { await conn.query('ALTER TABLE activity_logs ADD COLUMN ip_address VARCHAR(50) NULL AFTER reference_link'); } catch (e: any) {}
-    try { await conn.query('ALTER TABLE activity_logs ADD COLUMN user_agent VARCHAR(255) NULL AFTER ip_address'); } catch (e: any) {}
-    try { await conn.query('ALTER TABLE activity_logs ADD INDEX idx_activity_biz (business_id, created_at)'); } catch (e: any) {}
+    // 8. Ensure invoices table has tax_rate and tax_type columns
+    try { await conn.query('ALTER TABLE invoices ADD COLUMN tax_rate DECIMAL(5,2) DEFAULT 0 AFTER tax_total'); } catch (e: any) {}
+    try { await conn.query("ALTER TABLE invoices ADD COLUMN tax_type VARCHAR(20) DEFAULT 'excluded' AFTER tax_rate"); } catch (e: any) {}
 
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');
 

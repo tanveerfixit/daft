@@ -1,6 +1,7 @@
 import React from 'react';
 import { Invoice, InvoiceItem, Customer } from '../types';
 import { ThermalPrinterSettings, CompanyInfo } from '../hooks/useThermalSettings';
+import { getInvoiceTaxDetails } from '../utils/tax';
 
 interface Props {
   invoice: Invoice & { items: InvoiceItem[], customer?: Customer };
@@ -140,24 +141,29 @@ export default function ThermalReceipt({ invoice, settings, company }: Props) {
         {/* ======================================== */}
         {/* Summaries inside the Grid Table Container - Regular weight */}
         {/* ======================================== */}
-        <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {/* Taxable Total */}
-          <div className="flex-between">
-            <span style={{ paddingLeft: '20%' }}>TAXABLE TOTAL:</span>
-            <span>€{((Number(invoice.subtotal) || 0) - (Number(invoice.tax_total) || 0)).toFixed(2)}</span>
-          </div>
+        {(() => {
+          const taxDetails = getInvoiceTaxDetails(invoice);
+          return (
+            <div style={{ fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {/* Taxable / Net Total */}
+              <div className="flex-between">
+                <span style={{ paddingLeft: '20%' }}>
+                  {taxDetails.taxType === 'included' ? 'NET (EXCL. VAT):' : 'TAXABLE TOTAL:'}
+                </span>
+                <span>€{taxDetails.netAmount.toFixed(2)}</span>
+              </div>
 
-          {/* Tax */}
-          <div className="flex-between">
-            <span style={{ paddingLeft: '20%' }}>TAX (23%):</span>
-            <span>€{(Number(invoice.tax_total) || 0).toFixed(2)}</span>
-          </div>
+              {/* Tax */}
+              <div className="flex-between">
+                <span style={{ paddingLeft: '20%' }}>{taxDetails.label.toUpperCase()}:</span>
+                <span>€{taxDetails.taxAmount.toFixed(2)}</span>
+              </div>
 
-          {/* Grand Total - Bold heading */}
-          <div className="flex-between text-bold" style={{ fontSize: '12px', padding: '3px 0' }}>
-            <span style={{ paddingLeft: '20%' }}>GRAND TOTAL:</span>
-            <span>€{(Number(invoice.grand_total) || 0).toFixed(2)}</span>
-          </div>
+              {/* Grand Total - Bold heading */}
+              <div className="flex-between text-bold" style={{ fontSize: '12px', padding: '3px 0' }}>
+                <span style={{ paddingLeft: '20%' }}>GRAND TOTAL:</span>
+                <span>€{taxDetails.grandTotal.toFixed(2)}</span>
+              </div>
 
           {/* Payment Ledger Line - Regular weight */}
           {invoice.payments && invoice.payments.length > 0 ? (
@@ -199,6 +205,8 @@ export default function ThermalReceipt({ invoice, settings, company }: Props) {
             return null;
           })()}
         </div>
+      );
+    })()}
       </div>
       
       <div className="receipt-separator" />

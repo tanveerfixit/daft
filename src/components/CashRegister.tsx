@@ -780,8 +780,10 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const handleFinalizeTransaction = async (printPreference: 'Thermal' | 'A4' | null) => {
     const invoiceData = {
       customer_id: selectedCustomer?.id || null,
-      subtotal: taxableTotal,
+      subtotal: netSubtotal,
       tax_total: taxAmount,
+      tax_rate: taxRate,
+      tax_type: taxType,
       discount_total: discountTotal,
       grand_total: total,
       items: cart.map(item => {
@@ -902,7 +904,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const [taxOption, setTaxOption] = useState<string>('0-excluded');
 
   // Calculations
-  const subtotal = cart.reduce((sum, item) => sum + Number(item.customPrice ?? item.selling_price ?? 0) * (Number(item.quantity) || 1), 0);
+  const grossSubtotal = cart.reduce((sum, item) => sum + Number(item.customPrice ?? item.selling_price ?? 0) * (Number(item.quantity) || 1), 0);
   
   const discountTotal = cart.reduce((sum, item) => {
     if (!item.discount) return sum;
@@ -915,18 +917,33 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     }
   }, 0);
 
-  const taxableTotal = Math.max(0, subtotal - discountTotal);
+  const netAfterDiscount = Math.max(0, grossSubtotal - discountTotal);
   const totalQty = cart.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
 
+  let taxRate = 0;
+  let taxType: 'included' | 'excluded' | 'zero' = 'zero';
   let taxAmount = 0;
-  let total = taxableTotal;
+  let netSubtotal = netAfterDiscount;
+  let total = netAfterDiscount;
 
   if (taxOption === '23-excluded') {
-    taxAmount = taxableTotal * 0.23;
-    total = taxableTotal + taxAmount;
+    taxRate = 23;
+    taxType = 'excluded';
+    taxAmount = netAfterDiscount * 0.23;
+    netSubtotal = netAfterDiscount;
+    total = netAfterDiscount + taxAmount;
   } else if (taxOption === '23-included') {
-    taxAmount = taxableTotal * (23 / 123);
-    total = taxableTotal;
+    taxRate = 23;
+    taxType = 'included';
+    taxAmount = netAfterDiscount * (23 / 123);
+    netSubtotal = Math.max(0, netAfterDiscount - taxAmount);
+    total = netAfterDiscount;
+  } else {
+    taxRate = 0;
+    taxType = 'zero';
+    taxAmount = 0;
+    netSubtotal = netAfterDiscount;
+    total = netAfterDiscount;
   }
 
   const paidAmount = addedPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -1028,8 +1045,8 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
           onOpenNewCustomerModal={() => setShowNewCustomerModal(true)}
           onOpenDepositModal={() => setShowDepositModal(true)}
           
-          subtotal={subtotal}
-          taxableTotal={taxableTotal}
+          subtotal={grossSubtotal}
+          taxableTotal={netSubtotal}
           tax={taxAmount}
           discount={discountTotal}
           total={total}

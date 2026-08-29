@@ -97,6 +97,8 @@ export interface Invoice {
   products_summary?: string;
   subtotal: number;
   tax_total: number;
+  tax_rate?: number;
+  tax_type?: 'included' | 'excluded' | 'zero' | string;
   discount_total: number;
   grand_total: number;
   paid_amount: number;

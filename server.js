@@ -26,6 +26,7 @@ __export(mysql_exports, {
   ensureSuperAdmin: () => ensureSuperAdmin,
   execute: () => execute,
   initSchema: () => initSchema,
+  logActivity: () => logActivity,
   pool: () => pool,
   query: () => query,
   queryOne: () => queryOne,
@@ -352,6 +353,8 @@ async function initSchema() {
         type VARCHAR(50) DEFAULT 'sale',
         subtotal DECIMAL(10,2),
         tax_total DECIMAL(10,2),
+        tax_rate DECIMAL(5,2) DEFAULT 0,
+        tax_type VARCHAR(20) DEFAULT 'excluded',
         discount_total DECIMAL(10,2),
         grand_total DECIMAL(10,2),
         paid_amount DECIMAL(10,2) DEFAULT 0,
@@ -832,6 +835,10 @@ async function initSchema() {
     } catch (e) {
     }
     try {
+      await conn.query("ALTER TABLE invoice_items ADD COLUMN refunded_quantity INT DEFAULT 0 AFTER quantity");
+    } catch (e) {
+    }
+    try {
       await conn.query("ALTER TABLE device_transfers ADD COLUMN product_name VARCHAR(255) NULL AFTER notes");
       console.log("[MySQL] Migration: added product_name to device_transfers");
     } catch (e) {
@@ -852,6 +859,38 @@ async function initSchema() {
     try {
       await conn.query("ALTER TABLE product_skus DROP INDEX sku_code");
       console.log("[MySQL] Migration: dropped global unique constraint on product_skus.sku_code");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE activity_logs ADD COLUMN business_id INT NULL AFTER id");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE activity_logs ADD COLUMN branch_id INT NULL AFTER business_id");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE activity_logs ADD COLUMN user_name VARCHAR(100) NULL AFTER user_id");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE activity_logs ADD COLUMN reference_type VARCHAR(50) NULL AFTER description");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE activity_logs ADD COLUMN reference_id INT NULL AFTER reference_type");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE activity_logs ADD COLUMN ip_address VARCHAR(50) NULL AFTER reference_link");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE invoices ADD COLUMN tax_rate DECIMAL(5,2) DEFAULT 0 AFTER tax_total");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE invoices ADD COLUMN tax_type VARCHAR(20) DEFAULT 'excluded' AFTER tax_rate");
     } catch (e) {
     }
     await conn.query("SET FOREIGN_KEY_CHECKS = 1");
@@ -1014,6 +1053,42 @@ async function ensureSuperAdmin() {
     []
   );
   console.log("[MySQL] Superadmin and developer roles ensured.");
+}
+async function logActivity({
+  business_id,
+  branch_id,
+  user_id,
+  user_name,
+  activity_type,
+  description,
+  reference_type,
+  reference_id,
+  reference_link,
+  ip_address,
+  user_agent
+}) {
+  try {
+    await execute(
+      `INSERT INTO activity_logs 
+        (business_id, branch_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link, ip_address, user_agent, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [
+        business_id ?? null,
+        branch_id ?? null,
+        user_id ?? null,
+        user_name ?? null,
+        activity_type,
+        description,
+        reference_type ?? null,
+        reference_id ?? null,
+        reference_link ?? null,
+        ip_address ?? null,
+        user_agent ?? null
+      ]
+    );
+  } catch (err) {
+    console.error("[ActivityLog] Failed to record activity:", err.message);
+  }
 }
 var pool, CURRENT_SCHEMA_VERSION;
 var init_mysql = __esm({
@@ -1483,6 +1558,40 @@ var init_auth = __esm({
         await execute("UPDATE users SET last_login=NOW() WHERE id=?", [user.id]);
         const branch = await queryOne("SELECT * FROM branches WHERE id=?", [user.branch_id]);
         const business = await queryOne("SELECT name FROM businesses WHERE id=?", [user.business_id]);
+        try {
+          const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
+          const ipAddress = (typeof rawIp === "string" ? rawIp.split(",")[0].trim() : String(rawIp)).replace(/^::ffff:/, "");
+          const userAgent = req.headers["user-agent"] || "";
+          const parseDevice = (ua) => {
+            let os = "Unknown OS";
+            if (ua.includes("Windows")) os = "Windows";
+            else if (ua.includes("Macintosh") || ua.includes("Mac OS")) os = "macOS";
+            else if (ua.includes("iPhone")) os = "iOS";
+            else if (ua.includes("iPad")) os = "iPadOS";
+            else if (ua.includes("Android")) os = "Android";
+            else if (ua.includes("Linux")) os = "Linux";
+            let browser = "Browser";
+            if (ua.includes("Edg/")) browser = "Edge";
+            else if (ua.includes("Chrome")) browser = "Chrome";
+            else if (ua.includes("Safari")) browser = "Safari";
+            else if (ua.includes("Firefox")) browser = "Firefox";
+            return `${browser} on ${os}`;
+          };
+          const deviceSummary = parseDevice(userAgent);
+          const loginDescription = `Logged in from IP ${ipAddress || "127.0.0.1"} (${deviceSummary})`;
+          await logActivity({
+            business_id: user.business_id,
+            branch_id: user.branch_id,
+            user_id: user.id,
+            user_name: user.name,
+            activity_type: "User Login",
+            description: loginDescription,
+            ip_address: ipAddress || "127.0.0.1",
+            user_agent: userAgent
+          });
+        } catch (logErr) {
+          console.error("[Auth] Failed to log user login activity:", logErr.message);
+        }
         res.json({
           token,
           user: {
@@ -2413,6 +2522,16 @@ var init_products = __esm({
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
+        const [existingByName] = await conn.execute(
+          "SELECT id FROM products WHERE business_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND deleted_at IS NULL LIMIT 1",
+          [businessId, name]
+        );
+        if (existingByName.length > 0) {
+          await conn.rollback();
+          return res.status(400).json({
+            error: "You already have a product with the same name. Add to inventory instead of creating a new product."
+          });
+        }
         const [pr] = await conn.execute(
           "INSERT INTO products (business_id,name,category_id,manufacturer_id,product_type,allow_overselling,min_stock_level,is_taxable,require_note,min_sales_price,additional_description,alert_message) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
           [
@@ -2477,6 +2596,16 @@ var init_products = __esm({
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
+        const [existingByName] = await conn.execute(
+          "SELECT id FROM products WHERE business_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND deleted_at IS NULL LIMIT 1",
+          [businessId, name]
+        );
+        if (existingByName.length > 0) {
+          await conn.rollback();
+          return res.status(400).json({
+            error: "You already have a product with the same name. Add to inventory instead of creating a new product."
+          });
+        }
         const [pr] = await conn.execute(
           "INSERT INTO products (business_id,name,category_id,manufacturer_id,product_type,allow_overselling) VALUES (?,?,?,?,?,?)",
           [businessId, name, category_id || null, manufacturer_id || null, "stock", 1]
@@ -3457,6 +3586,8 @@ var init_invoices = __esm({
       customer_id: z4.number().nullable().optional(),
       subtotal: z4.number().or(z4.string().transform(Number)),
       tax_total: z4.number().or(z4.string().transform(Number)),
+      tax_rate: z4.number().or(z4.string().transform(Number)).optional(),
+      tax_type: z4.string().optional(),
       discount_total: z4.number().or(z4.string().transform(Number)),
       grand_total: z4.number().or(z4.string().transform(Number)),
       items: z4.array(z4.object({
@@ -3484,7 +3615,7 @@ var init_invoices = __esm({
     });
     router5.post("/", async (req, res, next) => {
       const data = createInvoiceSchema.parse(req.body);
-      const { customer_id, items, subtotal, tax_total, discount_total, grand_total, payments, activities } = data;
+      const { customer_id, items, subtotal, tax_total, tax_rate, tax_type, discount_total, grand_total, payments, activities } = data;
       if (!items || !items.length) return res.status(400).json({ error: "Cart is empty" });
       const conn = await pool.getConnection();
       try {
@@ -3525,10 +3656,18 @@ var init_invoices = __esm({
         const dueAmount = Math.max(0, grandTotalNum - rawTotalPaid);
         let status = "paid";
         if (dueAmount > 0.01) status = totalPaid > 0 ? "partial" : "credit";
-        const [invR] = await conn.execute(
-          "INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,subtotal,tax_total,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-          [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, subtotal, tax_total, discount_total, grand_total, totalPaid, dueAmount, status]
-        );
+        let invR;
+        try {
+          [invR] = await conn.execute(
+            "INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,subtotal,tax_total,tax_rate,tax_type,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, subtotal, tax_total, Number(tax_rate) || 0, tax_type || "excluded", discount_total, grand_total, totalPaid, dueAmount, status]
+          );
+        } catch (dbErr) {
+          [invR] = await conn.execute(
+            "INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,subtotal,tax_total,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, subtotal, tax_total, discount_total, grand_total, totalPaid, dueAmount, status]
+          );
+        }
         const invoiceId = invR.insertId;
         for (const item of items) {
           const skuId = item.id || item.sku_id;
@@ -3645,9 +3784,10 @@ var init_invoices = __esm({
       }
     });
     router5.post("/:id/refund", async (req, res, next) => {
-      const { method } = req.body;
+      const { method = "Cash", restock = true, items, is_full_refund, notes } = req.body;
       const conn = await pool.getConnection();
       try {
+        await conn.beginTransaction();
         const isDeveloper = req.user.role === "developer";
         const branchId = req.user.branch_id;
         const checkSql = `SELECT * FROM invoices WHERE id=? AND business_id=? ${!isDeveloper && branchId ? "AND branch_id=?" : ""}`;
@@ -3655,26 +3795,102 @@ var init_invoices = __esm({
         const [invRows] = await conn.execute(checkSql, checkParams);
         const invoice = invRows[0];
         if (!invoice) throw new Error("Invoice not found or access denied");
-        if (invoice.status === "void") throw new Error("Invoice already refunded");
-        await conn.execute("UPDATE invoices SET status='void' WHERE id=?", [req.params.id]);
-        await conn.execute(
-          "INSERT INTO payments (invoice_id,method,amount) VALUES (?,?,?)",
-          [req.params.id, `Refund (${method})`, -invoice.grand_total]
-        );
-        const [itemRows] = await conn.execute("SELECT * FROM invoice_items WHERE invoice_id=?", [req.params.id]);
-        for (const item of itemRows) {
-          await conn.execute(`
-        INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,?)
-        ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)
-      `, [invoice.branch_id, item.sku_id, item.quantity]);
-          if (item.device_id) await conn.execute("UPDATE devices SET status='in_stock' WHERE id=?", [item.device_id]);
+        if (invoice.status === "void") throw new Error("This invoice has already been fully refunded");
+        const [itemRows] = await conn.execute(`
+      SELECT ii.*, p.name as product_name, d.imei
+      FROM invoice_items ii
+      JOIN product_skus s ON ii.sku_id = s.id
+      JOIN products p ON s.product_id = p.id
+      LEFT JOIN devices d ON ii.device_id = d.id
+      WHERE ii.invoice_id = ?
+    `, [req.params.id]);
+        const currentItems = itemRows;
+        if (currentItems.length === 0) throw new Error("No items found on this invoice");
+        let totalRefundAmount = 0;
+        const refundSummaries = [];
+        const itemsToProcess = [];
+        if (Array.isArray(items) && items.length > 0 && !is_full_refund) {
+          for (const reqItem of items) {
+            const item = currentItems.find((ci) => ci.id === reqItem.item_id);
+            if (!item) continue;
+            const returnableQty = item.quantity - (Number(item.refunded_quantity) || 0);
+            const qtyToRefund = Math.min(returnableQty, Math.max(0, Number(reqItem.quantity) || 0));
+            if (qtyToRefund <= 0) continue;
+            const unitEffectivePrice = Number(item.total) / Number(item.quantity);
+            const itemRefundTotal = unitEffectivePrice * qtyToRefund;
+            totalRefundAmount += itemRefundTotal;
+            itemsToProcess.push({
+              id: item.id,
+              sku_id: item.sku_id,
+              device_id: item.device_id,
+              qty: qtyToRefund,
+              unitPrice: unitEffectivePrice,
+              name: item.product_name || "Product"
+            });
+            refundSummaries.push(`${qtyToRefund}x ${item.product_name} (\u20AC${itemRefundTotal.toFixed(2)})`);
+          }
+        } else {
+          for (const item of currentItems) {
+            const returnableQty = item.quantity - (Number(item.refunded_quantity) || 0);
+            if (returnableQty <= 0) continue;
+            const unitEffectivePrice = Number(item.total) / Number(item.quantity);
+            const itemRefundTotal = unitEffectivePrice * returnableQty;
+            totalRefundAmount += itemRefundTotal;
+            itemsToProcess.push({
+              id: item.id,
+              sku_id: item.sku_id,
+              device_id: item.device_id,
+              qty: returnableQty,
+              unitPrice: unitEffectivePrice,
+              name: item.product_name || "Product"
+            });
+            refundSummaries.push(`${returnableQty}x ${item.product_name} (\u20AC${itemRefundTotal.toFixed(2)})`);
+          }
+        }
+        if (itemsToProcess.length === 0 || totalRefundAmount <= 0) {
+          throw new Error("No returnable items selected for refund");
+        }
+        for (const pItem of itemsToProcess) {
+          await conn.execute(
+            "UPDATE invoice_items SET refunded_quantity = COALESCE(refunded_quantity, 0) + ? WHERE id = ?",
+            [pItem.qty, pItem.id]
+          );
+          if (restock) {
+            await conn.execute(`
+          INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, ?)
+          ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
+        `, [invoice.branch_id || 1, pItem.sku_id, pItem.qty]);
+            if (pItem.device_id) {
+              await conn.execute("UPDATE devices SET status='in_stock' WHERE id=?", [pItem.device_id]);
+            }
+          }
         }
         await conn.execute(
-          "INSERT INTO invoice_activity (invoice_id,user_id,activity,details) VALUES (?,?,?,?)",
-          [req.params.id, req.userId, "Refund Created", `Refund issued via ${method} for \u20AC${invoice.grand_total.toFixed(2)}`]
+          "INSERT INTO payments (invoice_id, method, amount) VALUES (?, ?, ?)",
+          [req.params.id, `Refund (${method})`, -totalRefundAmount]
+        );
+        const [updatedItems] = await conn.execute(
+          "SELECT SUM(quantity) as total_qty, SUM(COALESCE(refunded_quantity, 0)) as total_refunded FROM invoice_items WHERE invoice_id=?",
+          [req.params.id]
+        );
+        const totalQty = Number(updatedItems[0]?.total_qty || 0);
+        const totalRefunded = Number(updatedItems[0]?.total_refunded || 0);
+        const isFullyRefunded = totalRefunded >= totalQty;
+        const newStatus = isFullyRefunded ? "void" : "partially_refunded";
+        await conn.execute("UPDATE invoices SET status=? WHERE id=?", [newStatus, req.params.id]);
+        const activityLabel = isFullyRefunded ? "Refund Created" : "Partial Refund";
+        const detailMsg = `${activityLabel} issued via ${method} for \u20AC${totalRefundAmount.toFixed(2)} [${refundSummaries.join(", ")}]. ${restock ? "Restocked to inventory." : "No restock."}${notes ? ` Note: ${notes}` : ""}`;
+        await conn.execute(
+          "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+          [req.params.id, req.userId, activityLabel, detailMsg]
         );
         await conn.commit();
-        res.json({ success: true });
+        res.json({
+          success: true,
+          status: newStatus,
+          refundAmount: totalRefundAmount,
+          refundedItems: itemsToProcess
+        });
       } catch (e) {
         await conn.rollback();
         next(e);
@@ -3944,6 +4160,7 @@ var init_reports = __esm({
           summary,
           date,
           startingBalance: existingReport ? Number(existingReport.starting_balance) : null,
+          cashCounted: existingReport?.cash_counted != null ? Number(existingReport.cash_counted) : null,
           comments: existingReport?.comments || ""
         });
       } catch (e) {
@@ -4114,6 +4331,165 @@ var init_reports = __esm({
         next(e);
       }
     });
+    router6.get("/activity-logs", async (req, res, next) => {
+      try {
+        const businessId = req.user.business_id;
+        const { activity_type, user_id, start_date, end_date, search, page = 1, limit = 50 } = req.query;
+        const limitNum = Math.min(200, Math.max(1, Number(limit)));
+        const pageNum = Math.max(1, Number(page));
+        const offset = (pageNum - 1) * limitNum;
+        const users = await query(
+          "SELECT id, name FROM users WHERE business_id=? AND deleted_at IS NULL ORDER BY name ASC",
+          [businessId]
+        );
+        const unifiedSql = `
+      SELECT 
+        CONCAT('al_', al.id) as log_id,
+        COALESCE(al.business_id, 1) as business_id,
+        al.user_id,
+        COALESCE(al.user_name, u.name, 'System') as user_name,
+        al.activity_type,
+        al.description as details,
+        al.reference_type,
+        al.reference_id,
+        al.reference_link,
+        al.ip_address,
+        al.created_at
+      FROM activity_logs al
+      LEFT JOIN users u ON al.user_id = u.id
+      WHERE COALESCE(al.business_id, 1) = ?
+
+      UNION ALL
+
+      SELECT 
+        CONCAT('inv_', ia.id) as log_id,
+        COALESCE(i.business_id, 1) as business_id,
+        ia.user_id,
+        COALESCE(u.name, 'System') as user_name,
+        ia.activity as activity_type,
+        ia.details,
+        'invoice' as reference_type,
+        ia.invoice_id as reference_id,
+        CONCAT('/invoices/', ia.invoice_id) as reference_link,
+        NULL as ip_address,
+        ia.created_at
+      FROM invoice_activity ia
+      JOIN invoices i ON ia.invoice_id = i.id
+      LEFT JOIN users u ON ia.user_id = u.id
+      WHERE COALESCE(i.business_id, 1) = ?
+
+      UNION ALL
+
+      SELECT 
+        CONCAT('cust_', ca.id) as log_id,
+        COALESCE(c.business_id, 1) as business_id,
+        ca.user_id,
+        COALESCE(u.name, 'System') as user_name,
+        ca.activity as activity_type,
+        ca.details,
+        'customer' as reference_type,
+        ca.customer_id as reference_id,
+        CONCAT('/customers/', ca.customer_id) as reference_link,
+        NULL as ip_address,
+        ca.created_at
+      FROM customer_activity ca
+      JOIN customers c ON ca.customer_id = c.id
+      LEFT JOIN users u ON ca.user_id = u.id
+      WHERE COALESCE(c.business_id, 1) = ?
+
+      UNION ALL
+
+      SELECT 
+        CONCAT('prod_', pa.id) as log_id,
+        COALESCE(p.business_id, 1) as business_id,
+        pa.user_id,
+        COALESCE(u.name, 'System') as user_name,
+        pa.activity as activity_type,
+        pa.details,
+        'product' as reference_type,
+        p.id as reference_id,
+        CONCAT('/products/', p.id) as reference_link,
+        NULL as ip_address,
+        pa.created_at
+      FROM product_activity pa
+      LEFT JOIN product_skus ps ON pa.sku_id = ps.id
+      LEFT JOIN products p ON ps.product_id = p.id
+      LEFT JOIN users u ON pa.user_id = u.id
+      WHERE COALESCE(p.business_id, 1) = ?
+
+      UNION ALL
+
+      SELECT 
+        CONCAT('dev_', da.id) as log_id,
+        COALESCE(p.business_id, 1) as business_id,
+        da.user_id,
+        COALESCE(u.name, 'System') as user_name,
+        da.activity as activity_type,
+        da.details,
+        'device' as reference_type,
+        d.id as reference_id,
+        CONCAT('/devices/', d.id) as reference_link,
+        NULL as ip_address,
+        da.created_at
+      FROM device_activity da
+      JOIN devices d ON da.device_id = d.id
+      LEFT JOIN products p ON d.product_id = p.id
+      LEFT JOIN users u ON da.user_id = u.id
+      WHERE COALESCE(p.business_id, 1) = ?
+    `;
+        const subParams = [businessId, businessId, businessId, businessId, businessId];
+        let filterClauses = [];
+        let filterParams = [];
+        if (activity_type && activity_type !== "all") {
+          filterClauses.push("feed.activity_type = ?");
+          filterParams.push(activity_type);
+        }
+        if (user_id && user_id !== "all") {
+          filterClauses.push("feed.user_id = ?");
+          filterParams.push(Number(user_id));
+        }
+        if (start_date) {
+          filterClauses.push("DATE(feed.created_at) >= ?");
+          filterParams.push(start_date);
+        }
+        if (end_date) {
+          filterClauses.push("DATE(feed.created_at) <= ?");
+          filterParams.push(end_date);
+        }
+        if (search) {
+          filterClauses.push("(feed.details LIKE ? OR feed.activity_type LIKE ? OR feed.user_name LIKE ?)");
+          filterParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+        }
+        const whereSql = filterClauses.length > 0 ? `WHERE ${filterClauses.join(" AND ")}` : "";
+        const countSql = `
+      SELECT COUNT(*) as total FROM (${unifiedSql}) feed ${whereSql}
+    `;
+        const countResult = await queryOne(countSql, [...subParams, ...filterParams]);
+        const total = countResult?.total || 0;
+        const typesSql = `
+      SELECT DISTINCT feed.activity_type FROM (${unifiedSql}) feed WHERE feed.activity_type IS NOT NULL AND feed.activity_type != '' ORDER BY feed.activity_type ASC
+    `;
+        const typesRows = await query(typesSql, subParams);
+        const activityTypes = typesRows.map((r) => r.activity_type).filter(Boolean);
+        const dataSql = `
+      SELECT feed.* FROM (${unifiedSql}) feed 
+      ${whereSql}
+      ORDER BY feed.created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+        const logs = await query(dataSql, [...subParams, ...filterParams, limitNum, offset]);
+        res.json({
+          logs,
+          total,
+          page: pageNum,
+          limit: limitNum,
+          users,
+          activityTypes
+        });
+      } catch (e) {
+        next(e);
+      }
+    });
     reports_default = router6;
   }
 });
@@ -4143,6 +4519,7 @@ var init_settings = __esm({
       }
     });
     settingsSchema = z6.object({
+      currency: z6.string().optional(),
       timezone: z6.string().optional(),
       date_format: z6.string().optional(),
       time_format: z6.string().optional(),
@@ -4150,11 +4527,11 @@ var init_settings = __esm({
     });
     router7.post("/settings", async (req, res, next) => {
       const data = settingsSchema.parse(req.body);
-      const { timezone, date_format, time_format, language } = data;
+      const { currency, timezone, date_format, time_format, language } = data;
       try {
         await execute(
-          "UPDATE settings SET timezone=?,date_format=?,time_format=?,language=? WHERE business_id=?",
-          [timezone, date_format, time_format, language, req.user.business_id]
+          "UPDATE settings SET currency=?,timezone=?,date_format=?,time_format=?,language=? WHERE business_id=?",
+          [currency || "\u20AC, Euro", timezone, date_format, time_format, language, req.user.business_id]
         );
         res.json({ success: true });
       } catch (e) {
@@ -4262,13 +4639,22 @@ var init_settings = __esm({
     });
     router7.get("/printer-settings", async (req, res, next) => {
       try {
-        const branchId = req.user?.branch_id;
-        let s = await queryOne("SELECT * FROM printer_settings WHERE business_id=? AND branch_id=?", [req.user.business_id, branchId]);
-        if (!s) {
-          await execute("INSERT INTO printer_settings (business_id,branch_id) VALUES (?,?)", [req.user.business_id, branchId]);
-          s = await queryOne("SELECT * FROM printer_settings WHERE business_id=? AND branch_id=?", [req.user.business_id, branchId]);
+        const branchId = req.user?.branch_id ?? null;
+        let s = await queryOne(
+          "SELECT * FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL))",
+          [req.user.business_id, branchId, branchId]
+        );
+        if (!s && branchId !== null) {
+          s = await queryOne("SELECT * FROM printer_settings WHERE business_id=? AND branch_id IS NULL", [req.user.business_id]);
         }
-        res.json(s);
+        if (!s) {
+          await execute("INSERT INTO printer_settings (business_id, branch_id) VALUES (?, ?)", [req.user.business_id, branchId]);
+          s = await queryOne(
+            "SELECT * FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL))",
+            [req.user.business_id, branchId, branchId]
+          );
+        }
+        res.json(s || {});
       } catch (e) {
         next(e);
       }
@@ -4281,18 +4667,39 @@ var init_settings = __esm({
       margin_bottom: z6.number().or(z6.string().transform(Number)).optional(),
       margin_right: z6.number().or(z6.string().transform(Number)).optional(),
       orientation: z6.string().optional(),
-      font_size: z6.number().or(z6.string().transform(Number)).optional(),
+      font_size: z6.string().optional(),
       font_family: z6.string().optional()
     });
     router7.post("/printer-settings", async (req, res, next) => {
-      const branchId = req.user?.branch_id;
+      const branchId = req.user?.branch_id ?? null;
       const data = printerSettingsSchema.parse(req.body);
-      const { label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family } = data;
+      const {
+        label_size = '2.25" (57mm) x 1.25" (32mm) Dymo 11354 / 30334',
+        barcode_length = 20,
+        margin_top = 2,
+        margin_left = 2,
+        margin_bottom = 2,
+        margin_right = 2,
+        orientation = "Landscape",
+        font_size = "Medium",
+        font_family = "Arial"
+      } = data;
       try {
-        await execute(
-          "UPDATE printer_settings SET label_size=?,barcode_length=?,margin_top=?,margin_left=?,margin_bottom=?,margin_right=?,orientation=?,font_size=?,font_family=? WHERE business_id=? AND branch_id=?",
-          [label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family, req.user.business_id, branchId]
+        const existing = await queryOne(
+          "SELECT id FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL))",
+          [req.user.business_id, branchId, branchId]
         );
+        if (existing) {
+          await execute(
+            "UPDATE printer_settings SET label_size=?, barcode_length=?, margin_top=?, margin_left=?, margin_bottom=?, margin_right=?, orientation=?, font_size=?, font_family=? WHERE id=?",
+            [label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family, existing.id]
+          );
+        } else {
+          await execute(
+            "INSERT INTO printer_settings (business_id, branch_id, label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [req.user.business_id, branchId, label_size, barcode_length, margin_top, margin_left, margin_bottom, margin_right, orientation, font_size, font_family]
+          );
+        }
         res.json({ success: true });
       } catch (e) {
         next(e);
@@ -4557,6 +4964,25 @@ var init_inventory = __esm({
           ]
         );
         if (productInfo.product_type === "serialized") {
+          const imeiList = validItems.map((it) => it.imei.trim());
+          const lowerImeis = imeiList.map((s) => s.toLowerCase());
+          const duplicateInBatch = lowerImeis.find((s, idx) => lowerImeis.indexOf(s) !== idx);
+          if (duplicateInBatch) {
+            await conn.rollback();
+            return res.status(400).json({ error: `Double-scan detected: Duplicate IMEI "${duplicateInBatch}" in current batch.` });
+          }
+          for (const item of validItems) {
+            const cleanImei = item.imei.trim();
+            const [existing] = await conn.execute(
+              "SELECT id, imei, status FROM devices WHERE (imei = ? OR imei_serial = ?) AND business_id = ? LIMIT 1",
+              [cleanImei, cleanImei, req.user.business_id]
+            );
+            if (existing.length > 0) {
+              const dev = existing[0];
+              await conn.rollback();
+              return res.status(400).json({ error: `IMEI "${cleanImei}" already exists in inventory (Status: ${dev.status}).` });
+            }
+          }
           for (const item of validItems) {
             await conn.execute(
               "INSERT INTO devices (business_id,branch_id,sku_id,imei,cost_price,selling_price,color,gb,`condition`,po_number,status) VALUES (?,?,?,?,?,?,?,?,?,?,'in_stock')",

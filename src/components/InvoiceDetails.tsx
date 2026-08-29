@@ -7,6 +7,7 @@ import {
 import { Invoice, InvoiceItem, Customer } from '../types';
 import ThermalReceipt from './ThermalReceipt';
 import { useThermalSettings } from '../hooks/useThermalSettings';
+import { getInvoiceTaxDetails } from '../utils/tax';
 
 interface Props {
   invoiceId: number;
@@ -447,22 +448,39 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
                 );
               })}
 
-              {/* Totals Section matching Image 1 */}
-              <tr className="bg-white dark:bg-black text-sm">
-                <td colSpan={5} className="border-r border-neutral-200 dark:border-neutral-800"></td>
-                <td className="px-3 py-1.5 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-neutral-800 dark:text-neutral-200">Taxable Total :</td>
-                <td colSpan={2} className="px-3 py-1.5 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">€{(Number(invoice.subtotal) || 0).toFixed(2)}</td>
-              </tr>
-              <tr className="bg-white dark:bg-black text-sm">
-                <td colSpan={5} className="border-r border-neutral-200 dark:border-neutral-800"></td>
-                <td className="px-3 py-1.5 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-neutral-800 dark:text-neutral-200">Vat0 (0%) :</td>
-                <td colSpan={2} className="px-3 py-1.5 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">€{(Number(invoice.tax_total) || 0).toFixed(2)}</td>
-              </tr>
-              <tr className="bg-white dark:bg-black text-sm">
-                <td colSpan={5} className="border-r border-neutral-200 dark:border-neutral-800"></td>
-                <td className="px-3 py-1.5 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-neutral-800 dark:text-neutral-200">Grand Total :</td>
-                <td colSpan={2} className="px-3 py-1.5 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">€{(Number(invoice.grand_total) || 0).toFixed(2)}</td>
-              </tr>
+              {/* Totals Section */}
+              {(() => {
+                const taxDetails = getInvoiceTaxDetails(invoice);
+                return (
+                  <>
+                    <tr className="bg-white dark:bg-black text-sm">
+                      <td colSpan={5} className="border-r border-neutral-200 dark:border-neutral-800"></td>
+                      <td className="px-3 py-1.5 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-neutral-800 dark:text-neutral-200">
+                        {taxDetails.taxType === 'included' ? 'Net Total (Excl. VAT) :' : 'Taxable Total :'}
+                      </td>
+                      <td colSpan={2} className="px-3 py-1.5 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                        €{taxDetails.netAmount.toFixed(2)}
+                      </td>
+                    </tr>
+                    <tr className="bg-white dark:bg-black text-sm">
+                      <td colSpan={5} className="border-r border-neutral-200 dark:border-neutral-800"></td>
+                      <td className="px-3 py-1.5 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-neutral-800 dark:text-neutral-200">
+                        {taxDetails.label} :
+                      </td>
+                      <td colSpan={2} className="px-3 py-1.5 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                        €{taxDetails.taxAmount.toFixed(2)}
+                      </td>
+                    </tr>
+                    <tr className="bg-white dark:bg-black text-sm">
+                      <td colSpan={5} className="border-r border-neutral-200 dark:border-neutral-800"></td>
+                      <td className="px-3 py-1.5 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-neutral-800 dark:text-neutral-200">Grand Total :</td>
+                      <td colSpan={2} className="px-3 py-1.5 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                        €{taxDetails.grandTotal.toFixed(2)}
+                      </td>
+                    </tr>
+                  </>
+                );
+              })()}
 
               {/* Historical Payment Lines */}
               {(invoice.payments || []).map((pmt, pIdx) => (
@@ -871,21 +889,36 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
               })}
               
               {/* Totals */}
-              <tr className="bg-white dark:bg-black text-sm">
-                <td colSpan={3} className="border-r border-neutral-200 dark:border-neutral-800"></td>
-                <td className="px-3 py-1.5 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-neutral-800 dark:text-neutral-200">Taxable Total :</td>
-                <td className="px-3 py-1.5 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">€{(Number(invoice.subtotal) || 0).toFixed(2)}</td>
-              </tr>
-              <tr className="bg-white dark:bg-black text-sm">
-                <td colSpan={3} className="border-r border-neutral-200 dark:border-neutral-800"></td>
-                <td className="px-3 py-1.5 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-neutral-800 dark:text-neutral-200">Vat0 (0%) :</td>
-                <td className="px-3 py-1.5 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">€{(Number(invoice.tax_total) || 0).toFixed(2)}</td>
-              </tr>
-              <tr className="bg-white dark:bg-black text-sm">
-                <td colSpan={3} className="border-r border-neutral-200 dark:border-neutral-800"></td>
-                <td className="px-3 py-1.5 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-neutral-900 dark:text-neutral-100">Grand Total :</td>
-                <td className="px-3 py-1.5 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">€{(Number(invoice.grand_total) || 0).toFixed(2)}</td>
-              </tr>
+              {(() => {
+                const taxDetails = getInvoiceTaxDetails(invoice);
+                return (
+                  <>
+                    <tr className="bg-white dark:bg-black text-sm">
+                      <td colSpan={3} className="border-r border-neutral-200 dark:border-neutral-800"></td>
+                      <td className="px-3 py-1.5 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-neutral-800 dark:text-neutral-200">
+                        {taxDetails.taxType === 'included' ? 'Net Total (Excl. VAT) :' : 'Taxable Total :'}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                        €{taxDetails.netAmount.toFixed(2)}
+                      </td>
+                    </tr>
+                    <tr className="bg-white dark:bg-black text-sm">
+                      <td colSpan={3} className="border-r border-neutral-200 dark:border-neutral-800"></td>
+                      <td className="px-3 py-1.5 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-neutral-800 dark:text-neutral-200">
+                        {taxDetails.label} :
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                        €{taxDetails.taxAmount.toFixed(2)}
+                      </td>
+                    </tr>
+                    <tr className="bg-white dark:bg-black text-sm">
+                      <td colSpan={3} className="border-r border-neutral-200 dark:border-neutral-800"></td>
+                      <td className="px-3 py-1.5 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-neutral-900 dark:text-neutral-100">Grand Total :</td>
+                      <td className="px-3 py-1.5 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">€{(Number(invoice.grand_total) || 0).toFixed(2)}</td>
+                    </tr>
+                  </>
+                );
+              })()}
               
               {/* Payment Info */}
               {invoice.payments && invoice.payments.length > 0 ? (
@@ -1219,26 +1252,37 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
             </table>
 
             <div className="flex justify-end">
-              <div className="w-56 space-y-1 text-sm">
-                <div className="flex justify-between"><span className="text-slate-600">Subtotal:</span><span>€{(Number(invoice.subtotal) || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-slate-600">Tax (0%):</span><span>€{(Number(invoice.tax_total) || 0).toFixed(2)}</span></div>
-                <div className="flex justify-between font-bold text-base border-t border-slate-300 pt-2 mt-2">
-                  <span>Grand Total:</span><span>€{(Number(invoice.grand_total) || 0).toFixed(2)}</span>
-                </div>
-                {(() => {
-                  const totalPaid = (invoice.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-                  const changeDue = Math.max(0, totalPaid - (Number(invoice.grand_total) || 0));
-                  if (changeDue > 0.005) {
-                    return (
-                      <div className="flex justify-between font-bold text-sm text-red-600 pt-1">
-                        <span>Change Due:</span>
-                        <span>€{changeDue.toFixed(2)}</span>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-              </div>
+              {(() => {
+                const taxDetails = getInvoiceTaxDetails(invoice);
+                return (
+                  <div className="w-56 space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">{taxDetails.taxType === 'included' ? 'Net (Excl. VAT):' : 'Subtotal:'}</span>
+                      <span>€{taxDetails.netAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">{taxDetails.label}:</span>
+                      <span>€{taxDetails.taxAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-base border-t border-slate-300 pt-2 mt-2">
+                      <span>Grand Total:</span><span>€{taxDetails.grandTotal.toFixed(2)}</span>
+                    </div>
+                    {(() => {
+                      const totalPaid = (invoice.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                      const changeDue = Math.max(0, totalPaid - (Number(invoice.grand_total) || 0));
+                      if (changeDue > 0.005) {
+                        return (
+                          <div className="flex justify-between font-bold text-sm text-red-600 pt-1">
+                            <span>Change Due:</span>
+                            <span>€{changeDue.toFixed(2)}</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="mt-12 pt-6 border-t border-slate-200 text-center text-xs text-slate-400">

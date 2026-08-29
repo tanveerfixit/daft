@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, List, X } from 'lucide-react';
 import { Invoice } from '../types';
+import { getInvoiceTaxDetails } from '../utils/tax';
 
 interface Props {
   onSelectInvoice: (id: number) => void;
@@ -214,9 +215,25 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
                     )}
                   </td>
                   <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400">PHONE LAB</td>
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right text-neutral-900 dark:text-neutral-100 font-mono">€{(Number(invoice.subtotal) || 0).toFixed(2)}</td>
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right text-neutral-900 dark:text-neutral-100 font-mono">€{(Number(invoice.tax_total) || 0).toFixed(2)}</td>
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right text-neutral-900 dark:text-neutral-100 font-mono">€0.00</td>
+                  {(() => {
+                    const taxDetails = getInvoiceTaxDetails(invoice);
+                    const isTaxed = Number(invoice.tax_total) > 0.001;
+                    const taxableAmount = isTaxed ? taxDetails.netAmount : 0;
+                    const nonTaxableAmount = !isTaxed ? Number(invoice.grand_total) || 0 : 0;
+                    return (
+                      <>
+                        <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right text-neutral-900 dark:text-neutral-100 font-mono">
+                          €{taxableAmount.toFixed(2)}
+                        </td>
+                        <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right text-neutral-900 dark:text-neutral-100 font-mono">
+                          €{taxDetails.taxAmount.toFixed(2)}
+                        </td>
+                        <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right text-neutral-900 dark:text-neutral-100 font-mono">
+                          €{nonTaxableAmount.toFixed(2)}
+                        </td>
+                      </>
+                    );
+                  })()}
                   <td className="px-1.5 py-0.5 text-right text-neutral-900 dark:text-neutral-100 font-mono">€{(Number(invoice.grand_total) || 0).toFixed(2)}</td>
                 </tr>
               ))

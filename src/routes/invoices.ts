@@ -595,6 +595,8 @@ const createInvoiceSchema = z.object({
   customer_id: z.number().nullable().optional(),
   subtotal: z.number().or(z.string().transform(Number)),
   tax_total: z.number().or(z.string().transform(Number)),
+  tax_rate: z.number().or(z.string().transform(Number)).optional(),
+  tax_type: z.string().optional(),
   discount_total: z.number().or(z.string().transform(Number)),
   grand_total: z.number().or(z.string().transform(Number)),
   items: z.array(z.object({
@@ -623,7 +625,7 @@ const createInvoiceSchema = z.object({
 
 router.post('/', async (req: any, res, next) => {
   const data = createInvoiceSchema.parse(req.body);
-  const { customer_id, items, subtotal, tax_total, discount_total, grand_total, payments, activities } = data;
+  const { customer_id, items, subtotal, tax_total, tax_rate, tax_type, discount_total, grand_total, payments, activities } = data;
   
   if (!items || !items.length) return res.status(400).json({ error: 'Cart is empty' });
 
@@ -672,10 +674,18 @@ router.post('/', async (req: any, res, next) => {
     let status = 'paid';
     if (dueAmount > 0.01) status = totalPaid > 0 ? 'partial' : 'credit';
     
-    const [invR] = await conn.execute(
-      'INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,subtotal,tax_total,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-      [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, subtotal, tax_total, discount_total, grand_total, totalPaid, dueAmount, status]
-    );
+    let invR: any;
+    try {
+      [invR] = await conn.execute(
+        'INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,subtotal,tax_total,tax_rate,tax_type,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, subtotal, tax_total, Number(tax_rate) || 0, tax_type || 'excluded', discount_total, grand_total, totalPaid, dueAmount, status]
+      );
+    } catch (dbErr: any) {
+      [invR] = await conn.execute(
+        'INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,subtotal,tax_total,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+        [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, subtotal, tax_total, discount_total, grand_total, totalPaid, dueAmount, status]
+      );
+    }
     const invoiceId = (invR as any).insertId;
 
     for (const item of items) {

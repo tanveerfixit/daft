@@ -39,13 +39,18 @@ export const TotalsPanel: React.FC<TotalsPanelProps> = ({
         </div>
       )}
 
-      {/* Taxable Total (Net Amount after discount) */}
-      {discount > 0 && (
+      {/* Taxable Total / Net Amount */}
+      {taxOption === '23-included' ? (
+        <div className="flex items-center justify-between text-sm bg-neutral-50 px-2 py-1 border border-neutral-200">
+          <span className="font-semibold text-neutral-800">Net (Excl. VAT) :</span>
+          <span className="font-mono font-bold text-neutral-900">€{netTaxable.toFixed(2)}</span>
+        </div>
+      ) : discount > 0 ? (
         <div className="flex items-center justify-between text-sm bg-neutral-50 px-2 py-1 border border-neutral-200">
           <span className="font-semibold text-neutral-800">Taxable Total :</span>
           <span className="font-mono font-bold text-neutral-900">€{netTaxable.toFixed(2)}</span>
         </div>
-      )}
+      ) : null}
 
       {/* Tax Rate & Amount */}
       <div className="flex items-center justify-between gap-3 text-sm">
