@@ -3698,11 +3698,7 @@ var init_invoices = __esm({
         `, [req.user.branch_id, skuId]);
           }
           if (item.is_deposit && finalCustomerId) {
-            await conn.execute("UPDATE customers SET wallet_balance=wallet_balance+? WHERE id=?", [item.total, finalCustomerId]);
-            await conn.execute(
-              "INSERT INTO payments (customer_id,invoice_id,type,method,amount) VALUES (?,?,?,?,?)",
-              [finalCustomerId, invoiceId, "deposit", "Store Deposit", item.total]
-            );
+            await conn.execute("UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)+? WHERE id=?", [item.total, finalCustomerId]);
           }
         }
         let excessChange = Math.max(0, rawTotalPaid - grandTotalNum);
@@ -3717,13 +3713,13 @@ var init_invoices = __esm({
           return { ...p, amount: amt };
         }).filter((p) => p.amount > 0);
         for (const p of settledPayments) {
-          const type = p.method === "Store Credit" || p.method === "Wallet" ? "wallet_use" : "sale_payment";
+          const type = p.method === "Store Credit" || p.method === "Wallet" ? "wallet_use" : isDeposit ? "deposit" : "sale_payment";
           await conn.execute(
             "INSERT INTO payments (customer_id,invoice_id,type,method,amount) VALUES (?,?,?,?,?)",
             [finalCustomerId, invoiceId, type, p.method, p.amount]
           );
           if (type === "wallet_use") {
-            await conn.execute("UPDATE customers SET wallet_balance=wallet_balance-? WHERE id=?", [p.amount, finalCustomerId]);
+            await conn.execute("UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)-? WHERE id=?", [p.amount, finalCustomerId]);
           }
         }
         const logDetails = `Invoice ${invoiceNumber} created for \u20AC${(Number(grand_total) || 0).toFixed(2)}`;
@@ -3950,6 +3946,32 @@ var init_invoices = __esm({
       } catch (e) {
         console.error("[send-email] error:", e.message);
         res.status(400).json({ error: `Email Delivery Failed: ${e.message}` });
+      }
+    });
+    router5.post("/:id/activity", async (req, res, next) => {
+      try {
+        const { activity = "Note Added", details } = req.body;
+        if (!details || !String(details).trim()) {
+          return res.status(400).json({ error: "Note details are required" });
+        }
+        const isDeveloper = req.user.role === "developer";
+        const branchId = req.user.branch_id;
+        const inv = await queryOne(
+          `SELECT id FROM invoices WHERE id=? AND business_id=? ${!isDeveloper && branchId ? "AND branch_id=?" : ""}`,
+          !isDeveloper && branchId ? [req.params.id, req.user.business_id, branchId] : [req.params.id, req.user.business_id]
+        );
+        if (!inv) return res.status(404).json({ error: "Invoice not found or access denied" });
+        await execute(
+          "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+          [req.params.id, req.userId, activity, String(details).trim()]
+        );
+        const activities = await query(
+          "SELECT a.*, u.name as user_name FROM invoice_activity a LEFT JOIN users u ON a.user_id=u.id WHERE a.invoice_id=? ORDER BY a.created_at DESC",
+          [req.params.id]
+        );
+        res.json({ success: true, activities });
+      } catch (e) {
+        next(e);
       }
     });
     router5.put("/payments/:id", async (req, res, next) => {

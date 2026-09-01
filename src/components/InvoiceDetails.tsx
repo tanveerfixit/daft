@@ -42,6 +42,43 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailStatus, setEmailStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
+  // Note Modal & Activity Filter States
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [newNote, setNewNote] = useState('');
+  const [isSavingNote, setIsSavingNote] = useState(false);
+  const [activityFilter, setActivityFilter] = useState('All Activities');
+
+  const handleAddNote = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newNote.trim()) return;
+    setIsSavingNote(true);
+    try {
+      const res = await fetch(`/api/invoices/${invoiceId}/activity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activity: 'Note Added', details: newNote.trim() })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.activities) {
+          setInvoice(prev => prev ? ({ ...prev, activities: data.activities }) : null);
+        } else {
+          fetchInvoice();
+        }
+        setNewNote('');
+        setShowNoteModal(false);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert('Failed to save note: ' + (err.error || 'Server error'));
+      }
+    } catch (err: any) {
+      console.error('Error saving note:', err);
+      alert('Error saving note: ' + (err.message || err));
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
   const fetchInvoice = () => {
     fetch(`/api/invoices/${invoiceId}`)
       .then(res => res.json())
@@ -986,11 +1023,22 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
           <div className="bg-neutral-100 dark:bg-neutral-900/60 px-3 py-1.5 border-b border-neutral-200 dark:border-neutral-850 flex justify-between items-center">
             <h3 className="text-sm font-semibold text-black dark:text-white">Activity Log</h3>
             <div className="flex gap-2 items-center">
-              <select className="bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 px-2 py-0.5 text-xs text-neutral-900 dark:text-neutral-100 outline-none rounded-none">
-                <option>All Activities</option>
+              <select 
+                value={activityFilter}
+                onChange={(e) => setActivityFilter(e.target.value)}
+                className="bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 px-2 py-0.5 text-xs text-neutral-900 dark:text-neutral-100 outline-none rounded-none cursor-pointer"
+              >
+                <option value="All Activities">All Activities</option>
+                {Array.from(new Set((invoice.activities || []).map(a => a.activity).filter(Boolean))).map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
               </select>
-              <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-0.5 px-3 text-xs rounded-md shadow-xs transition-all cursor-pointer font-sans active:scale-[0.98]">
-                + Add Note
+              <button 
+                onClick={() => setShowNoteModal(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 text-xs rounded-none shadow-none transition-all cursor-pointer font-sans active:scale-[0.98] flex items-center gap-1.5"
+              >
+                <Plus size={13} />
+                <span>Add Note</span>
               </button>
             </div>
           </div>
@@ -1005,8 +1053,18 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900 text-[15px]">
-              {invoice.activities && invoice.activities.length > 0 ? (
-                invoice.activities.map((activity) => (
+              {(() => {
+                const activities = (invoice.activities || []).filter(a => activityFilter === 'All Activities' || a.activity === activityFilter);
+                if (activities.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-4 text-center text-neutral-400 dark:text-neutral-500 italic text-sm">
+                        {activityFilter === 'All Activities' ? 'No activities recorded for this invoice.' : `No activities found for "${activityFilter}".`}
+                      </td>
+                    </tr>
+                  );
+                }
+                return activities.map((activity) => (
                   <tr key={activity.id} className="border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black hover:bg-neutral-50/80 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100">
                     <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{formatDate(activity.created_at)}</td>
                     <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{formatTime(activity.created_at)}</td>
@@ -1014,14 +1072,8 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
                     <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-800">{activity.activity}</td>
                     <td className="px-1.5 py-0.5">{activity.details}</td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="px-3 py-4 text-center text-neutral-400 dark:text-neutral-500 italic text-sm">
-                    No activities recorded for this invoice.
-                  </td>
-                </tr>
-              )}
+                ));
+              })()}
             </tbody>
           </table>
           <div className="p-1.5 bg-white dark:bg-black border-t border-neutral-200 dark:border-neutral-850 flex justify-between items-center text-xs text-neutral-500 dark:text-neutral-400">
@@ -1177,6 +1229,91 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
                     )}
                   </button>
                 </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Note Modal */}
+      {showNoteModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 font-sans animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg overflow-hidden shadow-2xl rounded-none flex flex-col">
+            <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <FileText size={18} className="text-neutral-700 dark:text-neutral-300" />
+                <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Add Invoice Note</h3>
+              </div>
+              <button 
+                type="button"
+                onClick={() => {
+                  setShowNoteModal(false);
+                  setNewNote('');
+                }} 
+                className="text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddNote} className="p-6 space-y-4 bg-white dark:bg-black text-sm text-neutral-900 dark:text-neutral-100">
+              {/* Invoice Info Pill */}
+              <div className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800">
+                <div>
+                  <span className="text-xs text-neutral-500 uppercase font-bold tracking-wider block">Invoice</span>
+                  <span className="font-bold font-mono text-neutral-900 dark:text-neutral-100">{invoice.invoice_number}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-neutral-500 uppercase font-bold tracking-wider block">Customer</span>
+                  <span className="font-bold text-neutral-900 dark:text-neutral-100">{invoice.customer?.name || 'Walk-in Customer'}</span>
+                </div>
+              </div>
+
+              {/* Note Details Textarea */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider block">
+                  Note / Activity Details <span className="text-red-500">*</span>
+                </label>
+                <textarea 
+                  autoFocus
+                  required
+                  rows={4}
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  placeholder="Enter internal note or activity details regarding this invoice..."
+                  className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 rounded-none p-3 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-blue-500 placeholder:text-neutral-400 resize-none font-sans"
+                />
+              </div>
+
+              {/* Footer Actions */}
+              <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-end gap-3 -mx-6 -mb-6 mt-6">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setShowNoteModal(false);
+                    setNewNote('');
+                  }}
+                  className="px-5 py-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 font-semibold text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-none text-sm cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isSavingNote || !newNote.trim()}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-none text-sm transition-all cursor-pointer flex items-center gap-2"
+                >
+                  {isSavingNote ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={15} />
+                      <span>Save Note</span>
+                    </>
+                  )}
+                </button>
               </div>
             </form>
           </div>
