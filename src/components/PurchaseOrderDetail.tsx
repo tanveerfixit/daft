@@ -51,7 +51,7 @@ export default function PurchaseOrderDetail({ poId, onBack }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full overflow-auto" style={{ fontSize: '17px' }}>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 pb-2 pt-0 select-none w-full overflow-auto" style={{ fontSize: '17px' }}>
       {/* Top Bar */}
       <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 px-4 py-1.5 flex justify-between items-center rounded-none shadow-none mb-2">
         <div className="flex gap-2">
@@ -151,15 +151,15 @@ export default function PurchaseOrderDetail({ poId, onBack }: Props) {
         {/* Items Table */}
         <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
           <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-[13px] font-bold text-black dark:text-white uppercase tracking-wider">
-                <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 w-12 text-center">#</th>
-                <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800">Description</th>
-                <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-center">Need/Have/OnPO</th>
-                <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-center">Ordered Qty</th>
-                <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-center">Received Qty</th>
-                <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-800 text-right">Unit Cost</th>
-                <th className="px-2 py-1 text-right">Total</th>
+            <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+              <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
+                <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 w-12 text-center">#</th>
+                <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Description</th>
+                <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Need/Have/OnPO</th>
+                <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Ordered Qty</th>
+                <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Received Qty</th>
+                <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Unit Cost</th>
+                <th className="px-2 py-1.5 text-center">Total</th>
               </tr>
             </thead>
             <tbody className="text-base font-normal">

@@ -103,7 +103,7 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
     >
       
       {/* Dashboard Title */}
-      <h2 className="text-[22px] font-normal text-neutral-900 dark:text-white shrink-0">Dashboard</h2>
+      <h2 className="font-normal text-neutral-900 dark:text-white shrink-0" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>Dashboard</h2>
 
       {/* SECTION 1: Control Bar */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-2 shrink-0">

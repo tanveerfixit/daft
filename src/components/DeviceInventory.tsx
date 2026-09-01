@@ -136,10 +136,10 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
   };
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 py-2 select-none w-full" style={{ fontSize: '15px' }}>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-2 pb-2 pt-0 select-none w-full" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
-        <h2 className="text-xl font-medium text-black dark:text-white">Devices Inventory</h2>
+        <h2 className="font-medium text-black dark:text-white" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '24px' }}>Devices Inventory</h2>
         <span className="text-xs font-medium px-2.5 py-0.5 rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300">
           {totalFiltered} Serialized Units
         </span>
@@ -150,7 +150,7 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
         <select 
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono font-bold text-xs cursor-pointer w-48"
+          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 font-normal text-sm cursor-pointer w-48"
         >
           <option value="in_stock">Devices in Inventory</option>
           <option value="sold">Sold Devices</option>
@@ -160,7 +160,7 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
         <select 
           value={selectedModel}
           onChange={(e) => setSelectedModel(e.target.value)}
-          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono text-xs cursor-pointer w-48"
+          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 text-sm font-normal cursor-pointer w-48"
         >
           <option value="all">All Device Models</option>
           {uniqueModels.map(m => <option key={m} value={m}>{m}</option>)}
@@ -169,7 +169,7 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
         <select 
           value={selectedColor}
           onChange={(e) => setSelectedColor(e.target.value)}
-          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono text-xs cursor-pointer w-36"
+          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 text-sm font-normal cursor-pointer w-36"
         >
           <option value="all">All Colors</option>
           {uniqueColors.map(c => <option key={c} value={c}>{c}</option>)}
@@ -178,7 +178,7 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
         <select 
           value={selectedCondition}
           onChange={(e) => setSelectedCondition(e.target.value)}
-          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono text-xs cursor-pointer w-36"
+          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 text-sm font-normal cursor-pointer w-36"
         >
           <option value="all">All Conditions</option>
           {uniqueConditions.map(c => <option key={c} value={c}>{c}</option>)}
@@ -190,12 +190,12 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
             placeholder="Search IMEI, Model, PO, Inv..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-3 pr-10 py-0.5 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-xs outline-none focus:border-neutral-400 h-7 font-mono"
+            className="w-full pl-3 pr-10 py-1 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-sm font-normal outline-none focus:border-neutral-400 h-8"
           />
           <button 
             className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-neutral-500 dark:text-neutral-400"
           >
-            <Search size={14} />
+            <Search size={16} />
           </button>
         </div>
       </div>
@@ -203,16 +203,16 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
       {/* Table Content */}
       <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
         <table className="w-full text-left border-collapse bg-white dark:bg-black text-[15px]">
-          <thead>
-            <tr className="bg-neutral-100 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-850 text-[15px] font-semibold text-black dark:text-white">
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850">Model</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center w-24">Color</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center w-20">Storage</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center w-24">Condition</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-44">IMEI / Serial</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center w-28">PO #</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-28">Date Entered</th>
-              <th className="px-1.5 py-0.5 text-center w-28">Invoice #</th>
+          <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+            <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center">Model</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center w-24">Color</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center w-20">Storage</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center w-24">Condition</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-44 text-center">IMEI / Serial</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center w-28">PO #</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center">Date Entered</th>
+              <th className="px-1.5 py-1 text-center w-28">Invoice #</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">

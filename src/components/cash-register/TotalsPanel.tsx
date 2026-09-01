@@ -40,7 +40,7 @@ export const TotalsPanel: React.FC<TotalsPanelProps> = ({
       )}
 
       {/* Taxable Total / Net Amount */}
-      {taxOption === '23-included' ? (
+      {(taxOption === '23-included' || taxOption === '13.5-included') ? (
         <div className="flex items-center justify-between text-sm bg-neutral-50 px-2 py-1 border border-neutral-200">
           <span className="font-semibold text-neutral-800">Net (Excl. VAT) :</span>
           <span className="font-mono font-bold text-neutral-900">€{netTaxable.toFixed(2)}</span>
@@ -58,11 +58,13 @@ export const TotalsPanel: React.FC<TotalsPanelProps> = ({
         <select 
           value={taxOption}
           onChange={(e) => setTaxOption?.(e.target.value)}
-          className="w-28 border border-neutral-300 rounded px-2 py-1 bg-white text-neutral-800 text-xs outline-none cursor-pointer"
+          className="w-32 border border-neutral-300 rounded px-2 py-1 bg-white text-neutral-800 text-xs outline-none cursor-pointer"
         >
           <option value="0-excluded">0%</option>
           <option value="23-excluded">23% Ex.</option>
           <option value="23-included">23% Inc.</option>
+          <option value="13.5-excluded">13.5% Ex.</option>
+          <option value="13.5-included">13.5% Inc.</option>
         </select>
         <span className="font-mono font-medium text-neutral-900">€{tax.toFixed(2)}</span>
       </div>

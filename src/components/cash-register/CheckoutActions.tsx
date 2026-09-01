@@ -35,7 +35,7 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-2.5 font-sans" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+    <div className="flex flex-col gap-2.5 font-sans" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
       <button
         id="checkout-btn"
         type="button"

@@ -1265,8 +1265,8 @@ export default function EndOfDay() {
             {/* Top Navigation Header inside Card */}
             <header className="flex items-center justify-between gap-3 pb-2 border-b border-transparent">
               {/* Title */}
-              <h1 className="text-[22px] sm:text-[26px] font-normal text-slate-800 dark:text-white tracking-tight flex items-center gap-2 shrink-0">
-                <FileText size={26} className="text-[#00c9db] dark:text-sky-400" />
+              <h1 className="font-normal text-slate-800 dark:text-white tracking-tight flex items-center gap-2 shrink-0" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>
+                <FileText size={24} className="text-[#00c9db] dark:text-sky-400" />
                 <span>End of Day Report</span>
               </h1>
 

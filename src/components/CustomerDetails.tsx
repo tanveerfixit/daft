@@ -109,7 +109,7 @@ export default function CustomerDetails({
   );
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full overflow-auto" style={{ fontSize: '17px' }}>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 pb-2 pt-0 select-none w-full overflow-auto" style={{ fontSize: '17px' }}>
 
       {/* Header Tabs */}
       <div className="flex justify-between items-end bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 pt-2 px-2 shrink-0 rounded-none shadow-none mb-2 flex-wrap md:flex-nowrap">
@@ -198,12 +198,14 @@ export default function CustomerDetails({
           <div className="flex-1 space-y-4 pt-2 font-normal text-neutral-900 dark:text-neutral-100">
 
             <div className="space-y-1">
-              <h2 className="text-[#3498db] dark:text-[#3498db] text-[17px] font-bold uppercase tracking-tight">
-                {customer.company || 'No Company'}
+              <h2 className="text-[#3498db] dark:text-[#3498db] font-bold uppercase tracking-tight" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>
+                {customer.company || safeCustomerName(customer)}
               </h2>
-              <p className="text-[#3498db] dark:text-[#3498db] text-[17px] font-bold uppercase tracking-tight">
-                {safeCustomerName(customer)}
-              </p>
+              {customer.company && (
+                <p className="text-[#3498db] dark:text-[#3498db] text-sm font-semibold tracking-tight" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+                  {safeCustomerName(customer)}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2 text-base font-normal text-neutral-900 dark:text-neutral-100">
@@ -554,13 +556,13 @@ export default function CustomerDetails({
               ) : (
                 <div className="border border-neutral-300 dark:border-neutral-800 overflow-hidden">
                   <table className="w-full text-left text-base border-collapse">
-                    <thead>
-                      <tr className="bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-sm font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
-                        <th className="py-1.5 px-3 border-r border-neutral-300 dark:border-neutral-800 w-32">Date</th>
-                        <th className="py-1.5 px-3 border-r border-neutral-300 dark:border-neutral-800 w-28">Time</th>
-                        <th className="py-1.5 px-3 border-r border-neutral-300 dark:border-neutral-800 w-40">User</th>
-                        <th className="py-1.5 px-3 border-r border-neutral-300 dark:border-neutral-800 w-48">Activity</th>
-                        <th className="py-1.5 px-3">Details</th>
+                    <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+                      <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
+                        <th className="py-1.5 px-3 border-r border-neutral-300 dark:border-neutral-700 w-32 text-center">Date</th>
+                        <th className="py-1.5 px-3 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center">Time</th>
+                        <th className="py-1.5 px-3 border-r border-neutral-300 dark:border-neutral-700 w-40 text-center">User</th>
+                        <th className="py-1.5 px-3 border-r border-neutral-300 dark:border-neutral-700 w-48 text-center">Activity</th>
+                        <th className="py-1.5 px-3 text-center">Details</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800 text-base">

@@ -85,6 +85,11 @@ router.post('/company', async (req: any, res, next) => {
   const data = companySchema.parse(req.body);
   const { name, email, phone, subdomain, address, city, state, zip_code, country } = data;
   try {
+    const branchId = req.user?.branch_id;
+    if (branchId) {
+      await execute('UPDATE branches SET name=COALESCE(?, name), email=?, phone=?, address=? WHERE id=? AND business_id=?',
+        [name, email, phone, address, branchId, req.user.business_id]);
+    }
     await execute('UPDATE businesses SET name=?,email=?,phone=?,subdomain=?,address=?,city=?,state=?,zip_code=?,country=? WHERE id=?',
       [name, email, phone, subdomain, address, city, state, zip_code, country, req.user.business_id]);
     res.json({ success: true });

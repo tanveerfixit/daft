@@ -26,14 +26,14 @@ export const CartTable: React.FC<CartTableProps> = ({
     <div className="bg-white dark:bg-black border border-[#d8d8d8] dark:border-neutral-800 rounded-none overflow-hidden font-sans transition-all duration-200">
       <div className="overflow-y-auto max-h-[60vh] custom-scrollbar">
         <table className="w-full text-[16px] border-collapse">
-          <thead className="sticky top-0 z-10">
-            <tr className="bg-neutral-100 dark:bg-neutral-900 border-b border-[#d8d8d8] dark:border-neutral-800 text-[14px] font-bold text-neutral-800 dark:text-neutral-200">
-              <th className="text-center px-1 py-2 w-10 border-r border-[#d8d8d8] dark:border-neutral-800">#</th>
-              <th className="text-left px-3 py-2 border-r border-[#d8d8d8] dark:border-neutral-800">Description</th>
-              <th className="text-center px-2 py-2 whitespace-nowrap w-28 border-r border-[#d8d8d8] dark:border-neutral-800">Need/Have/OnPO</th>
-              <th className="text-right px-3 py-2 whitespace-nowrap w-24 border-r border-[#d8d8d8] dark:border-neutral-800">Unit Price</th>
-              <th className="text-right px-3 py-2 whitespace-nowrap w-24 border-r border-[#d8d8d8] dark:border-neutral-800">Total</th>
-              <th className="text-center px-2 py-2 w-14">
+          <thead className="sticky top-0 z-10" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+            <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
+              <th className="text-center px-2 py-1.5 w-10 border-r border-neutral-300 dark:border-neutral-700">#</th>
+              <th className="text-center px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-700">Description</th>
+              <th className="text-center px-2 py-1.5 whitespace-nowrap w-28 border-r border-neutral-300 dark:border-neutral-700">Need/Have/OnPO</th>
+              <th className="text-center px-3 py-1.5 whitespace-nowrap w-24 border-r border-neutral-300 dark:border-neutral-700">Unit Price</th>
+              <th className="text-center px-3 py-1.5 whitespace-nowrap w-24 border-r border-neutral-300 dark:border-neutral-700">Total</th>
+              <th className="text-center px-2 py-1.5 w-14">
                 <Trash2 className="w-4 h-4 text-neutral-500 inline-block" />
               </th>
             </tr>

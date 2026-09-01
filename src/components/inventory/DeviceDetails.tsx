@@ -385,7 +385,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
   if (!device) return <div className="p-8 text-center text-red-500 font-mono text-xs uppercase font-bold">*** DEVICE NOT FOUND ***</div>;
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 py-2 select-none w-full overflow-auto" style={{ fontSize: '15px' }}>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 pb-2 pt-0 select-none w-full overflow-auto" style={{ fontSize: '15px' }}>
       {/* Top Header */}
       <div className="sticky top-0 z-40 bg-white dark:bg-black border-b border-neutral-300 dark:border-neutral-800 shrink-0 flex justify-between items-center px-4 py-3 mb-2">
         <div className="flex items-center gap-3">
@@ -591,13 +591,13 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
 
               <div className="border border-neutral-300 dark:border-neutral-800 overflow-hidden">
                 <table className="w-full text-left text-[15px] font-mono border-collapse">
-                  <thead>
-                    <tr className="bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 font-semibold text-[15px] text-black dark:text-white">
-                      <th className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 w-28">Date</th>
-                      <th className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 w-24">Time</th>
-                      <th className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 w-36">User</th>
-                      <th className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 w-44">Activity</th>
-                      <th className="py-0.5 px-1.5">Details</th>
+                  <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+                    <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
+                      <th className="py-1.5 px-2 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center">Date</th>
+                      <th className="py-1.5 px-2 border-r border-neutral-300 dark:border-neutral-700 w-24 text-center">Time</th>
+                      <th className="py-1.5 px-2 border-r border-neutral-300 dark:border-neutral-700 w-36 text-center">User</th>
+                      <th className="py-1.5 px-2 border-r border-neutral-300 dark:border-neutral-700 w-44 text-center">Activity</th>
+                      <th className="py-1.5 px-2 text-center">Details</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-200 dark:divide-neutral-900">

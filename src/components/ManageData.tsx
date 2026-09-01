@@ -310,7 +310,7 @@ export default function ManageData() {
       {/* Left Sidebar */}
       <div className="w-72 bg-white border-r border-slate-200 flex flex-col shrink-0">
         <div className="p-6 border-b border-slate-100">
-          <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Manage Data</h2>
+          <h2 className="font-bold text-slate-800 uppercase tracking-tight" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>Manage Data</h2>
         </div>
         <nav className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
           {sidebarItems.map((item) => (
@@ -683,10 +683,10 @@ function ManagementPageTemplate({
         {/* Table Area */}
         <div className="flex-1 bg-white rounded-md shadow-sm border border-slate-200 overflow-hidden">
           <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
+            <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+              <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
                 {tableHeaders.map((header) => (
-                  <th key={header} className="text-left py-4 px-4 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  <th key={header} className="text-center py-2 px-3 border-r border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white">
                     {header}
                   </th>
                 ))}

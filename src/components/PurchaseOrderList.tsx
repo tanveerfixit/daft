@@ -66,10 +66,10 @@ export default function PurchaseOrderList({
   }
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 py-2 select-none w-full" style={{ fontSize: '15px' }}>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-2 pb-2 pt-0 select-none w-full" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
-        <h2 className="text-xl font-medium text-black dark:text-white">Purchase Orders</h2>
+        <h2 className="font-medium text-black dark:text-white" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '24px' }}>Purchase Orders</h2>
         <button className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer">
           <Plus size={16} />
           <span>Create Purchase Order</span>
@@ -79,7 +79,7 @@ export default function PurchaseOrderList({
       {/* Filters & Search */}
       <div className="p-2 flex flex-wrap gap-2 items-center bg-white dark:bg-black border-b border-neutral-200 dark:border-neutral-850 shrink-0">
         <select 
-          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-400 h-7 font-mono font-bold text-xs"
+          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 h-8 font-normal text-sm cursor-pointer"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         >
@@ -91,7 +91,7 @@ export default function PurchaseOrderList({
         </select>
 
         <select 
-          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-400 h-7 font-mono font-bold text-xs min-w-[150px]"
+          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 h-8 font-normal text-sm min-w-[150px] cursor-pointer"
           value={supplierFilter}
           onChange={(e) => setSupplierFilter(e.target.value)}
         >
@@ -103,12 +103,12 @@ export default function PurchaseOrderList({
           <input 
             type="text" 
             placeholder="Search PO#, Lot Ref or Supplier..." 
-            className="w-full pl-3 pr-10 py-0.5 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-xs outline-none focus:border-neutral-400 h-7 font-mono"
+            className="w-full pl-3 pr-10 py-1 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-sm font-normal outline-none focus:border-neutral-400 h-8"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
           <button className="absolute right-3 top-1/2 -translate-y-1/2">
-            <Search size={14} className="text-neutral-500 dark:text-neutral-400" />
+            <Search size={16} className="text-neutral-500 dark:text-neutral-400" />
           </button>
         </div>
       </div>
@@ -116,17 +116,17 @@ export default function PurchaseOrderList({
       {/* Table Content */}
       <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
         <table className="w-full text-left border-collapse bg-white dark:bg-black text-[15px]">
-          <thead>
-            <tr className="bg-neutral-100 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-850 text-[15px] font-semibold text-black dark:text-white">
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-24">Date</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-32">PO #</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850">Lot Ref. No.</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-44">Supplier</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right w-24">Tax</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right w-28">Shipping</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right w-28">Total</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-28">Expected</th>
-              <th className="px-1.5 py-0.5 text-center w-24">Status</th>
+          <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+            <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-24 text-center">Date</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-32 text-center">PO #</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center">Lot Ref. No.</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-44 text-center">Supplier</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-24 text-center">Tax</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center">Shipping</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center">Total</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center">Expected</th>
+              <th className="px-1.5 py-1 text-center w-24">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">

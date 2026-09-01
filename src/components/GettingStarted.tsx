@@ -6,6 +6,7 @@ import {
   ArrowUpFromLine, Check, ShieldCheck, Database, ScanBarcode, Search, Trash2, 
   Smartphone, ListPlus, CheckCheck
 } from 'lucide-react';
+import ThermalReceipt from './ThermalReceipt';
 
 interface SettingsData {
   currency: string;
@@ -129,6 +130,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
     eod_footer_custom_text: '',
     footer_text: 'Thank you for your business!'
   });
+  const [latestInvoice, setLatestInvoice] = useState<any>(null);
   const [csvText, setCsvText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -947,6 +949,44 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
           }
         })
         .catch(err => console.error('Error fetching thermal printer/EOD settings:', err));
+
+      if (activeTab === 'manage-thermal-printer') {
+        fetch('/api/company')
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data) {
+              setCompany({
+                name: data.name || '',
+                email: data.email || '',
+                phone: data.phone || '',
+                subdomain: data.subdomain || '',
+                address: data.address || '',
+                city: data.city || '',
+                state: data.state || '',
+                zip_code: data.zip_code || '',
+                country: data.country || 'Ireland'
+              });
+            }
+          })
+          .catch(err => console.error('Error fetching company info for thermal preview:', err));
+
+        fetch('/api/invoices')
+          .then(res => res.ok ? res.json() : [])
+          .then(invoices => {
+            if (Array.isArray(invoices) && invoices.length > 0) {
+              const firstId = invoices[0].id;
+              fetch(`/api/invoices/${firstId}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(fullInv => {
+                  if (fullInv && fullInv.id) {
+                    setLatestInvoice(fullInv);
+                  }
+                })
+                .catch(err => console.error('Error fetching full latest invoice:', err));
+            }
+          })
+          .catch(err => console.error('Error fetching invoices list for thermal preview:', err));
+      }
     }
   }, [activeTab]);
 
@@ -1101,94 +1141,122 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    // Mock data for test print
-    const mockInvoice = {
-      invoice_number: 'INV-TEST-001',
+    // Use real latest invoice if available, else fallback mock
+    const invoiceToPrint = latestInvoice || {
+      invoice_number: 'INV-1001',
       created_at: new Date().toISOString(),
-      customer_name: 'John Doe',
-      subtotal: 45.00,
-      tax_total: 9.45,
-      grand_total: 54.45,
+      customer_name: 'Walk-in Customer',
+      subtotal: 85.00,
+      tax_total: 0.00,
+      grand_total: 85.00,
       payment_method: 'Cash',
       items: [
-        { product_name: 'iPhone Screen Repair', quantity: 1, price: 45.00, total: 45.00 }
+        { product_name: 'iPhone 11 Screen Repair', quantity: 1, price: 85.00, total: 85.00 }
       ]
     };
 
     printWindow.document.write(`
       <html>
         <head>
-          <title>Thermal Receipt Test</title>
+          <title>Thermal Receipt - ${invoiceToPrint.invoice_number}</title>
           <style>
-            body { margin: 0; padding: 0; background: #eee; }
+            body { margin: 0; padding: 0; background: #eee; font-family: ${thermalSettings.font_family ? `${thermalSettings.font_family}, 'Segoe UI', Arial, sans-serif` : "'Segoe UI', Arial, sans-serif"}; font-size: ${thermalSettings.font_size || '12px'}; }
             .receipt { 
               background: white; 
               width: 72mm; 
               margin: 20px auto; 
-              padding: 10mm 5mm;
-              font-family: ${thermalSettings.font_family};
-              font-size: ${thermalSettings.font_size};
-              line-height: 1.2;
+              padding: 4mm 3mm;
+              font-family: inherit;
+              font-size: inherit;
+              line-height: 1.35;
               box-shadow: 0 0 10px rgba(0,0,0,0.1);
+              color: #000;
             }
             .text-center { text-align: center; }
             .font-bold { font-weight: bold; }
-            .mt-4 { margin-top: 1rem; }
-            .mb-4 { margin-bottom: 1rem; }
-            .border-t { border-top: 1px dashed #ccc; }
-            .flex { display: flex; justify-content: space-between; }
+            .mt-2 { margin-top: 0.5rem; }
+            .mb-2 { margin-bottom: 0.5rem; }
+            .border-t { border-top: 1px dashed #000; }
+            .flex { display: flex; justify-content: space-between; align-items: flex-start; }
             @media print {
               body { background: white; margin: 0; }
-              .receipt { margin: 0; box-shadow: none; border: none; }
+              .receipt { margin: 0; box-shadow: none; border: none; width: 72mm; padding: 2mm; }
             }
           </style>
         </head>
         <body>
           <div class="receipt">
-            ${thermalSettings.show_logo ? '<div class="text-center mb-4"><div style="display:inline-block;width:30px;height:30px;background:#ddd;border-radius:50%;line-height:30px;font-size:8px;">LOGO</div></div>' : ''}
+            ${thermalSettings.show_logo ? '<div class="text-center mb-2"><div style="display:inline-block;width:30px;height:30px;background:#ddd;border-radius:50%;line-height:30px;font-size:8px;">LOGO</div></div>' : ''}
             
-            <div class="text-center mb-4">
-              ${thermalSettings.show_business_name ? `<div class="font-bold uppercase">${company.name || 'Your Business Name'}</div>` : ''}
-              ${thermalSettings.show_business_address ? `<div>${company.address || '123 Phone St, Tech City'}</div>` : ''}
-              ${thermalSettings.show_business_phone ? `<div>Tel: ${company.phone || '01 234 5678'}</div>` : ''}
-              ${thermalSettings.show_business_email ? `<div>${company.email || 'info@phonelab.ie'}</div>` : ''}
+            <div class="text-center mb-2">
+              ${thermalSettings.show_business_name ? `<div class="font-bold uppercase" style="font-size: 1.2em;">${company.name || 'Your Business Name'}</div>` : ''}
+              ${thermalSettings.show_business_address ? `<div style="font-size: 0.92em;">${company.address || '32 O\'Connell Street, Ennis'}</div>` : ''}
+              <div style="font-size: 0.92em;">
+                ${thermalSettings.show_business_phone ? `<span>Tel: ${company.phone || '065 672 4192'}</span>` : ''}
+                ${thermalSettings.show_business_phone && thermalSettings.show_business_email && company.email ? ' · ' : ''}
+                ${thermalSettings.show_business_email && company.email ? `<span>${company.email}</span>` : ''}
+              </div>
             </div>
 
-            ${thermalSettings.show_customer_info ? `
-              <div class="mb-4">
-                <div>Customer: ${mockInvoice.customer_name}</div>
+            <div class="border-t my-2"></div>
+
+            <div style="font-size: 0.95em;">
+              <div class="flex">
+                ${thermalSettings.show_invoice_number ? `<div><span class="font-bold">Invoice:</span> ${invoiceToPrint.invoice_number}</div>` : '<div></div>'}
+                ${thermalSettings.show_date ? `<div>${new Date(invoiceToPrint.created_at).toLocaleDateString('en-IE')}</div>` : ''}
+              </div>
+              ${thermalSettings.show_customer_info ? `
+                <div class="flex" style="margin-top: 2px;">
+                  <div><span class="font-bold">Customer:</span> ${invoiceToPrint.customer?.name || invoiceToPrint.customer_name || 'Walk-in'}</div>
+                  ${invoiceToPrint.customer?.phone ? `<div>${invoiceToPrint.customer.phone}</div>` : ''}
+                </div>
+              ` : ''}
+            </div>
+
+            <div class="border-t my-2"></div>
+
+            ${thermalSettings.show_items_table ? `
+              <div style="font-size: 0.95em;">
+                <div class="flex font-bold" style="padding-bottom: 2px;">
+                  <span style="width: 65%;">Description</span>
+                  <span style="width: 15%; text-align: center;">Qty</span>
+                  <span style="width: 20%; text-align: right;">Total</span>
+                </div>
+                ${(invoiceToPrint.items || []).map((item: any) => `
+                  <div style="margin-bottom: 4px;">
+                    <div class="flex">
+                      <span style="width: 65%; word-break: break-word; font-weight: normal;">${item.product_name}</span>
+                      <span style="width: 15%; text-align: center;">${item.quantity}</span>
+                      <span class="font-bold" style="width: 20%; text-align: right;">€${(Number(item.total) || 0).toFixed(2)}</span>
+                    </div>
+                    <div style="font-size: 0.85em; color: #333;">
+                      @ €${(Number(item.price) || 0).toFixed(2)} each
+                      ${item.imei ? ` · IMEI: ${item.imei}` : ''}
+                    </div>
+                  </div>
+                `).join('')}
               </div>
             ` : ''}
 
-            <div class="flex">
-              ${thermalSettings.show_invoice_number ? `<div>Inv: ${mockInvoice.invoice_number}</div>` : '<div></div>'}
-              ${thermalSettings.show_date ? `<div>Date: ${new Date().toLocaleDateString()}</div>` : ''}
-            </div>
-
-            <div class="border-t mt-4 mb-4"></div>
-
-            ${thermalSettings.show_items_table ? `
-              <table style="width:100%; font-size: 0.9em;">
-                <tr><th align="left">Item</th><th align="right">Total</th></tr>
-                ${mockInvoice.items.map(item => `
-                  <tr><td>${item.quantity} x ${item.product_name}</td><td align="right">€${item.total.toFixed(2)}</td></tr>
-                `).join('')}
-              </table>
-            ` : ''}
-
-            <div class="border-t mt-4 mb-4"></div>
+            <div class="border-t my-2"></div>
 
             ${thermalSettings.show_totals ? `
-              <div class="flex font-bold"><div>Grand Total</div><div>€${mockInvoice.grand_total.toFixed(2)}</div></div>
-              <div style="font-size: 0.8em; margin-top: 4px;">Paid via ${mockInvoice.payment_method}</div>
+              <div style="font-size: 0.95em;">
+                <div class="flex"><div>Subtotal:</div><div>€${(Number(invoiceToPrint.subtotal) || Number(invoiceToPrint.grand_total) || 0).toFixed(2)}</div></div>
+                ${Number(invoiceToPrint.tax_total) > 0 ? `<div class="flex"><div>VAT:</div><div>€${Number(invoiceToPrint.tax_total).toFixed(2)}</div></div>` : ''}
+                <div class="flex font-bold" style="font-size: 1.1em; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 2px 0; margin: 3px 0;">
+                  <div>Total:</div><div>€${(Number(invoiceToPrint.grand_total) || 0).toFixed(2)}</div>
+                </div>
+                <div class="flex"><div>Paid:</div><div>€${(Number(invoiceToPrint.paid_amount) || Number(invoiceToPrint.grand_total) || 0).toFixed(2)}</div></div>
+              </div>
             ` : ''}
 
-            ${thermalSettings.show_footer ? `
-              <div class="text-center mt-4 pt-4 border-t" style="font-style: italic; font-size: 0.9em;">
+            ${thermalSettings.show_footer && thermalSettings.footer_text ? `
+              <div class="border-t my-2"></div>
+              <div class="text-center" style="font-size: 0.88em; color: #222;">
                 ${thermalSettings.footer_text}
               </div>
             ` : ''}
-
 
           </div>
           <script>
@@ -1454,8 +1522,8 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
           {activeTab === 'manage-invoices' ? (
             <div className="max-w-5xl space-y-8">
               <div>
-                <h3 className="text-2xl font-bold text-slate-800 mb-2 flex items-center gap-2.5">
-                  <Database className="text-blue-600" size={26} />
+                <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2.5" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>
+                  <Database className="text-blue-600" size={24} />
                   Import & Export Invoices
                 </h3>
                 <p className="text-sm text-slate-500">
@@ -1746,7 +1814,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
             </div>
           ) : activeTab === 'account-setup' ? (
             <div className="max-w-4xl">
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">Accounts Setup</h3>
+              <h3 className="font-bold text-slate-800 mb-2" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>Accounts Setup</h3>
               <p className="text-sm text-slate-500 mb-8">
                 This is where you'll configure your basic account settings and preferences to get your system up and running. Complete these essential steps to personalize your experience.
               </p>
@@ -1843,7 +1911,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
             </div>
           ) : activeTab === 'company-info' ? (
             <div className="max-w-4xl">
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">Company Information</h3>
+              <h3 className="font-bold text-slate-800 mb-2" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>Company Information</h3>
               <p className="text-sm text-slate-500 mb-8">
                 Enter your business details here to ensure accurate invoicing, receipts, and customer communications. This information will appear on all your official documents.
               </p>
@@ -1988,7 +2056,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
             </div>
           ) : activeTab === 'payment-options' ? (
             <div className="max-w-4xl">
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">Payment Options</h3>
+              <h3 className="font-bold text-slate-800 mb-2" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>Payment Options</h3>
               <p className="text-sm text-slate-500 mb-8">
                 Set up how you want to accept payments from your customers. Configure multiple payment methods to provide flexibility and streamline your checkout process.
               </p>
@@ -2054,7 +2122,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
             </div>
           ) : activeTab === 'manage-eod-report' ? (
             <div className="max-w-4xl">
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">End of Day Report Customization</h3>
+              <h3 className="font-bold text-slate-800 mb-2" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>End of Day Report Customization</h3>
               <p className="text-sm text-slate-500 mb-8">
                 Customize your End of Day (EOD) Report layout. Toggle major sections like the Cash Summary and Payment Types breakdowns, or customize the bottom totals to include specific metrics.
               </p>
@@ -2270,10 +2338,26 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
             </div>
           ) : activeTab === 'manage-thermal-printer' ? (
             <div className="max-w-4xl">
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">Manage Thermal Printer</h3>
-              <p className="text-sm text-slate-500 mb-8">
+              <h3 className="font-bold text-slate-800 mb-2" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>Manage Thermal Printer</h3>
+              <p className="text-sm text-slate-500 mb-6">
                 Customize your thermal receipt layout. Choose which sections to display and adjust the typography for a professional look.
               </p>
+
+              {message && (
+                <div className={`p-4 rounded mb-6 text-sm flex items-center justify-between shadow-sm animate-fade-in ${
+                  message.type === 'success' 
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                    : 'bg-red-50 text-red-800 border border-red-200'
+                }`}>
+                  <div className="flex items-center gap-2 font-medium">
+                    {message.type === 'success' ? <CheckCircle2 size={16} className="text-emerald-600" /> : <AlertCircle size={16} className="text-red-600" />}
+                    <span>{message.text}</span>
+                  </div>
+                  <button onClick={() => setMessage(null)} className="text-slate-400 hover:text-slate-600">
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="space-y-6">
@@ -2295,18 +2379,78 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                           </select>
                         </div>
                         <div className="space-y-1">
-                          <label className="text-xs font-bold text-slate-500 uppercase">Font Size</label>
+                          <div className="flex justify-between items-center">
+                            <label className="text-xs font-bold text-slate-500 uppercase">Font Size</label>
+                            <span className="text-xs font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                              {thermalSettings.font_size || '12px'}
+                            </span>
+                          </div>
                           <select 
                             value={thermalSettings.font_size}
                             onChange={(e) => setThermalSettings({ ...thermalSettings, font_size: e.target.value })}
                             className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                           >
-                            <option value="10px">10px</option>
-                            <option value="12px">12px</option>
-                            <option value="14px">14px</option>
-                            <option value="16px">16px</option>
+                            <option value="9px">9px (Extra Small)</option>
+                            <option value="10px">10px (Very Small)</option>
+                            <option value="11px">11px (Small)</option>
+                            <option value="12px">12px (Standard / Default)</option>
+                            <option value="13px">13px (Medium - 13px)</option>
+                            <option value="14px">14px (Medium - 14px)</option>
+                            <option value="15px">15px (Large - 15px)</option>
+                            <option value="16px">16px (Large - 16px)</option>
+                            <option value="18px">18px (Extra Large - 18px)</option>
+                            <option value="20px">20px (Huge - 20px)</option>
                           </select>
                         </div>
+                      </div>
+                      
+                      {/* Quick Font Size Adjustment Buttons */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="text-xs font-medium text-slate-500">Quick Adjust:</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cur = parseInt(thermalSettings.font_size) || 12;
+                            const next = Math.max(8, cur - 2);
+                            setThermalSettings({ ...thermalSettings, font_size: `${next}px` });
+                          }}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded border border-slate-200 transition-colors"
+                          title="Decrease font size by 2px"
+                        >
+                          -2px
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cur = parseInt(thermalSettings.font_size) || 12;
+                            const next = Math.min(24, cur + 2);
+                            setThermalSettings({ ...thermalSettings, font_size: `${next}px` });
+                          }}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded border border-slate-200 transition-colors"
+                          title="Increase font size by 2px"
+                        >
+                          +2px
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cur = parseInt(thermalSettings.font_size) || 12;
+                            const next = Math.min(24, cur + 4);
+                            setThermalSettings({ ...thermalSettings, font_size: `${next}px` });
+                          }}
+                          className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded border border-blue-200 transition-colors"
+                          title="Increase font size by 4px"
+                        >
+                          +4px
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setThermalSettings({ ...thermalSettings, font_size: '12px' })}
+                          className="px-2 py-1 text-slate-400 hover:text-slate-600 text-xs transition-colors ml-auto"
+                          title="Reset font to 12px"
+                        >
+                          Reset (12px)
+                        </button>
                       </div>
                     </div>
 
@@ -2325,12 +2469,11 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                           { key: 'show_items_table', label: 'Items Table' },
                           { key: 'show_totals', label: 'Totals Section' },
                           { key: 'show_footer', label: 'Footer Section' },
-                          { key: 'show_powered_by', label: 'Show Powered By Brand' },
                         ].map((section) => (
                           <label key={section.key} className="flex items-center gap-3 cursor-pointer group">
                             <input 
                               type="checkbox"
-                              checked={thermalSettings[section.key as keyof ThermalPrinterSettingsData] as boolean}
+                              checked={!!thermalSettings[section.key as keyof ThermalPrinterSettingsData]}
                               onChange={(e) => setThermalSettings({ ...thermalSettings, [section.key]: e.target.checked })}
                               className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                             />
@@ -2350,29 +2493,33 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                       />
                     </div>
 
-                    <div className="flex justify-between items-center pt-6 border-t border-slate-100 mt-4">
+                    <div className="flex justify-between items-center pt-5 border-t border-slate-100 mt-4">
                       <button
+                        type="button"
                         onClick={handleResetThermalSettings}
-                        className="text-slate-400 hover:text-red-500 font-bold py-2 px-3 rounded-md text-xs transition-all flex items-center gap-1.5 border border-transparent hover:border-red-100 hover:bg-red-50/50"
+                        className="text-slate-500 hover:text-red-600 font-semibold py-2 px-3 rounded text-xs transition-all flex items-center gap-1.5 border border-slate-200 hover:border-red-200 hover:bg-red-50/50"
+                        title="Reset settings to default"
                       >
                         <RotateCcw size={14} />
                         Reset
                       </button>
-                      <div className="flex gap-3">
+                      <div className="flex items-center gap-2.5">
                         <button
+                          type="button"
                           onClick={handlePrintThermalReceipt}
-                          className="text-slate-500 hover:text-blue-600 font-bold py-2 px-4 rounded text-sm transition-all flex items-center gap-2 border border-slate-200 hover:border-blue-100 hover:bg-blue-50/50"
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded text-xs transition-all flex items-center gap-1.5 border border-slate-200"
                         >
-                          <Printer size={16} />
-                          Test Receipt
+                          <Printer size={14} />
+                          Print Test
                         </button>
                         <button
+                          type="button"
                           onClick={handleSaveThermalPrinterSettings}
                           disabled={isSaving}
-                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded text-sm shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-5 rounded text-xs shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
                         >
-                          <Save size={16} />
-                          {isSaving ? 'Saving...' : 'Save Changes'}
+                          <Save size={14} />
+                          {isSaving ? 'Saving...' : 'Save'}
                         </button>
                       </div>
                     </div>
@@ -2380,77 +2527,41 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                 </div>
 
                 <div className="space-y-4">
-                  <h4 className="text-sm font-bold text-slate-800">Live Preview</h4>
-                  <div className="bg-slate-100 rounded-lg p-8 flex justify-center border border-slate-200 min-h-[500px]">
-                    <div 
-                      className="bg-white shadow-xl p-6 w-[300px] h-fit"
-                      style={{ 
-                        fontFamily: thermalSettings.font_family,
-                        fontSize: thermalSettings.font_size,
-                        lineHeight: '1.4'
-                      }}
-                    >
-                      {thermalSettings.show_logo && (
-                        <div className="flex justify-center mb-4">
-                          <div className="w-12 h-12 bg-slate-200 rounded-full flex items-center justify-center text-slate-400">
-                            LOGO
-                          </div>
-                        </div>
-                      )}
-                      
-                      <div className="text-center mb-4">
-                        {thermalSettings.show_business_name && <div className="font-bold text-lg uppercase">{company.name || 'BUSINESS NAME'}</div>}
-                        {thermalSettings.show_business_address && <div className="text-[0.9em]">{company.address || '123 Street Address'}, {company.city || 'City'}</div>}
-                        {thermalSettings.show_business_phone && <div className="text-[0.9em]">Tel: {company.phone || '000-000-0000'}</div>}
-                        {thermalSettings.show_business_email && <div className="text-[0.9em]">{company.email || 'info@business.com'}</div>}
-                      </div>
-
-                      <div className="border-t border-dashed border-slate-300 my-3"></div>
-
-                      <div className="space-y-1 mb-4">
-                        {thermalSettings.show_invoice_number && <div className="flex justify-between"><span>Invoice:</span><span className="font-bold">#INV-1001</span></div>}
-                        {thermalSettings.show_date && <div className="flex justify-between"><span>Date:</span><span>22-03-2026 14:30</span></div>}
-                        {thermalSettings.show_customer_info && <div className="flex justify-between"><span>Customer:</span><span>Walk-in Customer</span></div>}
-                      </div>
-
-                      {thermalSettings.show_items_table && (
-                        <div className="space-y-2 mb-4">
-                          <div className="flex justify-between font-bold border-b border-dashed border-slate-300 pb-1">
-                            <span>Item</span>
-                            <span>Total</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <div className="flex flex-col">
-                              <span>iPhone 11 Screen Repair</span>
-                              <span className="text-[0.8em]">1 x €85.00</span>
-                            </div>
-                            <span>€85.00</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <div className="flex flex-col">
-                              <span>Tempered Glass</span>
-                              <span className="text-[0.8em]">1 x €10.00</span>
-                            </div>
-                            <span>€10.00</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {thermalSettings.show_totals && (
-                        <div className="space-y-1 border-t border-dashed border-slate-300 pt-2 mb-4">
-                          <div className="flex justify-between"><span>Subtotal:</span><span>€95.00</span></div>
-                          <div className="flex justify-between"><span>Tax (0%):</span><span>€0.00</span></div>
-                          <div className="flex justify-between font-bold text-lg pt-1"><span>TOTAL:</span><span>€95.00</span></div>
-                        </div>
-                      )}
-
-                      {thermalSettings.show_footer && (
-                        <div className="text-center mt-6 text-[0.9em] italic">
-                          {thermalSettings.footer_text}
-                        </div>
-                      )}
-                      
-
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-sm font-bold text-slate-800">Live Preview</h4>
+                    {latestInvoice ? (
+                      <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1">
+                        <Check size={12} /> Real Last Invoice (#{latestInvoice.invoice_number})
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                        Sample Preview
+                      </span>
+                    )}
+                  </div>
+                  <div className="bg-slate-100 rounded-lg p-6 flex justify-center border border-slate-200 min-h-[500px] overflow-auto">
+                    <div className="bg-white shadow-xl p-3 h-fit border border-slate-200 rounded">
+                      <ThermalReceipt 
+                        invoice={latestInvoice || {
+                          id: 1,
+                          invoice_number: 'INV-1001',
+                          created_at: new Date().toISOString(),
+                          customer_name: 'Walk-in Customer',
+                          customer: { name: 'Walk-in Customer', phone: '085 123 4567' },
+                          subtotal: 85.00,
+                          tax_total: 0.00,
+                          grand_total: 85.00,
+                          paid_amount: 85.00,
+                          due_amount: 0.00,
+                          payment_method: 'Cash',
+                          payments: [{ method: 'Cash', amount: 85.00, user_name: 'Staff' }],
+                          items: [
+                            { product_name: 'iPhone 11 Screen Repair', quantity: 1, price: 85.00, total: 85.00 }
+                          ]
+                        }} 
+                        settings={thermalSettings} 
+                        company={company} 
+                      />
                     </div>
                   </div>
                 </div>
@@ -2458,7 +2569,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
             </div>
           ) : activeTab === 'manage-label-printer' ? (
             <div className="max-w-4xl">
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">Manage Label Printer</h3>
+              <h3 className="font-bold text-slate-800 mb-2" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>Manage Label Printer</h3>
               <p className="text-sm text-slate-500 mb-8">
                 Configure your label printer settings to print barcode labels, price tags, and product labels efficiently. Connect your printer and customize label formats to match your needs.
               </p>
@@ -2736,7 +2847,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
             <div className="max-w-5xl space-y-6">
               {/* Header */}
               <div>
-                <h3 className="text-2xl font-bold text-slate-800 mb-1 flex items-center gap-2">
+                <h3 className="font-bold text-slate-800 mb-1 flex items-center gap-2" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>
                   <Package className="text-blue-600" size={24} />
                   Import & Export Products
                 </h3>

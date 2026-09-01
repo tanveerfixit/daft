@@ -1027,7 +1027,7 @@ router.post('/:id/send-email', async (req: any, res, next) => {
     const branchId = req.user.branch_id;
     const invRows = await query(`
       SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email,
-             b.name as branch_name, b.address as branch_address
+             b.name as branch_name, b.address as branch_address, b.phone as branch_phone, b.email as branch_email
       FROM invoices i
       LEFT JOIN customers c ON i.customer_id=c.id
       LEFT JOIN branches b ON i.branch_id=b.id
@@ -1058,11 +1058,23 @@ router.post('/:id/send-email', async (req: any, res, next) => {
 
     invoice.items = items;
     invoice.payments = payments;
+    invoice.customer = {
+      name: invoice.customer_name,
+      phone: invoice.customer_phone,
+      email: invoice.customer_email
+    };
 
-    const emailSubject = subject || `Invoice ${invoice.invoice_number} from ${company?.name || 'PhoneLab'}`;
+    const branch = {
+      name: invoice.branch_name,
+      address: invoice.branch_address,
+      phone: invoice.branch_phone,
+      email: invoice.branch_email
+    };
+
+    const emailSubject = subject || `Invoice ${invoice.invoice_number} from ${invoice.branch_name || company?.name || 'PhoneLab'}`;
 
     // Dispatch email asynchronously so UI modal returns instantly
-    sendInvoiceEmail(email.trim(), emailSubject, invoice, company, message)
+    sendInvoiceEmail(email.trim(), emailSubject, invoice, company, message, branch)
       .then(async () => {
         await execute(
           'INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)',

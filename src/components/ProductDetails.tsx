@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, List, Link, Edit3 } from 'lucide-react';
+import { Trash2, List, Link, Edit3, Plus } from 'lucide-react';
 import { Product, ProductActivity } from '../types';
 
 interface ProductWithStock extends Product {
@@ -105,11 +105,11 @@ export default function ProductDetails({
   const totalStock = Array.isArray(product.stock) ? product.stock.reduce((acc, s) => acc + s.quantity, 0) : 0;
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 py-2 select-none w-full overflow-auto" style={{ fontSize: '15px' }}>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-2 pb-2 pt-0 select-none w-full overflow-auto" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
       {/* Header bar */}
       <div className="sticky top-0 z-40 bg-white dark:bg-black border-b border-neutral-300 dark:border-neutral-800 shrink-0 flex justify-between items-center px-4 py-3 mb-2">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-medium text-black dark:text-white">Product Details</h2>
+          <h2 className="font-medium text-black dark:text-white" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '24px' }}>Product Details</h2>
           <span className="text-xs font-medium px-2.5 py-0.5 rounded border border-neutral-300 dark:border-neutral-700 uppercase bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300">
             {product.product_type}
           </span>
@@ -144,7 +144,7 @@ export default function ProductDetails({
       <div className="flex border-b border-neutral-300 dark:border-neutral-800 mb-2 bg-white dark:bg-black px-2 pt-1 gap-1 shrink-0">
         <button
           onClick={() => setActiveTab('info')}
-          className={`px-4 py-1 text-xs uppercase font-mono font-bold border-b-2 transition-colors cursor-pointer ${
+          className={`px-4 py-1 text-xs uppercase font-normal border-b-2 transition-colors cursor-pointer ${
             activeTab === 'info'
               ? 'border-neutral-900 dark:border-neutral-100 text-black dark:text-white bg-neutral-100 dark:bg-neutral-900'
               : 'border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
@@ -154,7 +154,7 @@ export default function ProductDetails({
         </button>
         <button
           onClick={() => setActiveTab('pricing')}
-          className={`px-4 py-1 text-xs uppercase font-mono font-bold border-b-2 transition-colors cursor-pointer ${
+          className={`px-4 py-1 text-xs uppercase font-normal border-b-2 transition-colors cursor-pointer ${
             activeTab === 'pricing'
               ? 'border-neutral-900 dark:border-neutral-100 text-black dark:text-white bg-neutral-100 dark:bg-neutral-900'
               : 'border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
@@ -164,7 +164,7 @@ export default function ProductDetails({
         </button>
         <button
           onClick={() => setActiveTab('activity')}
-          className={`px-4 py-1 text-xs uppercase font-mono font-bold border-b-2 transition-colors cursor-pointer ${
+          className={`px-4 py-1 text-xs uppercase font-normal border-b-2 transition-colors cursor-pointer ${
             activeTab === 'activity'
               ? 'border-neutral-900 dark:border-neutral-100 text-black dark:text-white bg-neutral-100 dark:bg-neutral-900'
               : 'border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
@@ -184,125 +184,128 @@ export default function ProductDetails({
                   <Link size={40} className="text-neutral-400 dark:text-neutral-600" strokeWidth={1.5} />
                 </div>
                 <div className="flex flex-col gap-1.5 w-full">
-                  <button className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-xs font-mono py-1 px-2 uppercase tracking-wide rounded-md cursor-pointer transition-colors">
+                  <button className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-xs py-1 px-2 uppercase tracking-wide rounded-md cursor-pointer transition-colors">
                     Change Picture
                   </button>
-                  <button className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-xs font-mono py-1 px-2 uppercase tracking-wide rounded-md cursor-pointer transition-colors">
+                  <button className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-900 text-xs py-1 px-2 uppercase tracking-wide rounded-md cursor-pointer transition-colors">
                     Web Description
                   </button>
                 </div>
               </div>
 
-              {/* Right Column: High-contrast compact table */}
+              {/* Right Column: Borderless clean specification table */}
               <div className="flex-1 w-full">
-                <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 overflow-hidden">
-                  <table className="w-full border-collapse text-[15px] font-mono">
-                    <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                <div className="bg-white dark:bg-black overflow-hidden">
+                  <table className="w-full border-none text-[15px]">
+                    <tbody>
                       {/* Product Name */}
                       <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-900/60 border-r border-neutral-200 dark:border-neutral-800">
+                        <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
                           Product Name
                         </td>
-                        <td className="py-0.5 px-2 font-bold text-black dark:text-white">
+                        <td className="py-2 px-3 font-semibold text-black dark:text-white">
                           {product.product_name}
                         </td>
                       </tr>
 
                       {/* Category */}
                       <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-900/60 border-r border-neutral-200 dark:border-neutral-800">
+                        <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
                           Category
                         </td>
-                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100">
+                        <td className="py-2 px-3 text-neutral-900 dark:text-neutral-100">
                           {product.category_name || 'Uncategorized'}
                         </td>
                       </tr>
 
                       {/* Inventory Type */}
                       <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-900/60 border-r border-neutral-200 dark:border-neutral-800">
+                        <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
                           Inventory Type
                         </td>
-                        <td className="py-0.5 px-2 capitalize text-neutral-900 dark:text-neutral-100">
+                        <td className="py-2 px-3 capitalize text-neutral-900 dark:text-neutral-100">
                           {product.product_type}
                         </td>
                       </tr>
 
                       {/* SKU / Barcode */}
                       <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-900/60 border-r border-neutral-200 dark:border-neutral-800">
+                        <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
                           SKU / Barcode
                         </td>
-                        <td className="py-0.5 px-2 font-mono text-neutral-800 dark:text-neutral-200">
+                        <td className="py-2 px-3 text-neutral-800 dark:text-neutral-200">
                           {product.sku_code || 'N/A'}
                         </td>
                       </tr>
 
                       {/* Stock Levels */}
                       <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-900/60 border-r border-neutral-200 dark:border-neutral-800">
+                        <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
                           Stock (Need / Have / PO)
                         </td>
-                        <td className="py-0.5 px-2">
-                          <button 
-                            onClick={() => onViewDevices(product.id)}
-                            className="font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer bg-transparent border-0 p-0 text-[15px] font-mono mr-2"
-                          >
-                            0 / {totalStock} / 0
-                          </button>
-                          <button 
-                            onClick={() => onViewDevices(product.id)}
-                            className="cursor-pointer bg-transparent border-0 p-0 text-neutral-500 hover:text-neutral-800 dark:hover:text-white inline-block align-middle mr-2"
-                            title="View Devices"
-                          >
-                            <Link size={14} />
-                          </button>
-                          <button 
-                            onClick={() => onAddInventory(product.id)}
-                            className="bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/70 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 py-0.5 px-2.5 rounded-md font-medium text-xs cursor-pointer transition-colors inline-flex items-center gap-1 font-sans active:scale-[0.98]"
-                          >
-                            + Add Stock
-                          </button>
+                        <td className="py-2 px-3">
+                          <div className="flex items-center gap-3">
+                            <button 
+                              onClick={() => onViewDevices(product.id)}
+                              className="font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer bg-transparent border-0 p-0 text-[15px]"
+                            >
+                              0 / {totalStock} / 0
+                            </button>
+                            <button 
+                              onClick={() => onViewDevices(product.id)}
+                              className="cursor-pointer bg-transparent border-0 p-0 text-neutral-500 hover:text-neutral-800 dark:hover:text-white inline-block"
+                              title="View Devices"
+                            >
+                              <Link size={15} />
+                            </button>
+                            <button 
+                              onClick={() => onAddInventory(product.id)}
+                              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1 px-3 rounded text-xs inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+                            >
+                              <Plus size={14} />
+                              <span>Add Stock</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
 
                       {/* Minimum Stock */}
                       <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-900/60 border-r border-neutral-200 dark:border-neutral-800">
+                        <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
                           Minimum Stock
                         </td>
-                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100">
+                        <td className="py-2 px-3 text-neutral-900 dark:text-neutral-100">
                           {product.min_stock_level ?? 0}
                         </td>
                       </tr>
 
                       {/* Selling Price */}
                       <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-900/60 border-r border-neutral-200 dark:border-neutral-800">
+                        <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
                           Selling Price
                         </td>
-                        <td className="py-0.5 px-2 font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                        <td className="py-2 px-3 font-semibold text-neutral-900 dark:text-neutral-100">
                           €{(Number(product.selling_price) || 0).toFixed(2)}
                         </td>
                       </tr>
 
                       {/* Min Selling Price */}
                       <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-900/60 border-r border-neutral-200 dark:border-neutral-800">
+                        <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
                           Min Selling Price
                         </td>
-                        <td className="py-0.5 px-2 font-mono text-neutral-900 dark:text-neutral-100">
+                        <td className="py-2 px-3 text-neutral-900 dark:text-neutral-100">
                           €{(Number(product.min_sales_price) || 0).toFixed(2)}
                         </td>
                       </tr>
 
                       {/* Taxable */}
                       <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-900/60 border-r border-neutral-200 dark:border-neutral-800">
+                        <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
                           Taxable
                         </td>
-                        <td className="py-0.5 px-2">
-                          <span className={`text-[13px] font-bold ${
+                        <td className="py-2 px-3">
+                          <span className={`text-[13px] font-semibold ${
                             product.is_taxable === false || product.is_taxable === 0 
                               ? 'text-neutral-500 dark:text-neutral-400' 
                               : 'text-emerald-600 dark:text-emerald-400'
@@ -345,13 +348,13 @@ export default function ProductDetails({
             {/* Activity Log Table */}
             <div className="flex-1 overflow-auto bg-white dark:bg-black border-x border-b border-neutral-300 dark:border-neutral-800">
               <table className="w-full text-left border-collapse text-[15px] font-mono">
-                <thead>
-                  <tr className="bg-neutral-200 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-[15px] font-semibold text-black dark:text-white">
-                    <th className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 w-28">Date</th>
-                    <th className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 w-24">Time</th>
-                    <th className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 w-36">User</th>
-                    <th className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 w-44">Activity</th>
-                    <th className="py-0.5 px-1.5">Details</th>
+                <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+                  <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
+                    <th className="py-1.5 px-2 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center">Date</th>
+                    <th className="py-1.5 px-2 border-r border-neutral-300 dark:border-neutral-700 w-24 text-center">Time</th>
+                    <th className="py-1.5 px-2 border-r border-neutral-300 dark:border-neutral-700 w-36 text-center">User</th>
+                    <th className="py-1.5 px-2 border-r border-neutral-300 dark:border-neutral-700 w-44 text-center">Activity</th>
+                    <th className="py-1.5 px-2 text-center">Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-200 dark:divide-neutral-900">

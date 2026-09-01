@@ -133,7 +133,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
       <div className="bg-white border-b border-[#e5e7eb] shadow-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h1 className="font-bold text-lg text-gray-900">
+            <h1 className="font-bold text-gray-900" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>
               Repair Job #{job.id} — {job.device_model}
             </h1>
           </div>

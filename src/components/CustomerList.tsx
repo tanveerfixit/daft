@@ -75,10 +75,10 @@ export default function CustomerList({ onSelectCustomer, isActive = true }: Cust
   });
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 py-2 select-none w-full" style={{ fontSize: '15px' }}>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-2 pb-2 pt-0 select-none w-full" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
-        <h2 className="text-xl font-medium text-black dark:text-white">Customers</h2>
+        <h2 className="font-medium text-black dark:text-white" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '24px' }}>Customers</h2>
         <button
           onClick={() => setIsModalOpen(true)}
           className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
@@ -97,10 +97,10 @@ export default function CustomerList({ onSelectCustomer, isActive = true }: Cust
             placeholder="Search name, phone or email..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-3 pr-10 py-0.5 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-xs outline-none focus:border-neutral-400 h-7 font-mono"
+            className="w-full pl-3 pr-10 py-1 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-sm font-normal outline-none focus:border-neutral-400 h-8"
           />
           <button className="absolute right-3 top-1/2 -translate-y-1/2">
-            <Search size={14} className="text-neutral-500 dark:text-neutral-400" />
+            <Search size={16} className="text-neutral-500 dark:text-neutral-400" />
           </button>
         </div>
       </div>
@@ -108,14 +108,14 @@ export default function CustomerList({ onSelectCustomer, isActive = true }: Cust
       {/* Table Content */}
       <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
         <table className="w-full text-left border-collapse bg-white dark:bg-black text-[15px]">
-          <thead>
-            <tr className="bg-neutral-100 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-850 text-[15px] font-semibold text-black dark:text-white">
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850">Name</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-36">Phone</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-48">Email</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-40">Company</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right w-28">Wallet</th>
-              <th className="px-1.5 py-0.5 text-center w-28">Actions</th>
+          <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+            <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center">Name</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-36 text-center">Phone</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-48 text-center">Email</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-40 text-center">Company</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center">Wallet</th>
+              <th className="px-1.5 py-1 text-center w-28">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">

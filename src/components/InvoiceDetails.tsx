@@ -299,7 +299,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
     const totalPaymentsReceived = (invoice.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
     return (
-      <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-sans text-sm px-3 py-2 select-none w-full overflow-auto">
+      <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-sans text-sm px-3 pb-2 pt-0 select-none w-full overflow-auto">
         {/* Header */}
         <div className="py-2 flex justify-between items-center sticky top-0 z-10 mb-2 bg-neutral-100 dark:bg-neutral-950">
           <div className="flex items-center gap-3">
@@ -722,11 +722,11 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
   // RENDER: STANDARD INVOICE VIEW
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-sans text-sm px-3 py-2 select-none w-full overflow-auto">
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-sans text-sm px-3 pb-2 pt-0 select-none w-full overflow-auto">
       {/* Header */}
       <div className="py-2 flex justify-between items-center sticky top-0 z-10 mb-2.5 bg-neutral-100 dark:bg-neutral-950">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+          <h2 className="font-semibold text-neutral-900 dark:text-neutral-100" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>
             View Invoice - {invoice.invoice_number}
           </h2>
           {invoice.status === 'void' && (
@@ -865,13 +865,13 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
         {/* Items Table */}
         <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
           <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-xs font-bold text-neutral-800 dark:text-neutral-200">
-                <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800 w-10 text-center">#</th>
-                <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800">Description</th>
-                <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800 text-center w-28">Time/Qty</th>
-                <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800 text-right w-36">Unit Price</th>
-                <th className="px-3 py-2 text-right w-36">Total</th>
+            <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+              <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
+                <th className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-700 w-10 text-center">#</th>
+                <th className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Description</th>
+                <th className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center w-28">Time/Qty</th>
+                <th className="px-3 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center w-36">Unit Price</th>
+                <th className="px-3 py-1.5 text-center w-36">Total</th>
               </tr>
             </thead>
             <tbody className="text-[13.5px]">

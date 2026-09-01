@@ -104,10 +104,10 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
   }) : [];
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 py-2 select-none w-full" style={{ fontSize: '15px' }}>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-2 pb-2 pt-0 select-none w-full" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
-        <h2 className="text-xl font-medium text-black dark:text-white">Sales Invoices</h2>
+        <h2 className="font-medium text-black dark:text-white" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '24px' }}>Sales Invoices</h2>
         <button className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer">
           <span>Cash Register</span>
         </button>
@@ -119,7 +119,7 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
           <select 
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value as any)}
-            className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono font-bold"
+            className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 font-normal text-sm cursor-pointer"
           >
             <option value="today">Today</option>
             <option value="yesterday">Yesterday</option>
@@ -134,20 +134,20 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
                 type="date"
                 value={customStart}
                 onChange={(e) => setCustomStart(e.target.value)}
-                className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono"
+                className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 text-sm font-normal"
               />
               <span className="text-neutral-500 dark:text-neutral-400 text-xs">to</span>
               <input 
                 type="date"
                 value={customEnd}
                 onChange={(e) => setCustomEnd(e.target.value)}
-                className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-7 font-mono"
+                className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 text-sm font-normal"
               />
             </div>
           )}
         </div>
 
-        <select className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2 py-0.5 outline-none w-48 h-7 opacity-50 cursor-not-allowed font-mono">
+        <select className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none w-48 h-8 opacity-50 cursor-not-allowed text-sm font-normal">
           <option>All Types</option>
         </select>
         
@@ -158,10 +158,10 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
             placeholder="Search Products, Invoice# or Customer..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-3 pr-10 py-0.5 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-xs outline-none focus:border-neutral-400 h-7 font-mono"
+            className="w-full pl-3 pr-10 py-1 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-sm font-normal outline-none focus:border-neutral-400 h-8"
           />
           <button className="absolute right-3 top-1/2 -translate-y-1/2">
-            <Search size={14} className="text-neutral-500 dark:text-neutral-400" />
+            <Search size={16} className="text-neutral-500 dark:text-neutral-400" />
           </button>
         </div>
       </div>
@@ -169,17 +169,17 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
       {/* Table Content */}
       <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
         <table className="w-full text-left border-collapse bg-white dark:bg-black text-[15px]">
-          <thead>
-            <tr className="bg-neutral-100 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-850 text-[15px] font-semibold text-black dark:text-white">
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-24">Date</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-24">Time</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-32">Invoice #</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850">Products Sold</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-40">Sales Person</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right w-28">Taxable</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right w-28">Taxes</th>
-              <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-right w-28">Non Taxable</th>
-              <th className="px-1.5 py-0.5 text-right w-28">Total</th>
+          <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+            <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-24 text-center">Date</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-24 text-center">Time</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-32 text-center">Invoice #</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center">Products Sold</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-40 text-center">Sales Person</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center">Taxable</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center">Taxes</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center">Non Taxable</th>
+              <th className="px-1.5 py-1 w-28 text-center">Total</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">

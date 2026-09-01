@@ -1011,6 +1011,18 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     taxAmount = netAfterDiscount * (23 / 123);
     netSubtotal = Math.max(0, netAfterDiscount - taxAmount);
     total = netAfterDiscount;
+  } else if (taxOption === '13.5-excluded') {
+    taxRate = 13.5;
+    taxType = 'excluded';
+    taxAmount = netAfterDiscount * 0.135;
+    netSubtotal = netAfterDiscount;
+    total = netAfterDiscount + taxAmount;
+  } else if (taxOption === '13.5-included') {
+    taxRate = 13.5;
+    taxType = 'included';
+    taxAmount = netAfterDiscount * (13.5 / 113.5);
+    netSubtotal = Math.max(0, netAfterDiscount - taxAmount);
+    total = netAfterDiscount;
   } else {
     taxRate = 0;
     taxType = 'zero';
@@ -1033,10 +1045,10 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   }, [remainingAmount]);
 
   return (
-    <div className="flex flex-col h-full bg-[#f9fafb] text-[#333333] select-none w-full overflow-hidden" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+    <div className="flex flex-col h-full bg-[#f9fafb] text-[#333333] select-none w-full overflow-hidden" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
       {/* Top Bar */}
       <header className="flex items-center justify-between bg-[#f9fafb] px-6 py-4 shrink-0">
-        <h1 className="text-2xl text-[#333333] font-normal">Cash Register</h1>
+        <h1 className="text-[#333333] font-normal" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>Cash Register</h1>
       </header>
 
       {/* Main Content */}

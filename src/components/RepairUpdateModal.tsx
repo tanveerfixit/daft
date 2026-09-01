@@ -55,17 +55,6 @@ export default function RepairUpdateModal({ repair, onClose, onSaved }: RepairUp
       setLoading(false);
     }
   };
-      setSuccess(msg);
-
-      setTimeout(() => {
-        onSaved();
-      }, 1800);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const currentStatusOption = STATUS_OPTIONS.find(s => s.value === repair.status);
 

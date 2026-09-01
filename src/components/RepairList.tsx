@@ -96,10 +96,10 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
   };
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 py-2 select-none w-full" style={{ fontSize: '17px' }}>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-base px-2 pb-2 pt-0 select-none w-full" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
-        <h2 className="text-xl font-medium text-black dark:text-white">Repair Jobs</h2>
+        <h2 className="font-medium text-black dark:text-white" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '24px' }}>Repair Jobs</h2>
         <button
           onClick={() => setIsModalOpen(true)}
           className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
@@ -112,11 +112,11 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
       {/* Status Filter Dropdown & Search */}
       <div className="p-2 flex flex-wrap gap-3 items-center bg-white dark:bg-black border-b border-neutral-200 dark:border-neutral-850 shrink-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">Status:</span>
+          <span className="text-sm font-normal text-neutral-700 dark:text-neutral-300">Status:</span>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-none px-3 py-1 text-sm font-semibold outline-none focus:border-blue-500 cursor-pointer shadow-sm"
+            className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-none px-2.5 py-1 text-sm font-normal outline-none focus:border-blue-500 cursor-pointer shadow-sm h-8"
           >
             <option value="new">New / Booked ({statusCounts.new || 0})</option>
             <option value="all">All Statuses ({statusCounts.all || 0})</option>
@@ -130,12 +130,12 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
           <input
             type="text"
             placeholder="Search ID, customer, phone, device..."
-            className="w-full pl-3 pr-10 py-0.5 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-xs outline-none focus:border-neutral-400 h-7 font-mono"
+            className="w-full pl-3 pr-10 py-1 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-sm font-normal outline-none focus:border-neutral-400 h-8"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
           <button className="absolute right-3 top-1/2 -translate-y-1/2">
-            <Search size={14} className="text-neutral-500 dark:text-neutral-400" />
+            <Search size={16} className="text-neutral-500 dark:text-neutral-400" />
           </button>
         </div>
       </div>
@@ -143,14 +143,14 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
       {/* Table Content */}
       <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
         <table className="w-full text-left border-collapse bg-white dark:bg-black text-[17px]">
-          <thead>
-            <tr className="bg-neutral-100 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-850 text-[17px] font-semibold text-black dark:text-white">
-              <th className="px-2 py-1.5 border-r border-neutral-200 dark:border-neutral-850 w-20">Job #</th>
-              <th className="px-2 py-1.5 border-r border-neutral-200 dark:border-neutral-850">Customer</th>
-              <th className="px-2 py-1.5 border-r border-neutral-200 dark:border-neutral-850">Device & Fault</th>
-              <th className="px-2 py-1.5 border-r border-neutral-200 dark:border-neutral-850 w-36">Phone</th>
-              <th className="px-2 py-1.5 border-r border-neutral-200 dark:border-neutral-850 w-32">Status</th>
-              <th className="px-2 py-1.5 text-center w-20">Actions</th>
+          <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+            <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-20 text-center">Job #</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center">Customer</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center">Device & Fault</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-36 text-center">Phone</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-32 text-center">Status</th>
+              <th className="px-1.5 py-1 text-center w-20">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">
@@ -158,15 +158,15 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
               <tr 
                 key={repair.id} 
                 onClick={() => navigate(`/${branchSlug}/repairs/${repair.id}`)}
-                className="bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer text-[17px]"
+                className="bg-white dark:bg-black hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors cursor-pointer text-[16px]"
               >
-                <td className="px-2 py-1.5 border-r border-neutral-200 dark:border-neutral-850 font-mono font-bold text-blue-600 dark:text-blue-400">
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 font-mono font-bold text-blue-600 dark:text-blue-400">
                   #{repair.id}
                 </td>
-                <td className="px-2 py-1.5 border-r border-neutral-200 dark:border-neutral-850 font-medium text-neutral-900 dark:text-neutral-100">
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 font-medium text-neutral-900 dark:text-neutral-100">
                   {repair.customer_name || 'Walk-in Customer'}
                 </td>
-                <td className="px-2 py-1.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-900 dark:text-neutral-100">
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-900 dark:text-neutral-100">
                   <span className="font-semibold">{repair.device_model}</span>
                   {repair.issue && (
                     <span className="text-neutral-500 dark:text-neutral-400 text-[14px] ml-2 font-normal">
@@ -174,15 +174,15 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
                     </span>
                   )}
                 </td>
-                <td className="px-2 py-1.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400 font-mono text-[15px]">
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400 font-mono text-[15px]">
                   {(repair as any).customer_phone || (repair as any).phone || '—'}
                 </td>
-                <td className="px-2 py-1.5 border-r border-neutral-200 dark:border-neutral-850">
+                <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850">
                   <span className={`text-[15px] font-semibold capitalize ${getStatusColor(repair.status)}`}>
                     {repair.status?.replace('_', ' ')}
                   </span>
                 </td>
-                <td className="px-2 py-1.5 text-center" onClick={e => e.stopPropagation()}>
+                <td className="px-1.5 py-0.5 text-center" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center justify-center">
                     <button
                       type="button"

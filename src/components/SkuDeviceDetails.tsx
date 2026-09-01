@@ -59,7 +59,7 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h2 className="text-xl font-medium text-[var(--text-main)]">{productName}</h2>
+          <h2 className="font-medium text-[var(--text-main)]" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>{productName}</h2>
           <p className="text-xs text-[var(--text-muted-more)] uppercase tracking-wider font-bold">Device History & Inventory</p>
         </div>
       </div>
@@ -104,15 +104,15 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
         ) : (
           <div className="bg-[var(--bg-card)] border border-[var(--border-header)] rounded shadow-sm overflow-hidden">
             <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-[var(--bg-accent-subtle)] border-b border-[var(--border-header)] text-[11px] font-bold text-[var(--text-main)] uppercase tracking-wider">
-                  <th className="px-4 py-3 border-r border-[var(--border-header)]">IMEI Number</th>
-                  <th className="px-4 py-3 border-r border-[var(--border-header)] text-center">Color</th>
-                  <th className="px-4 py-3 border-r border-[var(--border-header)] text-center">GB</th>
-                  <th className="px-4 py-3 border-r border-[var(--border-header)] text-center">Condition</th>
-                  <th className="px-4 py-3 border-r border-[var(--border-header)] text-center">Status</th>
-                  <th className="px-4 py-3 border-r border-[var(--border-header)]">Date Added</th>
-                  <th className="px-4 py-3 text-center">Invoice #</th>
+              <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+                <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
+                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">IMEI Number</th>
+                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Color</th>
+                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">GB</th>
+                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Condition</th>
+                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Status</th>
+                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Date Added</th>
+                  <th className="px-2 py-1.5 text-center">Invoice #</th>
                 </tr>
               </thead>
               <tbody>

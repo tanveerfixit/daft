@@ -259,11 +259,11 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
   });
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 py-2 select-none w-full" style={{ fontSize: '15px' }}>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 pb-2 pt-0 select-none w-full" style={{ fontSize: '15px' }}>
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-medium text-black dark:text-white">B2B & Branch Transfers</h2>
+          <h2 className="font-medium text-black dark:text-white" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>B2B & Branch Transfers</h2>
           <span className="px-2 py-0.5 text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 rounded flex items-center gap-1">
             <ShieldCheck size={13} /> Strict Isolation
           </span>
