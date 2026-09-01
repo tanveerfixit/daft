@@ -63,20 +63,21 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
           </div>
         </div>
       ) : (
-        <div className="flex items-stretch gap-3 bg-white border border-[#d8d8d8] focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 rounded p-3 transition-all">
+        <div className="flex items-stretch bg-white border border-[#d8d8d8] focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 rounded overflow-hidden transition-all shadow-sm">
           <input
             type="text"
             placeholder="Search Customers"
-            className="flex-1 border border-[#d8d8d8] focus:border-blue-500 rounded px-3 py-2 outline-none text-[#333333] placeholder-[#757575] text-base bg-white"
+            className="flex-1 px-3 py-2 outline-none text-[#333333] placeholder-[#757575] text-base bg-transparent border-0 focus:outline-none focus:ring-0"
             value={customerSearch}
             onChange={(e) => setCustomerSearch(e.target.value)}
           />
           <button
             type="button"
             onClick={onOpenNewCustomerModal}
-            className="flex items-center gap-1 border border-[#d8d8d8] rounded px-4 py-2 bg-[#e5e7eb] text-[#333333] hover:bg-[#d8d8d8] whitespace-nowrap font-medium cursor-pointer"
+            className="flex items-center gap-1 px-3.5 py-2 bg-[#f3f4f6] hover:bg-[#e5e7eb] text-[#333333] border-l border-[#d8d8d8] text-sm font-medium transition-colors cursor-pointer shrink-0"
           >
-            <span className="text-lg leading-none">+</span> New
+            <Plus size={15} />
+            <span>New</span>
           </button>
         </div>
       )}

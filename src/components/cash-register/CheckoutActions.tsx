@@ -23,11 +23,13 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
   addedPaymentsCount,
   paymentAmount = ''
 }) => {
+  const isAwaitingTender = addedPaymentsCount > 0 && !isPaymentComplete;
+
   const handlePrimaryClick = () => {
     if (isCartEmpty) return;
     if (isPaymentComplete) {
       onCheckout();
-    } else {
+    } else if (addedPaymentsCount === 0) {
       onQuickCheckout();
     }
   };
@@ -38,14 +40,20 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
         id="checkout-btn"
         type="button"
         onClick={handlePrimaryClick}
-        disabled={isCartEmpty}
-        className="bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-600 rounded py-3.5 font-bold text-base shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        disabled={isCartEmpty || isAwaitingTender}
+        className={`border rounded py-3.5 font-bold text-base shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+          isPaymentComplete
+            ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+            : isAwaitingTender
+              ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+              : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+        }`}
       >
         {isPaymentComplete
           ? '✓ Complete Sale'
-          : addedPaymentsCount > 0
-            ? `Pay Remaining €${Math.max(0, remainingAmount).toFixed(2)} & Complete`
-            : `Checkout & Complete (${paymentMethod})`}
+          : isAwaitingTender
+            ? `Awaiting Tender (€${Math.max(0, remainingAmount).toFixed(2)} Remaining)`
+            : `Pay Full €${Math.max(0, remainingAmount).toFixed(2)} (${paymentMethod})`}
       </button>
 
       <button

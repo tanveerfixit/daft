@@ -610,6 +610,8 @@ const createInvoiceSchema = z.object({
     discount_type: z.string().optional().nullable(),
     total: z.number().or(z.string().transform(Number)),
     is_deposit: z.boolean().optional(),
+    is_repair_payment: z.boolean().optional(),
+    repair_job_id: z.number().or(z.string().transform(Number)).nullable().optional(),
     notes: z.string().optional().nullable()
   })).min(1, "Cart is empty"),
   payments: z.array(z.object({
@@ -655,7 +657,9 @@ router.post('/', async (req: any, res, next) => {
     }
 
     const isDeposit = (items || []).some((item: any) => item.is_deposit);
-    const prefix = isDeposit ? 'DE' : 'SA';
+    const isRepair = (items || []).some((item: any) => item.is_repair_payment);
+    const invoiceType = isRepair ? 'repair' : (isDeposit ? 'deposit' : 'sale');
+    const prefix = isRepair ? 'RE' : (isDeposit ? 'DE' : 'SA');
 
     const [lastInv] = await conn.execute(
       `SELECT invoice_number FROM invoices WHERE invoice_number LIKE '${prefix}-%' AND business_id=? ORDER BY id DESC LIMIT 1`,
@@ -672,30 +676,60 @@ router.post('/', async (req: any, res, next) => {
     const totalPaid = Math.min(grandTotalNum, rawTotalPaid);
     const dueAmount = Math.max(0, grandTotalNum - rawTotalPaid);
     let status = 'paid';
-    if (dueAmount > 0.01) status = totalPaid > 0 ? 'partial' : 'credit';
+    if (dueAmount > 0.01) {
+      status = totalPaid > 0 ? 'partial' : 'credit';
+      if (!isRepair) {
+        const [cRows] = await conn.execute('SELECT id, name FROM customers WHERE id = ?', [finalCustomerId]);
+        const cust = (cRows as any[])[0];
+        if (!cust || cust.name === 'Walk-in Customer') {
+          await conn.rollback();
+          conn.release();
+          return res.status(400).json({ error: 'Walk-in customers cannot have an unpaid balance. Full payment is required.' });
+        }
+      }
+    }
     
     let invR: any;
     try {
       [invR] = await conn.execute(
-        'INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,subtotal,tax_total,tax_rate,tax_type,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, subtotal, tax_total, Number(tax_rate) || 0, tax_type || 'excluded', discount_total, grand_total, totalPaid, dueAmount, status]
+        'INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,type,subtotal,tax_total,tax_rate,tax_type,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, invoiceType, subtotal, tax_total, Number(tax_rate) || 0, tax_type || 'excluded', discount_total, grand_total, totalPaid, dueAmount, status]
       );
     } catch (dbErr: any) {
       [invR] = await conn.execute(
-        'INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,subtotal,tax_total,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-        [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, subtotal, tax_total, discount_total, grand_total, totalPaid, dueAmount, status]
+        'INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,type,subtotal,tax_total,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, invoiceType, subtotal, tax_total, discount_total, grand_total, totalPaid, dueAmount, status]
       );
     }
     const invoiceId = (invR as any).insertId;
 
     for (const item of items) {
-      const skuId = item.id || item.sku_id;
+      let skuId = item.id || item.sku_id;
+      if ((!skuId || skuId === 0) && item.is_repair_payment) {
+        const repairSkuCode = `REPAIR-SERVICE-${req.user.business_id}`;
+        const [existing] = await conn.execute('SELECT id FROM product_skus WHERE sku_code = ?', [repairSkuCode]);
+        if ((existing as any[]).length > 0) {
+          skuId = (existing as any[])[0].id;
+        } else {
+          const [pr] = await conn.execute(
+            'INSERT INTO products (business_id,name,product_type,allow_overselling) VALUES (?,?,?,?)',
+            [req.user.business_id, 'Repair Service', 'service', 1]
+          );
+          const productId = (pr as any).insertId;
+          const [sr] = await conn.execute(
+            'INSERT INTO product_skus (product_id,sku_code,barcode,cost_price,selling_price) VALUES (?,?,?,?,?)',
+            [productId, repairSkuCode, repairSkuCode, 0, 0]
+          );
+          skuId = (sr as any).insertId;
+        }
+      }
+
       const productInfo = productInfoMap.get(skuId);
-      
       const itemCost = productInfo?.cost_price || item.cost || 0;
+      const itemNote = item.notes || (item.is_repair_payment && item.repair_job_id ? `Repair Job #${item.repair_job_id}` : null);
       await conn.execute(
         'INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,cost,discount,total,notes) VALUES (?,?,?,?,?,?,?,?,?)',
-        [invoiceId, skuId, item.device_id || null, item.quantity, item.price, itemCost, item.discount || 0, item.total, item.notes || null]
+        [invoiceId, skuId, item.device_id || null, item.quantity, item.price, itemCost, item.discount || 0, item.total, itemNote]
       );
       
       if (productInfo?.product_type === 'stock') {
@@ -740,7 +774,7 @@ router.post('/', async (req: any, res, next) => {
     for (const p of settledPayments) {
       const type = (p.method==='Store Credit'||p.method==='Wallet') 
         ? 'wallet_use' 
-        : (isDeposit ? 'deposit' : 'sale_payment');
+        : (isDeposit ? 'deposit' : (isRepair ? 'repair_payment' : 'sale_payment'));
       await conn.execute('INSERT INTO payments (customer_id,invoice_id,type,method,amount) VALUES (?,?,?,?,?)',
         [finalCustomerId, invoiceId, type, p.method, p.amount]);
       if (type==='wallet_use') {
@@ -762,6 +796,36 @@ router.post('/', async (req: any, res, next) => {
       const activityDetails = act.details || 'No details provided';
       await conn.execute('INSERT INTO invoice_activity (invoice_id,user_id,activity,details) VALUES (?,?,?,?)',
         [invoiceId, req.userId, activityLabel, activityDetails]);
+    }
+    // Handle repair payment items — update jobs table
+    const repairItems = (items || []).filter((item: any) => item.is_repair_payment && item.repair_job_id);
+    for (const rItem of repairItems) {
+      const repairAmount = Number(rItem.total) || 0;
+      const jobId = Number(rItem.repair_job_id);
+      if (repairAmount > 0 && jobId > 0) {
+        await conn.execute(
+          `UPDATE jobs SET 
+             deposit_paid = COALESCE(deposit_paid,0) + ?, 
+             remaining_balance = GREATEST(0, COALESCE(remaining_balance,0) - ?)
+           WHERE id = ? AND business_id = ?`,
+          [repairAmount, repairAmount, jobId, req.user.business_id]
+        );
+
+        // Check if fully paid → auto-set status to 'completed'
+        const [jobRows] = await conn.execute('SELECT remaining_balance, status FROM jobs WHERE id=?', [jobId]);
+        const updatedJob = (jobRows as any[])[0];
+        if (updatedJob && Number(updatedJob.remaining_balance) <= 0 && updatedJob.status !== 'collected') {
+          await conn.execute('UPDATE jobs SET status=? WHERE id=?', ['completed', jobId]);
+        }
+
+        if (finalCustomerId) {
+          await conn.execute(
+            'INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+            [finalCustomerId, req.userId, 'Repair Payment Received',
+             `€${repairAmount.toFixed(2)} received for job #${jobId}. Invoice: ${invoiceNumber}`]
+          );
+        }
+      }
     }
 
     await conn.commit();

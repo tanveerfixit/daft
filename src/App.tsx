@@ -20,6 +20,7 @@ import InvoiceList from './components/InvoiceList';
 import CustomerList from './components/CustomerList';
 import CustomerDetails from './components/CustomerDetails';
 import RepairList from './components/RepairList';
+import RepairDetails from './components/RepairDetails';
 import DeviceInventory from './components/DeviceInventory';
 import PurchaseOrderList from './components/PurchaseOrderList';
 import PurchaseOrderDetail from './components/PurchaseOrderDetail';
@@ -72,11 +73,13 @@ const CashRegisterRoute = () => {
   const branchSlug = slugify(useAuth().currentUser?.branch_name || 'branch');
   const initiateDeposit = location.state?.initiateDeposit || false;
   const preSelectedCustomerId = location.state?.customerId || null;
+  const repairJob = location.state?.repairJob || null;
 
   return (
     <CashRegister 
       preSelectedCustomerId={preSelectedCustomerId}
       initiateDeposit={initiateDeposit}
+      repairJob={repairJob}
       onViewCustomers={() => navigate(`/${branchSlug}/customers`)} 
       onSelectCustomer={(id) => navigate(`/${branchSlug}/customers/${id}`)}
       onSelectProduct={(id) => navigate(`/${branchSlug}/products/${id}`)}
@@ -169,7 +172,7 @@ const CustomerDetailsRoute = () => {
       onBack={() => navigate(`/${branchSlug}/customers`)} 
       onSelectInvoice={(invId) => navigate(`/${branchSlug}/invoices/${invId}`)}
       onCreateInvoice={() => navigate(`/${branchSlug}/register`)}
-      onCreateRepair={() => navigate(`/${branchSlug}/repairs`, { state: { customerId: Number(id) } })}
+      onCreateRepair={() => navigate(`/${branchSlug}/repairs`, { state: { createRepair: true, customerId: Number(id) } })}
       onDeposit={() => navigate(`/${branchSlug}/register`, { state: { initiateDeposit: true, customerId: Number(id) } })}
     />
   );
@@ -177,8 +180,22 @@ const CustomerDetailsRoute = () => {
 
 const RepairListRoute = ({ isActive }: { isActive?: boolean }) => {
   const location = useLocation();
-  const customerId = location.state?.customerId || null;
+  const customerId = location.state?.createRepair ? location.state?.customerId : null;
   return <RepairList preSelectedCustomerId={customerId} isActive={isActive} />;
+};
+
+const RepairDetailsRoute = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const branchSlug = slugify(useAuth().currentUser?.branch_name || 'branch');
+  return (
+    <RepairDetails
+      repairId={Number(id)}
+      onBack={() => navigate(`/${branchSlug}/repairs`)}
+      onPayAtRegister={(job) => navigate(`/${branchSlug}/register`, { state: { repairJob: job, customerId: job.customerId } })}
+      onViewInvoice={(invId) => navigate(`/${branchSlug}/invoices/${invId}`)}
+    />
+  );
 };
 
 const DeviceInventoryRoute = ({ isActive }: { isActive?: boolean }) => {
@@ -644,6 +661,7 @@ function AppInner() {
                   <Route path="/:branchSlug/add-inventory/:id" element={<AddInventoryRoute />} />
                   <Route path="/:branchSlug/invoices/:id" element={<InvoiceDetailsRoute />} />
                   <Route path="/:branchSlug/customers/:id" element={<CustomerDetailsRoute />} />
+                  <Route path="/:branchSlug/repairs/:id" element={<RepairDetailsRoute />} />
                   <Route path="/:branchSlug/devices/:id" element={<DeviceDetailRoute />} />
                   <Route path="/:branchSlug/sku-devices/:id" element={<SkuDeviceDetailsRoute />} />
                   <Route path="/:branchSlug/purchase-orders/:id" element={<PurchaseOrderDetailRoute />} />

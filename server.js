@@ -2415,6 +2415,64 @@ var init_products = __esm({
         res.status(500).json({ error: e.message || "Failed to initialize deposit product" });
       }
     });
+    router3.get("/special/get-repair-product", async (req, res, next) => {
+      const businessId = req.user?.business_id;
+      if (!businessId) return res.status(401).json({ error: "Business context missing" });
+      const repairSkuCode = `REPAIR-SERVICE-${businessId}`;
+      const findProduct = async () => {
+        return await queryOne(`
+      SELECT s.id as sku_id, p.id as product_id, p.name as product_name, s.sku_code, s.selling_price
+      FROM product_skus s
+      JOIN products p ON s.product_id = p.id
+      WHERE s.sku_code = ? AND p.business_id = ?
+    `, [repairSkuCode, businessId]);
+      };
+      try {
+        let skuInfo = await findProduct();
+        if (skuInfo) return res.json(skuInfo);
+        const conn = await pool.getConnection();
+        try {
+          await conn.beginTransaction();
+          const [check] = await conn.execute("SELECT id FROM product_skus WHERE sku_code = ?", [repairSkuCode]);
+          if (check.length > 0) {
+            await conn.rollback();
+            skuInfo = await findProduct();
+            return res.json(skuInfo);
+          }
+          const [pr] = await conn.execute(
+            "INSERT INTO products (business_id,name,product_type,allow_overselling) VALUES (?,?,?,?)",
+            [businessId, "Repair Service", "service", 1]
+          );
+          const productId = pr.insertId;
+          const [sr] = await conn.execute(
+            "INSERT INTO product_skus (product_id,sku_code,barcode,cost_price,selling_price) VALUES (?,?,?,?,?)",
+            [productId, repairSkuCode, repairSkuCode, 0, 0]
+          );
+          const skuId = sr.insertId;
+          await conn.commit();
+          return res.json({
+            sku_id: skuId,
+            product_id: productId,
+            product_name: "Repair Service",
+            sku_code: repairSkuCode,
+            selling_price: 0
+          });
+        } catch (innerErr) {
+          await conn.rollback().catch(() => {
+          });
+          if (innerErr.code === "ER_DUP_ENTRY") {
+            skuInfo = await findProduct();
+            if (skuInfo) return res.json(skuInfo);
+          }
+          throw innerErr;
+        } finally {
+          conn.release();
+        }
+      } catch (e) {
+        console.error("[RepairProduct] Error:", e.message);
+        res.status(500).json({ error: e.message || "Failed to initialize repair product" });
+      }
+    });
     router3.get("/:id", async (req, res, next) => {
       try {
         const businessId = req.user.business_id;
@@ -3601,6 +3659,8 @@ var init_invoices = __esm({
         discount_type: z4.string().optional().nullable(),
         total: z4.number().or(z4.string().transform(Number)),
         is_deposit: z4.boolean().optional(),
+        is_repair_payment: z4.boolean().optional(),
+        repair_job_id: z4.number().or(z4.string().transform(Number)).nullable().optional(),
         notes: z4.string().optional().nullable()
       })).min(1, "Cart is empty"),
       payments: z4.array(z4.object({
@@ -3639,7 +3699,9 @@ var init_invoices = __esm({
           finalCustomerId = wRows[0]?.id || null;
         }
         const isDeposit = (items || []).some((item) => item.is_deposit);
-        const prefix = isDeposit ? "DE" : "SA";
+        const isRepair = (items || []).some((item) => item.is_repair_payment);
+        const invoiceType = isRepair ? "repair" : isDeposit ? "deposit" : "sale";
+        const prefix = isRepair ? "RE" : isDeposit ? "DE" : "SA";
         const [lastInv] = await conn.execute(
           `SELECT invoice_number FROM invoices WHERE invoice_number LIKE '${prefix}-%' AND business_id=? ORDER BY id DESC LIMIT 1`,
           [req.user.business_id]
@@ -3655,27 +3717,57 @@ var init_invoices = __esm({
         const totalPaid = Math.min(grandTotalNum, rawTotalPaid);
         const dueAmount = Math.max(0, grandTotalNum - rawTotalPaid);
         let status = "paid";
-        if (dueAmount > 0.01) status = totalPaid > 0 ? "partial" : "credit";
+        if (dueAmount > 0.01) {
+          status = totalPaid > 0 ? "partial" : "credit";
+          if (!isRepair) {
+            const [cRows] = await conn.execute("SELECT id, name FROM customers WHERE id = ?", [finalCustomerId]);
+            const cust = cRows[0];
+            if (!cust || cust.name === "Walk-in Customer") {
+              await conn.rollback();
+              conn.release();
+              return res.status(400).json({ error: "Walk-in customers cannot have an unpaid balance. Full payment is required." });
+            }
+          }
+        }
         let invR;
         try {
           [invR] = await conn.execute(
-            "INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,subtotal,tax_total,tax_rate,tax_type,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, subtotal, tax_total, Number(tax_rate) || 0, tax_type || "excluded", discount_total, grand_total, totalPaid, dueAmount, status]
+            "INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,type,subtotal,tax_total,tax_rate,tax_type,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, invoiceType, subtotal, tax_total, Number(tax_rate) || 0, tax_type || "excluded", discount_total, grand_total, totalPaid, dueAmount, status]
           );
         } catch (dbErr) {
           [invR] = await conn.execute(
-            "INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,subtotal,tax_total,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, subtotal, tax_total, discount_total, grand_total, totalPaid, dueAmount, status]
+            "INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,type,subtotal,tax_total,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, invoiceType, subtotal, tax_total, discount_total, grand_total, totalPaid, dueAmount, status]
           );
         }
         const invoiceId = invR.insertId;
         for (const item of items) {
-          const skuId = item.id || item.sku_id;
+          let skuId = item.id || item.sku_id;
+          if ((!skuId || skuId === 0) && item.is_repair_payment) {
+            const repairSkuCode = `REPAIR-SERVICE-${req.user.business_id}`;
+            const [existing] = await conn.execute("SELECT id FROM product_skus WHERE sku_code = ?", [repairSkuCode]);
+            if (existing.length > 0) {
+              skuId = existing[0].id;
+            } else {
+              const [pr] = await conn.execute(
+                "INSERT INTO products (business_id,name,product_type,allow_overselling) VALUES (?,?,?,?)",
+                [req.user.business_id, "Repair Service", "service", 1]
+              );
+              const productId = pr.insertId;
+              const [sr] = await conn.execute(
+                "INSERT INTO product_skus (product_id,sku_code,barcode,cost_price,selling_price) VALUES (?,?,?,?,?)",
+                [productId, repairSkuCode, repairSkuCode, 0, 0]
+              );
+              skuId = sr.insertId;
+            }
+          }
           const productInfo = productInfoMap.get(skuId);
           const itemCost = productInfo?.cost_price || item.cost || 0;
+          const itemNote = item.notes || (item.is_repair_payment && item.repair_job_id ? `Repair Job #${item.repair_job_id}` : null);
           await conn.execute(
             "INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,cost,discount,total,notes) VALUES (?,?,?,?,?,?,?,?,?)",
-            [invoiceId, skuId, item.device_id || null, item.quantity, item.price, itemCost, item.discount || 0, item.total, item.notes || null]
+            [invoiceId, skuId, item.device_id || null, item.quantity, item.price, itemCost, item.discount || 0, item.total, itemNote]
           );
           if (productInfo?.product_type === "stock") {
             await conn.execute(`
@@ -3713,7 +3805,7 @@ var init_invoices = __esm({
           return { ...p, amount: amt };
         }).filter((p) => p.amount > 0);
         for (const p of settledPayments) {
-          const type = p.method === "Store Credit" || p.method === "Wallet" ? "wallet_use" : isDeposit ? "deposit" : "sale_payment";
+          const type = p.method === "Store Credit" || p.method === "Wallet" ? "wallet_use" : isDeposit ? "deposit" : isRepair ? "repair_payment" : "sale_payment";
           await conn.execute(
             "INSERT INTO payments (customer_id,invoice_id,type,method,amount) VALUES (?,?,?,?,?)",
             [finalCustomerId, invoiceId, type, p.method, p.amount]
@@ -3740,6 +3832,36 @@ var init_invoices = __esm({
             "INSERT INTO invoice_activity (invoice_id,user_id,activity,details) VALUES (?,?,?,?)",
             [invoiceId, req.userId, activityLabel, activityDetails]
           );
+        }
+        const repairItems = (items || []).filter((item) => item.is_repair_payment && item.repair_job_id);
+        for (const rItem of repairItems) {
+          const repairAmount = Number(rItem.total) || 0;
+          const jobId = Number(rItem.repair_job_id);
+          if (repairAmount > 0 && jobId > 0) {
+            await conn.execute(
+              `UPDATE jobs SET 
+             deposit_paid = COALESCE(deposit_paid,0) + ?, 
+             remaining_balance = GREATEST(0, COALESCE(remaining_balance,0) - ?)
+           WHERE id = ? AND business_id = ?`,
+              [repairAmount, repairAmount, jobId, req.user.business_id]
+            );
+            const [jobRows] = await conn.execute("SELECT remaining_balance, status FROM jobs WHERE id=?", [jobId]);
+            const updatedJob = jobRows[0];
+            if (updatedJob && Number(updatedJob.remaining_balance) <= 0 && updatedJob.status !== "collected") {
+              await conn.execute("UPDATE jobs SET status=? WHERE id=?", ["completed", jobId]);
+            }
+            if (finalCustomerId) {
+              await conn.execute(
+                "INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+                [
+                  finalCustomerId,
+                  req.userId,
+                  "Repair Payment Received",
+                  `\u20AC${repairAmount.toFixed(2)} received for job #${jobId}. Invoice: ${invoiceNumber}`
+                ]
+              );
+            }
+          }
         }
         await conn.commit();
         const [fullInvoiceRows] = await conn.execute(`
@@ -6167,13 +6289,41 @@ var init_inventory = __esm({
       try {
         const isSuper = req.user.role === "superadmin";
         const sql = `
-      SELECT j.*, c.name as customer_name FROM jobs j
+      SELECT j.*, c.name as customer_name, c.phone as customer_phone FROM jobs j
       LEFT JOIN customers c ON j.customer_id=c.id
       WHERE j.business_id=? ${!isSuper ? "AND j.branch_id=?" : ""}
       ORDER BY j.created_at DESC
     `;
         const params = !isSuper ? [req.user.business_id, req.user.branch_id] : [req.user.business_id];
         res.json(await query(sql, params));
+      } catch (e) {
+        next(e);
+      }
+    });
+    router8.get("/repairs/:id", async (req, res, next) => {
+      try {
+        const [rows] = await pool.execute(
+          `SELECT j.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
+       FROM jobs j LEFT JOIN customers c ON j.customer_id=c.id
+       WHERE j.id=? AND j.business_id=?`,
+          [req.params.id, req.user.business_id]
+        );
+        const job = rows[0];
+        if (!job) return res.status(404).json({ error: "Repair job not found" });
+        const searchNote1 = `%#${job.id}%`;
+        const searchNote2 = `%Job ${job.id}%`;
+        const invoices = await query(
+          `SELECT DISTINCT i.id, i.invoice_number, i.grand_total, i.paid_amount, i.status, i.created_at,
+              (SELECT GROUP_CONCAT(CONCAT(p.method, ': \u20AC', FORMAT(p.amount,2)) SEPARATOR ', ') FROM payments p WHERE p.invoice_id=i.id) as payment_summary
+       FROM invoices i
+       JOIN invoice_items ii ON ii.invoice_id=i.id
+       WHERE i.business_id=? 
+         AND (ii.notes LIKE ? OR ii.notes LIKE ? ${job.customer_id ? "OR (i.type='repair' AND i.customer_id=?)" : ""})
+         AND i.grand_total > 0
+       ORDER BY i.created_at DESC`,
+          job.customer_id ? [req.user.business_id, searchNote1, searchNote2, job.customer_id] : [req.user.business_id, searchNote1, searchNote2]
+        );
+        res.json({ ...job, invoices });
       } catch (e) {
         next(e);
       }
@@ -6220,10 +6370,7 @@ var init_inventory = __esm({
           if (existing.length > 0) {
             finalCustomerId = existing[0].id;
           } else {
-            const combinedName = `${first_name || ""} ${last_name || ""}`.trim();
-            if (!combinedName) {
-              throw new Error("Customer first name is required for new repair jobs.");
-            }
+            const combinedName = `${first_name || ""} ${last_name || ""}`.trim() || `Customer (${phone})`;
             const [newCust] = await conn.execute(
               "INSERT INTO customers (business_id, branch_id, name, first_name, last_name, phone) VALUES (?, ?, ?, ?, ?, ?)",
               [req.user.business_id, req.user.branch_id, combinedName, first_name || "", last_name || "", phone]
@@ -6255,48 +6402,6 @@ var init_inventory = __esm({
             "INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
             [finalCustomerId, req.userId, "Repair Job Created", `New repair job for ${device_model}: ${issue}`]
           );
-          if (Number(deposit_paid) > 0) {
-            const [lastRE] = await conn.execute(
-              "SELECT invoice_number FROM invoices WHERE invoice_number LIKE 'RE-%' AND business_id=? ORDER BY id DESC LIMIT 1",
-              [req.user.business_id]
-            );
-            let nextRENum = 1;
-            if (lastRE.length > 0) {
-              const lastNum = parseInt(lastRE[0].invoice_number.split("-")[1]);
-              if (!isNaN(lastNum)) nextRENum = lastNum + 1;
-            }
-            const invoiceNumber = `RE-${String(nextRENum).padStart(3, "0")}`;
-            const [invResult] = await conn.execute(
-              `INSERT INTO invoices 
-            (business_id, branch_id, user_id, customer_id, invoice_number, type, 
-             subtotal, tax_total, discount_total, grand_total, paid_amount, due_amount, status)
-           VALUES (?, ?, ?, ?, ?, 'repair', ?, 0, 0, ?, ?, 0, 'paid')`,
-              [
-                req.user.business_id,
-                req.user.branch_id,
-                req.userId,
-                finalCustomerId || null,
-                invoiceNumber,
-                deposit_paid,
-                deposit_paid,
-                deposit_paid
-              ]
-            );
-            const invoiceId = invResult.insertId;
-            await conn.execute(
-              "INSERT INTO payments (customer_id, invoice_id, type, method, amount) VALUES (?, ?, ?, ?, ?)",
-              [finalCustomerId, invoiceId, "deposit", payment_method || "Cash", deposit_paid]
-            );
-            await conn.execute(
-              "INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-              [
-                finalCustomerId,
-                req.userId,
-                "Repair Deposit Received",
-                `Deposit of \u20AC${Number(deposit_paid).toFixed(2)} received for job #${jobId}. Invoice: ${invoiceNumber}`
-              ]
-            );
-          }
         }
         await conn.commit();
         res.json({ id: jobId, customer_id: finalCustomerId });
@@ -6310,13 +6415,12 @@ var init_inventory = __esm({
     });
     updateRepairSchema = z7.object({
       status: z7.string().optional(),
-      notes: z7.string().optional(),
-      collected_amount: z7.number().or(z7.string().transform(Number)).optional(),
-      collected_method: z7.string().optional()
+      issue: z7.string().optional(),
+      notes: z7.string().optional()
     });
     router8.put("/repairs/:id", async (req, res, next) => {
       const data = updateRepairSchema.parse(req.body);
-      const { status, notes, collected_amount, collected_method } = data;
+      const { status, issue, notes } = data;
       const jobId = req.params.id;
       const conn = await pool.getConnection();
       try {
@@ -6333,6 +6437,10 @@ var init_inventory = __esm({
           updates.push("status = ?");
           values.push(status);
         }
+        if (issue !== void 0) {
+          updates.push("issue = ?");
+          values.push(issue.trim());
+        }
         if (notes && notes.trim()) {
           const timestamp = (/* @__PURE__ */ new Date()).toLocaleString("en-IE", {
             day: "2-digit",
@@ -6346,56 +6454,6 @@ var init_inventory = __esm({
           updates.push("notes = ?");
           values.push(existingNotes);
         }
-        const collected = parseFloat(String(collected_amount)) || 0;
-        let invoiceNumber = null;
-        if (collected > 0) {
-          const newRemaining = Math.max(0, (job.remaining_balance || 0) - collected);
-          const newDeposit = (job.deposit_paid || 0) + collected;
-          updates.push("remaining_balance = ?", "deposit_paid = ?");
-          values.push(newRemaining, newDeposit);
-          const [lastRE] = await conn.execute(
-            "SELECT invoice_number FROM invoices WHERE invoice_number LIKE 'RE-%' AND business_id=? ORDER BY id DESC LIMIT 1",
-            [req.user.business_id]
-          );
-          let nextRENum = 1;
-          if (lastRE.length > 0) {
-            const lastNum = parseInt(lastRE[0].invoice_number.split("-")[1]);
-            if (!isNaN(lastNum)) nextRENum = lastNum + 1;
-          }
-          invoiceNumber = `RE-${String(nextRENum).padStart(3, "0")}`;
-          const [invResult] = await conn.execute(
-            `INSERT INTO invoices 
-          (business_id, branch_id, user_id, customer_id, invoice_number, type, 
-           subtotal, tax_total, discount_total, grand_total, paid_amount, due_amount, status)
-         VALUES (?, ?, ?, ?, ?, 'repair', ?, 0, 0, ?, ?, 0, 'paid')`,
-            [
-              req.user.business_id,
-              req.user.branch_id,
-              req.userId,
-              job.customer_id || null,
-              invoiceNumber,
-              collected,
-              collected,
-              collected
-            ]
-          );
-          const invoiceId = invResult.insertId;
-          if (job.customer_id) {
-            await conn.execute(
-              "INSERT INTO payments (customer_id, invoice_id, type, method, amount) VALUES (?, ?, ?, ?, ?)",
-              [job.customer_id, invoiceId, "repair_payment", collected_method || "Cash", collected]
-            );
-            await conn.execute(
-              "INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-              [
-                job.customer_id,
-                req.userId,
-                "Repair Payment Received",
-                `\u20AC${collected.toFixed(2)} received for job #${jobId} (${job.device_model}). Invoice: ${invoiceNumber}`
-              ]
-            );
-          }
-        }
         if (updates.length) {
           values.push(jobId, req.user.business_id);
           await conn.execute(
@@ -6404,7 +6462,7 @@ var init_inventory = __esm({
           );
         }
         await conn.commit();
-        res.json({ success: true, invoice_number: invoiceNumber });
+        res.json({ success: true });
       } catch (e) {
         await conn.rollback();
         console.error("[PUT /api/repairs/:id] Error:", e.message);

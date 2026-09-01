@@ -6,6 +6,8 @@ export interface CartItem extends Product {
   imei?: string;
   customPrice?: number;
   is_deposit?: boolean;
+  is_repair_payment?: boolean;
+  repair_job_id?: number;
   discount?: number;
   discountType?: 'percentage' | 'fixed';
   notes?: string;

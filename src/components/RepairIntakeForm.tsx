@@ -5,7 +5,7 @@ import { safeCustomerName } from '../utils/customerName';
 
 interface RepairIntakeFormProps {
   onClose: () => void;
-  onSuccess: (jobId: number) => void;
+  onSuccess: (jobId: number, takeDepositAmount?: number, jobDetails?: any) => void;
   initialCustomerId?: number | null;
 }
 
@@ -14,6 +14,7 @@ export default function RepairIntakeForm({ onClose, onSuccess, initialCustomerId
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchPhone, setSearchPhone] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [depositAmount, setDepositAmount] = useState<string>('');
   
   const [formData, setFormData] = useState({
     customer_id: initialCustomerId || null,
@@ -23,16 +24,13 @@ export default function RepairIntakeForm({ onClose, onSuccess, initialCustomerId
     country_code: '+353',
     device_model: '',
     issue: '',
-    total_quote: 0,
-    deposit_paid: 0,
-    payment_method: 'Cash'
+    total_quote: 0
   });
 
   useEffect(() => {
     fetch('/api/customers')
       .then(res => res.json())
       .then(data => {
-        console.log('Fetched customers:', data?.length);
         setCustomers(Array.isArray(data) ? data : []);
       })
       .catch(err => console.error('Failed to fetch customers:', err));
@@ -46,7 +44,6 @@ export default function RepairIntakeForm({ onClose, onSuccess, initialCustomerId
     if (cleanSearch.length >= targetLength) {
       const match = customers.find(c => {
         const cleanPhone = (c.phone || '').replace(/[\s\-\(\)]/g, '');
-        // Must have a phone number to match — prevents Walk-in/empty-phone false positives
         if (!cleanPhone) return false;
         return cleanPhone === cleanSearch || cleanPhone.endsWith(cleanSearch) || cleanSearch.endsWith(cleanPhone);
       });
@@ -70,17 +67,33 @@ export default function RepairIntakeForm({ onClose, onSuccess, initialCustomerId
     }
   }, [searchPhone, customers]);
 
-  const remainingBalance = Math.max(0, formData.total_quote - formData.deposit_paid);
+  const handleCreateJob = async (takeDeposit?: boolean) => {
+    if (!formData.device_model.trim()) {
+      alert('Please enter the device model');
+      return;
+    }
+    if (!formData.customer_id && !formData.first_name.trim() && !searchPhone.trim()) {
+      alert('Please enter customer contact details');
+      return;
+    }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    const parsedDeposit = parseFloat(depositAmount) || 0;
+    // Default shouldTakeDeposit to true if depositAmount > 0 unless explicitly false (skip deposit)
+    const shouldTakeDeposit = takeDeposit === false 
+      ? false 
+      : (takeDeposit === true || parsedDeposit > 0);
+    const finalDepositAmount = parsedDeposit > 0 
+      ? parsedDeposit 
+      : (shouldTakeDeposit ? (formData.total_quote || 0) : 0);
+
     setLoading(true);
-    
     try {
       const payload = {
         ...formData,
+        issue: formData.issue.trim() || 'General Inspection / Repair',
         phone: formData.phone.startsWith('+') ? formData.phone : `${formData.country_code}${formData.phone}`,
-        remaining_balance: remainingBalance,
+        deposit_paid: 0,
+        remaining_balance: formData.total_quote || 0,
         status: 'new'
       };
 
@@ -90,12 +103,23 @@ export default function RepairIntakeForm({ onClose, onSuccess, initialCustomerId
         body: JSON.stringify(payload)
       });
       
-      if (!response.ok) throw new Error('Failed to create repair job');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to create repair job');
+      }
       
       const data = await response.json();
-      onSuccess(data.id);
+
+      onSuccess(
+        data.id,
+        shouldTakeDeposit && finalDepositAmount > 0 ? finalDepositAmount : 0,
+        {
+          customer_id: data.customer_id || formData.customer_id,
+          device_model: formData.device_model
+        }
+      );
     } catch (err: any) {
-      alert(err.message);
+      alert('Error creating repair job: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -120,57 +144,47 @@ export default function RepairIntakeForm({ onClose, onSuccess, initialCustomerId
         </div>
 
         {/* Form Content */}
-        <form onSubmit={handleSubmit} autoComplete="off" className="flex-1 overflow-auto p-8 space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); handleCreateJob(); }} autoComplete="off" className="flex-1 overflow-auto p-8 space-y-4">
           
           <div className="text-[11px] font-bold text-[var(--text-muted-more)] uppercase tracking-wider mb-4 border-b border-[var(--border-base)] pb-1">
             Customer Information
           </div>
 
           <div className="flex items-center">
-            <label className="w-1/3 text-sm font-bold text-[var(--text-main)]">Phone No.<span className="text-red-500">*</span></label>
+            <label className="w-1/3 text-sm font-bold text-[var(--text-main)]">
+              Phone No.<span className="text-red-500">*</span>
+            </label>
             <div className="w-2/3 flex gap-2">
-              <select 
-                className="w-24 border border-[var(--border-input)] rounded px-2 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none"
+              <select
                 value={formData.country_code}
                 onChange={e => setFormData({ ...formData, country_code: e.target.value })}
+                className="border border-[var(--border-input)] rounded px-2 py-1.5 text-sm bg-[var(--bg-card)] focus:border-[var(--brand-primary)] focus:outline-none"
               >
                 <option value="+353">IE +353</option>
                 <option value="+44">UK +44</option>
                 <option value="+1">US +1</option>
-                <option value="+91">IN +91</option>
               </select>
               <input
+                type="tel"
                 required
-                type="text"
-                autoComplete="off"
                 className="flex-1 border border-[var(--border-input)] rounded px-3 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-blue-500/10"
-                placeholder="08X XXX XXXX"
+                placeholder="Search phone or enter new..."
                 value={searchPhone}
                 onChange={e => setSearchPhone(e.target.value)}
               />
             </div>
           </div>
 
-          {selectedCustomer && (
-            <div className="flex items-center">
-              <div className="w-1/3"></div>
-              <div className="w-2/3 px-3 py-1 bg-emerald-50 border border-emerald-100 rounded text-[11px] text-emerald-700 font-bold">
-                Existing Customer: {safeCustomerName(selectedCustomer)}
-              </div>
-            </div>
-          )}
-
           <div className="flex items-center">
-            <label className="w-1/3 text-sm font-bold text-[var(--text-main)]">First Name<span className="text-red-500">*</span></label>
+            <label className="w-1/3 text-sm font-bold text-[var(--text-main)]">
+              First Name<span className="text-red-500">*</span>
+            </label>
             <input
-              required
               type="text"
-              autoComplete="off"
-              className="w-2/3 border border-[var(--border-input)] rounded px-3 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-blue-500/10 disabled:bg-[var(--bg-hover)]"
-              placeholder="First Name"
+              required
+              className="w-2/3 border border-[var(--border-input)] rounded px-3 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-blue-500/10"
               value={formData.first_name}
               onChange={e => setFormData({ ...formData, first_name: e.target.value })}
-              disabled={!!selectedCustomer}
             />
           </div>
 
@@ -178,12 +192,9 @@ export default function RepairIntakeForm({ onClose, onSuccess, initialCustomerId
             <label className="w-1/3 text-sm font-bold text-[var(--text-main)]">Last Name</label>
             <input
               type="text"
-              autoComplete="off"
-              className="w-2/3 border border-[var(--border-input)] rounded px-3 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-blue-500/10 disabled:bg-[var(--bg-hover)]"
-              placeholder="Last Name"
+              className="w-2/3 border border-[var(--border-input)] rounded px-3 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-blue-500/10"
               value={formData.last_name}
               onChange={e => setFormData({ ...formData, last_name: e.target.value })}
-              disabled={!!selectedCustomer}
             />
           </div>
 
@@ -192,100 +203,123 @@ export default function RepairIntakeForm({ onClose, onSuccess, initialCustomerId
           </div>
 
           <div className="flex items-center">
-            <label className="w-1/3 text-sm font-bold text-[var(--text-main)]">Device Model<span className="text-red-500">*</span></label>
+            <label className="w-1/3 text-sm font-bold text-[var(--text-main)]">
+              Device Model<span className="text-red-500">*</span>
+            </label>
             <input
-              required
               type="text"
+              required
+              placeholder="e.g. iPhone 13, Samsung S22"
               className="w-2/3 border border-[var(--border-input)] rounded px-3 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-blue-500/10"
-              placeholder="e.g. iPhone 15 Pro"
               value={formData.device_model}
               onChange={e => setFormData({ ...formData, device_model: e.target.value })}
             />
           </div>
 
           <div className="flex items-start">
-            <label className="w-1/3 text-sm font-bold text-[var(--text-main)] pt-1">Problem Description<span className="text-red-500">*</span></label>
+            <label className="w-1/3 text-sm font-bold text-[var(--text-main)] pt-2">
+              Problem Description
+            </label>
             <textarea
-              required
-              rows={3}
-              className="w-2/3 border border-[var(--border-input)] rounded px-3 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-blue-500/10 resize-none"
-              placeholder="Describe the issue..."
+              rows={2}
+              placeholder="Describe the issue (optional, can be updated later)..."
+              className="w-2/3 border border-[var(--border-input)] rounded px-3 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-blue-500/10"
               value={formData.issue}
               onChange={e => setFormData({ ...formData, issue: e.target.value })}
             />
           </div>
 
           <div className="text-[11px] font-bold text-[var(--text-muted-more)] uppercase tracking-wider mt-6 mb-4 border-b border-[var(--border-base)] pb-1">
-            Quote & Payment
+            Quote & Deposit
           </div>
 
           <div className="flex items-center">
             <label className="w-1/3 text-sm font-bold text-[var(--text-main)]">Total Quote</label>
             <div className="w-2/3 relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted-more)] text-sm">€</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-sm">€</span>
               <input
                 type="number"
                 step="0.01"
-                className="w-full border border-[var(--border-input)] rounded pl-7 pr-3 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-blue-500/10"
-                value={formData.total_quote || ''}
+                min="0"
+                className="w-full border border-[var(--border-input)] rounded px-7 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-blue-500/10 font-mono"
+                value={formData.total_quote}
                 onChange={e => setFormData({ ...formData, total_quote: parseFloat(e.target.value) || 0 })}
               />
             </div>
           </div>
 
           <div className="flex items-center">
-            <label className="w-1/3 text-sm font-bold text-[var(--text-main)]">Deposit Paid</label>
+            <label className="w-1/3 text-sm font-bold text-[var(--text-main)]">Deposit (Optional)</label>
             <div className="w-2/3 relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted-more)] text-sm">€</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-sm">€</span>
               <input
                 type="number"
                 step="0.01"
-                className="w-full border border-[var(--border-input)] rounded pl-7 pr-3 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-blue-500/10"
-                value={formData.deposit_paid || ''}
-                onChange={e => setFormData({ ...formData, deposit_paid: parseFloat(e.target.value) || 0 })}
+                min="0"
+                className="w-full border border-[var(--border-input)] rounded px-7 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-blue-500/10 font-mono"
+                placeholder="Amount to take at register now..."
+                value={depositAmount}
+                onChange={e => setDepositAmount(e.target.value)}
               />
             </div>
-          </div>
-
-          <div className="flex items-center">
-            <label className="w-1/3 text-sm font-bold text-[var(--text-main)]">Remaining Balance</label>
-            <div className="w-2/3 bg-red-50 border border-red-100 rounded px-3 py-1.5 text-sm font-bold text-red-600">
-              €{remainingBalance.toFixed(2)}
-            </div>
-          </div>
-
-          <div className="flex items-center">
-            <label className="w-1/3 text-sm font-bold text-[var(--text-main)]">Payment Method</label>
-            <select
-              className="w-2/3 border border-[var(--border-input)] rounded px-3 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-blue-500/10"
-              value={formData.payment_method}
-              onChange={e => setFormData({ ...formData, payment_method: e.target.value })}
-            >
-              <option value="Cash">Cash</option>
-              <option value="Card">Card</option>
-              <option value="Wallet">Wallet</option>
-              <option value="Other">Other</option>
-            </select>
           </div>
         </form>
 
         {/* Footer */}
-        <div className="mt-auto px-4 py-3 border-t border-[var(--border-base)] flex justify-end gap-2 bg-[var(--bg-zebra)] shrink-0">
+        <div className="mt-auto px-4 py-3 border-t border-[var(--border-base)] flex items-center justify-between bg-[var(--bg-zebra)] shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 bg-[var(--bg-card)] border border-[var(--border-header)] rounded text-[var(--text-main)] hover:bg-[var(--bg-hover)] text-sm font-medium transition-colors"
+            className="px-4 py-1.5 bg-[var(--bg-card)] border border-[var(--border-header)] rounded text-[var(--text-main)] hover:bg-[var(--bg-hover)] text-sm font-medium transition-colors cursor-pointer"
           >
             Cancel
           </button>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={handleSubmit}
-            className="px-6 py-1.5 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white rounded text-sm font-bold transition-colors disabled:opacity-50"
-          >
-            {loading ? 'Saving...' : 'Create Repair Job'}
-          </button>
+          <div className="flex items-center gap-2">
+            {parseFloat(depositAmount) > 0 ? (
+              <>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleCreateJob(false)}
+                  className="px-3 py-1.5 bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 rounded text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                  title="Create job without taking deposit now"
+                >
+                  Skip Deposit
+                </button>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleCreateJob(true)}
+                  className="px-5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  <CreditCard size={15} />
+                  <span>Create & Pay €{parseFloat(depositAmount).toFixed(2)} Deposit →</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleCreateJob(false)}
+                  className="px-5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-bold transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+                >
+                  Create Repair Job
+                </button>
+                {formData.total_quote > 0 && (
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => handleCreateJob(true)}
+                    className="px-4 py-1.5 bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-900 dark:text-neutral-100 rounded text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <CreditCard size={15} />
+                    <span>Pay Full €{(formData.total_quote || 0).toFixed(2)} at Register</span>
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

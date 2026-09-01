@@ -429,6 +429,74 @@ router.get('/special/get-deposit-product', async (req: any, res, next) => {
   }
 });
 
+// GET /api/products/special/get-repair-product
+router.get('/special/get-repair-product', async (req: any, res, next) => {
+  const businessId = req.user?.business_id;
+  if (!businessId) return res.status(401).json({ error: 'Business context missing' });
+
+  const repairSkuCode = `REPAIR-SERVICE-${businessId}`;
+  
+  const findProduct = async () => {
+    return await queryOne(`
+      SELECT s.id as sku_id, p.id as product_id, p.name as product_name, s.sku_code, s.selling_price
+      FROM product_skus s
+      JOIN products p ON s.product_id = p.id
+      WHERE s.sku_code = ? AND p.business_id = ?
+    `, [repairSkuCode, businessId]);
+  };
+
+  try {
+    let skuInfo = await findProduct();
+    if (skuInfo) return res.json(skuInfo);
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      
+      const [check] = await conn.execute('SELECT id FROM product_skus WHERE sku_code = ?', [repairSkuCode]);
+      if ((check as any[]).length > 0) {
+        await conn.rollback();
+        skuInfo = await findProduct();
+        return res.json(skuInfo);
+      }
+
+      const [pr] = await conn.execute(
+        'INSERT INTO products (business_id,name,product_type,allow_overselling) VALUES (?,?,?,?)',
+        [businessId, 'Repair Service', 'service', 1]
+      );
+      const productId = (pr as any).insertId;
+      
+      const [sr] = await conn.execute(
+        'INSERT INTO product_skus (product_id,sku_code,barcode,cost_price,selling_price) VALUES (?,?,?,?,?)',
+        [productId, repairSkuCode, repairSkuCode, 0, 0]
+      );
+      const skuId = (sr as any).insertId;
+      
+      await conn.commit();
+      
+      return res.json({
+        sku_id: skuId,
+        product_id: productId,
+        product_name: 'Repair Service',
+        sku_code: repairSkuCode,
+        selling_price: 0
+      });
+    } catch (innerErr: any) {
+      await conn.rollback().catch(() => {});
+      if (innerErr.code === 'ER_DUP_ENTRY') {
+        skuInfo = await findProduct();
+        if (skuInfo) return res.json(skuInfo);
+      }
+      throw innerErr;
+    } finally {
+      conn.release();
+    }
+  } catch (e: any) {
+    console.error('[RepairProduct] Error:', e.message);
+    res.status(500).json({ error: e.message || 'Failed to initialize repair product' });
+  }
+});
+
 // GET /api/products/:id
 router.get('/:id', async (req: any, res, next) => {
   try {

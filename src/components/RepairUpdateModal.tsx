@@ -17,15 +17,13 @@ const STATUS_OPTIONS = [
 ];
 
 export default function RepairUpdateModal({ repair, onClose, onSaved }: RepairUpdateModalProps) {
-  const [activeTab, setActiveTab] = useState<'status' | 'payment' | 'notes'>('status');
+  const [activeTab, setActiveTab] = useState<'status' | 'notes'>('status');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [status, setStatus] = useState(repair.status || 'new');
   const [notes, setNotes] = useState('');
-  const [collectedAmount, setCollectedAmount] = useState('');
-  const [collectedMethod, setCollectedMethod] = useState('Cash');
 
   const remaining = Number(repair.remaining_balance || 0);
 
@@ -34,30 +32,29 @@ export default function RepairUpdateModal({ repair, onClose, onSaved }: RepairUp
     setError(null);
     setSuccess(null);
 
-    const collected = parseFloat(collectedAmount) || 0;
-    if (collected > remaining) {
-      setError(`Cannot collect more than the remaining balance (€${remaining.toFixed(2)})`);
-      setLoading(false);
-      return;
-    }
-
     try {
       const res = await fetch(`/api/repairs/${repair.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status,
-          notes,
-          collected_amount: collected,
-          collected_method: collectedMethod,
+          notes: notes.trim() || undefined
         }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update job');
 
-      let msg = 'Job updated successfully.';
-      if (data.invoice_number) msg += ` Invoice ${data.invoice_number} created.`;
+      setSuccess('Job updated successfully.');
+      setTimeout(() => {
+        onSaved();
+      }, 1200);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
       setSuccess(msg);
 
       setTimeout(() => {
@@ -114,7 +111,7 @@ export default function RepairUpdateModal({ repair, onClose, onSaved }: RepairUp
 
         {/* Tabs */}
         <div className="flex border-b border-[var(--border-base)] bg-[var(--bg-card)] shrink-0">
-          {(['status', 'payment', 'notes'] as const).map(tab => (
+          {(['status', 'notes'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -124,7 +121,7 @@ export default function RepairUpdateModal({ repair, onClose, onSaved }: RepairUp
                   : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-main)]'
               }`}
             >
-              {tab === 'status' ? '📋 Status' : tab === 'payment' ? '💳 Payment' : '📝 Notes'}
+              {tab === 'status' ? '📋 Status' : '📝 Notes'}
             </button>
           ))}
         </div>
@@ -159,64 +156,6 @@ export default function RepairUpdateModal({ repair, onClose, onSaved }: RepairUp
                   )}
                 </label>
               ))}
-            </div>
-          )}
-
-          {/* PAYMENT TAB */}
-          {activeTab === 'payment' && (
-            <div className="space-y-4">
-              <div className="bg-[var(--brand-danger)]/10 border border-[var(--brand-danger)]/20 rounded p-4 text-center">
-                <div className="text-xs text-[var(--brand-danger)] uppercase font-bold tracking-wider">Remaining Balance</div>
-                <div className="text-3xl font-black text-[var(--brand-danger)] mt-1">€{remaining.toFixed(2)}</div>
-              </div>
-
-              {remaining <= 0 ? (
-                <div className="flex items-center gap-2 text-[var(--brand-success)] bg-[var(--brand-success)]/10 border border-[var(--brand-success)]/20 rounded p-4">
-                  <CheckCircle size={18} />
-                  <span className="text-sm font-bold">This job is fully paid.</span>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center">
-                    <label className="w-1/3 text-sm font-bold text-[var(--text-main)]">Amount to Collect</label>
-                    <div className="w-2/3 relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted-more)] text-sm">€</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        max={remaining}
-                        className="w-full border border-[var(--border-input)] rounded pl-7 pr-3 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--brand-primary)]/10"
-                        placeholder={`Max €${remaining.toFixed(2)}`}
-                        value={collectedAmount}
-                        onChange={e => setCollectedAmount(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <label className="w-1/3 text-sm font-bold text-[var(--text-main)]">Payment Method</label>
-                    <select
-                      className="w-2/3 border border-[var(--border-input)] rounded px-3 py-1.5 text-sm focus:border-[var(--brand-primary)] focus:outline-none"
-                      value={collectedMethod}
-                      onChange={e => setCollectedMethod(e.target.value)}
-                    >
-                      <option value="Cash">Cash</option>
-                      <option value="Card">Card</option>
-                      <option value="Wallet">Wallet</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  <button
-                    onClick={() => setCollectedAmount(String(remaining))}
-                    className="w-full text-center text-xs text-[var(--brand-primary)] hover:underline"
-                  >
-                    Collect full balance (€{remaining.toFixed(2)})
-                  </button>
-                  <div className="bg-[var(--brand-primary)]/10 border border-[var(--brand-primary)]/20 rounded px-4 py-3 text-[11px] text-[var(--brand-primary)] flex items-start gap-2">
-                    <FileText size={14} className="shrink-0 mt-0.5" />
-                    <span>A repair invoice <strong>RE-{String(repair.id).padStart(5, '0')}</strong> will be automatically created and saved when payment is collected.</span>
-                  </div>
-                </>
-              )}
             </div>
           )}
 

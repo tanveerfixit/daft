@@ -1350,13 +1350,46 @@ router.get('/repairs', async (req: any, res, next) => {
   try {
     const isSuper = req.user.role === 'superadmin';
     const sql = `
-      SELECT j.*, c.name as customer_name FROM jobs j
+      SELECT j.*, c.name as customer_name, c.phone as customer_phone FROM jobs j
       LEFT JOIN customers c ON j.customer_id=c.id
       WHERE j.business_id=? ${!isSuper ? 'AND j.branch_id=?' : ''}
       ORDER BY j.created_at DESC
     `;
     const params = !isSuper ? [req.user.business_id, req.user.branch_id] : [req.user.business_id];
     res.json(await query(sql, params));
+  } catch (e: any) { next(e); }
+});
+
+// GET /api/repairs/:id — single repair with full details
+router.get('/repairs/:id', async (req: any, res, next) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT j.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
+       FROM jobs j LEFT JOIN customers c ON j.customer_id=c.id
+       WHERE j.id=? AND j.business_id=?`,
+      [req.params.id, req.user.business_id]
+    );
+    const job = (rows as any[])[0];
+    if (!job) return res.status(404).json({ error: 'Repair job not found' });
+
+    // Fetch linked repair invoices for this specific job
+    const searchNote1 = `%#${job.id}%`;
+    const searchNote2 = `%Job ${job.id}%`;
+    const invoices = await query(
+      `SELECT DISTINCT i.id, i.invoice_number, i.grand_total, i.paid_amount, i.status, i.created_at,
+              (SELECT GROUP_CONCAT(CONCAT(p.method, ': €', FORMAT(p.amount,2)) SEPARATOR ', ') FROM payments p WHERE p.invoice_id=i.id) as payment_summary
+       FROM invoices i
+       JOIN invoice_items ii ON ii.invoice_id=i.id
+       WHERE i.business_id=? 
+         AND (ii.notes LIKE ? OR ii.notes LIKE ? ${job.customer_id ? "OR (i.type='repair' AND i.customer_id=?)" : ''})
+         AND i.grand_total > 0
+       ORDER BY i.created_at DESC`,
+      job.customer_id 
+        ? [req.user.business_id, searchNote1, searchNote2, job.customer_id]
+        : [req.user.business_id, searchNote1, searchNote2]
+    );
+
+    res.json({ ...job, invoices });
   } catch (e: any) { next(e); }
 });
 
@@ -1410,11 +1443,7 @@ router.post('/repairs', async (req: any, res, next) => {
         finalCustomerId = (existing as any[])[0].id;
       } else {
         // Create new customer
-        const combinedName = `${first_name || ''} ${last_name || ''}`.trim();
-        
-        if (!combinedName) {
-          throw new Error('Customer first name is required for new repair jobs.');
-        }
+        const combinedName = `${first_name || ''} ${last_name || ''}`.trim() || `Customer (${phone})`;
 
         const [newCust] = await conn.execute(
           'INSERT INTO customers (business_id, branch_id, name, first_name, last_name, phone) VALUES (?, ?, ?, ?, ?, ?)',
@@ -1448,44 +1477,6 @@ router.post('/repairs', async (req: any, res, next) => {
     if (finalCustomerId) {
       await conn.execute('INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
         [finalCustomerId, req.userId, 'Repair Job Created', `New repair job for ${device_model}: ${issue}`]);
-      
-      // If there's a deposit, record it as a customer invoice and payment
-      if (Number(deposit_paid) > 0) {
-        const [lastRE] = await conn.execute(
-          "SELECT invoice_number FROM invoices WHERE invoice_number LIKE 'RE-%' AND business_id=? ORDER BY id DESC LIMIT 1",
-          [req.user.business_id]
-        );
-        let nextRENum = 1;
-        if ((lastRE as any[]).length > 0) {
-          const lastNum = parseInt((lastRE as any[])[0].invoice_number.split('-')[1]);
-          if (!isNaN(lastNum)) nextRENum = lastNum + 1;
-        }
-        const invoiceNumber = `RE-${String(nextRENum).padStart(3, '0')}`;
-        
-        const [invResult] = await conn.execute(
-          `INSERT INTO invoices 
-            (business_id, branch_id, user_id, customer_id, invoice_number, type, 
-             subtotal, tax_total, discount_total, grand_total, paid_amount, due_amount, status)
-           VALUES (?, ?, ?, ?, ?, 'repair', ?, 0, 0, ?, ?, 0, 'paid')`,
-          [
-            req.user.business_id, req.user.branch_id, req.userId,
-            finalCustomerId || null, invoiceNumber,
-            deposit_paid, deposit_paid, deposit_paid
-          ]
-        );
-        const invoiceId = (invResult as any).insertId;
-
-        await conn.execute(
-          'INSERT INTO payments (customer_id, invoice_id, type, method, amount) VALUES (?, ?, ?, ?, ?)',
-          [finalCustomerId, invoiceId, 'deposit', payment_method || 'Cash', deposit_paid]
-        );
-        
-        await conn.execute(
-          'INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-          [finalCustomerId, req.userId, 'Repair Deposit Received', 
-           `Deposit of €${Number(deposit_paid).toFixed(2)} received for job #${jobId}. Invoice: ${invoiceNumber}`]
-        );
-      }
     }
     
     await conn.commit();
@@ -1500,15 +1491,14 @@ router.post('/repairs', async (req: any, res, next) => {
 
 const updateRepairSchema = z.object({
   status: z.string().optional(),
-  notes: z.string().optional(),
-  collected_amount: z.number().or(z.string().transform(Number)).optional(),
-  collected_method: z.string().optional()
+  issue: z.string().optional(),
+  notes: z.string().optional()
 });
 
-// PUT /api/repairs/:id — update status, notes, collect remaining payment
+// PUT /api/repairs/:id — update status, issue description, and notes (payments go through Cash Register)
 router.put('/repairs/:id', async (req: any, res, next) => {
   const data = updateRepairSchema.parse(req.body);
-  const { status, notes, collected_amount, collected_method } = data;
+  const { status, issue, notes } = data;
   const jobId = req.params.id;
   const conn = await pool.getConnection();
   try {
@@ -1531,6 +1521,11 @@ router.put('/repairs/:id', async (req: any, res, next) => {
       values.push(status);
     }
 
+    if (issue !== undefined) {
+      updates.push('issue = ?');
+      values.push(issue.trim());
+    }
+
     // Append notes with timestamp
     if (notes && notes.trim()) {
       const timestamp = new Date().toLocaleString('en-IE', { 
@@ -1543,55 +1538,6 @@ router.put('/repairs/:id', async (req: any, res, next) => {
       values.push(existingNotes);
     }
 
-    const collected = parseFloat(String(collected_amount)) || 0;
-    let invoiceNumber: string | null = null;
-
-    if (collected > 0) {
-      const newRemaining = Math.max(0, (job.remaining_balance || 0) - collected);
-      const newDeposit = (job.deposit_paid || 0) + collected;
-
-      updates.push('remaining_balance = ?', 'deposit_paid = ?');
-      values.push(newRemaining, newDeposit);
-
-      // Auto-create invoice
-      const [lastRE] = await conn.execute(
-        "SELECT invoice_number FROM invoices WHERE invoice_number LIKE 'RE-%' AND business_id=? ORDER BY id DESC LIMIT 1",
-        [req.user.business_id]
-      );
-      let nextRENum = 1;
-      if ((lastRE as any[]).length > 0) {
-        const lastNum = parseInt((lastRE as any[])[0].invoice_number.split('-')[1]);
-        if (!isNaN(lastNum)) nextRENum = lastNum + 1;
-      }
-      invoiceNumber = `RE-${String(nextRENum).padStart(3, '0')}`;
-
-      const [invResult] = await conn.execute(
-        `INSERT INTO invoices 
-          (business_id, branch_id, user_id, customer_id, invoice_number, type, 
-           subtotal, tax_total, discount_total, grand_total, paid_amount, due_amount, status)
-         VALUES (?, ?, ?, ?, ?, 'repair', ?, 0, 0, ?, ?, 0, 'paid')`,
-        [
-          req.user.business_id, req.user.branch_id, req.userId,
-          job.customer_id || null, invoiceNumber,
-          collected, collected, collected
-        ]
-      );
-      const invoiceId = (invResult as any).insertId;
-
-      // Record payment against customer
-      if (job.customer_id) {
-        await conn.execute(
-          'INSERT INTO payments (customer_id, invoice_id, type, method, amount) VALUES (?, ?, ?, ?, ?)',
-          [job.customer_id, invoiceId, 'repair_payment', collected_method || 'Cash', collected]
-        );
-        await conn.execute(
-          'INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-          [job.customer_id, req.userId, 'Repair Payment Received', 
-           `€${collected.toFixed(2)} received for job #${jobId} (${job.device_model}). Invoice: ${invoiceNumber}`]
-        );
-      }
-    }
-
     // Apply updates to the job
     if (updates.length) {
       values.push(jobId, req.user.business_id);
@@ -1602,7 +1548,7 @@ router.put('/repairs/:id', async (req: any, res, next) => {
     }
 
     await conn.commit();
-    res.json({ success: true, invoice_number: invoiceNumber });
+    res.json({ success: true });
   } catch (e: any) {
     await conn.rollback();
     console.error('[PUT /api/repairs/:id] Error:', e.message);

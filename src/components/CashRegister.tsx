@@ -32,9 +32,10 @@ interface CashRegisterProps {
   preSelectedCustomerId?: number | null;
   initiateDeposit?: boolean;
   onSelectProduct?: (id: number) => void;
+  repairJob?: { jobId: number; customerId: number; amount: number; deviceModel: string; label: string } | null;
 }
 
-export default function CashRegister({ onViewCustomers, onSelectCustomer, preSelectedCustomerId, initiateDeposit, onSelectProduct }: CashRegisterProps) {
+export default function CashRegister({ onViewCustomers, onSelectCustomer, preSelectedCustomerId, initiateDeposit, onSelectProduct, repairJob }: CashRegisterProps) {
   const { currentUser } = useAuth();
 
   // State
@@ -145,8 +146,8 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
   // Deposit State
   const [showDepositModal, setShowDepositModal] = useState(false);
-
   const [depositProductInfo, setDepositProductInfo] = useState<any>(null);
+  const [repairProductInfo, setRepairProductInfo] = useState<any>(null);
 
   // Tab-isolated persistence effects via sessionStorage
   useEffect(() => {
@@ -195,6 +196,11 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       .then(res => res.json())
       .then(data => setDepositProductInfo(data))
       .catch(err => console.error('Error fetching deposit product:', err));
+
+    fetch('/api/products/special/get-repair-product')
+      .then(res => res.json())
+      .then(data => setRepairProductInfo(data))
+      .catch(err => console.error('Error fetching repair product:', err));
   }, []);
 
   useEffect(() => {
@@ -213,6 +219,71 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       setShowDepositModal(true);
     }
   }, [initiateDeposit, preSelectedCustomerId]);
+
+  // Auto-load repair job payment into cart
+  useEffect(() => {
+    if (repairJob && repairJob.jobId && repairJob.amount > 0) {
+      // Auto-select customer
+      if (repairJob.customerId) {
+        fetch(`/api/customers/${repairJob.customerId}`)
+          .then(res => res.json())
+          .then(customer => {
+            if (customer && customer.id) {
+              setSelectedCustomer(customer);
+              setCustomerSearch('');
+            }
+          })
+          .catch(() => {});
+      }
+
+      const applyRepairItem = (skuInfo?: any) => {
+        const skuId = skuInfo?.sku_id || repairProductInfo?.sku_id || 0;
+        const prodId = skuInfo?.product_id || repairProductInfo?.product_id || 0;
+
+        const repairCartItem: CartItem = {
+          id: skuId,
+          product_id: prodId,
+          category_id: null,
+          manufacturer_id: null,
+          name: repairJob.label || `Repair Job #${repairJob.jobId} — ${repairJob.deviceModel}`,
+          product_name: repairJob.label || `Repair Job #${repairJob.jobId} — ${repairJob.deviceModel}`,
+          sku_code: skuInfo?.sku_code || `REPAIR-${repairJob.jobId}`,
+          barcode: null,
+          cost_price: 0,
+          selling_price: repairJob.amount,
+          customPrice: repairJob.amount,
+          category_name: 'Repair',
+          product_type: 'service',
+          allow_overselling: true,
+          total_stock: 999,
+          quantity: 1,
+          is_repair_payment: true,
+          repair_job_id: repairJob.jobId,
+          notes: `Repair Job #${repairJob.jobId} — ${repairJob.deviceModel}`
+        };
+
+        setCart(prev => {
+          // Remove any previous cart item for this repair job to avoid stale amounts
+          const filtered = prev.filter(c => !(c.is_repair_payment && c.repair_job_id === repairJob.jobId));
+          return [repairCartItem, ...filtered];
+        });
+
+        addActivity('Item Added', `Repair Payment for Job #${repairJob.jobId} — €${repairJob.amount.toFixed(2)}`, 'sale');
+      };
+
+      if (!repairProductInfo) {
+        fetch('/api/products/special/get-repair-product')
+          .then(res => res.json())
+          .then(skuInfo => {
+            setRepairProductInfo(skuInfo);
+            applyRepairItem(skuInfo);
+          })
+          .catch(() => applyRepairItem());
+      } else {
+        applyRepairItem(repairProductInfo);
+      }
+    }
+  }, [repairJob?.jobId, repairJob?.amount]);
 
   useEffect(() => {
     // Fetch payment methods
@@ -808,6 +879,8 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
           discount_type: item.discountType || 'percentage',
           total: Math.max(0, isNaN(itemTotal) ? 0 : itemTotal),
           is_deposit: item.is_deposit || false,
+          is_repair_payment: item.is_repair_payment || false,
+          repair_job_id: item.repair_job_id || null,
           notes: item.notes || ''
         };
       }),
