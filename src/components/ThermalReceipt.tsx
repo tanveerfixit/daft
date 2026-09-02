@@ -60,7 +60,7 @@ export default function ThermalReceipt({ invoice, settings, company }: Props) {
         lineHeight: '1.35',
         padding: '2mm 2mm',
         boxSizing: 'border-box',
-        fontSize: settings.font_size || '13px',
+        fontSize: settings.font_size || '14px',
         fontFamily: settings.font_family ? `${settings.font_family}, 'Segoe UI', Arial, sans-serif` : "'Segoe UI', Arial, Helvetica, sans-serif",
         color: '#000000',
       }}
@@ -78,7 +78,7 @@ export default function ThermalReceipt({ invoice, settings, company }: Props) {
             padding: 2mm 2mm;
             background: white !important;
             color: black !important;
-            font-size: ${settings.font_size || '13px'};
+            font-size: ${settings.font_size || '14px'};
             font-family: ${settings.font_family ? `${settings.font_family}, 'Segoe UI', Arial, sans-serif` : "'Segoe UI', Arial, Helvetica, sans-serif"};
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;

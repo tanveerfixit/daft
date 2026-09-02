@@ -138,7 +138,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const [imeiSelectorProduct, setImeiSelectorProduct] = useState<any>(null);
   const [availableImeis, setAvailableImeis] = useState<any[]>([]);
   const [isLoadingImeis, setIsLoadingImeis] = useState(false);
-  const { settings, company } = useThermalSettings();
+  const { settings, company, refetch: refetchThermalSettings } = useThermalSettings();
 
   // Update Cart Modal State
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -905,6 +905,11 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
         if (printPreference) {
           setPrintType(printPreference);
+          try {
+            await refetchThermalSettings();
+          } catch (e) {
+            // non-blocking fallback
+          }
           setTimeout(() => {
             window.print();
             resetRegister();

@@ -496,7 +496,7 @@ async function initSchema() {
         business_id INT NOT NULL,
         branch_id INT NULL,
         font_family VARCHAR(100) DEFAULT 'monospace',
-        font_size VARCHAR(50) DEFAULT '12px',
+        font_size VARCHAR(50) DEFAULT '14px',
         show_logo TINYINT(1) DEFAULT 1,
         show_business_name TINYINT(1) DEFAULT 1,
         show_business_address TINYINT(1) DEFAULT 1,
@@ -5039,11 +5039,19 @@ var init_settings = __esm({
     });
     router7.get("/thermal-printer-settings", async (req, res, next) => {
       try {
-        const branchId = req.user?.branch_id;
-        let s = await queryOne("SELECT * FROM thermal_printer_settings WHERE business_id=? AND branch_id=?", [req.user.business_id, branchId]);
-        if (!s) {
-          await execute("INSERT INTO thermal_printer_settings (business_id,branch_id) VALUES (?,?)", [req.user.business_id, branchId]);
+        const branchId = req.user?.branch_id ?? null;
+        let s;
+        if (branchId) {
           s = await queryOne("SELECT * FROM thermal_printer_settings WHERE business_id=? AND branch_id=?", [req.user.business_id, branchId]);
+          if (!s) {
+            s = await queryOne("SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0)", [req.user.business_id]);
+          }
+        } else {
+          s = await queryOne("SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0)", [req.user.business_id]);
+        }
+        if (!s) {
+          await execute("INSERT INTO thermal_printer_settings (business_id,branch_id,font_family,font_size) VALUES (?,?,?,?)", [req.user.business_id, branchId, "Arial", "14px"]);
+          s = await queryOne("SELECT * FROM thermal_printer_settings WHERE business_id=? ORDER BY id DESC LIMIT 1", [req.user.business_id]);
         }
         res.json(s);
       } catch (e) {
@@ -5075,7 +5083,7 @@ var init_settings = __esm({
       footer_text: z6.string().optional()
     });
     router7.post("/thermal-printer-settings", async (req, res, next) => {
-      const branchId = req.user?.branch_id;
+      const branchId = req.user?.branch_id ?? null;
       const m = thermalPrinterSettingsSchema.parse(req.body);
       try {
         await execute(
@@ -5105,7 +5113,7 @@ var init_settings = __esm({
             req.user.business_id,
             branchId,
             m.font_family || "Arial",
-            m.font_size || "12px",
+            m.font_size || "14px",
             m.show_logo ? 1 : 0,
             m.show_business_name ? 1 : 0,
             m.show_business_address ? 1 : 0,

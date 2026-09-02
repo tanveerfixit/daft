@@ -536,7 +536,7 @@ export async function initSchema() {
         business_id INT NOT NULL,
         branch_id INT NULL,
         font_family VARCHAR(100) DEFAULT 'monospace',
-        font_size VARCHAR(50) DEFAULT '12px',
+        font_size VARCHAR(50) DEFAULT '14px',
         show_logo TINYINT(1) DEFAULT 1,
         show_business_name TINYINT(1) DEFAULT 1,
         show_business_address TINYINT(1) DEFAULT 1,

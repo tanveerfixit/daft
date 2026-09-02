@@ -332,7 +332,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     business_id INTEGER NOT NULL UNIQUE,
     font_family TEXT DEFAULT 'monospace',
-    font_size TEXT DEFAULT '12px',
+    font_size TEXT DEFAULT '14px',
     show_logo INTEGER DEFAULT 1,
     show_business_name INTEGER DEFAULT 1,
     show_business_address INTEGER DEFAULT 1,

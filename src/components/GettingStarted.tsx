@@ -108,7 +108,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
   });
   const [thermalSettings, setThermalSettings] = useState<ThermalPrinterSettingsData>({
     font_family: 'Arial',
-    font_size: '12px',
+    font_size: '14px',
     show_logo: true,
     show_business_name: true,
     show_business_address: true,
@@ -1092,6 +1092,10 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
         body: JSON.stringify(thermalSettings)
       });
       if (response.ok) {
+        // Broadcast real-time update to all active components (including CashRegister) and other tabs
+        window.dispatchEvent(new CustomEvent('thermal-settings-updated', { detail: thermalSettings }));
+        localStorage.setItem('epos_thermal_settings_updated', Date.now().toString());
+
         setMessage({ type: 'success', text: 'Thermal printer settings saved successfully!' });
         alert('Settings saved successfully!');
       } else {
@@ -1110,9 +1114,9 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
 
   const handleResetThermalSettings = () => {
     if (window.confirm('Are you sure you want to reset settings to default?')) {
-      setThermalSettings({
+      const defaultSettings = {
         font_family: 'Arial',
-        font_size: '12px',
+        font_size: '14px',
         show_logo: true,
         show_business_name: true,
         show_business_address: true,
@@ -1133,7 +1137,8 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
         eod_footer_type: 'branch',
         eod_footer_custom_text: '',
         footer_text: 'Thank you for your business!'
-      });
+      };
+      setThermalSettings(defaultSettings);
     }
   };
 
@@ -1160,7 +1165,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
         <head>
           <title>Thermal Receipt - ${invoiceToPrint.invoice_number}</title>
           <style>
-            body { margin: 0; padding: 0; background: #eee; font-family: ${thermalSettings.font_family ? `${thermalSettings.font_family}, 'Segoe UI', Arial, sans-serif` : "'Segoe UI', Arial, sans-serif"}; font-size: ${thermalSettings.font_size || '12px'}; }
+            body { margin: 0; padding: 0; background: #eee; font-family: ${thermalSettings.font_family ? `${thermalSettings.font_family}, 'Segoe UI', Arial, sans-serif` : "'Segoe UI', Arial, sans-serif"}; font-size: ${thermalSettings.font_size || '14px'}; }
             .receipt { 
               background: white; 
               width: 72mm; 
@@ -2382,7 +2387,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                           <div className="flex justify-between items-center">
                             <label className="text-xs font-bold text-slate-500 uppercase">Font Size</label>
                             <span className="text-xs font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
-                              {thermalSettings.font_size || '12px'}
+                              {thermalSettings.font_size || '14px'}
                             </span>
                           </div>
                           <select 
@@ -2392,10 +2397,10 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                           >
                             <option value="9px">9px (Extra Small)</option>
                             <option value="10px">10px (Very Small)</option>
-                            <option value="11px">11px (Small)</option>
-                            <option value="12px">12px (Standard / Default)</option>
+                            <option value="11px">11px (Small - 11px)</option>
+                            <option value="12px">12px (Small - 12px)</option>
                             <option value="13px">13px (Medium - 13px)</option>
-                            <option value="14px">14px (Medium - 14px)</option>
+                            <option value="14px">14px (Standard / Default - 14px)</option>
                             <option value="15px">15px (Large - 15px)</option>
                             <option value="16px">16px (Large - 16px)</option>
                             <option value="18px">18px (Extra Large - 18px)</option>
@@ -2410,7 +2415,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                         <button
                           type="button"
                           onClick={() => {
-                            const cur = parseInt(thermalSettings.font_size) || 12;
+                            const cur = parseInt(thermalSettings.font_size) || 14;
                             const next = Math.max(8, cur - 2);
                             setThermalSettings({ ...thermalSettings, font_size: `${next}px` });
                           }}
@@ -2422,7 +2427,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                         <button
                           type="button"
                           onClick={() => {
-                            const cur = parseInt(thermalSettings.font_size) || 12;
+                            const cur = parseInt(thermalSettings.font_size) || 14;
                             const next = Math.min(24, cur + 2);
                             setThermalSettings({ ...thermalSettings, font_size: `${next}px` });
                           }}
@@ -2434,7 +2439,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                         <button
                           type="button"
                           onClick={() => {
-                            const cur = parseInt(thermalSettings.font_size) || 12;
+                            const cur = parseInt(thermalSettings.font_size) || 14;
                             const next = Math.min(24, cur + 4);
                             setThermalSettings({ ...thermalSettings, font_size: `${next}px` });
                           }}
@@ -2445,11 +2450,11 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setThermalSettings({ ...thermalSettings, font_size: '12px' })}
+                          onClick={() => setThermalSettings({ ...thermalSettings, font_size: '14px' })}
                           className="px-2 py-1 text-slate-400 hover:text-slate-600 text-xs transition-colors ml-auto"
-                          title="Reset font to 12px"
+                          title="Reset font to 14px"
                         >
-                          Reset (12px)
+                          Reset (14px)
                         </button>
                       </div>
                     </div>

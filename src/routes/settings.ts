@@ -209,11 +209,20 @@ router.post('/printer-settings', async (req: any, res, next) => {
 
 router.get('/thermal-printer-settings', async (req: any, res, next) => {
   try {
-    const branchId = req.user?.branch_id;
-    let s = await queryOne('SELECT * FROM thermal_printer_settings WHERE business_id=? AND branch_id=?', [req.user.business_id, branchId]);
-    if (!s) {
-      await execute('INSERT INTO thermal_printer_settings (business_id,branch_id) VALUES (?,?)', [req.user.business_id, branchId]);
+    const branchId = req.user?.branch_id ?? null;
+    let s;
+    if (branchId) {
       s = await queryOne('SELECT * FROM thermal_printer_settings WHERE business_id=? AND branch_id=?', [req.user.business_id, branchId]);
+      if (!s) {
+        s = await queryOne('SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0)', [req.user.business_id]);
+      }
+    } else {
+      s = await queryOne('SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0)', [req.user.business_id]);
+    }
+
+    if (!s) {
+      await execute('INSERT INTO thermal_printer_settings (business_id,branch_id,font_family,font_size) VALUES (?,?,?,?)', [req.user.business_id, branchId, 'Arial', '14px']);
+      s = await queryOne('SELECT * FROM thermal_printer_settings WHERE business_id=? ORDER BY id DESC LIMIT 1', [req.user.business_id]);
     }
     res.json(s);
   } catch (e: any) { next(e); }
@@ -245,7 +254,7 @@ const thermalPrinterSettingsSchema = z.object({
 });
 
 router.post('/thermal-printer-settings', async (req: any, res, next) => {
-  const branchId = req.user?.branch_id;
+  const branchId = req.user?.branch_id ?? null;
   const m = thermalPrinterSettingsSchema.parse(req.body);
   try {
     // Atomic upsert — no data loss if server crashes mid-write (FINDING-019)
@@ -271,7 +280,7 @@ router.post('/thermal-printer-settings', async (req: any, res, next) => {
         eod_show_total=VALUES(eod_show_total),
         eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
         footer_text=VALUES(footer_text)`,
-      [req.user.business_id, branchId, m.font_family||'Arial', m.font_size||'12px', m.show_logo?1:0,
+      [req.user.business_id, branchId, m.font_family||'Arial', m.font_size||'14px', m.show_logo?1:0,
        m.show_business_name?1:0, m.show_business_address?1:0, m.show_business_phone?1:0,
        m.show_business_email?1:0, m.show_customer_info?1:0, m.show_invoice_number?1:0,
        m.show_date?1:0, m.show_items_table?1:0, m.show_totals?1:0, m.show_footer?1:0,
