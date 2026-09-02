@@ -939,6 +939,29 @@ export async function initSchema() {
     try { await conn.query('ALTER TABLE activity_logs ADD COLUMN reference_type VARCHAR(50) NULL AFTER description'); } catch (e: any) {}
     try { await conn.query('ALTER TABLE activity_logs ADD COLUMN reference_id INT NULL AFTER reference_type'); } catch (e: any) {}
     try { await conn.query('ALTER TABLE activity_logs ADD COLUMN ip_address VARCHAR(50) NULL AFTER reference_link'); } catch (e: any) {}
+
+    // Backfill historical activity_logs business_id from user, device, or product
+    try {
+      await conn.query(`
+        UPDATE activity_logs al
+        JOIN users u ON al.user_id = u.id
+        SET al.business_id = u.business_id
+        WHERE al.business_id IS NULL AND u.business_id IS NOT NULL
+      `);
+      await conn.query(`
+        UPDATE activity_logs al
+        JOIN devices d ON al.device_id = d.id
+        SET al.business_id = d.business_id
+        WHERE al.business_id IS NULL AND d.business_id IS NOT NULL
+      `);
+      await conn.query(`
+        UPDATE activity_logs al
+        JOIN products p ON al.product_id = p.id
+        SET al.business_id = p.business_id
+        WHERE al.business_id IS NULL AND p.business_id IS NOT NULL
+      `);
+    } catch (e: any) {}
+
     // 8. Ensure invoices table has tax_rate and tax_type columns
     try { await conn.query('ALTER TABLE invoices ADD COLUMN tax_rate DECIMAL(5,2) DEFAULT 0 AFTER tax_total'); } catch (e: any) {}
     try { await conn.query("ALTER TABLE invoices ADD COLUMN tax_type VARCHAR(20) DEFAULT 'excluded' AFTER tax_rate"); } catch (e: any) {}

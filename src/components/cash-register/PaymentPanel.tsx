@@ -42,7 +42,7 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
   };
 
   return (
-    <div className="pay-widget bg-white border border-[#d8d8d8] rounded p-4 flex flex-col gap-3 text-lg" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+    <div className="pay-widget bg-white border border-[#d8d8d8] rounded p-4 flex flex-col gap-3 text-lg" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
       <div className="flex items-center justify-between text-[#333333]">
         <span>Remaining:</span>
         <span className="pay-widget-remaining font-semibold text-xl">

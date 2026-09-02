@@ -21,7 +21,7 @@ export const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
   return (
     <div 
       className="flex items-stretch gap-3 bg-white border border-[#d8d8d8] focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 rounded p-3 transition-all" 
-      style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}
+      style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
     >
       <div className="flex items-center flex-1 w-full border-0 outline-none bg-transparent">
         <Search className="w-5 h-5 text-[#757575] shrink-0 mr-2.5" />

@@ -25,7 +25,7 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
   onOpenDepositModal
 }) => {
   return (
-    <div className="flex flex-col gap-1 relative" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+    <div className="flex flex-col gap-1 relative" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
       {selectedCustomer ? (
         <div className="flex items-center justify-between gap-3 bg-white border border-[#d8d8d8] rounded p-3">
           <div className="min-w-0 flex-1">

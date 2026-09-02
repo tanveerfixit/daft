@@ -275,6 +275,45 @@ const GettingStartedRoute = () => {
   return <GettingStarted initialTab={tab} />;
 };
 
+const CalendarDayIcon: React.FC<{ size?: number; strokeWidth?: number; className?: string }> = ({ 
+  size = 36, 
+  strokeWidth = 1.6, 
+  className = '' 
+}) => {
+  const today = new Date().getDate();
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <rect x="3" y="4" width="18" height="18" rx="2.5" ry="2.5" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <text
+        x="12"
+        y="16.5"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill="currentColor"
+        stroke="none"
+        fontSize="8.5"
+        fontWeight="bold"
+        fontFamily="Arial, Helvetica, sans-serif"
+      >
+        {today}
+      </text>
+    </svg>
+  );
+};
+
 // ─── Main Application Components ──────────────────────────────────────────────
 
 function AppInner() {
@@ -462,6 +501,7 @@ function AppInner() {
     { id: 'purchase-orders', label: 'Purchase Orders', icon: ShoppingBag },
     { id: 'devices', label: 'Devices Inventory', icon: Smartphone },
     { id: 'transfers', label: 'Transfers', icon: ArrowLeftRight },
+    { id: 'end-of-day', label: '', icon: CalendarDayIcon },
   ];
 
   return (
@@ -591,24 +631,27 @@ function AppInner() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-28 bg-[var(--bg-sidebar)] text-white flex flex-col z-20 shadow-lg shrink-0">
+        <aside className="w-28 bg-[var(--bg-sidebar)] text-white flex flex-col z-20 shadow-lg shrink-0 overflow-y-auto custom-scrollbar">
           <nav className="flex-1 py-1 flex flex-col items-center">
             {menuItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => handleSidebarNavigate(item.id)}
-                className={`group w-full flex flex-col items-center justify-center py-3.5 px-1.5 transition-all duration-150 border-l-[3px] cursor-pointer ${
+                title={item.label || (item.id === 'end-of-day' ? 'End of Day' : undefined)}
+                className={`group w-full flex flex-col items-center justify-center ${item.label ? 'py-3.5' : 'py-4'} px-1.5 transition-all duration-150 border-l-[3px] cursor-pointer ${
                   currentView === item.id 
                     ? 'bg-white/15 border-[var(--brand-primary)] text-white' 
                     : 'border-transparent text-slate-200 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <item.icon size={26} strokeWidth={1.5} className="transition-transform duration-150 group-hover:scale-105" />
-                <span className={`text-[15px] mt-2 text-center select-none font-normal leading-tight transition-colors ${
-                  currentView === item.id ? 'text-white font-normal' : 'text-slate-300 group-hover:text-white font-normal'
-                }`}>
-                  {item.label}
-                </span>
+                <item.icon size={item.label ? 26 : 36} strokeWidth={1.5} className="transition-transform duration-150 group-hover:scale-105" />
+                {item.label && (
+                  <span className={`text-[15px] mt-2 text-center select-none font-normal leading-tight transition-colors ${
+                    currentView === item.id ? 'text-white font-normal' : 'text-slate-300 group-hover:text-white font-normal'
+                  }`}>
+                    {item.label}
+                  </span>
+                )}
               </button>
             ))}
           </nav>

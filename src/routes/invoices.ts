@@ -690,7 +690,7 @@ router.post('/', async (req: any, res, next) => {
     if (dueAmount > 0.01) {
       status = totalPaid > 0 ? 'partial' : 'credit';
       if (!isRepair) {
-        const [cRows] = await conn.execute('SELECT id, name FROM customers WHERE id = ?', [finalCustomerId]);
+        const [cRows] = await conn.execute('SELECT id, name FROM customers WHERE id = ? AND business_id = ?', [finalCustomerId, req.user.business_id]);
         const cust = (cRows as any[])[0];
         if (!cust || cust.name === 'Walk-in Customer') {
           await conn.rollback();
@@ -718,7 +718,10 @@ router.post('/', async (req: any, res, next) => {
       let skuId = item.id || item.sku_id;
       if ((!skuId || skuId === 0) && item.is_repair_payment) {
         const repairSkuCode = `REPAIR-SERVICE-${req.user.business_id}`;
-        const [existing] = await conn.execute('SELECT id FROM product_skus WHERE sku_code = ?', [repairSkuCode]);
+        const [existing] = await conn.execute(
+          'SELECT s.id FROM product_skus s JOIN products p ON s.product_id=p.id WHERE s.sku_code = ? AND p.business_id = ?',
+          [repairSkuCode, req.user.business_id]
+        );
         if ((existing as any[]).length > 0) {
           skuId = (existing as any[])[0].id;
         } else {
@@ -755,8 +758,8 @@ router.post('/', async (req: any, res, next) => {
           [item.device_id, req.userId, 'Device Sold', `Sold on Invoice: ${invoiceNumber}`]
         );
         await conn.execute(
-          'INSERT INTO activity_logs (device_id, user_id, activity_type, description, reference_link) VALUES (?, ?, ?, ?, ?)',
-          [item.device_id, req.userId, 'Device Sold', 'Product delivered to customer', invoiceNumber]
+          'INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [req.user.business_id, req.user.branch_id, item.device_id, req.userId, req.user?.name || null, 'Device Sold', 'Product delivered to customer', invoiceNumber]
         );
         await conn.execute(`
           INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,-1)
@@ -823,10 +826,10 @@ router.post('/', async (req: any, res, next) => {
         );
 
         // Check if fully paid → auto-set status to 'completed'
-        const [jobRows] = await conn.execute('SELECT remaining_balance, status FROM jobs WHERE id=?', [jobId]);
+        const [jobRows] = await conn.execute('SELECT remaining_balance, status FROM jobs WHERE id=? AND business_id=?', [jobId, req.user.business_id]);
         const updatedJob = (jobRows as any[])[0];
         if (updatedJob && Number(updatedJob.remaining_balance) <= 0 && updatedJob.status !== 'collected') {
-          await conn.execute('UPDATE jobs SET status=? WHERE id=?', ['completed', jobId]);
+          await conn.execute('UPDATE jobs SET status=? WHERE id=? AND business_id=?', ['completed', jobId, req.user.business_id]);
         }
 
         if (finalCustomerId) {

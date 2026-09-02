@@ -180,8 +180,8 @@ router.get('/eod-data', async (req: any, res, next) => {
       SELECT p.*, 'System' as user_name, c.name as customer_name,
         COALESCE(p.type, 'Customer Deposit') as products_summary
       FROM payments p
-      LEFT JOIN customers c ON p.customer_id=c.id
-      WHERE DATE(p.paid_at)=? AND p.invoice_id IS NULL AND (c.business_id=? OR c.business_id IS NULL)
+      JOIN customers c ON p.customer_id=c.id
+      WHERE DATE(p.paid_at)=? AND p.invoice_id IS NULL AND c.business_id=?
       ${(!isSuper && branchId) ? 'AND (c.branch_id=? OR c.branch_id IS NULL)' : ''}
       ORDER BY p.id ASC
     `, (!isSuper && branchId) ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
@@ -191,8 +191,9 @@ router.get('/eod-data', async (req: any, res, next) => {
       FROM payments p
       LEFT JOIN invoices i ON p.invoice_id=i.id
       LEFT JOIN customers c ON p.customer_id=c.id
-      WHERE DATE(p.paid_at)=? AND (i.business_id=? OR c.business_id=?)
-      ${(!isSuper && branchId) ? 'AND (i.branch_id=? OR i.branch_id IS NULL OR c.branch_id=?)' : ''}
+      WHERE DATE(p.paid_at)=? 
+        AND ((p.invoice_id IS NOT NULL AND i.business_id=?) OR (p.invoice_id IS NULL AND c.business_id=?))
+      ${(!isSuper && branchId) ? 'AND ((p.invoice_id IS NOT NULL AND (i.branch_id=? OR i.branch_id IS NULL)) OR (p.invoice_id IS NULL AND (c.branch_id=? OR c.branch_id IS NULL)))' : ''}
       GROUP BY p.method, p.type
       ORDER BY p.method ASC
     `, (!isSuper && branchId) ? [date, req.user.business_id, req.user.business_id, branchId, branchId] : [date, req.user.business_id, req.user.business_id]);
@@ -371,7 +372,7 @@ router.get('/activity-logs', async (req: any, res, next) => {
     const unifiedSql = `
       SELECT 
         CONCAT('al_', al.id) as log_id,
-        COALESCE(al.business_id, 1) as business_id,
+        COALESCE(al.business_id, u.business_id) as business_id,
         al.user_id,
         COALESCE(al.user_name, u.name, 'System') as user_name,
         al.activity_type,
@@ -383,13 +384,13 @@ router.get('/activity-logs', async (req: any, res, next) => {
         al.created_at
       FROM activity_logs al
       LEFT JOIN users u ON al.user_id = u.id
-      WHERE COALESCE(al.business_id, 1) = ?
+      WHERE COALESCE(al.business_id, u.business_id) = ?
 
       UNION ALL
 
       SELECT 
         CONCAT('inv_', ia.id) as log_id,
-        COALESCE(i.business_id, 1) as business_id,
+        i.business_id as business_id,
         ia.user_id,
         COALESCE(u.name, 'System') as user_name,
         ia.activity as activity_type,
@@ -402,13 +403,13 @@ router.get('/activity-logs', async (req: any, res, next) => {
       FROM invoice_activity ia
       JOIN invoices i ON ia.invoice_id = i.id
       LEFT JOIN users u ON ia.user_id = u.id
-      WHERE COALESCE(i.business_id, 1) = ?
+      WHERE i.business_id = ?
 
       UNION ALL
 
       SELECT 
         CONCAT('cust_', ca.id) as log_id,
-        COALESCE(c.business_id, 1) as business_id,
+        c.business_id as business_id,
         ca.user_id,
         COALESCE(u.name, 'System') as user_name,
         ca.activity as activity_type,
@@ -421,33 +422,33 @@ router.get('/activity-logs', async (req: any, res, next) => {
       FROM customer_activity ca
       JOIN customers c ON ca.customer_id = c.id
       LEFT JOIN users u ON ca.user_id = u.id
-      WHERE COALESCE(c.business_id, 1) = ?
+      WHERE c.business_id = ?
 
       UNION ALL
 
       SELECT 
         CONCAT('prod_', pa.id) as log_id,
-        COALESCE(p.business_id, 1) as business_id,
+        COALESCE(p.business_id, u.business_id) as business_id,
         pa.user_id,
         COALESCE(u.name, 'System') as user_name,
         pa.activity as activity_type,
         pa.details,
         'product' as reference_type,
-        p.id as reference_id,
-        CONCAT('/products/', p.id) as reference_link,
+        COALESCE(p.id, pa.sku_id) as reference_id,
+        CONCAT('/products/', COALESCE(p.id, pa.sku_id)) as reference_link,
         NULL as ip_address,
         pa.created_at
       FROM product_activity pa
       LEFT JOIN product_skus ps ON pa.sku_id = ps.id
       LEFT JOIN products p ON ps.product_id = p.id
       LEFT JOIN users u ON pa.user_id = u.id
-      WHERE COALESCE(p.business_id, 1) = ?
+      WHERE COALESCE(p.business_id, u.business_id) = ?
 
       UNION ALL
 
       SELECT 
         CONCAT('dev_', da.id) as log_id,
-        COALESCE(p.business_id, 1) as business_id,
+        d.business_id as business_id,
         da.user_id,
         COALESCE(u.name, 'System') as user_name,
         da.activity as activity_type,
@@ -459,9 +460,8 @@ router.get('/activity-logs', async (req: any, res, next) => {
         da.created_at
       FROM device_activity da
       JOIN devices d ON da.device_id = d.id
-      LEFT JOIN products p ON d.product_id = p.id
       LEFT JOIN users u ON da.user_id = u.id
-      WHERE COALESCE(p.business_id, 1) = ?
+      WHERE d.business_id = ?
     `;
 
     const subParams = [businessId, businessId, businessId, businessId, businessId];
