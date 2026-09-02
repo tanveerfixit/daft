@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Search, List, X } from 'lucide-react';
 import { Invoice } from '../types';
 import { getInvoiceTaxDetails } from '../utils/tax';
+import { useAuth } from '../context/AuthContext';
 
 interface Props {
   onSelectInvoice: (id: number) => void;
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActive }: Props) {
+  const { currentUser } = useAuth();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -99,7 +101,10 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
     return (
       inv.invoice_number.toLowerCase().includes(lowerSearch) ||
       (inv.products_summary || '').toLowerCase().includes(lowerSearch) ||
-      (inv.customer_name || '').toLowerCase().includes(lowerSearch)
+      (inv.customer_name || '').toLowerCase().includes(lowerSearch) ||
+      (inv.branch_name || '').toLowerCase().includes(lowerSearch) ||
+      (inv.user_name || '').toLowerCase().includes(lowerSearch) ||
+      (inv.created_by_name || '').toLowerCase().includes(lowerSearch)
     );
   }) : [];
 
@@ -214,7 +219,9 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
                       <span className="text-neutral-400 dark:text-neutral-500 italic text-xs">No items recorded</span>
                     )}
                   </td>
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400">PHONE LAB</td>
+                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400">
+                    {invoice.branch_name || currentUser?.branch_name || invoice.user_name || currentUser?.name || 'Main Branch'}
+                  </td>
                   {(() => {
                     const taxDetails = getInvoiceTaxDetails(invoice);
                     const isTaxed = Number(invoice.tax_total) > 0.001;

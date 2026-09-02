@@ -8,6 +8,7 @@ import { Invoice, InvoiceItem, Customer } from '../types';
 import ThermalReceipt from './ThermalReceipt';
 import { useThermalSettings } from '../hooks/useThermalSettings';
 import { getInvoiceTaxDetails } from '../utils/tax';
+import { useAuth } from '../context/AuthContext';
 
 interface Props {
   invoiceId: number;
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: Props) {
+  const { currentUser } = useAuth();
   const [invoice, setInvoice] = useState<(Invoice & { items: InvoiceItem[], customer?: Customer }) | null>(null);
   
   // Refund 2-Step Flow States
@@ -124,7 +126,8 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
   const handleOpenEmailModal = () => {
     if (!invoice) return;
     setRecipientEmail(invoice.customer?.email || '');
-    setEmailSubject(`Invoice ${invoice.invoice_number} from ${company?.name || 'Phone Lab'}`);
+    const senderName = company?.name || invoice.branch_name || currentUser?.branch_name || invoice.user_name || currentUser?.name || 'Staff';
+    setEmailSubject(`Invoice ${invoice.invoice_number} from ${senderName}`);
     setEmailCustomMessage('');
     setEmailStatus(null);
     setShowEmailModal(true);
@@ -324,7 +327,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
               <div className="flex items-center gap-2">
                 <span className="text-neutral-800 dark:text-neutral-200 font-bold">Sales Person<span className="text-red-500">*</span></span>
                 <select className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 px-2 py-1 rounded-none text-neutral-800 dark:text-neutral-200 text-xs outline-none cursor-pointer">
-                  <option>Phone Lab</option>
+                  <option>{invoice.branch_name || currentUser?.branch_name || invoice.user_name || currentUser?.name || 'Main Branch'}</option>
                 </select>
               </div>
 
@@ -852,7 +855,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
               </div>
               <div className="flex border-b border-neutral-200 dark:border-neutral-800 pb-1.5">
                 <span className="w-32 font-bold text-neutral-800 dark:text-neutral-200">Sales Person:</span>
-                <span className="text-neutral-700 dark:text-neutral-300">Phone Lab</span>
+                <span className="text-neutral-700 dark:text-neutral-300">{invoice.branch_name || currentUser?.branch_name || invoice.user_name || currentUser?.name || 'Main Branch'}</span>
               </div>
               <div className="flex">
                 <span className="w-32 font-bold text-neutral-800 dark:text-neutral-200">Date:</span>

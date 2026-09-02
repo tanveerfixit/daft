@@ -106,6 +106,11 @@ export interface Invoice {
   payment_method?: string;
   status: string;
   created_at: string;
+  branch_id?: number | null;
+  branch_name?: string;
+  user_id?: number | null;
+  user_name?: string;
+  created_by_name?: string;
   items?: InvoiceItem[];
   activities?: InvoiceActivity[];
   payments?: Payment[];

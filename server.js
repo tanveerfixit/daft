@@ -3727,6 +3727,9 @@ var init_invoices = __esm({
         let sql = `
       SELECT i.*, 
              c.name as customer_name,
+             b.name as branch_name,
+             u.name as user_name,
+             u.name as created_by_name,
              (
                SELECT GROUP_CONCAT(
                  CONCAT(
@@ -3743,6 +3746,8 @@ var init_invoices = __esm({
              ) as products_summary
       FROM invoices i
       LEFT JOIN customers c ON i.customer_id=c.id
+      LEFT JOIN branches b ON i.branch_id=b.id
+      LEFT JOIN users u ON i.user_id=u.id
       WHERE i.business_id=? ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
     `;
         const params = !isDeveloper && branchId ? [req.user.business_id, branchId] : [req.user.business_id];
@@ -3765,8 +3770,14 @@ var init_invoices = __esm({
         const isDeveloper = req.user.role === "developer";
         const branchId = req.user.branch_id;
         const sql = `
-      SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email
-      FROM invoices i LEFT JOIN customers c ON i.customer_id=c.id 
+      SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email,
+             b.name as branch_name,
+             u.name as user_name,
+             u.name as created_by_name
+      FROM invoices i 
+      LEFT JOIN customers c ON i.customer_id=c.id 
+      LEFT JOIN branches b ON i.branch_id=b.id
+      LEFT JOIN users u ON i.user_id=u.id
       WHERE i.id=? AND i.business_id=? ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
     `;
         const params = !isDeveloper && branchId ? [req.params.id, req.user.business_id, branchId] : [req.params.id, req.user.business_id];
