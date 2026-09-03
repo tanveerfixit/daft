@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Sparkles, X } from 'lucide-react';
 import { Product, Category, Manufacturer } from '../types';
 import ProductTypeModal, { ProductTypeKey } from './ProductTypeModal';
+import initialAnnouncements from '../data/announcements.json';
 
 export default function ProductList({ 
   onCreateProduct,
@@ -18,6 +19,49 @@ export default function ProductList({
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
   const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
+  
+  // Announcement popup state under search bar
+  const [activeAnnouncement, setActiveAnnouncement] = useState<any | null>(null);
+  const [showAnnouncementPopup, setShowAnnouncementPopup] = useState(false);
+
+  useEffect(() => {
+    const handleAnnouncements = (list: any[]) => {
+      try {
+        const dismissed = localStorage.getItem('epos_dismissed_product_popup');
+        const latest = list && list.length > 0 ? list[0] : null;
+        if (latest && dismissed !== latest.id) {
+          setActiveAnnouncement(latest);
+          setShowAnnouncementPopup(true);
+        }
+      } catch (e) {
+        console.error('Failed reading announcement dismissal from localStorage', e);
+      }
+    };
+
+    fetch('/api/public/announcements')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          handleAnnouncements(data);
+        } else {
+          handleAnnouncements(initialAnnouncements as any[]);
+        }
+      })
+      .catch(() => {
+        handleAnnouncements(initialAnnouncements as any[]);
+      });
+  }, []);
+
+  const handleDismissPopup = () => {
+    setShowAnnouncementPopup(false);
+    if (activeAnnouncement) {
+      try {
+        localStorage.setItem('epos_dismissed_product_popup', activeAnnouncement.id);
+      } catch (e) {
+        console.error('Failed saving announcement dismissal to localStorage', e);
+      }
+    }
+  };
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -203,21 +247,117 @@ export default function ProductList({
           {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         
+        {(selectedType || selectedManufacturer || selectedCategory || searchInput) && (
+          <button
+            onClick={() => {
+              setSelectedType('');
+              setSelectedManufacturer('');
+              setSelectedCategory('');
+              setSearchInput('');
+              setSearchQuery('');
+              setCurrentPage(1);
+            }}
+            className="text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 border border-red-200 dark:border-red-900/60 px-2 py-1 rounded transition-colors cursor-pointer"
+            title="Clear all search queries and dropdown filters"
+          >
+            Reset Filters
+          </button>
+        )}
+        
         <div className="relative flex-1 max-w-md ml-auto">
           <input
             ref={searchInputRef}
             type="text"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
             placeholder="Search Products, SKU or Barcode..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full pl-3 pr-10 py-1 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-sm outline-none focus:border-neutral-400 h-8"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setSearchInput('');
+                setSearchQuery('');
+                setCurrentPage(1);
+              }
+            }}
+            className="w-full pl-3 pr-16 py-1 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-sm outline-none focus:border-neutral-400 h-8"
           />
-          <button 
-            onClick={() => { setSearchQuery(searchInput); setCurrentPage(1); }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-neutral-500 dark:text-neutral-400"
-          >
-            <Search size={16} />
-          </button>
+          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchInput('');
+                  setSearchQuery('');
+                  setCurrentPage(1);
+                  searchInputRef.current?.focus();
+                }}
+                className="p-0.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded cursor-pointer"
+                title="Clear Search"
+              >
+                <X size={14} />
+              </button>
+            )}
+            <button 
+              type="button"
+              onClick={() => { setSearchQuery(searchInput); setCurrentPage(1); }}
+              className="cursor-pointer text-neutral-500 dark:text-neutral-400"
+            >
+              <Search size={16} />
+            </button>
+          </div>
+
+          {/* Announcement popup under search bar */}
+          {showAnnouncementPopup && activeAnnouncement && !searchInput && (
+            <div className="absolute top-full right-0 left-0 mt-1.5 bg-white dark:bg-neutral-900 border-2 border-red-500 rounded-md shadow-2xl p-3.5 z-50 animate-in fade-in slide-in-from-top-2 duration-200 font-sans">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="p-1 rounded bg-red-50 dark:bg-red-950/60 text-red-600">
+                    <Sparkles size={14} />
+                  </span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-red-600">
+                    What's New · {activeAnnouncement.version || 'Update'}
+                  </span>
+                </div>
+                <button
+                  onClick={handleDismissPopup}
+                  className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 p-0.5 rounded cursor-pointer"
+                  title="Dismiss notification"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              <div className="mt-2">
+                <h4 className="text-xs font-bold text-neutral-900 dark:text-white">
+                  {activeAnnouncement.title}
+                </h4>
+                <p className="text-xs text-neutral-600 dark:text-neutral-300 mt-1 leading-relaxed">
+                  {activeAnnouncement.summary}
+                </p>
+                {activeAnnouncement.details && (
+                  <ul className="mt-1.5 space-y-0.5 list-disc list-inside text-[11px] text-neutral-500 dark:text-neutral-400">
+                    {activeAnnouncement.details.slice(0, 2).map((d: string, idx: number) => (
+                      <li key={idx}>{d}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="mt-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-xs">
+                <span className="text-[10px] text-neutral-400">
+                  {new Date(activeAnnouncement.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </span>
+                <button
+                  onClick={handleDismissPopup}
+                  className="bg-red-600 hover:bg-red-700 text-white font-medium px-3 py-1 rounded text-xs cursor-pointer shadow-xs active:scale-95 transition-all"
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

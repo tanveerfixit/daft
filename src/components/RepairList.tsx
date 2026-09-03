@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Printer, ExternalLink } from 'lucide-react';
+import { Plus, Search, Printer, ExternalLink, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Repair } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -126,17 +126,50 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
             <option value="collected">Collected ({statusCounts.collected || 0})</option>
           </select>
         </div>
+
+        {(statusFilter !== 'new' || searchTerm) && (
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter('new');
+              setSearchTerm('');
+            }}
+            className="text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 border border-red-200 dark:border-red-900/60 px-2 py-1 rounded transition-colors cursor-pointer"
+            title="Reset to new/booked repair tickets"
+          >
+            Reset Filters
+          </button>
+        )}
+
         <div className="relative flex-1 max-w-md ml-auto">
           <input
             type="text"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
             placeholder="Search ID, customer, phone, device..."
-            className="w-full pl-3 pr-10 py-1 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-sm font-normal outline-none focus:border-neutral-400 h-8"
+            className="w-full pl-3 pr-16 py-1 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-sm font-normal outline-none focus:border-neutral-400 h-8"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setSearchTerm('');
+              }
+            }}
           />
-          <button className="absolute right-3 top-1/2 -translate-y-1/2">
+          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="p-0.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded cursor-pointer"
+                title="Clear Search"
+              >
+                <X size={14} />
+              </button>
+            )}
             <Search size={16} className="text-neutral-500 dark:text-neutral-400" />
-          </button>
+          </div>
         </div>
       </div>
 

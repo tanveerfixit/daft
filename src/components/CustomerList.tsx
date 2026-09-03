@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, X } from 'lucide-react';
 import { Customer } from '../types';
 import { safeCustomerName } from '../utils/customerName';
 import CustomerFormModal from './CustomerFormModal';
@@ -14,6 +14,7 @@ export default function CustomerList({ onSelectCustomer, isActive = true }: Cust
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const initialFocusDone = useRef(false);
 
   const fetchCustomers = () => {
     fetch('/api/customers')
@@ -41,10 +42,11 @@ export default function CustomerList({ onSelectCustomer, isActive = true }: Cust
   }, [isActive]);
 
   useEffect(() => {
-    if (searchInputRef.current) {
+    if (!initialFocusDone.current && searchInputRef.current) {
       searchInputRef.current.focus();
+      initialFocusDone.current = true;
     }
-  }, [customers]);
+  }, []);
 
   const handleAddCustomer = async (customerData: Partial<Customer>) => {
     try {
@@ -90,18 +92,49 @@ export default function CustomerList({ onSelectCustomer, isActive = true }: Cust
 
       {/* Filters & Search */}
       <div className="p-2 flex flex-wrap gap-2 items-center bg-white dark:bg-black border-b border-neutral-200 dark:border-neutral-850 shrink-0">
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 border border-red-200 dark:border-red-900/60 px-2 py-1 rounded transition-colors cursor-pointer"
+            title="Clear customer search query"
+          >
+            Reset Search
+          </button>
+        )}
+
         <div className="relative flex-1 max-w-md ml-auto">
           <input
             ref={searchInputRef}
             type="text"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
             placeholder="Search name, phone or email..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-3 pr-10 py-1 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-sm font-normal outline-none focus:border-neutral-400 h-8"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setSearchQuery('');
+              }
+            }}
+            className="w-full pl-3 pr-16 py-1 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-sm font-normal outline-none focus:border-neutral-400 h-8"
           />
-          <button className="absolute right-3 top-1/2 -translate-y-1/2">
+          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  searchInputRef.current?.focus();
+                }}
+                className="p-0.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded cursor-pointer"
+                title="Clear Search"
+              >
+                <X size={14} />
+              </button>
+            )}
             <Search size={16} className="text-neutral-500 dark:text-neutral-400" />
-          </button>
+          </div>
         </div>
       </div>
 

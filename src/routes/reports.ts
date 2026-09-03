@@ -375,11 +375,11 @@ router.get('/activity-logs', async (req: any, res, next) => {
         COALESCE(al.business_id, u.business_id) as business_id,
         al.user_id,
         COALESCE(al.user_name, u.name, 'System') as user_name,
-        al.activity_type,
-        al.description as details,
-        al.reference_type,
-        al.reference_id,
-        al.reference_link,
+        COALESCE(al.activity_type, 'General Activity') as activity_type,
+        COALESCE(al.description, '') as details,
+        COALESCE(al.reference_type, IF(al.device_id IS NOT NULL, 'device', IF(al.product_id IS NOT NULL, 'product', NULL))) as reference_type,
+        COALESCE(al.reference_id, al.device_id, al.product_id) as reference_id,
+        COALESCE(al.reference_link, IF(al.device_id IS NOT NULL, CONCAT('/devices/', al.device_id), IF(al.product_id IS NOT NULL, CONCAT('/products/', al.product_id), NULL))) as reference_link,
         al.ip_address,
         al.created_at
       FROM activity_logs al

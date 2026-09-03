@@ -702,5 +702,97 @@ adminRouter.put('/system/businesses/:id/status', requireAdminAsync, async (req: 
   } catch (e: any) { next(e); }
 });
 
+// ─── Admin Announcements Endpoints ──────────────────────────────────────────
+
+const getAnnouncementsPath = async () => {
+  const path = await import('path');
+  return path.resolve(process.cwd(), 'src', 'data', 'announcements.json');
+};
+
+const readAnnouncementsFile = async () => {
+  const fs = await import('fs');
+  const filePath = await getAnnouncementsPath();
+  if (fs.existsSync(filePath)) {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    try { return JSON.parse(raw); } catch (e) { return []; }
+  }
+  return [];
+};
+
+const writeAnnouncementsFile = async (data: any[]) => {
+  const fs = await import('fs');
+  const path = await import('path');
+  const filePath = await getAnnouncementsPath();
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+};
+
+// GET /api/admin/announcements
+adminRouter.get('/announcements', requireAdminAsync, async (_req: any, res, next) => {
+  try {
+    const list = await readAnnouncementsFile();
+    res.json(list);
+  } catch (e: any) { next(e); }
+});
+
+// POST /api/admin/announcements
+adminRouter.post('/announcements', requireAdminAsync, async (req: any, res, next) => {
+  const { title, category, version, summary, details } = req.body;
+  if (!title || !summary) {
+    return res.status(400).json({ error: 'Title and summary are required' });
+  }
+  try {
+    const list = await readAnnouncementsFile();
+    const newId = `ann-${Date.now()}`;
+    const newAnnouncement = {
+      id: newId,
+      title: title.trim(),
+      category: category || 'feature',
+      date: new Date().toISOString().split('T')[0],
+      version: version ? version.trim() : 'v1.0',
+      summary: summary.trim(),
+      details: Array.isArray(details) ? details.filter(Boolean) : (typeof details === 'string' ? details.split('\n').map(s => s.trim()).filter(Boolean) : [])
+    };
+    const updated = [newAnnouncement, ...list];
+    await writeAnnouncementsFile(updated);
+    res.json({ success: true, announcement: newAnnouncement });
+  } catch (e: any) { next(e); }
+});
+
+// PUT /api/admin/announcements/:id
+adminRouter.put('/announcements/:id', requireAdminAsync, async (req: any, res, next) => {
+  const { id } = req.params;
+  const { title, category, version, summary, details } = req.body;
+  try {
+    const list = await readAnnouncementsFile();
+    const index = list.findIndex((a: any) => a.id === id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Announcement not found' });
+    }
+    list[index] = {
+      ...list[index],
+      title: title ? title.trim() : list[index].title,
+      category: category || list[index].category,
+      version: version ? version.trim() : list[index].version,
+      summary: summary ? summary.trim() : list[index].summary,
+      details: Array.isArray(details) ? details.filter(Boolean) : (typeof details === 'string' ? details.split('\n').map(s => s.trim()).filter(Boolean) : list[index].details)
+    };
+    await writeAnnouncementsFile(list);
+    res.json({ success: true, announcement: list[index] });
+  } catch (e: any) { next(e); }
+});
+
+// DELETE /api/admin/announcements/:id
+adminRouter.delete('/announcements/:id', requireAdminAsync, async (req: any, res, next) => {
+  const { id } = req.params;
+  try {
+    const list = await readAnnouncementsFile();
+    const filtered = list.filter((a: any) => a.id !== id);
+    await writeAnnouncementsFile(filtered);
+    res.json({ success: true });
+  } catch (e: any) { next(e); }
+});
+
 export { adminRouter };
 export default router;

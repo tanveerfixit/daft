@@ -1,0 +1,40 @@
+[
+  {
+    "id": "ann-001",
+    "title": "Single Product Details Page Redesign",
+    "category": "feature",
+    "date": "2026-09-03",
+    "version": "v2.4",
+    "summary": "Revamped the single product overview layout with enhanced barcode display, quick stock overview, and brand styling.",
+    "details": [
+      "New camera badge on product image thumbnail.",
+      "Inline quick 'Add Inventory' button beside live stock counts.",
+      "Clear specification display for Minimum Stock, Selling Price, and Taxable rules."
+    ]
+  },
+  {
+    "id": "ann-002",
+    "title": "Create Similar Product Feature",
+    "category": "feature",
+    "date": "2026-09-03",
+    "version": "v2.4",
+    "summary": "Easily clone existing products directly from the Manage dropdown menu.",
+    "details": [
+      "Directly opens the matching product type (Serialized, Stock, Service).",
+      "Category and Manufacturer (Make) are automatically pre-selected.",
+      "Prices and stock rules pre-filled so you only need to adjust the product name."
+    ]
+  },
+  {
+    "id": "ann-003",
+    "title": "Invoice Quick Search & Auto-Suggestions",
+    "category": "setting",
+    "date": "2026-08-28",
+    "version": "v2.3",
+    "summary": "Global header search bar for instant invoice lookup by number or customer name.",
+    "details": [
+      "Real-time suggestions as you type invoice numbers (e.g. SA-001).",
+      "One-click navigation directly to invoice details."
+    ]
+  }
+]

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ExternalLink, Download, ArrowLeft } from 'lucide-react';
+import { Search, ExternalLink, Download, ArrowLeft, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -123,6 +123,14 @@ export const ActivityReport: React.FC = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchLogs(1);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   useEffect(() => {
     fetchLogs(1);
@@ -346,19 +354,60 @@ export const ActivityReport: React.FC = () => {
           ))}
         </select>
 
+        {(dateRange !== 'all' || selectedActivity !== 'all' || selectedUser !== 'all' || searchTerm) && (
+          <button
+            type="button"
+            onClick={() => {
+              setDateRange('all');
+              setSelectedActivity('all');
+              setSelectedUser('all');
+              setSearchTerm('');
+              setCustomStart(getLocalDateString());
+              setCustomEnd(getLocalDateString());
+            }}
+            className="text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 border border-red-200 dark:border-red-900/60 px-2 py-1 rounded transition-colors cursor-pointer"
+            title="Reset all date and category filters"
+          >
+            Reset Filters
+          </button>
+        )}
+
         {/* Search Input Bar */}
         <form onSubmit={handleSearchSubmit} className="relative flex-1 max-w-md ml-auto">
           <input
             ref={searchInputRef}
             type="text"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
             placeholder="Search activities, details, or user..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-3 pr-10 py-1 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-sm font-normal outline-none focus:border-neutral-400 h-8"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setSearchTerm('');
+              }
+            }}
+            className="w-full pl-3 pr-16 py-1 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-sm font-normal outline-none focus:border-neutral-400 h-8"
           />
-          <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer">
-            <Search size={16} className="text-neutral-500 dark:text-neutral-400" />
-          </button>
+          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  searchInputRef.current?.focus();
+                }}
+                className="p-0.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded cursor-pointer"
+                title="Clear Search"
+              >
+                <X size={14} />
+              </button>
+            )}
+            <button type="submit" className="cursor-pointer">
+              <Search size={16} className="text-neutral-500 dark:text-neutral-400" />
+            </button>
+          </div>
         </form>
       </div>
 
@@ -403,7 +452,7 @@ export const ActivityReport: React.FC = () => {
                     {item.user_name || 'System'}
                   </td>
                   <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-900 dark:text-neutral-100 font-semibold whitespace-nowrap">
-                    {item.activity_type}
+                    {item.activity_type || (item as any).activity || 'Activity'}
                   </td>
                   <td className="px-1.5 py-0.5 text-neutral-900 dark:text-neutral-100 font-normal">
                     {renderDetailsCell(item)}

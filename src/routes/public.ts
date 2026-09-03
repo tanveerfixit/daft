@@ -29,4 +29,20 @@ router.get('/business/:slug', async (req: any, res, next) => {
   }
 });
 
+// GET /api/public/announcements
+router.get('/announcements', async (_req, res, next) => {
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    const filePath = path.resolve(process.cwd(), 'src', 'data', 'announcements.json');
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf-8');
+      return res.json(JSON.parse(data));
+    }
+    res.json([]);
+  } catch (e: any) {
+    next(e);
+  }
+});
+
 export default router;

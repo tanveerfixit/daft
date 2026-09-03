@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ChevronDown, ChevronUp, Plus, List, AlertTriangle, ArrowRight } from 'lucide-react';
 import { Product, Category, Manufacturer } from '../types';
 import { ProductTypeKey } from './ProductTypeModal';
@@ -11,9 +11,12 @@ interface CreateProductProps {
 
 export default function CreateProduct({ onCancel, onSave }: CreateProductProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { branchSlug } = useParams<{ branchSlug?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialType = (searchParams.get('type') as ProductTypeKey) || 'stock';
+  
+  const cloneProduct = (location.state as any)?.cloneProduct;
+  const initialType = (searchParams.get('type') as ProductTypeKey) || cloneProduct?.product_type || 'stock';
 
   const [activeType, setActiveType] = useState<ProductTypeKey>(
     ['stock', 'serialized', 'service', 'bundle'].includes(initialType) ? initialType : 'stock'
@@ -22,25 +25,27 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
   const [categories, setCategories] = useState<Category[]>([]);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
   const [existingProducts, setExistingProducts] = useState<Product[]>([]);
-  const [isAdditionalDetailsOpen, setIsAdditionalDetailsOpen] = useState(false);
+  const [isAdditionalDetailsOpen, setIsAdditionalDetailsOpen] = useState(
+    Boolean(cloneProduct?.min_sales_price || cloneProduct?.additional_description || cloneProduct?.alert_message)
+  );
   const [matchedExistingProduct, setMatchedExistingProduct] = useState<Product | null>(null);
   
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
-    name: '',
-    manufacturer_id: '',
-    category_id: '',
-    selling_price: '',
-    cost_price: '',
+    name: cloneProduct?.name || '',
+    manufacturer_id: cloneProduct?.manufacturer_id ? String(cloneProduct.manufacturer_id) : '',
+    category_id: cloneProduct?.category_id ? String(cloneProduct.category_id) : '',
+    selling_price: cloneProduct?.selling_price !== undefined ? String(cloneProduct.selling_price) : '',
+    cost_price: cloneProduct?.cost_price !== undefined ? String(cloneProduct.cost_price) : '',
     sku_code: '',
-    is_taxable: true,
-    require_note: false,
-    min_stock_level: '0',
-    allow_overselling: true,
-    min_sales_price: '',
-    additional_description: '',
-    alert_message: ''
+    is_taxable: cloneProduct?.is_taxable !== undefined ? Boolean(cloneProduct.is_taxable) : true,
+    require_note: cloneProduct?.require_note || false,
+    min_stock_level: cloneProduct?.min_stock_level !== undefined ? String(cloneProduct.min_stock_level) : '0',
+    allow_overselling: cloneProduct?.allow_overselling !== undefined ? Boolean(cloneProduct.allow_overselling) : true,
+    min_sales_price: cloneProduct?.min_sales_price !== undefined ? String(cloneProduct.min_sales_price) : '',
+    additional_description: cloneProduct?.additional_description || '',
+    alert_message: cloneProduct?.alert_message || ''
   });
 
   const handleTabChange = (type: ProductTypeKey) => {

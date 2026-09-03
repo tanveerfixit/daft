@@ -10,7 +10,8 @@ import {
   Search,
   ShoppingBag,
   Banknote,
-  ArrowLeftRight
+  ArrowLeftRight,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Routes, Route, useNavigate, useParams, useLocation, Navigate, useSearchParams } from 'react-router-dom';
@@ -38,6 +39,7 @@ import DeviceDetailView from './components/inventory/DeviceDetails';
 import GettingStarted from './components/GettingStarted';
 import BranchTransfer from './components/BranchTransfer';
 import ActivityReport from './components/ActivityReport';
+import NotificationBell from './components/NotificationBell';
 import AdminPortal from './components/admin/AdminPortal';
 import LoginPage from './components/auth/LoginPage';
 import SignupPage from './components/auth/SignupPage';
@@ -109,6 +111,25 @@ const ProductDetailsRoute = () => {
       onBack={() => navigate(`/${branchSlug}/products`)}
       onAddInventory={(id) => navigate(`/${branchSlug}/add-inventory/${id}`)}
       onViewDevices={(id) => navigate(`/${branchSlug}/sku-devices/${id}`, { state: { from: `/${branchSlug}/products/${id}` } })}
+      onCreateSimilar={(product) => {
+        const type = product.product_type || 'serialized';
+        navigate(`/${branchSlug}/create-product?type=${type}`, { 
+          state: { 
+            cloneProduct: {
+              name: product.product_name,
+              category_id: product.category_id,
+              manufacturer_id: product.manufacturer_id,
+              product_type: product.product_type,
+              selling_price: product.selling_price,
+              cost_price: product.cost_price,
+              min_stock_level: product.min_stock_level,
+              min_sales_price: product.min_sales_price,
+              is_taxable: product.is_taxable,
+              allow_overselling: product.allow_overselling
+            } 
+          } 
+        });
+      }}
     />
   );
 };
@@ -509,7 +530,7 @@ function AppInner() {
       {showAdminPortal && isAdmin && <AdminPortal onClose={() => setShowAdminPortal(false)} />}
 
       {/* Header */}
-      <header className="h-14 bg-[var(--bg-header)] flex items-center justify-between z-30 transition-colors duration-300">
+      <header className="h-14 bg-[var(--bg-header)] flex items-center justify-between z-[100] transition-colors duration-300">
         <div className="flex h-full items-center">
           <div className="w-16 flex items-center justify-center h-full">
             <button 
@@ -537,15 +558,39 @@ function AppInner() {
             <Search className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${searchLoading ? 'text-blue-500 animate-pulse' : 'text-[var(--text-muted)]'}`} size={16} />
             <input 
               type="text" 
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={handleSearch}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setSearchQuery('');
+                  setShowSuggestions(false);
+                } else {
+                  handleSearch(e);
+                }
+              }}
               onFocus={() => setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
               placeholder="Search invoices by number (e.g. SA-001)..." 
               disabled={searchLoading}
-              className="w-full bg-[var(--bg-card)] border border-[var(--border-base)] rounded py-1.5 pl-9 pr-3 text-sm focus:outline-none focus:border-blue-500 transition-all placeholder:text-[var(--text-muted)] text-[var(--text-main)] disabled:opacity-75"
+              className="w-full bg-[var(--bg-card)] border border-[var(--border-base)] rounded py-1.5 pl-9 pr-8 text-sm focus:outline-none focus:border-blue-500 transition-all placeholder:text-[var(--text-muted)] text-[var(--text-main)] disabled:opacity-75"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setSearchQuery('');
+                  setShowSuggestions(false);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded cursor-pointer"
+                title="Clear Search"
+              >
+                <X size={14} />
+              </button>
+            )}
             
             {showSuggestions && suggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--border-base)] rounded shadow-lg z-[9999] overflow-hidden py-1 max-h-72 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -594,6 +639,8 @@ function AppInner() {
         </div>
 
         <div className="flex items-center gap-2 px-6">
+          <NotificationBell />
+
           {isAdmin && (
             <button 
               onClick={() => setShowAdminPortal(true)}

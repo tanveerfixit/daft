@@ -607,7 +607,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                           <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{new Date(act.created_at).toLocaleDateString('en-GB')}</td>
                           <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{new Date(act.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</td>
                           <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{act.user_name || 'System'}</td>
-                          <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800">{act.activity}</td>
+                          <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 font-semibold">{act.activity || (act as any).activity_type || 'Activity'}</td>
                           <td className="py-0.5 px-1.5">{act.details}</td>
                         </tr>
                       ))

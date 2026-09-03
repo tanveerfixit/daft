@@ -63,6 +63,8 @@ router.post('/add', async (req: any, res, next) => {
        actualQuantity, actualQuantity, cost_price || 0, totalAmount]
     );
 
+    const insertedDevices: Array<{ id: number; imei: string; color: string; gb: string; condition: string; cost_price: number; selling_price: number }> = [];
+
     if (productInfo.product_type === 'serialized') {
       // 1. Check in-batch duplicate IMEIs (double scan prevention)
       const imeiList = validItems.map((it: any) => it.imei.trim());
@@ -88,18 +90,36 @@ router.post('/add', async (req: any, res, next) => {
       }
 
       for (const item of validItems) {
+        const cleanImei = item.imei.trim();
         await conn.execute(
           "INSERT INTO devices (business_id,branch_id,sku_id,imei,cost_price,selling_price,color,gb,`condition`,po_number,status) VALUES (?,?,?,?,?,?,?,?,?,?,'in_stock')",
-          [req.user.business_id, activeBranchId, sku_id, item.imei.trim(), cost_price, selling_price, item.color, item.gb, item.condition, finalPoNumber]
+          [req.user.business_id, activeBranchId, sku_id, cleanImei, cost_price, selling_price, item.color, item.gb, item.condition, finalPoNumber]
         );
-        const deviceId = (await conn.execute('SELECT LAST_INSERT_ID() as id'))[0] as any;
+        const deviceIdRow = (await conn.execute('SELECT LAST_INSERT_ID() as id'))[0] as any;
+        const insertedDevId = deviceIdRow[0]?.id || deviceIdRow?.insertId;
+
+        insertedDevices.push({
+          id: insertedDevId,
+          imei: cleanImei,
+          color: item.color || '',
+          gb: item.gb || '',
+          condition: item.condition || 'New',
+          cost_price: Number(cost_price) || 0,
+          selling_price: Number(selling_price) || 0
+        });
+
+        const imeiLogDesc = `IMEI: ${cleanImei} (${item.gb || ''} ${item.color || ''} ${item.condition || ''}) added to inventory via PO: ${finalPoNumber}`;
         await conn.execute(
           'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-          [deviceId[0].id, req.userId, 'Device Created', `Added to inventory via PO: ${finalPoNumber}`]
+          [insertedDevId, req.userId, 'Device Created', imeiLogDesc]
         );
         await conn.execute(
-          'INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          [req.user.business_id, activeBranchId, deviceId[0].id, req.userId, req.user?.name || null, 'Device Created', 'Initial inventory entry', finalPoNumber]
+          'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+          [sku_id, req.userId, 'Device Created', `Device with IMEI ${cleanImei} added to inventory`]
+        );
+        await conn.execute(
+          'INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [req.user.business_id, activeBranchId, insertedDevId, productInfo.product_id, req.userId, req.user?.name || 'System', 'Device Created', `IMEI: ${cleanImei} (${productInfo.product_name}) added to inventory`, 'device', insertedDevId, `/devices/${insertedDevId}`]
         );
         await conn.execute(
           'INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,1) ON DUPLICATE KEY UPDATE quantity=quantity+1',
@@ -117,7 +137,7 @@ router.post('/add', async (req: any, res, next) => {
       [req.user.business_id, activeBranchId, sku_id, 'purchase', quantity || items?.length || 0, cost_price || 0, 'purchase_order', poId]
     );
     await conn.commit();
-    res.json({ success: true });
+    res.json({ success: true, devices: typeof insertedDevices !== 'undefined' ? insertedDevices : [] });
   } catch (e: any) { await conn.rollback(); console.error('[inventory/add] Error:', e.message, e.sql || ''); next(e); }
   finally { conn.release(); }
 });
@@ -664,10 +684,14 @@ router.put('/devices/:id', async (req: any, res, next) => {
     const userId = req.user?.id || req.userId || 1;
 
     if (changes.length > 0) {
+      const imeiTag = old.imei || old.imei_serial || 'N/A';
+      const changeDesc = `[IMEI: ${imeiTag}] ${changes.join(', ')}`;
       await conn.execute('INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-        [req.params.id, userId, 'Device Updated', changes.join(', ')]);
-      await conn.execute('INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [req.user.business_id, req.user.branch_id, req.params.id, userId, req.user?.name || null, 'Device Updated', changes.join(', ')]);
+        [req.params.id, userId, 'Device Updated', changeDesc]);
+      await conn.execute('INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [targetSkuId, userId, 'Device Updated', changeDesc]);
+      await conn.execute('INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [req.user.business_id, old.branch_id || req.user.branch_id, req.params.id, old.product_id, userId, req.user?.name || 'System', 'Device Updated', changeDesc, 'device', req.params.id, `/devices/${req.params.id}`]);
     }
 
     await conn.commit();
@@ -685,17 +709,17 @@ router.put('/devices/:id', async (req: any, res, next) => {
 router.get('/devices/:id/activity', async (req: any, res, next) => {
   try {
     const activities = await query(`
-      SELECT 'device' as source, a.id, a.user_id, a.activity, a.details, a.created_at, u.name as user_name 
+      SELECT 'device' as source, a.id, a.user_id, a.activity, a.details, a.created_at, COALESCE(u.name, 'System') as user_name 
       FROM device_activity a
       LEFT JOIN users u ON a.user_id=u.id
       WHERE a.device_id=?
       UNION ALL
-      SELECT 'product' as source, pa.id, pa.user_id, pa.activity, pa.details, pa.created_at, u.name as user_name
+      SELECT 'product' as source, pa.id, pa.user_id, pa.activity, pa.details, pa.created_at, COALESCE(u.name, 'System') as user_name
       FROM product_activity pa
       LEFT JOIN users u ON pa.user_id=u.id
       WHERE pa.sku_id = (SELECT sku_id FROM devices WHERE id=?)
       UNION ALL
-      SELECT 'log' as source, al.id, al.user_id, al.activity_type as activity, al.description as details, al.created_at, u.name as user_name
+      SELECT 'log' as source, al.id, al.user_id, al.activity_type as activity, al.description as details, al.created_at, COALESCE(al.user_name, u.name, 'System') as user_name
       FROM activity_logs al
       LEFT JOIN users u ON al.user_id=u.id
       WHERE al.device_id=? OR al.product_id = (SELECT sku_id FROM devices WHERE id=?)
@@ -715,24 +739,68 @@ router.post('/devices/:id/activity', async (req: any, res, next) => {
   const data = deviceActivitySchema.parse(req.body);
   const { activity, details } = data;
   try {
-    const device = await queryOne('SELECT id FROM devices WHERE id=? AND business_id=?', [req.params.id, req.user.business_id]);
+    const device = await queryOne('SELECT id, branch_id, sku_id FROM devices WHERE id=? AND business_id=?', [req.params.id, req.user.business_id]) as any;
     if (!device) return res.status(404).json({ error: 'Device not found' });
     
     await execute('INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
       [req.params.id, req.userId, activity || 'Note Added', details || '']);
-    await execute('INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [req.user.business_id, req.user.branch_id, req.params.id, req.userId, req.user?.name || null, activity || 'Note Added', details || '']);
+    await execute('INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [req.user.business_id, device.branch_id || req.user.branch_id, req.params.id, req.userId, req.user?.name || 'System', activity || 'Note Added', details || '', 'device', req.params.id, `/devices/${req.params.id}`]);
     res.json({ success: true });
   } catch (e: any) { next(e); }
 });
 
 // DELETE /api/devices/:id
 router.delete('/devices/:id', async (req: any, res, next) => {
+  const conn = await pool.getConnection();
   try {
-    const result = await execute('DELETE FROM devices WHERE id=? AND business_id=?', [req.params.id, req.user.business_id]);
-    if (result.affectedRows === 0) return res.status(404).json({ error: 'Device not found or access denied' });
+    await conn.beginTransaction();
+    const [oldRows] = await conn.execute(
+      `SELECT d.*, p.name as product_name, p.id as product_id, s.id as sku_id 
+       FROM devices d 
+       JOIN product_skus s ON d.sku_id=s.id 
+       JOIN products p ON s.product_id=p.id 
+       WHERE d.id=? AND d.business_id=?`,
+      [req.params.id, req.user.business_id]
+    );
+    const dev = (oldRows as any[])[0];
+    if (!dev) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Device not found or access denied' });
+    }
+
+    const cleanImei = dev.imei || dev.imei_serial || 'N/A';
+    const deleteMsg = `Device with IMEI/Serial "${cleanImei}" (${dev.product_name}) deleted from inventory (Status was: ${dev.status})`;
+
+    // Log to product_activity
+    await conn.execute(
+      'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+      [dev.sku_id, req.userId, 'Device Deleted', deleteMsg]
+    );
+
+    // Log to activity_logs
+    await conn.execute(
+      'INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [req.user.business_id, dev.branch_id || req.user.branch_id, dev.id, dev.product_id, req.userId, req.user?.name || 'System', 'Device Deleted', deleteMsg, 'product', dev.product_id, `/products/${dev.product_id}`]
+    );
+
+    // Decrement stock if in_stock
+    if (dev.status === 'in_stock') {
+      await conn.execute(
+        'INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, -1) ON DUPLICATE KEY UPDATE quantity = GREATEST(0, quantity - 1)',
+        [dev.branch_id || req.user.branch_id || 1, dev.sku_id]
+      );
+    }
+
+    await conn.execute('DELETE FROM devices WHERE id=? AND business_id=?', [req.params.id, req.user.business_id]);
+    await conn.commit();
     res.json({ success: true });
-  } catch (e: any) { next(e); }
+  } catch (e: any) {
+    await conn.rollback();
+    next(e);
+  } finally {
+    conn.release();
+  }
 });
 
 // GET /api/devices

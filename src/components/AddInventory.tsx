@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Plus, Trash2, Save, Smartphone, AlertTriangle, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Smartphone, AlertTriangle, Check, Printer, CheckCircle2, RotateCcw, CheckSquare, Square, PackageCheck, Layers } from 'lucide-react';
 import { Product, Branch, Supplier } from '../types';
 
 interface SerializedItem {
@@ -9,6 +9,17 @@ interface SerializedItem {
   condition: string;
   duplicateError?: string | null;
   isChecking?: boolean;
+}
+
+interface SavedDevice {
+  id: number;
+  imei: string;
+  color?: string;
+  gb?: string;
+  condition?: string;
+  selling_price?: number;
+  cost_price?: number;
+  selected?: boolean;
 }
 
 export default function AddInventory({ 
@@ -23,7 +34,12 @@ export default function AddInventory({
   const [product, setProduct] = useState<Product | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [printerSettings, setPrinterSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Success screen state after saving
+  const [savedBatch, setSavedBatch] = useState<SavedDevice[] | null>(null);
 
   // Form State
   const [branchId, setBranchId] = useState<string>('');
@@ -82,14 +98,16 @@ export default function AddInventory({
     Promise.all([
       fetch(`/api/products/${productId}`).then(res => res.json()),
       fetch('/api/branches').then(res => res.json()),
-      fetch('/api/suppliers').then(res => res.json())
-    ]).then(([prodData, branchData, supplierData]) => {
+      fetch('/api/suppliers').then(res => res.json()),
+      fetch('/api/printer-settings').then(res => res.ok ? res.json() : null).catch(() => null)
+    ]).then(([prodData, branchData, supplierData, printerData]) => {
       setProduct(prodData);
       setBranches(branchData);
       if (branchData.length > 0) {
         setBranchId(branchData[0].id.toString());
       }
       setSuppliers(supplierData);
+      if (printerData) setPrinterSettings(printerData);
       setCostPrice(prodData.cost_price?.toString() || '');
       setSellingPrice(prodData.selling_price?.toString() || '');
       setLoading(false);
@@ -317,13 +335,19 @@ export default function AddInventory({
     };
 
     try {
+      setIsSaving(true);
       const res = await fetch('/api/inventory/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        onSuccess();
+        const data = await res.json();
+        if (product?.product_type === 'serialized' && data.devices && data.devices.length > 0) {
+          setSavedBatch(data.devices.map((d: any) => ({ ...d, selected: true })));
+        } else {
+          onSuccess();
+        }
       } else {
         const err = await res.json();
         alert('Error: ' + err.error);
@@ -331,7 +355,236 @@ export default function AddInventory({
     } catch (error) {
       console.error(error);
       alert('Failed to add inventory');
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const handleAddMore = () => {
+    setSavedBatch(null);
+    setItems([{ imei: '', color: '', gb: '128', condition: 'New' }]);
+    setPoNumber('');
+    setTimeout(() => {
+      imeiInputRefs.current[0]?.focus();
+    }, 100);
+  };
+
+  const handleBatchPrintLabels = (devicesToPrint: SavedDevice[]) => {
+    if (!devicesToPrint || devicesToPrint.length === 0) {
+      alert('Please select at least one device to print.');
+      return;
+    }
+
+    if (!printerSettings) {
+      alert('Printer settings not loaded. Please configure label printer in Settings.');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const { 
+      label_size, margin_top, margin_left, margin_bottom, margin_right, 
+      orientation, font_size, font_family 
+    } = printerSettings;
+
+    const fontSizeMap: Record<string, string> = {
+      'Small': '10px',
+      'Medium': '12px',
+      'Large': '14px',
+      'Regular': '12px'
+    };
+
+    const isLandscape = orientation === 'Landscape';
+    const width = isLandscape ? '57mm' : '32mm';
+    const height = isLandscape ? '32mm' : '57mm';
+    const baseFontSize = fontSizeMap[font_size] || '12px';
+
+    const fallbackPrice = sellingPrice || product?.selling_price;
+
+    const labelsHtml = devicesToPrint.map((dev, idx) => {
+      const ramText = '';
+      const gbText = dev.gb ? (dev.gb.toLowerCase().includes('gb') ? dev.gb : `${dev.gb}GB`) : '';
+      const specsCombined = [ramText, gbText].filter(Boolean).join(' / ') || [dev.color, dev.condition].filter(Boolean).join(' • ') || 'Standard';
+      const imeiOrSerial = dev.imei || 'N/A';
+      const pVal = dev.selling_price || fallbackPrice;
+
+      return `
+        <div class="label-page">
+          <div class="label-content">
+            <div class="device-name">${product?.manufacturer_name ? `${product.manufacturer_name} ` : ''}${product?.product_name || 'DEVICE'}</div>
+            <div class="specs">${specsCombined}</div>
+            ${pVal ? `<div class="price">€${Number(pVal).toFixed(2)}</div>` : ''}
+            <div class="barcode-wrapper">
+              <div class="barcode-container">
+                <svg id="barcode-${idx}" class="barcode-svg"></svg>
+              </div>
+              <div class="imei-serial">
+                ${imeiOrSerial.split('').map((char: string) => `<span>${char}</span>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Batch Device Labels (${devicesToPrint.length} Items)</title>
+          <style>
+            @page {
+              size: ${width} ${height};
+              margin: 0;
+            }
+            html, body {
+              margin: 0;
+              padding: 0;
+              background: #fff;
+            }
+            * {
+              -webkit-print-color-adjust: exact;
+              box-sizing: border-box;
+            }
+            .label-page {
+              width: ${width};
+              height: ${height};
+              page-break-after: always;
+              break-after: page;
+              padding: ${margin_top || 2}px ${margin_right || 2}px ${margin_bottom || 2}px ${margin_left || 2}px;
+              font-family: ${font_family || 'Arial'}, Arial, sans-serif;
+              font-size: ${baseFontSize};
+              box-sizing: border-box;
+              display: flex;
+              flex-direction: column;
+              text-align: center;
+              overflow: hidden;
+              background: #fff;
+            }
+            .label-page:last-child {
+              page-break-after: avoid;
+              break-after: avoid;
+            }
+            .label-content {
+              width: 100%;
+              height: 100%;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: space-between;
+              padding: 0;
+              color: #000;
+              overflow: hidden;
+              box-sizing: border-box;
+            }
+            .device-name {
+              font-weight: 800;
+              font-size: 1.05em;
+              text-transform: uppercase;
+              line-height: 1.15;
+              word-break: break-word;
+              display: -webkit-box;
+              -webkit-line-clamp: 2;
+              -webkit-box-orient: vertical;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              max-height: 2.3em;
+              margin: 0;
+              padding: 0;
+              text-align: center;
+              width: 100%;
+            }
+            .specs {
+              font-size: 0.9em;
+              line-height: 1.15;
+              font-weight: 600;
+              margin: 0;
+              padding: 0;
+            }
+            .price {
+              font-weight: 900;
+              font-size: 1.18em;
+              line-height: 1.15;
+              margin: 0;
+              padding: 0;
+            }
+            .barcode-wrapper {
+              width: 94%;
+              max-width: 185px;
+              margin: 0 auto;
+              display: flex;
+              flex-direction: column;
+              align-items: stretch;
+            }
+            .barcode-container {
+              width: 100%;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              padding: 0;
+              margin: 0;
+              line-height: 0;
+            }
+            .barcode-svg {
+              width: 100% !important;
+              max-width: 100% !important;
+              height: ${isLandscape ? '28px' : '36px'} !important;
+              display: block !important;
+              padding: 0 !important;
+              margin: 0 !important;
+            }
+            .imei-serial {
+              width: 100%;
+              display: flex;
+              justify-content: space-between;
+              font-size: 8.5px;
+              font-family: monospace;
+              font-weight: 700;
+              line-height: 1;
+              margin-top: 1px;
+              padding-top: 1px;
+              margin-bottom: 0;
+              padding-bottom: 0;
+              box-sizing: border-box;
+              padding-left: 2px;
+              padding-right: 2px;
+            }
+            .imei-serial span {
+              display: inline-block;
+              text-align: center;
+            }
+          </style>
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+        </head>
+        <body>
+          ${labelsHtml}
+          <script>
+            const barcodeList = ${JSON.stringify(devicesToPrint.map((d, idx) => ({ id: `barcode-${idx}`, imei: d.imei })))};
+            barcodeList.forEach(item => {
+              try {
+                JsBarcode("#" + item.id, item.imei, {
+                  format: "CODE128",
+                  width: 1.6,
+                  height: 30,
+                  displayValue: false,
+                  margin: 0
+                });
+              } catch (e) {
+                console.error("Barcode error for", item.imei, e);
+              }
+            });
+
+            window.addEventListener('load', () => {
+              setTimeout(() => {
+                window.print();
+                setTimeout(() => window.close(), 500);
+              }, 500);
+            });
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   if (loading) return (
@@ -351,6 +604,199 @@ export default function AddInventory({
       </div>
     </div>
   );
+
+  if (savedBatch) {
+    const selectedDevices = savedBatch.filter(d => d.selected !== false);
+    const allSelected = selectedDevices.length === savedBatch.length && savedBatch.length > 0;
+
+    const toggleSelectAll = () => {
+      setSavedBatch(prev => prev ? prev.map(d => ({ ...d, selected: !allSelected })) : null);
+    };
+
+    const toggleSelectDevice = (index: number) => {
+      setSavedBatch(prev => {
+        if (!prev) return null;
+        const updated = [...prev];
+        updated[index] = { ...updated[index], selected: !updated[index].selected };
+        return updated;
+      });
+    };
+
+    return (
+      <div className="flex flex-col h-full bg-[#f2f2f2] text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-2 pb-2 pt-0 select-none w-full overflow-auto" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
+        {/* Header bar */}
+        <div className="sticky top-0 z-40 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded shrink-0 flex justify-between items-center px-4 py-3 mb-2">
+          <div className="flex items-center gap-3">
+            <h1 className="font-medium text-black dark:text-white flex items-center gap-2" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '24px' }}>
+              <PackageCheck className="text-emerald-600 dark:text-emerald-400" size={26} />
+              Inventory Added
+            </h1>
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+              {savedBatch.length} {savedBatch.length === 1 ? 'Unit' : 'Units'} Added
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button 
+              type="button"
+              onClick={() => handleBatchPrintLabels(selectedDevices)}
+              disabled={selectedDevices.length === 0}
+              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+              title="Print barcode labels for all selected devices"
+            >
+              <Printer size={16} />
+              <span>Print {selectedDevices.length === savedBatch.length ? 'All Labels' : `Selected (${selectedDevices.length})`}</span>
+            </button>
+            <button 
+              type="button"
+              onClick={handleAddMore}
+              className="bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <Plus size={15} />
+              <span>Add More Stock</span>
+            </button>
+            <button 
+              type="button"
+              onClick={onSuccess}
+              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+            >
+              <span>View Product Details</span>
+              <ArrowLeft className="rotate-180" size={15} />
+            </button>
+          </div>
+        </div>
+
+        {/* Content Box */}
+        <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded p-4 space-y-4">
+          <div className="p-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 shrink-0 mt-0.5">
+                <CheckCircle2 size={22} />
+              </div>
+              <div>
+                <h3 className="font-bold text-neutral-900 dark:text-white text-base">
+                  {savedBatch.length} Serialized Units Added to Inventory
+                </h3>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">
+                  Product: <span className="font-semibold text-neutral-800 dark:text-neutral-200">{product.manufacturer_name ? `${product.manufacturer_name} ` : ''}{product.product_name}</span> {poNumber ? `• PO Ref: ${poNumber}` : ''}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end md:self-auto">
+              <button
+                type="button"
+                onClick={() => handleBatchPrintLabels(savedBatch)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded text-sm flex items-center gap-2 shadow-xs cursor-pointer transition-all active:scale-95"
+              >
+                <Printer size={16} />
+                <span>Print All {savedBatch.length} Labels</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Table of added serialized devices */}
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded overflow-hidden shadow-xs">
+            <div className="p-2.5 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  className="flex items-center gap-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:text-black dark:hover:text-white cursor-pointer"
+                >
+                  {allSelected ? <CheckSquare size={16} className="text-emerald-600" /> : <Square size={16} />}
+                  <span>{allSelected ? 'Deselect All' : 'Select All'} ({selectedDevices.length}/{savedBatch.length})</span>
+                </button>
+              </div>
+              <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                Ready for barcode label printing
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-[15px]">
+                <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+                  <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
+                    <th className="py-1 px-1.5 w-10 text-center border-r border-neutral-300 dark:border-neutral-700">
+                      <input 
+                        type="checkbox" 
+                        checked={allSelected} 
+                        onChange={toggleSelectAll}
+                        className="cursor-pointer"
+                      />
+                    </th>
+                    <th className="py-1 px-1.5 w-12 text-center border-r border-neutral-300 dark:border-neutral-700">#</th>
+                    <th className="py-1 px-1.5 min-w-[240px] text-center border-r border-neutral-300 dark:border-neutral-700">IMEI / Serial Number</th>
+                    <th className="py-1 px-1.5 w-36 text-center border-r border-neutral-300 dark:border-neutral-700">Storage (GB)</th>
+                    <th className="py-1 px-1.5 w-36 text-center border-r border-neutral-300 dark:border-neutral-700">Color</th>
+                    <th className="py-1 px-1.5 w-32 text-center border-r border-neutral-300 dark:border-neutral-700">Condition</th>
+                    <th className="py-1 px-1.5 w-32 text-center border-r border-neutral-300 dark:border-neutral-700">Price</th>
+                    <th className="py-1 px-1.5 w-28 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                  {savedBatch.map((dev, idx) => {
+                    const isSelected = dev.selected !== false;
+                    const isEvenRow = idx % 2 === 1;
+                    return (
+                      <tr 
+                        key={dev.id || idx}
+                        className={`text-[15px] transition-colors ${
+                          isSelected
+                            ? isEvenRow 
+                              ? 'bg-[#f8f9fa] dark:bg-neutral-900/40 hover:bg-neutral-100 dark:hover:bg-neutral-800/60' 
+                              : 'bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900'
+                            : 'opacity-50 bg-neutral-100 dark:bg-neutral-950'
+                        }`}
+                      >
+                        <td className="py-1 px-1.5 text-center align-middle border-r border-neutral-300 dark:border-neutral-800">
+                          <input 
+                            type="checkbox" 
+                            checked={isSelected}
+                            onChange={() => toggleSelectDevice(idx)}
+                            className="cursor-pointer"
+                          />
+                        </td>
+                        <td className="py-1 px-1.5 text-center text-neutral-500 text-[15px] font-medium align-middle border-r border-neutral-300 dark:border-neutral-800">
+                          {idx + 1}
+                        </td>
+                        <td className="py-1 px-2.5 align-middle border-r border-neutral-300 dark:border-neutral-800 font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                          {dev.imei}
+                        </td>
+                        <td className="py-1 px-2 text-center align-middle border-r border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300">
+                          {dev.gb ? `${dev.gb.replace(/gb/i, '')}GB` : '-'}
+                        </td>
+                        <td className="py-1 px-2 text-center align-middle border-r border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300">
+                          {dev.color || '-'}
+                        </td>
+                        <td className="py-1 px-2 text-center align-middle border-r border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300">
+                          {dev.condition || 'New'}
+                        </td>
+                        <td className="py-1 px-2 text-center align-middle border-r border-neutral-300 dark:border-neutral-800 font-semibold text-neutral-900 dark:text-neutral-100">
+                          €{Number(dev.selling_price || sellingPrice || product.selling_price || 0).toFixed(2)}
+                        </td>
+                        <td className="py-1 px-2 text-center align-middle">
+                          <button
+                            type="button"
+                            onClick={() => handleBatchPrintLabels([dev])}
+                            className="text-xs font-semibold px-2 py-1 bg-neutral-100 dark:bg-neutral-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-neutral-700 dark:text-neutral-200 hover:text-emerald-600 rounded border border-neutral-300 dark:border-neutral-700 flex items-center justify-center gap-1 mx-auto cursor-pointer transition-colors"
+                            title="Print single label for this device"
+                          >
+                            <Printer size={13} />
+                            <span>Print</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-[#f2f2f2] text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-2 pb-2 pt-0 select-none w-full overflow-auto" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
@@ -384,11 +830,12 @@ export default function AddInventory({
         <div className="flex items-center gap-2">
           <button 
             type="button"
+            disabled={isSaving}
             onClick={() => handleSubmit()}
-            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
           >
-            <Save size={15} />
-            <span>Save Inventory</span>
+            <Save size={15} className={isSaving ? 'animate-spin' : ''} />
+            <span>{isSaving ? 'Saving...' : 'Save Inventory'}</span>
           </button>
           <button 
             type="button"

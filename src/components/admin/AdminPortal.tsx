@@ -18,10 +18,12 @@ import {
   Shield, 
   LogOut,
   Building,
-  Search
+  Search,
+  Bell,
+  Sparkles
 } from 'lucide-react';
 
-type Tab = 'users' | 'branches' | 'smtp' | 'access' | 'businesses';
+type Tab = 'users' | 'branches' | 'smtp' | 'access' | 'businesses' | 'announcements';
 
 const statusColors: Record<string, string> = {
   approved: 'bg-emerald-50 text-emerald-600 border-emerald-100',
@@ -54,6 +56,16 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
   const [showAddBusiness, setShowAddBusiness] = useState(false);
   const [editBusiness, setEditBusiness] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [showAddAnnouncement, setShowAddAnnouncement] = useState(false);
+  const [editAnnouncement, setEditAnnouncement] = useState<any>(null);
+  const [newAnnouncement, setNewAnnouncement] = useState({
+    title: '',
+    category: 'feature',
+    version: 'v2.4',
+    summary: '',
+    detailsText: ''
+  });
 
   const loadUsers = () => fetch('/api/admin/users', { headers }).then(r => r.json()).then(d => Array.isArray(d) ? setUsers(d) : null);
   const loadBranches = () => fetch('/api/admin/branches', { headers }).then(r => r.json()).then(d => Array.isArray(d) ? setBranches(d) : null);
@@ -66,8 +78,20 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
       .then(r => r.json())
       .then(d => Array.isArray(d) ? setBusinesses(d) : null);
   };
+  const loadAnnouncements = () => {
+    fetch('/api/admin/announcements', { headers })
+      .then(r => r.json())
+      .then(d => Array.isArray(d) ? setAnnouncements(d) : null);
+  };
 
-  useEffect(() => { loadUsers(); loadBranches(); loadSmtp(); loadAccess(); loadBusinesses(); }, []);
+  useEffect(() => { 
+    loadUsers(); 
+    loadBranches(); 
+    loadSmtp(); 
+    loadAccess(); 
+    loadBusinesses(); 
+    loadAnnouncements();
+  }, []);
 
   const pendingCount = Array.isArray(users) ? users.filter(u => u.status === 'pending').length : 0;
   const pendingBusinessCount = Array.isArray(businesses) ? businesses.filter(b => b.status === 'inactive' || b.status === 'pending').length : 0;
@@ -225,6 +249,74 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
     u.email.toLowerCase().includes(searchQuery.toLowerCase())
   ) : [];
 
+  const createAnnouncement = async () => {
+    if (!newAnnouncement.title.trim() || !newAnnouncement.summary.trim()) {
+      alert('Please provide a title and summary.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/announcements', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          title: newAnnouncement.title,
+          category: newAnnouncement.category,
+          version: newAnnouncement.version,
+          summary: newAnnouncement.summary,
+          details: newAnnouncement.detailsText.split('\n').map(s => s.trim()).filter(Boolean)
+        })
+      });
+      if (res.ok) {
+        showMsg('✓ Announcement broadcasted');
+        setShowAddAnnouncement(false);
+        setNewAnnouncement({ title: '', category: 'feature', version: 'v2.4', summary: '', detailsText: '' });
+        loadAnnouncements();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to publish announcement');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveEditAnnouncement = async () => {
+    if (!editAnnouncement || !editAnnouncement.title.trim() || !editAnnouncement.summary.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/announcements/${editAnnouncement.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          title: editAnnouncement.title,
+          category: editAnnouncement.category,
+          version: editAnnouncement.version,
+          summary: editAnnouncement.summary,
+          details: Array.isArray(editAnnouncement.details) 
+            ? editAnnouncement.details 
+            : (typeof editAnnouncement.details === 'string' ? editAnnouncement.details.split('\n').map((s: string) => s.trim()).filter(Boolean) : [])
+        })
+      });
+      if (res.ok) {
+        showMsg('✓ Announcement updated');
+        setEditAnnouncement(null);
+        loadAnnouncements();
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteAnnouncement = async (id: string) => {
+    if (!confirm('Delete this announcement? It will be removed from all POS devices.')) return;
+    const res = await fetch(`/api/admin/announcements/${id}`, { method: 'DELETE', headers });
+    if (res.ok) {
+      showMsg('✓ Announcement deleted');
+      loadAnnouncements();
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex font-sans bg-slate-50 text-slate-900 overflow-hidden">
       {/* Sidebar */}
@@ -242,6 +334,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
               { id: 'users', label: 'Staff', icon: Users, badge: pendingCount },
               { id: 'branches', label: 'Branches', icon: GitBranch },
               { id: 'businesses', label: 'Businesses', icon: Building, badge: pendingBusinessCount },
+              { id: 'announcements', label: 'Announcements', icon: Bell },
               { id: 'smtp', label: 'Email', icon: Mail },
               { id: 'access', label: 'Security', icon: Shield },
             ].map(t => (
@@ -782,6 +875,291 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                     )}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* ANNOUNCEMENTS TAB */}
+            {tab === 'announcements' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-700">
+                      Active Broadcasts ({announcements.length})
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setShowAddAnnouncement(true)}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer shadow-xs"
+                  >
+                    <Plus size={14} /> Broadcast Announcement
+                  </button>
+                </div>
+
+                {/* Announcement Cards List */}
+                <div className="grid grid-cols-1 gap-4">
+                  {announcements.length === 0 ? (
+                    <div className="p-12 text-center text-slate-400 bg-white border border-slate-200 rounded-lg text-sm">
+                      No announcements broadcasted yet. Click "Broadcast Announcement" to create one.
+                    </div>
+                  ) : (
+                    announcements.map((item) => (
+                      <div key={item.id} className="bg-white border border-slate-200 rounded-lg p-5 shadow-xs hover:border-slate-300 transition-colors">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex flex-col gap-1.5 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${
+                                item.category === 'feature'
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                  : item.category === 'setting'
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              }`}>
+                                {item.category}
+                              </span>
+                              {item.version && (
+                                <span className="text-xs font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                  {item.version}
+                                </span>
+                              )}
+                              <span className="text-xs text-slate-400">
+                                {new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                            </div>
+
+                            <h3 className="text-base font-bold text-slate-900 mt-1">
+                              {item.title}
+                            </h3>
+
+                            <p className="text-sm text-slate-600 leading-relaxed">
+                              {item.summary}
+                            </p>
+
+                            {item.details && item.details.length > 0 && (
+                              <div className="mt-2 pt-2 border-t border-slate-100">
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                  Key Points & Release Notes:
+                                </span>
+                                <ul className="list-disc list-inside space-y-0.5 text-xs text-slate-600">
+                                  {item.details.map((d: string, idx: number) => (
+                                    <li key={idx}>{d}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => setEditAnnouncement({
+                                ...item,
+                                details: Array.isArray(item.details) ? item.details.join('\n') : (item.details || '')
+                              })}
+                              className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                              title="Edit Announcement"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button
+                              onClick={() => deleteAnnouncement(item.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                              title="Delete Announcement"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* MODAL: ADD ANNOUNCEMENT */}
+                {showAddAnnouncement && (
+                  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4">
+                    <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                        <div className="flex items-center gap-2">
+                          <span className="p-1.5 bg-red-100 text-red-600 rounded">
+                            <Bell size={16} />
+                          </span>
+                          <h3 className="font-bold text-slate-900 text-base">New System Announcement</h3>
+                        </div>
+                        <button onClick={() => setShowAddAnnouncement(false)} className="text-slate-400 hover:text-slate-900 text-lg font-bold">✕</button>
+                      </div>
+
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1">Title *</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Single Product Details Page Redesign"
+                            value={newAnnouncement.title}
+                            onChange={e => setNewAnnouncement(a => ({ ...a, title: e.target.value }))}
+                            className="w-full border border-slate-200 rounded px-3 py-2 text-sm outline-none focus:border-slate-900"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Category</label>
+                            <select
+                              value={newAnnouncement.category}
+                              onChange={e => setNewAnnouncement(a => ({ ...a, category: e.target.value }))}
+                              className="w-full border border-slate-200 rounded px-3 py-2 text-sm outline-none focus:border-slate-900 bg-white"
+                            >
+                              <option value="feature">🚀 New Feature</option>
+                              <option value="setting">⚙️ Setting Update</option>
+                              <option value="system">📢 System Update</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Version Tag</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. v2.4"
+                              value={newAnnouncement.version}
+                              onChange={e => setNewAnnouncement(a => ({ ...a, version: e.target.value }))}
+                              className="w-full border border-slate-200 rounded px-3 py-2 text-sm outline-none focus:border-slate-900 font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1">Summary / Short Message *</label>
+                          <textarea
+                            rows={2}
+                            placeholder="Brief description of the changes or news..."
+                            value={newAnnouncement.summary}
+                            onChange={e => setNewAnnouncement(a => ({ ...a, summary: e.target.value }))}
+                            className="w-full border border-slate-200 rounded px-3 py-2 text-sm outline-none focus:border-slate-900"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1">Key Points / Release Bullets (one per line)</label>
+                          <textarea
+                            rows={3}
+                            placeholder={"- First feature detail\n- Second feature detail"}
+                            value={newAnnouncement.detailsText}
+                            onChange={e => setNewAnnouncement(a => ({ ...a, detailsText: e.target.value }))}
+                            className="w-full border border-slate-200 rounded px-3 py-2 text-sm outline-none focus:border-slate-900 font-sans"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setShowAddAnnouncement(false)}
+                          className="px-4 py-2 border border-slate-200 rounded text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={createAnnouncement}
+                          disabled={loading}
+                          className="bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2 rounded text-xs flex items-center gap-2 cursor-pointer shadow-xs"
+                        >
+                          {loading && <Loader size={14} className="animate-spin" />}
+                          Publish Broadcast
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* MODAL: EDIT ANNOUNCEMENT */}
+                {editAnnouncement && (
+                  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4">
+                    <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                        <div className="flex items-center gap-2">
+                          <span className="p-1.5 bg-slate-100 text-slate-700 rounded">
+                            <Edit2 size={16} />
+                          </span>
+                          <h3 className="font-bold text-slate-900 text-base">Edit Announcement</h3>
+                        </div>
+                        <button onClick={() => setEditAnnouncement(null)} className="text-slate-400 hover:text-slate-900 text-lg font-bold">✕</button>
+                      </div>
+
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1">Title *</label>
+                          <input
+                            type="text"
+                            value={editAnnouncement.title}
+                            onChange={e => setEditAnnouncement((a: any) => ({ ...a, title: e.target.value }))}
+                            className="w-full border border-slate-200 rounded px-3 py-2 text-sm outline-none focus:border-slate-900"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Category</label>
+                            <select
+                              value={editAnnouncement.category}
+                              onChange={e => setEditAnnouncement((a: any) => ({ ...a, category: e.target.value }))}
+                              className="w-full border border-slate-200 rounded px-3 py-2 text-sm outline-none focus:border-slate-900 bg-white"
+                            >
+                              <option value="feature">🚀 New Feature</option>
+                              <option value="setting">⚙️ Setting Update</option>
+                              <option value="system">📢 System Update</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Version Tag</label>
+                            <input
+                              type="text"
+                              value={editAnnouncement.version || ''}
+                              onChange={e => setEditAnnouncement((a: any) => ({ ...a, version: e.target.value }))}
+                              className="w-full border border-slate-200 rounded px-3 py-2 text-sm outline-none focus:border-slate-900 font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1">Summary *</label>
+                          <textarea
+                            rows={2}
+                            value={editAnnouncement.summary}
+                            onChange={e => setEditAnnouncement((a: any) => ({ ...a, summary: e.target.value }))}
+                            className="w-full border border-slate-200 rounded px-3 py-2 text-sm outline-none focus:border-slate-900"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1">Key Points / Bullets (one per line)</label>
+                          <textarea
+                            rows={3}
+                            value={editAnnouncement.details}
+                            onChange={e => setEditAnnouncement((a: any) => ({ ...a, details: e.target.value }))}
+                            className="w-full border border-slate-200 rounded px-3 py-2 text-sm outline-none focus:border-slate-900 font-sans"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setEditAnnouncement(null)}
+                          className="px-4 py-2 border border-slate-200 rounded text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={saveEditAnnouncement}
+                          disabled={loading}
+                          className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-5 py-2 rounded text-xs flex items-center gap-2 cursor-pointer shadow-xs"
+                        >
+                          {loading && <Loader size={14} className="animate-spin" />}
+                          Save Changes
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

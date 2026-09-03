@@ -739,12 +739,37 @@ router.delete('/:id', async (req: any, res, next) => {
 router.get('/:id/activity', async (req: any, res, next) => {
   try {
     const acts = await query(`
-      SELECT a.*, u.name as user_name FROM product_activity a
+      SELECT 'product' as source, a.id, a.user_id, a.activity, a.details, a.created_at, COALESCE(u.name, 'System') as user_name 
+      FROM product_activity a
       LEFT JOIN users u ON a.user_id = u.id
       JOIN product_skus s ON a.sku_id = s.id
       JOIN products p ON s.product_id = p.id
-      WHERE a.sku_id = ? AND p.business_id = ? ORDER BY a.created_at DESC
-    `, [req.params.id, req.user.business_id]);
+      WHERE (a.sku_id = ? OR s.product_id = ?) AND p.business_id = ?
+      
+      UNION ALL
+
+      SELECT 'device' as source, da.id, da.user_id, da.activity, da.details, da.created_at, COALESCE(u.name, 'System') as user_name
+      FROM device_activity da
+      JOIN devices d ON da.device_id = d.id
+      JOIN product_skus s ON d.sku_id = s.id
+      JOIN products p ON s.product_id = p.id
+      LEFT JOIN users u ON da.user_id = u.id
+      WHERE (s.id = ? OR p.id = ?) AND p.business_id = ?
+
+      UNION ALL
+
+      SELECT 'log' as source, al.id, al.user_id, al.activity_type as activity, al.description as details, al.created_at, COALESCE(al.user_name, u.name, 'System') as user_name
+      FROM activity_logs al
+      LEFT JOIN users u ON al.user_id = u.id
+      WHERE (al.product_id = ? OR al.product_id = (SELECT product_id FROM product_skus WHERE id=?))
+        AND COALESCE(al.business_id, u.business_id) = ?
+
+      ORDER BY created_at DESC
+    `, [
+      req.params.id, req.params.id, req.user.business_id,
+      req.params.id, req.params.id, req.user.business_id,
+      req.params.id, req.params.id, req.user.business_id
+    ]);
     res.json(acts);
   } catch (e: any) { next(e); }
 });

@@ -1061,7 +1061,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
         {/* Left Column */}
         <section className="flex flex-col gap-4 min-w-0">
           {/* Search / Scan bar */}
-          <div ref={searchContainerRef} className="relative z-50">
+          <div ref={searchContainerRef} className="relative z-20">
             <ProductSearchBar 
               inputRef={searchInputRef}
               searchQuery={searchQuery}
