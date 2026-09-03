@@ -914,6 +914,30 @@ async function initSchema() {
       await conn.query("ALTER TABLE invoices ADD COLUMN tax_type VARCHAR(20) DEFAULT 'excluded' AFTER tax_rate");
     } catch (e) {
     }
+    try {
+      await conn.query("ALTER TABLE settings ADD COLUMN startup_cash_popup TINYINT(1) DEFAULT 0");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE settings ALTER COLUMN startup_cash_popup SET DEFAULT 0");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE settings ADD COLUMN low_stock_popup TINYINT(1) DEFAULT 1");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE settings ADD COLUMN announcements_popup TINYINT(1) DEFAULT 1");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE settings ADD COLUMN sound_notifications TINYINT(1) DEFAULT 1");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE settings ADD COLUMN daily_eod_popup TINYINT(1) DEFAULT 1");
+    } catch (e) {
+    }
     await conn.query("SET FOREIGN_KEY_CHECKS = 1");
     try {
       await conn.query(`
@@ -4986,7 +5010,7 @@ __export(settings_exports, {
 });
 import { Router as Router7 } from "express";
 import { z as z6 } from "zod";
-var router7, settingsSchema, authSettingsSchema, companySchema, paymentMethodsSchema, printerSettingsSchema, thermalPrinterSettingsSchema, categoryManufacturerSchema, supplierSchema, settings_default;
+var router7, settingsSchema, popupSettingsSchema, authSettingsSchema, companySchema, paymentMethodsSchema, printerSettingsSchema, thermalPrinterSettingsSchema, categoryManufacturerSchema, supplierSchema, settings_default;
 var init_settings = __esm({
   "src/routes/settings.ts"() {
     init_mysql();
@@ -5008,16 +5032,82 @@ var init_settings = __esm({
       timezone: z6.string().optional(),
       date_format: z6.string().optional(),
       time_format: z6.string().optional(),
-      language: z6.string().optional()
+      language: z6.string().optional(),
+      startup_cash_popup: z6.boolean().optional(),
+      low_stock_popup: z6.boolean().optional(),
+      announcements_popup: z6.boolean().optional(),
+      sound_notifications: z6.boolean().optional(),
+      daily_eod_popup: z6.boolean().optional()
     });
     router7.post("/settings", async (req, res, next) => {
       const data = settingsSchema.parse(req.body);
-      const { currency, timezone, date_format, time_format, language } = data;
+      const { currency, timezone, date_format, time_format, language, startup_cash_popup, low_stock_popup, announcements_popup, sound_notifications, daily_eod_popup } = data;
       try {
-        await execute(
-          "UPDATE settings SET currency=?,timezone=?,date_format=?,time_format=?,language=? WHERE business_id=?",
-          [currency || "\u20AC, Euro", timezone, date_format, time_format, language, req.user.business_id]
-        );
+        let s = await queryOne("SELECT id FROM settings WHERE business_id=?", [req.user.business_id]);
+        if (!s) {
+          await execute("INSERT INTO settings (business_id) VALUES (?)", [req.user.business_id]);
+        }
+        await execute(`
+      UPDATE settings SET 
+        currency = COALESCE(?, currency),
+        timezone = COALESCE(?, timezone),
+        date_format = COALESCE(?, date_format),
+        time_format = COALESCE(?, time_format),
+        language = COALESCE(?, language),
+        startup_cash_popup = COALESCE(?, startup_cash_popup),
+        low_stock_popup = COALESCE(?, low_stock_popup),
+        announcements_popup = COALESCE(?, announcements_popup),
+        sound_notifications = COALESCE(?, sound_notifications),
+        daily_eod_popup = COALESCE(?, daily_eod_popup)
+      WHERE business_id = ?
+    `, [
+          currency || "\u20AC, Euro",
+          timezone,
+          date_format,
+          time_format,
+          language,
+          startup_cash_popup !== void 0 ? startup_cash_popup ? 1 : 0 : null,
+          low_stock_popup !== void 0 ? low_stock_popup ? 1 : 0 : null,
+          announcements_popup !== void 0 ? announcements_popup ? 1 : 0 : null,
+          sound_notifications !== void 0 ? sound_notifications ? 1 : 0 : null,
+          daily_eod_popup !== void 0 ? daily_eod_popup ? 1 : 0 : null,
+          req.user.business_id
+        ]);
+        res.json({ success: true });
+      } catch (e) {
+        next(e);
+      }
+    });
+    popupSettingsSchema = z6.object({
+      startup_cash_popup: z6.boolean().optional(),
+      low_stock_popup: z6.boolean().optional(),
+      announcements_popup: z6.boolean().optional(),
+      sound_notifications: z6.boolean().optional(),
+      daily_eod_popup: z6.boolean().optional()
+    });
+    router7.post("/settings/popups", async (req, res, next) => {
+      const data = popupSettingsSchema.parse(req.body);
+      try {
+        let s = await queryOne("SELECT id FROM settings WHERE business_id=?", [req.user.business_id]);
+        if (!s) {
+          await execute("INSERT INTO settings (business_id) VALUES (?)", [req.user.business_id]);
+        }
+        await execute(`
+      UPDATE settings SET 
+        startup_cash_popup = COALESCE(?, startup_cash_popup),
+        low_stock_popup = COALESCE(?, low_stock_popup),
+        announcements_popup = COALESCE(?, announcements_popup),
+        sound_notifications = COALESCE(?, sound_notifications),
+        daily_eod_popup = COALESCE(?, daily_eod_popup)
+      WHERE business_id = ?
+    `, [
+          data.startup_cash_popup !== void 0 ? data.startup_cash_popup ? 1 : 0 : null,
+          data.low_stock_popup !== void 0 ? data.low_stock_popup ? 1 : 0 : null,
+          data.announcements_popup !== void 0 ? data.announcements_popup ? 1 : 0 : null,
+          data.sound_notifications !== void 0 ? data.sound_notifications ? 1 : 0 : null,
+          data.daily_eod_popup !== void 0 ? data.daily_eod_popup ? 1 : 0 : null,
+          req.user.business_id
+        ]);
         res.json({ success: true });
       } catch (e) {
         next(e);
