@@ -22,15 +22,79 @@ const settingsSchema = z.object({
   timezone: z.string().optional(),
   date_format: z.string().optional(),
   time_format: z.string().optional(),
-  language: z.string().optional()
+  language: z.string().optional(),
+  startup_cash_popup: z.boolean().optional(),
+  low_stock_popup: z.boolean().optional(),
+  announcements_popup: z.boolean().optional(),
+  sound_notifications: z.boolean().optional(),
+  daily_eod_popup: z.boolean().optional(),
 });
 
 router.post('/settings', async (req: any, res, next) => {
   const data = settingsSchema.parse(req.body);
-  const { currency, timezone, date_format, time_format, language } = data;
+  const { currency, timezone, date_format, time_format, language, startup_cash_popup, low_stock_popup, announcements_popup, sound_notifications, daily_eod_popup } = data;
   try {
-    await execute('UPDATE settings SET currency=?,timezone=?,date_format=?,time_format=?,language=? WHERE business_id=?',
-      [currency || '€, Euro', timezone, date_format, time_format, language, req.user.business_id]);
+    let s = await queryOne('SELECT id FROM settings WHERE business_id=?', [req.user.business_id]);
+    if (!s) {
+      await execute('INSERT INTO settings (business_id) VALUES (?)', [req.user.business_id]);
+    }
+    await execute(`
+      UPDATE settings SET 
+        currency = COALESCE(?, currency),
+        timezone = COALESCE(?, timezone),
+        date_format = COALESCE(?, date_format),
+        time_format = COALESCE(?, time_format),
+        language = COALESCE(?, language),
+        startup_cash_popup = COALESCE(?, startup_cash_popup),
+        low_stock_popup = COALESCE(?, low_stock_popup),
+        announcements_popup = COALESCE(?, announcements_popup),
+        sound_notifications = COALESCE(?, sound_notifications),
+        daily_eod_popup = COALESCE(?, daily_eod_popup)
+      WHERE business_id = ?
+    `, [
+      currency || '€, Euro', timezone, date_format, time_format, language,
+      startup_cash_popup !== undefined ? (startup_cash_popup ? 1 : 0) : null,
+      low_stock_popup !== undefined ? (low_stock_popup ? 1 : 0) : null,
+      announcements_popup !== undefined ? (announcements_popup ? 1 : 0) : null,
+      sound_notifications !== undefined ? (sound_notifications ? 1 : 0) : null,
+      daily_eod_popup !== undefined ? (daily_eod_popup ? 1 : 0) : null,
+      req.user.business_id
+    ]);
+    res.json({ success: true });
+  } catch (e: any) { next(e); }
+});
+
+const popupSettingsSchema = z.object({
+  startup_cash_popup: z.boolean().optional(),
+  low_stock_popup: z.boolean().optional(),
+  announcements_popup: z.boolean().optional(),
+  sound_notifications: z.boolean().optional(),
+  daily_eod_popup: z.boolean().optional(),
+});
+
+router.post('/settings/popups', async (req: any, res, next) => {
+  const data = popupSettingsSchema.parse(req.body);
+  try {
+    let s = await queryOne('SELECT id FROM settings WHERE business_id=?', [req.user.business_id]);
+    if (!s) {
+      await execute('INSERT INTO settings (business_id) VALUES (?)', [req.user.business_id]);
+    }
+    await execute(`
+      UPDATE settings SET 
+        startup_cash_popup = COALESCE(?, startup_cash_popup),
+        low_stock_popup = COALESCE(?, low_stock_popup),
+        announcements_popup = COALESCE(?, announcements_popup),
+        sound_notifications = COALESCE(?, sound_notifications),
+        daily_eod_popup = COALESCE(?, daily_eod_popup)
+      WHERE business_id = ?
+    `, [
+      data.startup_cash_popup !== undefined ? (data.startup_cash_popup ? 1 : 0) : null,
+      data.low_stock_popup !== undefined ? (data.low_stock_popup ? 1 : 0) : null,
+      data.announcements_popup !== undefined ? (data.announcements_popup ? 1 : 0) : null,
+      data.sound_notifications !== undefined ? (data.sound_notifications ? 1 : 0) : null,
+      data.daily_eod_popup !== undefined ? (data.daily_eod_popup ? 1 : 0) : null,
+      req.user.business_id
+    ]);
     res.json({ success: true });
   } catch (e: any) { next(e); }
 });

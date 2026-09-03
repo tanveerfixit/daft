@@ -349,7 +349,7 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
             <div className="border-b border-dashed border-black my-1" />
             <div className="flex justify-between font-bold text-sm mt-1">
               <span>Price:</span>
-              <span>€{Number(printRepair.total_quote || 0).toFixed(2)}</span>
+              <span>{Number(printRepair.total_quote || 0) > 0 ? `€${Number(printRepair.total_quote || 0).toFixed(2)}` : 'Estimate Pending'}</span>
             </div>
             {Number(printRepair.deposit_paid || 0) > 0 && (
               <div className="flex justify-between text-xs">
@@ -357,7 +357,7 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
                 <span>€{Number(printRepair.deposit_paid || 0).toFixed(2)}</span>
               </div>
             )}
-            {Number(printRepair.remaining_balance || 0) > 0 && (
+            {Number(printRepair.total_quote || 0) > 0 && Number(printRepair.remaining_balance || 0) > 0 && (
               <div className="flex justify-between text-xs font-bold">
                 <span>Remaining:</span>
                 <span>€{Number(printRepair.remaining_balance || 0).toFixed(2)}</span>

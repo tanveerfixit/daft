@@ -825,10 +825,10 @@ router.post('/', async (req: any, res, next) => {
           [repairAmount, repairAmount, jobId, req.user.business_id]
         );
 
-        // Check if fully paid → auto-set status to 'completed'
-        const [jobRows] = await conn.execute('SELECT remaining_balance, status FROM jobs WHERE id=? AND business_id=?', [jobId, req.user.business_id]);
+        // Check if fully paid → auto-set status to 'completed' ONLY if quote is set (> 0)
+        const [jobRows] = await conn.execute('SELECT total_quote, remaining_balance, status FROM jobs WHERE id=? AND business_id=?', [jobId, req.user.business_id]);
         const updatedJob = (jobRows as any[])[0];
-        if (updatedJob && Number(updatedJob.remaining_balance) <= 0 && updatedJob.status !== 'collected') {
+        if (updatedJob && Number(updatedJob.total_quote) > 0 && Number(updatedJob.remaining_balance) <= 0 && updatedJob.status !== 'completed' && updatedJob.status !== 'collected') {
           await conn.execute('UPDATE jobs SET status=? WHERE id=? AND business_id=?', ['completed', jobId, req.user.business_id]);
         }
 

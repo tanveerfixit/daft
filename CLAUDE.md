@@ -29,3 +29,14 @@
 - **Database**: MySQL 8.x / MariaDB (`mysql2/promise`)
 - **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS
 - **Dev Server**: `npm run dev` (starts backend + Vite middleware on `http://localhost:3000`)
+
+---
+
+## 📝 CHANGELOG & VERSION MEMORY
+- Maintain `CHANGELOG.md` in the project root.
+- Document every major feature release, bug fix, and UI/UX optimization under the current date.
+
+---
+
+## 🔒 GIT COMMIT SAFETY
+- Do NOT perform git commits or pushes until explicitly instructed by the user.

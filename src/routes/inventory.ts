@@ -1619,13 +1619,14 @@ router.post('/repairs', async (req: any, res, next) => {
 const updateRepairSchema = z.object({
   status: z.string().optional(),
   issue: z.string().optional(),
-  notes: z.string().optional()
+  notes: z.string().optional(),
+  total_quote: z.number().optional()
 });
 
-// PUT /api/repairs/:id — update status, issue description, and notes (payments go through Cash Register)
+// PUT /api/repairs/:id — update status, issue description, total_quote, and notes (payments go through Cash Register)
 router.put('/repairs/:id', async (req: any, res, next) => {
   const data = updateRepairSchema.parse(req.body);
-  const { status, issue, notes } = data;
+  const { status, issue, notes, total_quote } = data;
   const jobId = req.params.id;
   const conn = await pool.getConnection();
   try {
@@ -1651,6 +1652,14 @@ router.put('/repairs/:id', async (req: any, res, next) => {
     if (issue !== undefined) {
       updates.push('issue = ?');
       values.push(issue.trim());
+    }
+
+    if (total_quote !== undefined) {
+      const newQuote = Math.max(0, Number(total_quote) || 0);
+      const currentDeposit = Number(job.deposit_paid || 0);
+      const newRemaining = Math.max(0, newQuote - currentDeposit);
+      updates.push('total_quote = ?', 'remaining_balance = ?');
+      values.push(newQuote, newRemaining);
     }
 
     // Append notes with timestamp

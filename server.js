@@ -1607,7 +1607,7 @@ async function requireAdminAsync(req, res, next) {
 function slugify(text) {
   return text.toString().toLowerCase().trim().replace(/\s+/g, "-").replace(/[^\w-]+/g, "").replace(/--+/g, "-");
 }
-var JWT_SECRET, revokedTokens, userPasswordResets, _cleanup, authUserCache, router, signupSchema, loginSchema, resetPasswordSchema, adminRouter, auth_default;
+var JWT_SECRET, revokedTokens, userPasswordResets, _cleanup, authUserCache, router, signupSchema, loginSchema, resetPasswordSchema, adminRouter, getAnnouncementsPath, readAnnouncementsFile, writeAnnouncementsFile, auth_default;
 var init_auth = __esm({
   "src/routes/auth.ts"() {
     init_mysql();
@@ -2181,6 +2181,97 @@ var init_auth = __esm({
         next(e);
       }
     });
+    getAnnouncementsPath = async () => {
+      const path = await import("path");
+      return path.resolve(process.cwd(), "src", "data", "announcements.json");
+    };
+    readAnnouncementsFile = async () => {
+      const fs2 = await import("fs");
+      const filePath = await getAnnouncementsPath();
+      if (fs2.existsSync(filePath)) {
+        const raw = fs2.readFileSync(filePath, "utf-8");
+        try {
+          return JSON.parse(raw);
+        } catch (e) {
+          return [];
+        }
+      }
+      return [];
+    };
+    writeAnnouncementsFile = async (data) => {
+      const fs2 = await import("fs");
+      const path = await import("path");
+      const filePath = await getAnnouncementsPath();
+      const dir = path.dirname(filePath);
+      if (!fs2.existsSync(dir)) fs2.mkdirSync(dir, { recursive: true });
+      fs2.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+    };
+    adminRouter.get("/announcements", requireAdminAsync, async (_req, res, next) => {
+      try {
+        const list = await readAnnouncementsFile();
+        res.json(list);
+      } catch (e) {
+        next(e);
+      }
+    });
+    adminRouter.post("/announcements", requireAdminAsync, async (req, res, next) => {
+      const { title, category, version, summary, details } = req.body;
+      if (!title || !summary) {
+        return res.status(400).json({ error: "Title and summary are required" });
+      }
+      try {
+        const list = await readAnnouncementsFile();
+        const newId = `ann-${Date.now()}`;
+        const newAnnouncement = {
+          id: newId,
+          title: title.trim(),
+          category: category || "feature",
+          date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+          version: version ? version.trim() : "v1.0",
+          summary: summary.trim(),
+          details: Array.isArray(details) ? details.filter(Boolean) : typeof details === "string" ? details.split("\n").map((s) => s.trim()).filter(Boolean) : []
+        };
+        const updated = [newAnnouncement, ...list];
+        await writeAnnouncementsFile(updated);
+        res.json({ success: true, announcement: newAnnouncement });
+      } catch (e) {
+        next(e);
+      }
+    });
+    adminRouter.put("/announcements/:id", requireAdminAsync, async (req, res, next) => {
+      const { id } = req.params;
+      const { title, category, version, summary, details } = req.body;
+      try {
+        const list = await readAnnouncementsFile();
+        const index = list.findIndex((a) => a.id === id);
+        if (index === -1) {
+          return res.status(404).json({ error: "Announcement not found" });
+        }
+        list[index] = {
+          ...list[index],
+          title: title ? title.trim() : list[index].title,
+          category: category || list[index].category,
+          version: version ? version.trim() : list[index].version,
+          summary: summary ? summary.trim() : list[index].summary,
+          details: Array.isArray(details) ? details.filter(Boolean) : typeof details === "string" ? details.split("\n").map((s) => s.trim()).filter(Boolean) : list[index].details
+        };
+        await writeAnnouncementsFile(list);
+        res.json({ success: true, announcement: list[index] });
+      } catch (e) {
+        next(e);
+      }
+    });
+    adminRouter.delete("/announcements/:id", requireAdminAsync, async (req, res, next) => {
+      const { id } = req.params;
+      try {
+        const list = await readAnnouncementsFile();
+        const filtered = list.filter((a) => a.id !== id);
+        await writeAnnouncementsFile(filtered);
+        res.json({ success: true });
+      } catch (e) {
+        next(e);
+      }
+    });
     auth_default = router;
   }
 });
@@ -2212,6 +2303,20 @@ var init_public = __esm({
           ...business,
           branches: Array.isArray(branches) ? branches : [branches].filter(Boolean)
         });
+      } catch (e) {
+        next(e);
+      }
+    });
+    router2.get("/announcements", async (_req, res, next) => {
+      try {
+        const fs2 = await import("fs");
+        const path = await import("path");
+        const filePath = path.resolve(process.cwd(), "src", "data", "announcements.json");
+        if (fs2.existsSync(filePath)) {
+          const data = fs2.readFileSync(filePath, "utf-8");
+          return res.json(JSON.parse(data));
+        }
+        res.json([]);
       } catch (e) {
         next(e);
       }
@@ -2907,12 +3012,43 @@ var init_products = __esm({
     router3.get("/:id/activity", async (req, res, next) => {
       try {
         const acts = await query(`
-      SELECT a.*, u.name as user_name FROM product_activity a
+      SELECT 'product' as source, a.id, a.user_id, a.activity, a.details, a.created_at, COALESCE(u.name, 'System') as user_name 
+      FROM product_activity a
       LEFT JOIN users u ON a.user_id = u.id
       JOIN product_skus s ON a.sku_id = s.id
       JOIN products p ON s.product_id = p.id
-      WHERE a.sku_id = ? AND p.business_id = ? ORDER BY a.created_at DESC
-    `, [req.params.id, req.user.business_id]);
+      WHERE (a.sku_id = ? OR s.product_id = ?) AND p.business_id = ?
+      
+      UNION ALL
+
+      SELECT 'device' as source, da.id, da.user_id, da.activity, da.details, da.created_at, COALESCE(u.name, 'System') as user_name
+      FROM device_activity da
+      JOIN devices d ON da.device_id = d.id
+      JOIN product_skus s ON d.sku_id = s.id
+      JOIN products p ON s.product_id = p.id
+      LEFT JOIN users u ON da.user_id = u.id
+      WHERE (s.id = ? OR p.id = ?) AND p.business_id = ?
+
+      UNION ALL
+
+      SELECT 'log' as source, al.id, al.user_id, al.activity_type as activity, al.description as details, al.created_at, COALESCE(al.user_name, u.name, 'System') as user_name
+      FROM activity_logs al
+      LEFT JOIN users u ON al.user_id = u.id
+      WHERE (al.product_id = ? OR al.product_id = (SELECT product_id FROM product_skus WHERE id=?))
+        AND COALESCE(al.business_id, u.business_id) = ?
+
+      ORDER BY created_at DESC
+    `, [
+          req.params.id,
+          req.params.id,
+          req.user.business_id,
+          req.params.id,
+          req.params.id,
+          req.user.business_id,
+          req.params.id,
+          req.params.id,
+          req.user.business_id
+        ]);
         res.json(acts);
       } catch (e) {
         next(e);
@@ -4039,9 +4175,9 @@ var init_invoices = __esm({
            WHERE id = ? AND business_id = ?`,
               [repairAmount, repairAmount, jobId, req.user.business_id]
             );
-            const [jobRows] = await conn.execute("SELECT remaining_balance, status FROM jobs WHERE id=? AND business_id=?", [jobId, req.user.business_id]);
+            const [jobRows] = await conn.execute("SELECT total_quote, remaining_balance, status FROM jobs WHERE id=? AND business_id=?", [jobId, req.user.business_id]);
             const updatedJob = jobRows[0];
-            if (updatedJob && Number(updatedJob.remaining_balance) <= 0 && updatedJob.status !== "collected") {
+            if (updatedJob && Number(updatedJob.total_quote) > 0 && Number(updatedJob.remaining_balance) <= 0 && updatedJob.status !== "completed" && updatedJob.status !== "collected") {
               await conn.execute("UPDATE jobs SET status=? WHERE id=? AND business_id=?", ["completed", jobId, req.user.business_id]);
             }
             if (finalCustomerId) {
@@ -4698,11 +4834,11 @@ var init_reports = __esm({
         COALESCE(al.business_id, u.business_id) as business_id,
         al.user_id,
         COALESCE(al.user_name, u.name, 'System') as user_name,
-        al.activity_type,
-        al.description as details,
-        al.reference_type,
-        al.reference_id,
-        al.reference_link,
+        COALESCE(al.activity_type, 'General Activity') as activity_type,
+        COALESCE(al.description, '') as details,
+        COALESCE(al.reference_type, IF(al.device_id IS NOT NULL, 'device', IF(al.product_id IS NOT NULL, 'product', NULL))) as reference_type,
+        COALESCE(al.reference_id, al.device_id, al.product_id) as reference_id,
+        COALESCE(al.reference_link, IF(al.device_id IS NOT NULL, CONCAT('/devices/', al.device_id), IF(al.product_id IS NOT NULL, CONCAT('/products/', al.product_id), NULL))) as reference_link,
         al.ip_address,
         al.created_at
       FROM activity_logs al
@@ -5327,6 +5463,7 @@ var init_inventory = __esm({
             totalAmount
           ]
         );
+        const insertedDevices = [];
         if (productInfo.product_type === "serialized") {
           const imeiList = validItems.map((it) => it.imei.trim());
           const lowerImeis = imeiList.map((s) => s.toLowerCase());
@@ -5348,18 +5485,34 @@ var init_inventory = __esm({
             }
           }
           for (const item of validItems) {
+            const cleanImei = item.imei.trim();
             await conn.execute(
               "INSERT INTO devices (business_id,branch_id,sku_id,imei,cost_price,selling_price,color,gb,`condition`,po_number,status) VALUES (?,?,?,?,?,?,?,?,?,?,'in_stock')",
-              [req.user.business_id, activeBranchId, sku_id, item.imei.trim(), cost_price, selling_price, item.color, item.gb, item.condition, finalPoNumber]
+              [req.user.business_id, activeBranchId, sku_id, cleanImei, cost_price, selling_price, item.color, item.gb, item.condition, finalPoNumber]
             );
-            const deviceId = (await conn.execute("SELECT LAST_INSERT_ID() as id"))[0];
+            const deviceIdRow = (await conn.execute("SELECT LAST_INSERT_ID() as id"))[0];
+            const insertedDevId = deviceIdRow[0]?.id || deviceIdRow?.insertId;
+            insertedDevices.push({
+              id: insertedDevId,
+              imei: cleanImei,
+              color: item.color || "",
+              gb: item.gb || "",
+              condition: item.condition || "New",
+              cost_price: Number(cost_price) || 0,
+              selling_price: Number(selling_price) || 0
+            });
+            const imeiLogDesc = `IMEI: ${cleanImei} (${item.gb || ""} ${item.color || ""} ${item.condition || ""}) added to inventory via PO: ${finalPoNumber}`;
             await conn.execute(
               "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-              [deviceId[0].id, req.userId, "Device Created", `Added to inventory via PO: ${finalPoNumber}`]
+              [insertedDevId, req.userId, "Device Created", imeiLogDesc]
             );
             await conn.execute(
-              "INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-              [req.user.business_id, activeBranchId, deviceId[0].id, req.userId, req.user?.name || null, "Device Created", "Initial inventory entry", finalPoNumber]
+              "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+              [sku_id, req.userId, "Device Created", `Device with IMEI ${cleanImei} added to inventory`]
+            );
+            await conn.execute(
+              "INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+              [req.user.business_id, activeBranchId, insertedDevId, productInfo.product_id, req.userId, req.user?.name || "System", "Device Created", `IMEI: ${cleanImei} (${productInfo.product_name}) added to inventory`, "device", insertedDevId, `/devices/${insertedDevId}`]
             );
             await conn.execute(
               "INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,1) ON DUPLICATE KEY UPDATE quantity=quantity+1",
@@ -5377,7 +5530,7 @@ var init_inventory = __esm({
           [req.user.business_id, activeBranchId, sku_id, "purchase", quantity || items?.length || 0, cost_price || 0, "purchase_order", poId]
         );
         await conn.commit();
-        res.json({ success: true });
+        res.json({ success: true, devices: typeof insertedDevices !== "undefined" ? insertedDevices : [] });
       } catch (e) {
         await conn.rollback();
         console.error("[inventory/add] Error:", e.message, e.sql || "");
@@ -5872,13 +6025,19 @@ var init_inventory = __esm({
         if (carrier !== void 0 && String(carrier ?? "") !== String(old.carrier ?? "")) changes.push(`Carrier: ${old.carrier || "none"} -> ${carrier}`);
         const userId = req.user?.id || req.userId || 1;
         if (changes.length > 0) {
+          const imeiTag = old.imei || old.imei_serial || "N/A";
+          const changeDesc = `[IMEI: ${imeiTag}] ${changes.join(", ")}`;
           await conn.execute(
             "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-            [req.params.id, userId, "Device Updated", changes.join(", ")]
+            [req.params.id, userId, "Device Updated", changeDesc]
           );
           await conn.execute(
-            "INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [req.user.business_id, req.user.branch_id, req.params.id, userId, req.user?.name || null, "Device Updated", changes.join(", ")]
+            "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [targetSkuId, userId, "Device Updated", changeDesc]
+          );
+          await conn.execute(
+            "INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [req.user.business_id, old.branch_id || req.user.branch_id, req.params.id, old.product_id, userId, req.user?.name || "System", "Device Updated", changeDesc, "device", req.params.id, `/devices/${req.params.id}`]
           );
         }
         await conn.commit();
@@ -5894,17 +6053,17 @@ var init_inventory = __esm({
     router8.get("/devices/:id/activity", async (req, res, next) => {
       try {
         const activities = await query(`
-      SELECT 'device' as source, a.id, a.user_id, a.activity, a.details, a.created_at, u.name as user_name 
+      SELECT 'device' as source, a.id, a.user_id, a.activity, a.details, a.created_at, COALESCE(u.name, 'System') as user_name 
       FROM device_activity a
       LEFT JOIN users u ON a.user_id=u.id
       WHERE a.device_id=?
       UNION ALL
-      SELECT 'product' as source, pa.id, pa.user_id, pa.activity, pa.details, pa.created_at, u.name as user_name
+      SELECT 'product' as source, pa.id, pa.user_id, pa.activity, pa.details, pa.created_at, COALESCE(u.name, 'System') as user_name
       FROM product_activity pa
       LEFT JOIN users u ON pa.user_id=u.id
       WHERE pa.sku_id = (SELECT sku_id FROM devices WHERE id=?)
       UNION ALL
-      SELECT 'log' as source, al.id, al.user_id, al.activity_type as activity, al.description as details, al.created_at, u.name as user_name
+      SELECT 'log' as source, al.id, al.user_id, al.activity_type as activity, al.description as details, al.created_at, COALESCE(al.user_name, u.name, 'System') as user_name
       FROM activity_logs al
       LEFT JOIN users u ON al.user_id=u.id
       WHERE al.device_id=? OR al.product_id = (SELECT sku_id FROM devices WHERE id=?)
@@ -5923,15 +6082,15 @@ var init_inventory = __esm({
       const data = deviceActivitySchema.parse(req.body);
       const { activity, details } = data;
       try {
-        const device = await queryOne("SELECT id FROM devices WHERE id=? AND business_id=?", [req.params.id, req.user.business_id]);
+        const device = await queryOne("SELECT id, branch_id, sku_id FROM devices WHERE id=? AND business_id=?", [req.params.id, req.user.business_id]);
         if (!device) return res.status(404).json({ error: "Device not found" });
         await execute(
           "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
           [req.params.id, req.userId, activity || "Note Added", details || ""]
         );
         await execute(
-          "INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [req.user.business_id, req.user.branch_id, req.params.id, req.userId, req.user?.name || null, activity || "Note Added", details || ""]
+          "INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          [req.user.business_id, device.branch_id || req.user.branch_id, req.params.id, req.userId, req.user?.name || "System", activity || "Note Added", details || "", "device", req.params.id, `/devices/${req.params.id}`]
         );
         res.json({ success: true });
       } catch (e) {
@@ -5939,12 +6098,46 @@ var init_inventory = __esm({
       }
     });
     router8.delete("/devices/:id", async (req, res, next) => {
+      const conn = await pool.getConnection();
       try {
-        const result = await execute("DELETE FROM devices WHERE id=? AND business_id=?", [req.params.id, req.user.business_id]);
-        if (result.affectedRows === 0) return res.status(404).json({ error: "Device not found or access denied" });
+        await conn.beginTransaction();
+        const [oldRows] = await conn.execute(
+          `SELECT d.*, p.name as product_name, p.id as product_id, s.id as sku_id 
+       FROM devices d 
+       JOIN product_skus s ON d.sku_id=s.id 
+       JOIN products p ON s.product_id=p.id 
+       WHERE d.id=? AND d.business_id=?`,
+          [req.params.id, req.user.business_id]
+        );
+        const dev = oldRows[0];
+        if (!dev) {
+          await conn.rollback();
+          return res.status(404).json({ error: "Device not found or access denied" });
+        }
+        const cleanImei = dev.imei || dev.imei_serial || "N/A";
+        const deleteMsg = `Device with IMEI/Serial "${cleanImei}" (${dev.product_name}) deleted from inventory (Status was: ${dev.status})`;
+        await conn.execute(
+          "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+          [dev.sku_id, req.userId, "Device Deleted", deleteMsg]
+        );
+        await conn.execute(
+          "INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          [req.user.business_id, dev.branch_id || req.user.branch_id, dev.id, dev.product_id, req.userId, req.user?.name || "System", "Device Deleted", deleteMsg, "product", dev.product_id, `/products/${dev.product_id}`]
+        );
+        if (dev.status === "in_stock") {
+          await conn.execute(
+            "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, -1) ON DUPLICATE KEY UPDATE quantity = GREATEST(0, quantity - 1)",
+            [dev.branch_id || req.user.branch_id || 1, dev.sku_id]
+          );
+        }
+        await conn.execute("DELETE FROM devices WHERE id=? AND business_id=?", [req.params.id, req.user.business_id]);
+        await conn.commit();
         res.json({ success: true });
       } catch (e) {
+        await conn.rollback();
         next(e);
+      } finally {
+        conn.release();
       }
     });
     router8.get("/devices", async (req, res, next) => {
@@ -6695,11 +6888,12 @@ var init_inventory = __esm({
     updateRepairSchema = z7.object({
       status: z7.string().optional(),
       issue: z7.string().optional(),
-      notes: z7.string().optional()
+      notes: z7.string().optional(),
+      total_quote: z7.number().optional()
     });
     router8.put("/repairs/:id", async (req, res, next) => {
       const data = updateRepairSchema.parse(req.body);
-      const { status, issue, notes } = data;
+      const { status, issue, notes, total_quote } = data;
       const jobId = req.params.id;
       const conn = await pool.getConnection();
       try {
@@ -6719,6 +6913,13 @@ var init_inventory = __esm({
         if (issue !== void 0) {
           updates.push("issue = ?");
           values.push(issue.trim());
+        }
+        if (total_quote !== void 0) {
+          const newQuote = Math.max(0, Number(total_quote) || 0);
+          const currentDeposit = Number(job.deposit_paid || 0);
+          const newRemaining = Math.max(0, newQuote - currentDeposit);
+          updates.push("total_quote = ?", "remaining_balance = ?");
+          values.push(newQuote, newRemaining);
         }
         if (notes && notes.trim()) {
           const timestamp = (/* @__PURE__ */ new Date()).toLocaleString("en-IE", {

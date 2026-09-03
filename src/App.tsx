@@ -368,17 +368,38 @@ function AppInner() {
     }
   }, [currentUser]);
 
-  // Check if starting cash has been recorded for today
+  // Check if starting cash has been recorded for today (DISABLED BY DEFAULT on startup)
   useEffect(() => {
     if (!currentUser) return;
 
     const checkStartingCash = async () => {
       try {
+        // BY DEFAULT DISABLED: Only proceed if explicitly enabled by store manager
+        const isLocallyEnabled = localStorage.getItem('epos_enable_starting_cash_popup') === 'true';
+
         const headers: Record<string, string> = {
           'Content-Type': 'application/json'
         };
         const token = sessionStorage.getItem('epos_token') || localStorage.getItem('epos_token');
         if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        // Fetch settings: popup only runs if explicitly enabled (1 / true)
+        const settingsRes = await fetch('/api/settings', { headers }).catch(() => null);
+        let isEnabled = isLocallyEnabled;
+        if (settingsRes && settingsRes.ok) {
+          const settingsData = await settingsRes.json();
+          isEnabled = Boolean(settingsData.startup_cash_popup === 1 || settingsData.startup_cash_popup === true);
+          if (isEnabled) {
+            localStorage.setItem('epos_enable_starting_cash_popup', 'true');
+          } else {
+            localStorage.removeItem('epos_enable_starting_cash_popup');
+          }
+        }
+
+        // If disabled by default, never block or prompt on startup
+        if (!isEnabled) {
+          return;
+        }
 
         const today = new Date().toISOString().split('T')[0];
         const res = await fetch(`/api/reports/starting-cash?date=${today}`, { headers });

@@ -966,6 +966,14 @@ export async function initSchema() {
     try { await conn.query('ALTER TABLE invoices ADD COLUMN tax_rate DECIMAL(5,2) DEFAULT 0 AFTER tax_total'); } catch (e: any) {}
     try { await conn.query("ALTER TABLE invoices ADD COLUMN tax_type VARCHAR(20) DEFAULT 'excluded' AFTER tax_rate"); } catch (e: any) {}
 
+    // 9. Ensure settings table has popups and notification configuration columns (startup_cash_popup default 0 / disabled)
+    try { await conn.query('ALTER TABLE settings ADD COLUMN startup_cash_popup TINYINT(1) DEFAULT 0'); } catch (e: any) {}
+    try { await conn.query('ALTER TABLE settings ALTER COLUMN startup_cash_popup SET DEFAULT 0'); } catch (e: any) {}
+    try { await conn.query('ALTER TABLE settings ADD COLUMN low_stock_popup TINYINT(1) DEFAULT 1'); } catch (e: any) {}
+    try { await conn.query('ALTER TABLE settings ADD COLUMN announcements_popup TINYINT(1) DEFAULT 1'); } catch (e: any) {}
+    try { await conn.query('ALTER TABLE settings ADD COLUMN sound_notifications TINYINT(1) DEFAULT 1'); } catch (e: any) {}
+    try { await conn.query('ALTER TABLE settings ADD COLUMN daily_eod_popup TINYINT(1) DEFAULT 1'); } catch (e: any) {}
+
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');
 
     // Migration: Clean up customer names containing literal "null" string

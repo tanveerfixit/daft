@@ -26,6 +26,9 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
   const [isEditingFault, setIsEditingFault] = useState(false);
   const [faultText, setFaultText] = useState('');
   const [savingFault, setSavingFault] = useState(false);
+  const [isEditingQuote, setIsEditingQuote] = useState(false);
+  const [quoteInput, setQuoteInput] = useState('');
+  const [savingQuote, setSavingQuote] = useState(false);
 
   const fetchJob = async () => {
     try {
@@ -34,10 +37,30 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
       setJob(data);
       setStatus(data.status || 'new');
       setFaultText(data.issue || '');
+      setQuoteInput(Number(data.total_quote || 0) > 0 ? String(data.total_quote) : '');
     } catch (err) {
       console.error('Failed to fetch repair:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveQuote = async () => {
+    setSavingQuote(true);
+    try {
+      const parsedQuote = Math.max(0, parseFloat(quoteInput) || 0);
+      const res = await fetch(`/api/repairs/${repairId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ total_quote: parsedQuote }),
+      });
+      if (!res.ok) throw new Error('Failed to update quote price');
+      await fetchJob();
+      setIsEditingQuote(false);
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setSavingQuote(false);
     }
   };
 
@@ -248,7 +271,15 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
             <div className="bg-white border border-[#e5e7eb] rounded shadow-sm overflow-hidden">
               <div className="bg-[#f8f9fa] px-4 py-3 border-b border-[#e5e7eb] font-semibold text-gray-800 flex justify-between items-center">
                 <span>Finances</span>
-                {remaining <= 0 ? (
+                {totalQuote === 0 && depositPaid === 0 ? (
+                  <span className="text-[11px] font-bold px-2 py-0.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-700 rounded">
+                    Quote Pending
+                  </span>
+                ) : totalQuote === 0 && depositPaid > 0 ? (
+                  <span className="text-[11px] font-bold px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
+                    Deposit Paid (Quote Pending)
+                  </span>
+                ) : totalQuote > 0 && remaining <= 0 ? (
                   <span className="text-[11px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded">
                     Fully Paid
                   </span>
@@ -265,7 +296,61 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
               <div className="p-5 space-y-3 text-sm">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500">Total Quote</span>
-                  <span className="font-bold text-gray-900">€{totalQuote.toFixed(2)}</span>
+                  {isEditingQuote ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-gray-500 text-xs">€</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={quoteInput}
+                        onChange={(e) => setQuoteInput(e.target.value)}
+                        placeholder="0.00"
+                        className="w-24 px-2 py-1 border border-blue-500 rounded text-xs font-bold font-mono focus:outline-none"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveQuote();
+                          if (e.key === 'Escape') setIsEditingQuote(false);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={savingQuote}
+                        onClick={handleSaveQuote}
+                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        {savingQuote ? '...' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={savingQuote}
+                        onClick={() => {
+                          setIsEditingQuote(false);
+                          setQuoteInput(totalQuote > 0 ? String(totalQuote) : '');
+                        }}
+                        className="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded text-xs font-semibold cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-gray-900">
+                        {totalQuote > 0 ? `€${totalQuote.toFixed(2)}` : 'Pending'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuoteInput(totalQuote > 0 ? String(totalQuote) : '');
+                          setIsEditingQuote(true);
+                        }}
+                        className="text-gray-400 hover:text-blue-600 transition-colors p-0.5 cursor-pointer"
+                        title="Set / Edit Quote Price"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500">Total Paid</span>
@@ -273,8 +358,8 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-[#e5e7eb]">
                   <span className="font-bold text-gray-800">Remaining</span>
-                  <span className={`font-bold text-lg ${remaining > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                    €{remaining.toFixed(2)}
+                  <span className={`font-bold text-lg ${remaining > 0 ? 'text-red-600' : totalQuote === 0 ? 'text-neutral-500' : 'text-emerald-600'}`}>
+                    {totalQuote === 0 ? '—' : `€${remaining.toFixed(2)}`}
                   </span>
                 </div>
                 {remaining > 0 ? (
@@ -291,6 +376,25 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
                     <CreditCard size={16} />
                     <span>Collect Payment (€{remaining.toFixed(2)})</span>
                   </button>
+                ) : totalQuote === 0 ? (
+                  <div className="mt-4 space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuoteInput('');
+                        setIsEditingQuote(true);
+                      }}
+                      className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2 text-xs cursor-pointer shadow-xs"
+                    >
+                      <Pencil size={13} />
+                      <span>Set Quote Price</span>
+                    </button>
+                    <p className="text-[11px] text-center text-neutral-500">
+                      {depositPaid > 0 
+                        ? `€${depositPaid.toFixed(2)} deposit paid. Set final quote to calculate remaining balance.` 
+                        : 'Set repair quote once device is inspected to collect payment.'}
+                    </p>
+                  </div>
                 ) : (
                   <div className="mt-4 w-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold py-2 px-4 rounded text-center text-xs">
                     ✓ Job is Fully Settled

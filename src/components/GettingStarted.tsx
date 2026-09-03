@@ -4,9 +4,11 @@ import {
   Plus, X, ArrowUp, Upload, RotateCcw, FileText, Download, FileSpreadsheet, 
   Calendar, CheckCircle2, AlertCircle, RefreshCw, FileJson, ArrowDownToLine, 
   ArrowUpFromLine, Check, ShieldCheck, Database, ScanBarcode, Search, Trash2, 
-  Smartphone, ListPlus, CheckCheck
+  Smartphone, ListPlus, CheckCheck, Bell, BellRing, Volume2, Coins, Calculator,
+  Sparkles
 } from 'lucide-react';
 import ThermalReceipt from './ThermalReceipt';
+import { StartingCashModal } from './StartingCashModal';
 
 interface SettingsData {
   currency: string;
@@ -14,6 +16,11 @@ interface SettingsData {
   date_format: string;
   time_format: string;
   language: string;
+  startup_cash_popup?: boolean;
+  low_stock_popup?: boolean;
+  announcements_popup?: boolean;
+  sound_notifications?: boolean;
+  daily_eod_popup?: boolean;
 }
 
 interface CompanyData {
@@ -76,12 +83,18 @@ interface GettingStartedProps {
 
 const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
   const [activeTab, setActiveTab] = useState(initialTab || 'manage-thermal-printer');
+  const [showTestCashModal, setShowTestCashModal] = useState(false);
   const [settings, setSettings] = useState<SettingsData>({
     currency: '€, Euro',
     timezone: 'UTC/GMT +00:00 - Europe/London',
     date_format: 'DD-MM-YY',
     time_format: '12 hour',
-    language: 'English'
+    language: 'English',
+    startup_cash_popup: false,
+    low_stock_popup: true,
+    announcements_popup: true,
+    sound_notifications: true,
+    daily_eod_popup: true,
   });
   const [company, setCompany] = useState<CompanyData>({
     name: '',
@@ -854,14 +867,29 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
   };
 
   useEffect(() => {
-    if (activeTab === 'account-setup') {
+    if (activeTab === 'account-setup' || activeTab === 'popups-notifications') {
       fetch('/api/settings')
         .then(res => {
           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
           return res.json();
         })
         .then(data => {
-          if (data) setSettings(data);
+          if (data) {
+            setSettings(prev => ({
+              ...prev,
+              ...data,
+              startup_cash_popup: data.startup_cash_popup !== undefined ? Boolean(Number(data.startup_cash_popup) === 1) : false,
+              low_stock_popup: data.low_stock_popup !== undefined ? Boolean(data.low_stock_popup) : true,
+              announcements_popup: data.announcements_popup !== undefined ? Boolean(data.announcements_popup) : true,
+              sound_notifications: data.sound_notifications !== undefined ? Boolean(data.sound_notifications) : true,
+              daily_eod_popup: data.daily_eod_popup !== undefined ? Boolean(data.daily_eod_popup) : true,
+            }));
+            if (Number(data.startup_cash_popup) === 1) {
+              localStorage.setItem('epos_enable_starting_cash_popup', 'true');
+            } else {
+              localStorage.removeItem('epos_enable_starting_cash_popup');
+            }
+          }
         })
         .catch(err => console.error('Error fetching settings:', err));
     } else if (activeTab === 'company-info') {
@@ -1000,6 +1028,11 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
         body: JSON.stringify(settings)
       });
       if (response.ok) {
+        if (settings.startup_cash_popup === true) {
+          localStorage.setItem('epos_enable_starting_cash_popup', 'true');
+        } else {
+          localStorage.removeItem('epos_enable_starting_cash_popup');
+        }
         setMessage({ type: 'success', text: 'Settings saved successfully!' });
       } else {
         setMessage({ type: 'error', text: 'Failed to save settings.' });
@@ -1491,6 +1524,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
     { id: 'account-setup', label: 'Account Setup', icon: Settings },
     { id: 'company-info', label: 'Company Information', icon: Building2 },
     { id: 'manage-label-printer', label: 'Manage Label Printer', icon: Printer },
+    { id: 'popups-notifications', label: 'Popups & Notifications', icon: Bell },
     { id: 'manage-taxes', label: 'Manage Taxes', icon: Percent },
     { id: 'payment-options', label: 'Payment Options', icon: CreditCard },
     { id: 'import-customers', label: 'Import Customers', icon: Users },
@@ -3374,6 +3408,219 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                 </div>
               )}
             </div>
+          ) : activeTab === 'popups-notifications' ? (
+            <div className="max-w-4xl space-y-6">
+              {/* Header & Save Bar */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-4">
+                <div>
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2.5 text-xl">
+                    <Bell className="text-blue-600" size={22} />
+                    <span>Popups & Notifications</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Manage start-of-day prompts, operational alert badges, and system modal popups.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveSettings}
+                  disabled={isSaving}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2 px-5 rounded text-sm transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
+                >
+                  <Save size={16} />
+                  <span>{isSaving ? 'Saving...' : 'Save Preferences'}</span>
+                </button>
+              </div>
+
+              {/* Alert Message Banner */}
+              {message && (
+                <div className={`p-3 rounded text-sm flex items-center gap-2 ${
+                  message.type === 'success' 
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                    : 'bg-red-50 text-red-800 border border-red-200'
+                }`}>
+                  {message.type === 'success' ? <Check size={16} /> : <AlertCircle size={16} />}
+                  <span>{message.text}</span>
+                </div>
+              )}
+
+              {/* Section 1: Start-of-Day & Register Opening Prompts */}
+              <div className="bg-white border border-slate-200 rounded shadow-xs overflow-hidden">
+                <div className="bg-[#f8f9fa] px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Coins size={17} className="text-amber-600" />
+                    <h4 className="font-bold text-sm text-slate-800 uppercase tracking-wide">
+                      Start-of-Day & Balance Prompts
+                    </h4>
+                  </div>
+                  <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded border ${
+                    settings.startup_cash_popup
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                      : 'bg-slate-100 text-slate-600 border-slate-300'
+                  }`}>
+                    {settings.startup_cash_popup ? '● Enabled on Startup' : '○ Disabled by Default'}
+                  </span>
+                </div>
+
+                <div className="p-5 space-y-5">
+                  {/* The Startup Cash Modal Switch */}
+                  <div className="flex items-start justify-between gap-4 p-4 rounded border border-slate-200 bg-slate-50/60">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-900 text-sm">
+                          Prompt for Starting Cash Balance on Startup
+                        </span>
+                        {!settings.startup_cash_popup ? (
+                          <span className="text-[10px] uppercase font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-300">
+                            Disabled (Default)
+                          </span>
+                        ) : (
+                          <span className="text-[10px] uppercase font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-300">
+                            Enabled
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
+                        By default, this startup popup is <strong>disabled</strong> so the system loads cleanly without modal interruptions on login. Turn this ON only if you wish to require cashiers to enter the morning float every day.
+                      </p>
+                    </div>
+
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(settings.startup_cash_popup)}
+                        onChange={(e) => setSettings({ ...settings, startup_cash_popup: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+
+                  {/* Operational Details & Test Button */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 text-xs text-slate-500 border-t border-slate-100">
+                    <p className="leading-relaxed">
+                      💡 Even when turned off permanently on login, cashiers can record or update starting cash anytime from the End of Day reports or cash drawer closeout.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowTestCashModal(true)}
+                      className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium border border-slate-300 rounded shadow-2xs transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Calculator size={14} className="text-blue-600" />
+                      <span>Test / Open Starting Cash Modal</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: System Popups & Modal Announcements */}
+              <div className="bg-white border border-slate-200 rounded shadow-xs overflow-hidden">
+                <div className="bg-[#f8f9fa] px-4 py-3 border-b border-slate-200 flex items-center gap-2">
+                  <Sparkles size={17} className="text-blue-600" />
+                  <h4 className="font-bold text-sm text-slate-800 uppercase tracking-wide">
+                    System & Feature Popups
+                  </h4>
+                </div>
+
+                <div className="p-5 space-y-4">
+                  {/* Announcements Popup */}
+                  <div className="flex items-start justify-between gap-4 py-2 border-b border-slate-100">
+                    <div>
+                      <span className="font-semibold text-slate-800 text-sm block">
+                        What's New & System Announcements Popup
+                      </span>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Displays the release notes and new feature announcements modal when updates are deployed.
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={settings.announcements_popup !== false}
+                        onChange={(e) => setSettings({ ...settings, announcements_popup: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+
+                  {/* Daily End of Day Reminder */}
+                  <div className="flex items-start justify-between gap-4 py-2">
+                    <div>
+                      <span className="font-semibold text-slate-800 text-sm block">
+                        Daily End-of-Day Register Closing Reminder
+                      </span>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Prompts the cashier before sign-out if the register closing report hasn't been finalized.
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={settings.daily_eod_popup !== false}
+                        onChange={(e) => setSettings({ ...settings, daily_eod_popup: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Operational Notifications & Audio */}
+              <div className="bg-white border border-slate-200 rounded shadow-xs overflow-hidden">
+                <div className="bg-[#f8f9fa] px-4 py-3 border-b border-slate-200 flex items-center gap-2">
+                  <Volume2 size={17} className="text-emerald-600" />
+                  <h4 className="font-bold text-sm text-slate-800 uppercase tracking-wide">
+                    Operational Alerts & Sound Chimes
+                  </h4>
+                </div>
+
+                <div className="p-5 space-y-4">
+                  {/* Low Stock Alerts */}
+                  <div className="flex items-start justify-between gap-4 py-2 border-b border-slate-100">
+                    <div>
+                      <span className="font-semibold text-slate-800 text-sm block">
+                        Low Stock Warning Banners & Badges
+                      </span>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Shows inventory warning pills on products and device stock that reach or fall below minimum reorder level.
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={settings.low_stock_popup !== false}
+                        onChange={(e) => setSettings({ ...settings, low_stock_popup: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+
+                  {/* Audio Feedback */}
+                  <div className="flex items-start justify-between gap-4 py-2">
+                    <div>
+                      <span className="font-semibold text-slate-800 text-sm block">
+                        Barcode Scanner & Checkout Sound Chimes
+                      </span>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Emits a gentle audio chime when items are scanned or payments successfully complete at the Cash Register.
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={settings.sound_notifications !== false}
+                        onChange={(e) => setSettings({ ...settings, sound_notifications: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <p className="text-lg font-medium">Coming Soon</p>
@@ -3382,6 +3629,18 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
           )}
         </div>
       </div>
+
+      {/* Test / Manual Starting Cash Modal */}
+      {showTestCashModal && (
+        <StartingCashModal
+          isOpen={showTestCashModal}
+          onClose={() => setShowTestCashModal(false)}
+          onSaved={() => {
+            setShowTestCashModal(false);
+            setMessage({ type: 'success', text: 'Starting cash recorded successfully.' });
+          }}
+        />
+      )}
     </div>
   );
 };
