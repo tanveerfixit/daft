@@ -3,6 +3,11 @@ import { Search, ExternalLink, X } from 'lucide-react';
 
 interface Device {
   id: number;
+  business_id?: number;
+  branch_id?: number;
+  branch_name?: string;
+  user_id?: number;
+  user_name?: string;
   sku_id: number;
   product_name: string;
   color?: string;
@@ -99,7 +104,9 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
       const matchName = d.product_name && d.product_name.toLowerCase().includes(q);
       const matchPo = d.po_number && d.po_number.toLowerCase().includes(q);
       const matchInv = d.invoice_number && d.invoice_number.toLowerCase().includes(q);
-      if (!matchImei && !matchName && !matchPo && !matchInv) return false;
+      const matchUser = d.user_name && d.user_name.toLowerCase().includes(q);
+      const matchBranch = d.branch_name && d.branch_name.toLowerCase().includes(q);
+      if (!matchImei && !matchName && !matchPo && !matchInv && !matchUser && !matchBranch) return false;
     }
     
     return true;
@@ -250,6 +257,8 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
               <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center w-20">Storage</th>
               <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center w-24">Condition</th>
               <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-44 text-center">IMEI / Serial</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center w-28">Branch</th>
+              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center w-28">Added By</th>
               <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center w-28">PO #</th>
               <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center">Date Entered</th>
               <th className="px-1.5 py-1 text-center w-28">Invoice #</th>
@@ -258,7 +267,7 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
           <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">
             {paginatedDevices.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center py-6 text-neutral-400 dark:text-neutral-500 italic font-mono text-sm">
+                <td colSpan={10} className="text-center py-6 text-neutral-400 dark:text-neutral-500 italic font-mono text-sm">
                   No matching devices found in inventory.
                 </td>
               </tr>
@@ -283,6 +292,14 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
                   </td>
                   <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 font-mono text-neutral-800 dark:text-neutral-200">
                     {device.imei}
+                  </td>
+                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center text-xs text-neutral-600 dark:text-neutral-400">
+                    <span className="bg-neutral-100 dark:bg-neutral-900 px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-800">
+                      {device.branch_name || (device.branch_id ? `Branch ${device.branch_id}` : '-')}
+                    </span>
+                  </td>
+                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center text-xs text-neutral-600 dark:text-neutral-400">
+                    {device.user_name || (device.user_id ? `User #${device.user_id}` : 'System')}
                   </td>
                   <td 
                     className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center"
