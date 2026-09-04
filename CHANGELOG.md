@@ -4,6 +4,16 @@ This document tracks all features, architectural enhancements, bug fixes, and UX
 
 ---
 
+## [2026-09-04] - Stable Release Alignment & Production Bundle (Commit 9aa20416)
+
+### 🚀 Production Deployment
+* **Restore Exact Release State (`9aa20416`)**:
+  * Reverted multi-tenant device inventory changes to restore the exact verified state of commit `9aa20416`.
+  * Verified full source code integrity across all components, routes, and database schemas.
+  * Re-compiled production bundle (`vite build` + `esbuild`) to package `dist/` and `server.js` for immediate deployment to Hostinger without runtime build overhead.
+
+---
+
 ## [2026-09-03] - Batch Label Printing, Filter Standardization, Activity Logs & Announcements
 
 ### 🚀 New Features

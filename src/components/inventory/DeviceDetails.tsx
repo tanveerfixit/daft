@@ -542,32 +542,6 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                           {new Date(device.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date(device.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })}
                         </td>
                       </tr>
-                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
-                          Branch
-                        </td>
-                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100 font-mono text-xs">
-                          <span className="bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded border border-neutral-300 dark:border-neutral-700">
-                            {device.branch_name || 'Branch'} (ID: {device.branch_id})
-                          </span>
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
-                          Added By
-                        </td>
-                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100 font-mono text-xs">
-                          {device.user_name || 'System'} (User ID: {device.user_id || '-'})
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
-                          Business Tenancy
-                        </td>
-                        <td className="py-0.5 px-2 font-mono text-neutral-600 dark:text-neutral-400 text-xs">
-                          Business ID: {device.business_id} {device.business_name ? `(${device.business_name})` : ''}
-                        </td>
-                      </tr>
                     </tbody>
                   </table>
                 </div>

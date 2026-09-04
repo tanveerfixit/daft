@@ -45,7 +45,7 @@ export async function execute(sql: string, params?: any[]): Promise<mysql.Result
 
 // ─── Schema Initialisation ───────────────────────────────────────────────────
 
-export const CURRENT_SCHEMA_VERSION = '2026_09_DEVICE_TENANCY_V1';
+export const CURRENT_SCHEMA_VERSION = '2026_08_OPTIMIZATION_V4';
 
 async function ensureIndex(conn: any, tableName: string, indexName: string, columns: string) {
   try {
@@ -303,9 +303,8 @@ export async function initSchema() {
         id INT AUTO_INCREMENT PRIMARY KEY,
         business_id INT NOT NULL,
         branch_id INT NOT NULL,
-        user_id INT NULL,
         sku_id INT NOT NULL,
-        imei VARCHAR(255),
+        imei VARCHAR(255) UNIQUE,
         cost_price DECIMAL(10,2),
         selling_price DECIMAL(10,2),
         color VARCHAR(100),
@@ -320,7 +319,6 @@ export async function initSchema() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
         FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
         FOREIGN KEY (sku_id) REFERENCES product_skus(id) ON DELETE CASCADE
       )
     `);
@@ -1010,52 +1008,6 @@ export async function initSchema() {
       console.warn('[MySQL] Customer name cleanup migration warning:', e.message);
     }
 
-    // Migration: Add user_id to devices table & ensure business-scoped unique constraints
-    try {
-      await conn.query('ALTER TABLE devices ADD COLUMN user_id INT NULL AFTER branch_id');
-      console.log('[MySQL] Migration: added user_id to devices');
-    } catch (e: any) {
-      if (!e.message?.includes('Duplicate column')) throw e;
-    }
-
-    try {
-      await conn.query('ALTER TABLE devices ADD CONSTRAINT fk_devices_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL');
-    } catch (e: any) {}
-
-    // Multi-tenant Isolation: Drop global unique constraints on devices.imei and devices.imei_serial
-    try {
-      await conn.query('ALTER TABLE devices DROP INDEX imei');
-      console.log('[MySQL] Migration: dropped global unique constraint on devices.imei');
-    } catch (e: any) {}
-
-    try {
-      await conn.query('ALTER TABLE devices DROP INDEX imei_serial');
-      console.log('[MySQL] Migration: dropped global unique constraint on devices.imei_serial');
-    } catch (e: any) {}
-
-    // Backfill historical devices user_id from device_activity or default business owner
-    try {
-      await conn.query(`
-        UPDATE devices d
-        JOIN (
-          SELECT device_id, user_id FROM device_activity WHERE user_id IS NOT NULL GROUP BY device_id
-        ) da ON d.id = da.device_id
-        SET d.user_id = da.user_id
-        WHERE d.user_id IS NULL
-      `);
-      await conn.query(`
-        UPDATE devices d
-        JOIN (
-          SELECT business_id, MIN(id) as default_user_id FROM users WHERE role IN ('admin', 'owner', 'manager') OR role = 'staff' GROUP BY business_id
-        ) u ON d.business_id = u.business_id
-        SET d.user_id = u.default_user_id
-        WHERE d.user_id IS NULL
-      `);
-      console.log('[MySQL] Migration: backfilled devices user_id');
-    } catch (e: any) {
-      console.warn('[MySQL] Device user_id backfill warning:', e.message);
-    }
-
     // Ensure all performance composite indexes exist
     await ensureIndex(conn, 'invoices', 'idx_invoices_biz_branch_date', 'business_id, branch_id, created_at');
     await ensureIndex(conn, 'invoices', 'idx_invoices_number', 'invoice_number');
@@ -1069,9 +1021,6 @@ export async function initSchema() {
     await ensureIndex(conn, 'product_skus', 'idx_skus_prod_sku', 'product_id, sku_code');
     await ensureIndex(conn, 'devices', 'idx_devices_biz_branch_status', 'business_id, branch_id, status');
     await ensureIndex(conn, 'devices', 'idx_devices_sku_status', 'sku_id, status, business_id');
-    await ensureIndex(conn, 'devices', 'idx_devices_biz_branch_user', 'business_id, branch_id, user_id');
-    await ensureIndex(conn, 'devices', 'idx_devices_biz_imei', 'business_id, imei');
-    await ensureIndex(conn, 'devices', 'idx_devices_biz_serial', 'business_id, imei_serial');
     await ensureIndex(conn, 'customers', 'idx_customers_biz_branch_del', 'business_id, branch_id, deleted_at');
     await ensureIndex(conn, 'customers', 'idx_customers_biz_phone', 'business_id, phone');
     await ensureIndex(conn, 'payments', 'idx_payments_invoice_paid', 'invoice_id, paid_at');

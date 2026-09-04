@@ -3,11 +3,6 @@ import { ArrowLeft, Search, Filter } from 'lucide-react';
 
 interface DeviceDetail {
   id: number;
-  business_id?: number;
-  branch_id?: number;
-  branch_name?: string;
-  user_id?: number;
-  user_name?: string;
   imei: string;
   color?: string;
   gb?: string;
@@ -49,10 +44,7 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
 
   const filteredDevices = Array.isArray(devices) ? devices.filter(d => {
     const matchesStatus = statusFilter === 'all' || d.status === statusFilter;
-    const q = searchQuery.toLowerCase();
-    const matchesSearch = (d.imei && d.imei.toLowerCase().includes(q)) ||
-      (d.user_name && d.user_name.toLowerCase().includes(q)) ||
-      (d.branch_name && d.branch_name.toLowerCase().includes(q));
+    const matchesSearch = d.imei.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesStatus && matchesSearch;
   }) : [];
 
@@ -92,7 +84,7 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
         <div className="relative flex-1 max-w-md ml-auto flex">
           <input
             type="text"
-            placeholder="Search IMEI, Branch, User in this list..."
+            placeholder="Search IMEI in this list..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-3 pr-10 py-1.5 bg-[var(--bg-input)] border border-[var(--border-header)] rounded-l text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
@@ -118,8 +110,6 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
                   <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Color</th>
                   <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">GB</th>
                   <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Condition</th>
-                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Branch</th>
-                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Added By</th>
                   <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Status</th>
                   <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Date Added</th>
                   <th className="px-2 py-1.5 text-center">Invoice #</th>
@@ -128,7 +118,7 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
               <tbody>
                 {filteredDevices.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-[var(--text-muted-more)] italic">
+                    <td colSpan={7} className="px-4 py-8 text-center text-[var(--text-muted-more)] italic">
                       No devices found matching the filter.
                     </td>
                   </tr>
@@ -139,14 +129,6 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
                       <td className="px-4 py-3 border-r border-[var(--border-base)] text-center text-[var(--text-muted)]">{device.color || '-'}</td>
                       <td className="px-4 py-3 border-r border-[var(--border-base)] text-center text-[var(--text-muted)]">{device.gb || '-'}</td>
                       <td className="px-4 py-3 border-r border-[var(--border-base)] text-center text-[var(--text-muted)]">{device.condition || '-'}</td>
-                      <td className="px-4 py-3 border-r border-[var(--border-base)] text-center text-xs">
-                        <span className="bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded border border-neutral-300 dark:border-neutral-700 font-mono">
-                          {device.branch_name || (device.branch_id ? `Branch ${device.branch_id}` : '-')}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 border-r border-[var(--border-base)] text-center text-xs text-[var(--text-muted)]">
-                        {device.user_name || (device.user_id ? `User #${device.user_id}` : 'System')}
-                      </td>
                       <td className="px-4 py-3 border-r border-[var(--border-base)] text-center">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                           device.status === 'in_stock' ? 'bg-[var(--brand-success)]/10 text-[var(--brand-success)]' :
