@@ -536,6 +536,22 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                       </tr>
                       <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
                         <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
+                          Branch
+                        </td>
+                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100">
+                          {device.branch_name || 'Main Branch'}
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
+                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
+                          Added By (Owner)
+                        </td>
+                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100">
+                          {device.user_name || 'System'}
+                        </td>
+                      </tr>
+                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
+                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
                           Date Added
                         </td>
                         <td className="py-0.5 px-2 font-mono text-neutral-600 dark:text-neutral-400">

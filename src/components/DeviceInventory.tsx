@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, ExternalLink, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 
 interface Device {
   id: number;
@@ -13,6 +13,8 @@ interface Device {
   created_at: string;
   invoice_number?: string;
   status: string;
+  branch_name?: string;
+  user_name?: string;
 }
 
 interface Props {
@@ -245,20 +247,19 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
         <table className="w-full text-left border-collapse bg-white dark:bg-black text-[15px]">
           <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
             <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
-              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center">Model</th>
-              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center w-24">Color</th>
-              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center w-20">Storage</th>
-              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center w-24">Condition</th>
-              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-44 text-center">IMEI / Serial</th>
-              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center w-28">PO #</th>
-              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center">Date Entered</th>
-              <th className="px-1.5 py-1 text-center w-28">Invoice #</th>
+              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center">Model</th>
+              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center w-20 whitespace-nowrap">Storage</th>
+              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center w-24 whitespace-nowrap">Condition</th>
+              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-700 w-44 text-center whitespace-nowrap">IMEI / Serial</th>
+              <th className="px-3 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center whitespace-nowrap min-w-[120px]">Added By</th>
+              <th className="px-2 py-1 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center whitespace-nowrap">Date Entered</th>
+              <th className="px-2 py-1 text-center w-28 whitespace-nowrap">Invoice #</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">
             {paginatedDevices.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center py-6 text-neutral-400 dark:text-neutral-500 italic font-mono text-sm">
+                <td colSpan={7} className="text-center py-6 text-neutral-400 dark:text-neutral-500 italic font-mono text-sm">
                   No matching devices found in inventory.
                 </td>
               </tr>
@@ -269,41 +270,25 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
                   className="bg-white dark:bg-black hover:bg-neutral-200/70 dark:hover:bg-neutral-800 transition-colors cursor-pointer text-[15px]"
                   onClick={() => onSelectDevice(device.id)}
                 >
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-900 dark:text-neutral-100 font-normal">
+                  <td className="px-2 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-900 dark:text-neutral-100 font-normal">
                     {device.product_name}
                   </td>
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center text-neutral-600 dark:text-neutral-400">
-                    {device.color || '-'}
-                  </td>
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center text-neutral-600 dark:text-neutral-400">
+                  <td className="px-2 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
                     {device.gb || '-'}
                   </td>
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center text-neutral-600 dark:text-neutral-400">
+                  <td className="px-2 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
                     {device.condition || '-'}
                   </td>
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 font-mono text-neutral-800 dark:text-neutral-200">
+                  <td className="px-2 py-0.5 border-r border-neutral-200 dark:border-neutral-850 font-mono text-neutral-800 dark:text-neutral-200 whitespace-nowrap">
                     {device.imei}
                   </td>
-                  <td 
-                    className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center"
-                    onClick={(e) => {
-                      if (device.po_number) {
-                        e.stopPropagation();
-                        onSelectPO(device.po_number);
-                      }
-                    }}
-                  >
-                    {device.po_number ? (
-                      <span className="text-blue-600 dark:text-blue-400 hover:underline flex items-center justify-center gap-1 font-mono">
-                        {device.po_number}
-                        <ExternalLink size={12} />
-                      </span>
-                    ) : '-'}
+                  <td className="px-3 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-center text-neutral-700 dark:text-neutral-300 text-xs whitespace-nowrap font-medium">
+                    {device.user_name || '-'}
                   </td>
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400 font-mono">
+                  <td className="px-2 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400 font-mono text-center whitespace-nowrap">
                     {new Date(device.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-')}
                   </td>
-                  <td className="px-1.5 py-0.5 text-center text-neutral-600 dark:text-neutral-400 font-mono">
+                  <td className="px-2 py-0.5 text-center text-neutral-600 dark:text-neutral-400 font-mono whitespace-nowrap">
                     {device.invoice_number || 'In Inventory'}
                   </td>
                 </tr>

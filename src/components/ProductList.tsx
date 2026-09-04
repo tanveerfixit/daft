@@ -368,7 +368,7 @@ export default function ProductList({
             <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[15px] font-semibold text-black dark:text-white text-center">
               <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-36 text-center">Manufacturer</th>
               <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center">Product Name</th>
-              <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-36 text-center">SKU / Barcode</th>
+              <th className="px-2.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center whitespace-nowrap min-w-[130px]">SKU / Barcode</th>
               <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-40 text-center">Category</th>
               <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center">Price</th>
               <th className="px-1.5 py-1 text-center w-24">Stock</th>
@@ -406,7 +406,7 @@ export default function ProductList({
                   <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-900 dark:text-neutral-100 font-normal">
                     {product.product_name}
                   </td>
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-700 dark:text-neutral-300">
+                  <td className="px-2.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-700 dark:text-neutral-300 font-mono whitespace-nowrap">
                     {product.sku_code || product.barcode || '-'}
                   </td>
                   <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400 truncate">

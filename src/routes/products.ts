@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pool, query, queryOne, execute } from '../mysql.js';
+import { pool, query, queryOne, execute, getBranchPrefix } from '../mysql.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -185,6 +185,7 @@ router.post('/import-csv', async (req: any, res, next) => {
 
   const businessId = req.user.business_id;
   const branchId = req.user.branch_id || 1;
+  const branchPrefix = await getBranchPrefix(branchId);
 
   let imported = 0;
   let updated = 0;
@@ -289,7 +290,7 @@ router.post('/import-csv', async (req: any, res, next) => {
         }
 
         // 5. SKU Lookup / Creation
-        const effectiveSku = skuCode || `SKU-${prodName.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+        const effectiveSku = skuCode || `${branchPrefix}-${String(productId).padStart(5, '0')}`;
         const effectiveBarcode = barcode || effectiveSku;
 
         const [sr] = await conn.execute(
@@ -611,7 +612,8 @@ router.post('/', async (req: any, res, next) => {
       ]
     );
     const productId = (pr as any).insertId;
-    let finalSku = sku_code?.trim() || ('SKU-' + Math.random().toString(36).substring(2, 9).toUpperCase());
+    const branchPrefix = await getBranchPrefix(req.user.branch_id);
+    let finalSku = sku_code?.trim() || `${branchPrefix}-${String(productId).padStart(5, '0')}`;
     const [sr] = await conn.execute(
       'INSERT INTO product_skus (product_id,sku_code,barcode,cost_price,selling_price) VALUES (?,?,?,?,?)',
       [productId, finalSku, barcode || finalSku, cost_price, selling_price]
@@ -676,7 +678,8 @@ router.post('/quick-add', async (req: any, res, next) => {
     const productId = (pr as any).insertId;
 
     // 2. Create SKU
-    let finalSku = sku_code?.trim() || ('SKU-' + Math.random().toString(36).substring(2, 9).toUpperCase());
+    const branchPrefix = await getBranchPrefix(activeBranchId);
+    let finalSku = sku_code?.trim() || `${branchPrefix}-${String(productId).padStart(5, '0')}`;
     const [sr] = await conn.execute(
       'INSERT INTO product_skus (product_id,sku_code,barcode,cost_price,selling_price) VALUES (?,?,?,?,?)',
       [productId, finalSku, barcode || finalSku, cost_price || 0, selling_price || 0]
@@ -777,13 +780,35 @@ router.get('/:id/activity', async (req: any, res, next) => {
 // GET /api/products/:skuId/devices
 router.get('/:skuId/devices', async (req: any, res, next) => {
   try {
+    const isSuper = req.user.role === 'superadmin';
+    const branchId = req.query.branch_id;
+    let filterClause = '';
+    const params: any[] = [req.params.skuId, req.params.skuId, req.params.skuId, req.user.business_id];
+
+    if (!isSuper) {
+      filterClause = 'AND d.branch_id = ? AND d.user_id = ?';
+      params.push(req.user.branch_id, req.userId);
+    } else if (branchId && branchId !== 'all') {
+      filterClause = 'AND d.branch_id = ?';
+      params.push(Number(branchId));
+    }
+
     const devices = await query(`
-      SELECT d.id, d.imei, d.color, d.gb, d.\`condition\`, d.status, d.created_at, inv.invoice_number
+      SELECT d.id, d.business_id, d.branch_id, d.user_id, d.imei, d.imei_serial, d.color, d.gb, d.ram,
+             d.\`condition\`, d.status, d.cost_price, d.selling_price, d.created_at, inv.invoice_number,
+             b.name as branch_name, u.name as user_name, p.name as product_name, s.sku_code
       FROM devices d
+      LEFT JOIN product_skus s ON d.sku_id = s.id
+      LEFT JOIN products p ON (d.product_id = p.id OR s.product_id = p.id)
+      LEFT JOIN branches b ON d.branch_id = b.id
+      LEFT JOIN users u ON d.user_id = u.id
       LEFT JOIN invoice_items ii ON d.id = ii.device_id
       LEFT JOIN invoices inv ON ii.invoice_id = inv.id
-      WHERE d.sku_id = ? AND d.business_id = ? ORDER BY d.created_at DESC
-    `, [req.params.skuId, req.user.business_id]);
+      WHERE (d.sku_id = ? OR d.product_id = ? OR s.product_id = ?)
+        AND d.business_id = ?
+        ${filterClause}
+      ORDER BY d.created_at DESC
+    `, params);
     res.json(devices);
   } catch (e: any) { next(e); }
 });
@@ -791,10 +816,32 @@ router.get('/:skuId/devices', async (req: any, res, next) => {
 // GET /api/products/:skuId/available-devices
 router.get('/:skuId/available-devices', async (req: any, res, next) => {
   try {
-    const devices = await query(
-      `SELECT id,imei,cost_price,status,created_at FROM devices WHERE sku_id=? AND status='in_stock' AND business_id=?`,
-      [req.params.skuId, req.user.business_id]
-    );
+    const isSuper = req.user.role === 'superadmin';
+    const branchId = req.query.branch_id;
+    let filterClause = '';
+    const params: any[] = [req.params.skuId, req.params.skuId, req.params.skuId, req.user.business_id];
+
+    if (!isSuper) {
+      filterClause = 'AND d.branch_id = ? AND d.user_id = ?';
+      params.push(req.user.branch_id, req.userId);
+    } else if (branchId && branchId !== 'all') {
+      filterClause = 'AND d.branch_id = ?';
+      params.push(Number(branchId));
+    }
+
+    const devices = await query(`
+      SELECT d.id, d.business_id, d.branch_id, d.user_id, d.imei, d.imei_serial, d.cost_price, d.selling_price, d.status, d.created_at,
+             b.name as branch_name, u.name as user_name
+      FROM devices d
+      LEFT JOIN product_skus s ON d.sku_id = s.id
+      LEFT JOIN branches b ON d.branch_id = b.id
+      LEFT JOIN users u ON d.user_id = u.id
+      WHERE (d.sku_id = ? OR d.product_id = ? OR s.product_id = ?)
+        AND d.status = 'in_stock'
+        AND d.business_id = ?
+        ${filterClause}
+      ORDER BY d.created_at DESC
+    `, params);
     res.json(devices);
   } catch (e: any) { next(e); }
 });

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pool, query, queryOne, execute } from '../mysql.js';
+import { pool, query, queryOne, execute, getBranchPrefix } from '../mysql.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -92,8 +92,8 @@ router.post('/add', async (req: any, res, next) => {
       for (const item of validItems) {
         const cleanImei = item.imei.trim();
         await conn.execute(
-          "INSERT INTO devices (business_id,branch_id,sku_id,imei,cost_price,selling_price,color,gb,`condition`,po_number,status) VALUES (?,?,?,?,?,?,?,?,?,?,'in_stock')",
-          [req.user.business_id, activeBranchId, sku_id, cleanImei, cost_price, selling_price, item.color, item.gb, item.condition, finalPoNumber]
+          "INSERT INTO devices (business_id,branch_id,user_id,sku_id,imei,cost_price,selling_price,color,gb,`condition`,po_number,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,'in_stock')",
+          [req.user.business_id, activeBranchId, req.userId, sku_id, cleanImei, cost_price, selling_price, item.color, item.gb, item.condition, finalPoNumber]
         );
         const deviceIdRow = (await conn.execute('SELECT LAST_INSERT_ID() as id'))[0] as any;
         const insertedDevId = deviceIdRow[0]?.id || deviceIdRow?.insertId;
@@ -185,17 +185,26 @@ router.get('/devices/check-imei', async (req: any, res, next) => {
     return res.json({ exists: false });
   }
   try {
+    const isSuper = req.user.role === 'superadmin';
     const cleanImei = String(imei).trim();
+    const params: any[] = [cleanImei, cleanImei, req.user.business_id];
+    let userFilter = '';
+    if (!isSuper) {
+      userFilter = ' AND d.branch_id = ? AND d.user_id = ?';
+      params.push(req.user.branch_id, req.userId);
+    }
+
     const device = await queryOne(`
-      SELECT d.id, d.imei, d.imei_serial, d.status, d.branch_id, d.condition, d.gb, d.color,
-             p.name as product_name, s.sku_code, b.name as branch_name
+      SELECT d.id, d.imei, d.imei_serial, d.status, d.branch_id, d.user_id, d.condition, d.gb, d.color,
+             p.name as product_name, s.sku_code, b.name as branch_name, u.name as user_name
       FROM devices d
       JOIN product_skus s ON d.sku_id = s.id
       JOIN products p ON s.product_id = p.id
       LEFT JOIN branches b ON d.branch_id = b.id
-      WHERE (d.imei = ? OR d.imei_serial = ?) AND d.business_id = ?
+      LEFT JOIN users u ON d.user_id = u.id
+      WHERE (d.imei = ? OR d.imei_serial = ?) AND d.business_id = ?${userFilter}
       LIMIT 1
-    `, [cleanImei, cleanImei, req.user.business_id]);
+    `, params);
 
     if (device) {
       return res.json({ exists: true, device });
@@ -217,8 +226,8 @@ router.get('/devices/stats', async (req: any, res, next) => {
         COUNT(*) as total_devices,
         SUM(CASE WHEN status = 'in_stock' THEN 1 ELSE 0 END) as in_stock_devices
       FROM devices
-      WHERE business_id = ? ${!isSuper ? 'AND branch_id = ?' : ''}
-    `, !isSuper ? [businessId, req.user.branch_id] : [businessId]);
+      WHERE business_id = ? ${!isSuper ? 'AND branch_id = ? AND user_id = ?' : ''}
+    `, !isSuper ? [businessId, req.user.branch_id, req.userId] : [businessId]);
     res.json(rows[0] || { total_devices: 0, in_stock_devices: 0 });
   } catch (e: any) {
     next(e);
@@ -265,13 +274,13 @@ router.get('/devices/export-csv', async (req: any, res, next) => {
       LEFT JOIN products p ON (d.product_id = p.id OR s.product_id = p.id)
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
-      WHERE d.business_id = ? ${status !== 'all' ? 'AND d.status = ?' : ''} ${!isSuper ? 'AND d.branch_id = ?' : ''}
+      WHERE d.business_id = ? ${status !== 'all' ? 'AND d.status = ?' : ''} ${!isSuper ? 'AND d.branch_id = ? AND d.user_id = ?' : ''}
       ORDER BY d.created_at DESC
     `;
 
     const params: any[] = [businessId];
     if (status !== 'all') params.push(status);
-    if (!isSuper) params.push(req.user.branch_id);
+    if (!isSuper) params.push(req.user.branch_id, req.userId);
 
     const rows = await query(sql, params);
 
@@ -320,6 +329,7 @@ router.post('/devices/import-csv', async (req: any, res, next) => {
   const businessId = req.user.business_id;
   const branchId = req.user.branch_id || 1;
   const userId = req.user.id || req.userId || 1;
+  const branchPrefix = await getBranchPrefix(branchId);
 
   let imported = 0;
   let updated = 0;
@@ -428,7 +438,7 @@ router.post('/devices/import-csv', async (req: any, res, next) => {
             );
           }
         } else {
-          const skuCode = `SKU-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 1000)}`;
+          const skuCode = `${branchPrefix}-${String(productId).padStart(5, '0')}`;
           const [insSku] = await conn.execute(
             'INSERT INTO product_skus (product_id, sku_code, barcode, cost_price, selling_price) VALUES (?, ?, ?, ?, ?)',
             [productId, skuCode, skuCode, costPrice, sellingPrice]
@@ -447,9 +457,9 @@ router.post('/devices/import-csv', async (req: any, res, next) => {
           if (duplicateHandling === 'overwrite') {
             await conn.execute(`
               UPDATE devices 
-              SET business_id = ?, branch_id = ?, product_id = ?, sku_id = ?, gb = ?, color = ?, \`condition\` = ?, cost_price = ?, selling_price = ?, status = ?, imei_status = ?, carrier = ?
-              WHERE id = ?
-            `, [businessId, branchId, productId, skuId, storage, color, condition, costPrice, sellingPrice, stockStatus, imeiStatus, carrier, existingId]);
+              SET business_id = ?, branch_id = ?, user_id = COALESCE(user_id, ?), product_id = ?, sku_id = ?, gb = ?, color = ?, \`condition\` = ?, cost_price = ?, selling_price = ?, status = ?, imei_status = ?, carrier = ?
+              WHERE id = ? AND business_id = ?
+            `, [businessId, branchId, userId, productId, skuId, storage, color, condition, costPrice, sellingPrice, stockStatus, imeiStatus, carrier, existingId, businessId]);
             updated++;
           } else {
             skipped++;
@@ -458,9 +468,9 @@ router.post('/devices/import-csv', async (req: any, res, next) => {
           // Insert new device
           const [insDev] = await conn.execute(`
             INSERT INTO devices 
-              (business_id, branch_id, product_id, sku_id, imei, imei_serial, gb, color, \`condition\`, cost_price, selling_price, status, imei_status, carrier, created_at, date_added)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW()), COALESCE(?, NOW()))
-          `, [businessId, branchId, productId, skuId, serialNumber, serialNumber, storage, color, condition, costPrice, sellingPrice, stockStatus, imeiStatus, carrier, createdDate, createdDate]);
+              (business_id, branch_id, user_id, product_id, sku_id, imei, imei_serial, gb, color, \`condition\`, cost_price, selling_price, status, imei_status, carrier, created_at, date_added)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW()), COALESCE(?, NOW()))
+          `, [businessId, branchId, userId, productId, skuId, serialNumber, serialNumber, storage, color, condition, costPrice, sellingPrice, stockStatus, imeiStatus, carrier, createdDate, createdDate]);
 
           const deviceId = (insDev as any).insertId;
 
@@ -510,6 +520,7 @@ router.get('/devices/search', async (req: any, res, next) => {
   const { q, imei, branch_id, status } = req.query;
   const searchVal = q || imei;
   try {
+    const isSuper = req.user.role === 'superadmin';
     let sql = `
       SELECT 
         d.*, 
@@ -518,13 +529,15 @@ router.get('/devices/search', async (req: any, res, next) => {
         COALESCE(m.name, '') as manufacturer_name,
         s.sku_code, 
         s.barcode,
-        b.name as branch_name
+        b.name as branch_name,
+        u.name as user_name
       FROM devices d 
       LEFT JOIN product_skus s ON d.sku_id=s.id
       LEFT JOIN products p ON (d.product_id=p.id OR s.product_id=p.id)
       LEFT JOIN categories c ON p.category_id=c.id
       LEFT JOIN manufacturers m ON p.manufacturer_id=m.id
       LEFT JOIN branches b ON d.branch_id=b.id 
+      LEFT JOIN users u ON d.user_id=u.id
       WHERE d.business_id=?
     `;
     const params: any[] = [req.user.business_id];
@@ -540,10 +553,15 @@ router.get('/devices/search', async (req: any, res, next) => {
       params.push(term, term, term, term, term);
     }
     
-    const activeBranchId = branch_id ? parseInt(branch_id as string) : null;
-    if (activeBranchId && String(activeBranchId) !== 'undefined') { 
-      sql += ' AND d.branch_id=?'; 
-      params.push(activeBranchId); 
+    if (!isSuper) {
+      sql += ' AND d.branch_id=? AND d.user_id=?';
+      params.push(req.user.branch_id, req.userId);
+    } else {
+      const activeBranchId = branch_id ? parseInt(branch_id as string) : null;
+      if (activeBranchId && String(activeBranchId) !== 'undefined') { 
+        sql += ' AND d.branch_id=?'; 
+        params.push(activeBranchId); 
+      }
     }
     
     sql += ' ORDER BY d.id DESC LIMIT 50';
@@ -557,13 +575,25 @@ router.get('/devices/search', async (req: any, res, next) => {
 // GET /api/devices/:id
 router.get('/devices/:id', async (req: any, res, next) => {
   try {
+    const isSuper = req.user.role === 'superadmin';
+    const params: any[] = [req.params.id, req.user.business_id];
+    let userClause = '';
+    if (!isSuper) {
+      userClause = ' AND d.branch_id=? AND d.user_id=?';
+      params.push(req.user.branch_id, req.userId);
+    }
     const device = await queryOne(`
-      SELECT d.*, p.name as product_name, s.sku_code, s.barcode
+      SELECT d.*, p.name as product_name, s.sku_code, s.barcode,
+             b.name as branch_name, bz.name as business_name,
+             u.name as user_name, u.email as user_email
       FROM devices d
       JOIN product_skus s ON d.sku_id=s.id
       JOIN products p ON s.product_id=p.id
-      WHERE d.id=? AND d.business_id=?
-    `, [req.params.id, req.user.business_id]);
+      LEFT JOIN branches b ON d.branch_id=b.id
+      LEFT JOIN businesses bz ON d.business_id=bz.id
+      LEFT JOIN users u ON d.user_id=u.id
+      WHERE d.id=? AND d.business_id=?${userClause}
+    `, params);
     if (!device) return res.status(404).json({ error: 'Device not found' });
     res.json(device);
   } catch (e: any) { next(e); }
@@ -590,18 +620,26 @@ router.put('/devices/:id', async (req: any, res, next) => {
     const data = updateDeviceSchema.parse(req.body);
     const { sku_id, color, gb, ram, condition, cost_price, selling_price, unlocked, imei_status, carrier } = data;
 
+    const isSuper = req.user.role === 'superadmin';
+    const oldParams: any[] = [req.params.id, req.user.business_id];
+    let oldUserClause = '';
+    if (!isSuper) {
+      oldUserClause = ' AND d.branch_id=? AND d.user_id=?';
+      oldParams.push(req.user.branch_id, req.userId);
+    }
+
     const [oldRows] = await conn.execute(
       `SELECT d.*, p.name as product_name 
        FROM devices d 
        JOIN product_skus s ON d.sku_id=s.id 
        JOIN products p ON s.product_id=p.id 
-       WHERE d.id=? AND d.business_id=?`,
-      [req.params.id, req.user.business_id]
+       WHERE d.id=? AND d.business_id=?${oldUserClause}`,
+      oldParams
     );
     const old = (oldRows as any[])[0];
     if (!old) {
       await conn.rollback();
-      return res.status(404).json({ error: 'Device not found' });
+      return res.status(404).json({ error: 'Device not found or access denied' });
     }
 
     let targetSkuId = old.sku_id;
@@ -622,28 +660,24 @@ router.put('/devices/:id', async (req: any, res, next) => {
       const targetSku = (targetSkuRows as any[])[0];
       if (!targetSku) {
         await conn.rollback();
-        return res.status(400).json({ error: 'Target product model not found or unauthorized' });
+        return res.status(400).json({ error: 'Selected product variant was not found.' });
       }
 
       targetSkuId = targetSku.id;
       newModelName = targetSku.product_name;
-      changes.push(`Model: ${oldModelName} -> ${newModelName}`);
 
-      // Adjust branch stock if device is in_stock
-      const deviceBranchId = old.branch_id || req.user.branch_id || 1;
-      if (old.status === 'in_stock') {
-        // Decrease old sku stock
-        await conn.execute(
-          `INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, -1)
-           ON DUPLICATE KEY UPDATE quantity = GREATEST(0, quantity - 1)`,
-          [deviceBranchId, old.sku_id]
-        );
-        // Increase new sku stock
-        await conn.execute(
-          `INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, 1)
-           ON DUPLICATE KEY UPDATE quantity = quantity + 1`,
-          [deviceBranchId, targetSkuId]
-        );
+      if (Number(old.sku_id) !== Number(targetSkuId)) {
+        changes.push(`Model Changed: ${oldModelName} -> ${newModelName}`);
+        if (old.status === 'in_stock') {
+          await conn.execute(
+            'INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, -1) ON DUPLICATE KEY UPDATE quantity = GREATEST(0, quantity - 1)',
+            [old.branch_id || req.user.branch_id || 1, old.sku_id]
+          );
+          await conn.execute(
+            'INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE quantity = quantity + 1',
+            [old.branch_id || req.user.branch_id || 1, targetSkuId]
+          );
+        }
       }
     }
 
@@ -657,18 +691,25 @@ router.put('/devices/:id', async (req: any, res, next) => {
     const newImeiStatus = imei_status !== undefined ? imei_status : old.imei_status;
     const newCarrier = carrier !== undefined ? carrier : old.carrier;
 
-    await conn.execute(`
-      UPDATE devices SET 
-        sku_id=?, color=?, gb=?, ram=?, \`condition\`=?, cost_price=?, selling_price=?, 
-        unlocked=?, imei_status=?, carrier=?
-      WHERE id=? AND business_id=?
-    `, [
+    const updateParams: any[] = [
       targetSkuId,
       newColor, newGb, newRam, newCondition, 
       newCostPrice, newSellingPrice,
       newUnlocked, newImeiStatus, newCarrier,
       req.params.id, req.user.business_id
-    ]);
+    ];
+    let updateUserClause = '';
+    if (!isSuper) {
+      updateUserClause = ' AND branch_id=? AND user_id=?';
+      updateParams.push(req.user.branch_id, req.userId);
+    }
+
+    await conn.execute(`
+      UPDATE devices SET 
+        sku_id=?, color=?, gb=?, ram=?, \`condition\`=?, cost_price=?, selling_price=?, 
+        unlocked=?, imei_status=?, carrier=?
+      WHERE id=? AND business_id=?${updateUserClause}
+    `, updateParams);
 
     // Log attribute changes
     if (color !== undefined && String(color ?? '') !== String(old.color ?? '')) changes.push(`Color: ${old.color || 'none'} -> ${color}`);
@@ -708,6 +749,16 @@ router.put('/devices/:id', async (req: any, res, next) => {
 // GET /api/devices/:id/activity
 router.get('/devices/:id/activity', async (req: any, res, next) => {
   try {
+    const isSuper = req.user.role === 'superadmin';
+    const checkParams = [req.params.id, req.user.business_id];
+    let userClause = '';
+    if (!isSuper) {
+      userClause = ' AND branch_id=? AND user_id=?';
+      checkParams.push(req.user.branch_id, req.userId);
+    }
+    const dev = await queryOne(`SELECT id FROM devices WHERE id=? AND business_id=?${userClause}`, checkParams);
+    if (!dev) return res.status(404).json({ error: 'Device not found or access denied' });
+
     const activities = await query(`
       SELECT 'device' as source, a.id, a.user_id, a.activity, a.details, a.created_at, COALESCE(u.name, 'System') as user_name 
       FROM device_activity a
@@ -739,8 +790,15 @@ router.post('/devices/:id/activity', async (req: any, res, next) => {
   const data = deviceActivitySchema.parse(req.body);
   const { activity, details } = data;
   try {
-    const device = await queryOne('SELECT id, branch_id, sku_id FROM devices WHERE id=? AND business_id=?', [req.params.id, req.user.business_id]) as any;
-    if (!device) return res.status(404).json({ error: 'Device not found' });
+    const isSuper = req.user.role === 'superadmin';
+    const checkParams = [req.params.id, req.user.business_id];
+    let userClause = '';
+    if (!isSuper) {
+      userClause = ' AND branch_id=? AND user_id=?';
+      checkParams.push(req.user.branch_id, req.userId);
+    }
+    const device = await queryOne(`SELECT id, branch_id, sku_id FROM devices WHERE id=? AND business_id=?${userClause}`, checkParams) as any;
+    if (!device) return res.status(404).json({ error: 'Device not found or access denied' });
     
     await execute('INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
       [req.params.id, req.userId, activity || 'Note Added', details || '']);
@@ -755,13 +813,21 @@ router.delete('/devices/:id', async (req: any, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+    const isSuper = req.user.role === 'superadmin';
+    const delParams = [req.params.id, req.user.business_id];
+    let delUserClause = '';
+    if (!isSuper) {
+      delUserClause = ' AND d.branch_id=? AND d.user_id=?';
+      delParams.push(req.user.branch_id, req.userId);
+    }
+
     const [oldRows] = await conn.execute(
       `SELECT d.*, p.name as product_name, p.id as product_id, s.id as sku_id 
        FROM devices d 
        JOIN product_skus s ON d.sku_id=s.id 
        JOIN products p ON s.product_id=p.id 
-       WHERE d.id=? AND d.business_id=?`,
-      [req.params.id, req.user.business_id]
+       WHERE d.id=? AND d.business_id=?${delUserClause}`,
+      delParams
     );
     const dev = (oldRows as any[])[0];
     if (!dev) {
@@ -792,7 +858,14 @@ router.delete('/devices/:id', async (req: any, res, next) => {
       );
     }
 
-    await conn.execute('DELETE FROM devices WHERE id=? AND business_id=?', [req.params.id, req.user.business_id]);
+    const finalDelParams = [req.params.id, req.user.business_id];
+    let finalDelClause = '';
+    if (!isSuper) {
+      finalDelClause = ' AND branch_id=? AND user_id=?';
+      finalDelParams.push(req.user.branch_id, req.userId);
+    }
+
+    await conn.execute(`DELETE FROM devices WHERE id=? AND business_id=?${finalDelClause}`, finalDelParams);
     await conn.commit();
     res.json({ success: true });
   } catch (e: any) {
@@ -806,22 +879,35 @@ router.delete('/devices/:id', async (req: any, res, next) => {
 // GET /api/devices
 router.get('/devices', async (req: any, res, next) => {
   const status = req.query.status || 'in_stock';
+  const branchId = req.query.branch_id;
   try {
     const isSuper = req.user.role === 'superadmin';
+    let filterClause = '';
+    const params: any[] = [req.user.business_id, status];
+    
+    if (!isSuper) {
+      filterClause = 'AND d.branch_id=? AND d.user_id=?';
+      params.push(req.user.branch_id, req.userId);
+    } else if (branchId && branchId !== 'all') {
+      filterClause = 'AND d.branch_id=?';
+      params.push(Number(branchId));
+    }
+
     const sql = `
-      SELECT d.id, d.sku_id, d.imei, d.color, d.gb, d.\`condition\`, d.po_number, d.status, d.created_at,
-             p.name as product_name, s.sku_code, inv.invoice_number
+      SELECT d.id, d.business_id, d.branch_id, d.user_id, d.sku_id, d.imei, d.imei_serial, d.color, d.gb, d.ram,
+             d.\`condition\`, d.po_number, d.status, d.cost_price, d.selling_price, d.created_at,
+             p.name as product_name, s.sku_code, inv.invoice_number,
+             b.name as branch_name, u.name as user_name
       FROM devices d
       JOIN product_skus s ON d.sku_id=s.id
       JOIN products p ON s.product_id=p.id
+      LEFT JOIN branches b ON d.branch_id=b.id
+      LEFT JOIN users u ON d.user_id=u.id
       LEFT JOIN invoice_items ii ON d.id=ii.device_id
       LEFT JOIN invoices inv ON ii.invoice_id=inv.id
-      WHERE d.business_id=? AND d.status=? ${!isSuper ? 'AND d.branch_id=?' : ''}
+      WHERE d.business_id=? AND d.status=? ${filterClause}
       ORDER BY d.created_at DESC
     `;
-    const params = !isSuper 
-      ? [req.user.business_id, status, req.user.branch_id] 
-      : [req.user.business_id, status];
     res.json(await query(sql, params));
   } catch (e: any) { next(e); }
 });
@@ -1332,14 +1418,14 @@ router.put('/transfers/:id/complete', async (req: any, res, next) => {
       if (isCrossBusiness) {
         // Transfer ownership of the device to destination business & branch
         await conn.execute(
-          'UPDATE devices SET business_id=?, branch_id=?, sku_id=?, status=\'in_stock\' WHERE id=?',
-          [destBusinessId, destBranchId, destSkuId || transfer.sku_id, transfer.device_id]
+          'UPDATE devices SET business_id=?, branch_id=?, user_id=?, sku_id=?, status=\'in_stock\' WHERE id=?',
+          [destBusinessId, destBranchId, req.userId, destSkuId || transfer.sku_id, transfer.device_id]
         );
       } else {
         // Same business transfer
         await conn.execute(
-          'UPDATE devices SET branch_id=?, status=\'in_stock\' WHERE id=?',
-          [destBranchId, transfer.device_id]
+          'UPDATE devices SET branch_id=?, user_id=?, status=\'in_stock\' WHERE id=? AND business_id=?',
+          [destBranchId, req.userId, transfer.device_id, destBusinessId]
         );
       }
       
@@ -1421,7 +1507,7 @@ router.put('/transfers/:id/cancel', async (req: any, res, next) => {
     await conn.execute("UPDATE device_transfers SET status='cancelled' WHERE id=?", [transfer.id]);
     
     if (transfer.device_id) {
-      await conn.execute("UPDATE devices SET status='in_stock' WHERE id=?", [transfer.device_id]);
+      await conn.execute("UPDATE devices SET status='in_stock' WHERE id=? AND business_id=?", [transfer.device_id, transfer.from_business_id]);
       if (transfer.sku_id) {
         await conn.execute(
           'INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE quantity=quantity+1',

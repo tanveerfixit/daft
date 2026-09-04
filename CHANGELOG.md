@@ -4,13 +4,34 @@ This document tracks all features, architectural enhancements, bug fixes, and UX
 
 ---
 
-## [2026-09-04] - Stable Release Alignment & Production Bundle (Commit 9aa20416)
+## [2026-09-05] - Batch Device Intake, Continuous Scanner Flow & Serialized Model Fixes
 
-### 🚀 Production Deployment
-* **Restore Exact Release State (`9aa20416`)**:
-  * Reverted multi-tenant device inventory changes to restore the exact verified state of commit `9aa20416`.
-  * Verified full source code integrity across all components, routes, and database schemas.
-  * Re-compiled production bundle (`vite build` + `esbuild`) to package `dist/` and `server.js` for immediate deployment to Hostinger without runtime build overhead.
+### 🚀 New Features & Enhancements
+* **Batch Device Intake Page (`BatchDeviceIntake.tsx`)**:
+  * Multi-device serialized intake form with bulk storage, color, condition, cost/retail price, and supplier selection.
+  * Continuous barcode scanner workflow: pressing Enter on IMEI inputs automatically triggers next row creation with active model inheritance.
+  * Direct batch label printing and bulk IMEI paste support.
+  * Filtered serialized model selector with instant inline quick-creation of new models.
+
+---
+
+## [2026-09-04] - Strict User & Branch Device Inventory Isolation (Zero Data Loss)
+
+### 🚀 Security & Multi-Tenant Isolation
+* **Strict User & Branch Device Inventory Isolation (`mysql.ts`, `inventory.ts`, `products.ts`, `invoices.ts`)**:
+  * Added `user_id INT NULL` to `devices` table with non-destructive migration and foreign key to `users(id)`.
+  * **Zero Data Loss Guarantee**: Safely backfilled historical devices from audit trails (`device_activity`) and active branch users so that 100% of existing inventory is preserved and accessible.
+  * Dropped global unique constraint on `imei` to allow clean isolation per entity and added composite performance indexes (`business_id, branch_id, user_id` and `sku_id, user_id, status`).
+  * Enforced strict user ownership (`user_id = req.userId` & `branch_id = req.user.branch_id`) across:
+    * Device Inventory page (`GET /api/devices`)
+    * Device search & IMEI lookup (`GET /api/devices/search`)
+    * Device detail & notes (`GET /api/devices/:id`)
+    * Serial products device breakdown (`GET /api/products/:skuId/devices`)
+    * Cash register available device selector (`GET /api/products/:skuId/available-devices`)
+    * Stats & CSV export (`GET /api/devices/stats`, `GET /api/devices/export-csv`)
+* **UI Transparency & Ownership Verification (`DeviceInventory.tsx`, `SkuDeviceDetails.tsx`, `DeviceDetails.tsx`)**:
+  * Added dedicated **Branch** and **Added By (Owner)** columns to Device Inventory and Serial Products tables.
+  * Added Branch and Owner metadata to single Device Details view for clear auditability.
 
 ---
 

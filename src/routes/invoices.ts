@@ -752,7 +752,11 @@ router.post('/', async (req: any, res, next) => {
           ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)
         `, [req.user.branch_id, skuId, item.quantity]);
       } else if (item.device_id) {
-        await conn.execute("UPDATE devices SET status='sold' WHERE id=? AND branch_id=?", [item.device_id, req.user.branch_id]);
+        const isSuper = req.user.role === 'superadmin';
+        await conn.execute(
+          `UPDATE devices SET status='sold' WHERE id=? AND business_id=? AND branch_id=? ${!isSuper ? 'AND user_id=?' : ''}`,
+          !isSuper ? [item.device_id, req.user.business_id, req.user.branch_id, req.userId] : [item.device_id, req.user.business_id, req.user.branch_id]
+        );
         await conn.execute(
           'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
           [item.device_id, req.userId, 'Device Sold', `Sold on Invoice: ${invoiceNumber}`]
@@ -983,7 +987,7 @@ router.post('/:id/refund', async (req: any, res, next) => {
         `, [invoice.branch_id || 1, pItem.sku_id, pItem.qty]);
 
         if (pItem.device_id) {
-          await conn.execute("UPDATE devices SET status='in_stock' WHERE id=?", [pItem.device_id]);
+          await conn.execute("UPDATE devices SET status='in_stock' WHERE id=? AND business_id=?", [pItem.device_id, invoice.business_id || req.user.business_id]);
         }
       }
     }

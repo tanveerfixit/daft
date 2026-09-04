@@ -10,6 +10,8 @@ interface DeviceDetail {
   status: string;
   created_at: string;
   invoice_number?: string;
+  branch_name?: string;
+  user_name?: string;
 }
 
 interface Props {
@@ -111,6 +113,8 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
                   <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">GB</th>
                   <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Condition</th>
                   <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Status</th>
+                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Branch</th>
+                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center whitespace-nowrap min-w-[110px]">Added By</th>
                   <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Date Added</th>
                   <th className="px-2 py-1.5 text-center">Invoice #</th>
                 </tr>
@@ -118,7 +122,7 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
               <tbody>
                 {filteredDevices.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-[var(--text-muted-more)] italic">
+                    <td colSpan={9} className="px-4 py-8 text-center text-[var(--text-muted-more)] italic">
                       No devices found matching the filter.
                     </td>
                   </tr>
@@ -137,6 +141,12 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
                         }`}>
                           {device.status.replace('_', ' ')}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 border-r border-[var(--border-base)] text-center text-xs text-[var(--text-muted)]">
+                        {device.branch_name || '-'}
+                      </td>
+                      <td className="px-4 py-3 border-r border-[var(--border-base)] text-center text-xs text-[var(--text-muted)]">
+                        {device.user_name || '-'}
                       </td>
                       <td className="px-4 py-3 border-r border-[var(--border-base)] text-[var(--text-muted-more)]">
                         {new Date(device.created_at).toLocaleDateString()}
