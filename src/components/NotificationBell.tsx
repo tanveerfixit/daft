@@ -142,7 +142,7 @@ export default function NotificationBell() {
 
       {/* Flyout Panel */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-2xl z-[99999] overflow-hidden animate-in fade-in zoom-in-95 duration-150 font-sans text-neutral-900 dark:text-neutral-100">
+        <div className="fixed sm:absolute right-2 sm:right-0 left-2 sm:left-auto mt-2 sm:w-96 max-w-[calc(100vw-16px)] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-2xl z-[99999] overflow-hidden animate-in fade-in zoom-in-95 duration-150 font-sans text-neutral-900 dark:text-neutral-100">
           
           {/* Header */}
           <div className="px-4 py-3 bg-[var(--bg-header)] dark:bg-neutral-800/80 border-b border-neutral-200 dark:border-neutral-700 flex items-center justify-between">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   ShoppingCart, 
   Wrench, 
@@ -11,7 +11,10 @@ import {
   ShoppingBag,
   Banknote,
   ArrowLeftRight,
-  X
+  Menu,
+  X,
+  LogOut,
+  User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Routes, Route, useNavigate, useParams, useLocation, Navigate, useSearchParams } from 'react-router-dom';
@@ -357,6 +360,9 @@ function AppInner() {
   
   const [showAdminPortal, setShowAdminPortal] = useState(false);
   const [showStartingCashModal, setShowStartingCashModal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchError, setSearchError] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
@@ -563,9 +569,21 @@ function AppInner() {
       {showAdminPortal && isAdmin && <AdminPortal onClose={() => setShowAdminPortal(false)} />}
 
       {/* Header */}
-      <header className="h-14 bg-[var(--bg-header)] flex items-center justify-between z-[100] transition-colors duration-300">
-        <div className="flex h-full items-center">
-          <div className="w-16 flex items-center justify-center h-full">
+      <header className="h-14 bg-[var(--bg-header)] flex items-center justify-between z-[100] transition-colors duration-300 relative px-1 sm:px-2 md:px-0">
+        <div className="flex h-full items-center min-w-0">
+          {/* Mobile Hamburger Button */}
+          <button 
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            className="md:hidden flex items-center justify-center p-2 text-[var(--brand-primary)] hover:bg-neutral-200/50 dark:hover:bg-neutral-800 rounded-md cursor-pointer shrink-0 ml-1"
+            title="Open Navigation Menu"
+            aria-label="Open Navigation Menu"
+          >
+            <Menu size={24} />
+          </button>
+
+          {/* Desktop Home Button (Exact existing) */}
+          <div className="hidden md:flex w-16 items-center justify-center h-full">
             <button 
               onClick={() => navigate(`/${branchSlug}/home`)}
               className="transition-all hover:scale-115 p-2 text-[var(--brand-primary)] flex items-center justify-center"
@@ -575,18 +593,20 @@ function AppInner() {
             </button>
           </div>
           
+          {/* Business / Branch Name */}
           <button 
             onClick={() => navigate(`/${branchSlug}/home`)} 
-            className="pl-2 flex flex-col items-start font-brand cursor-pointer hover:opacity-85 transition-opacity"
+            className="pl-1.5 sm:pl-2 flex flex-col items-start font-brand cursor-pointer hover:opacity-85 transition-opacity max-w-[120px] xs:max-w-[150px] sm:max-w-[200px] md:max-w-none shrink-0"
             title="Home Menu"
           >
-            <h1 className="text-[24px] font-bold text-[var(--brand-primary)] font-brand tracking-tight leading-none">
+            <h1 className="text-[16px] sm:text-[20px] md:text-[24px] font-bold text-[var(--brand-primary)] font-brand tracking-tight leading-none truncate">
               {currentUser?.business_name || currentUser?.branch_name || 'EPOS'}
             </h1>
           </button>
         </div>
 
-        <div className="flex-1 max-w-xl px-12 z-[9999]">
+        {/* Desktop Search Bar (md and up) */}
+        <div className="hidden md:block flex-1 max-w-xl px-4 lg:px-12 z-[9999]">
           <div className="relative">
             <Search className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${searchLoading ? 'text-blue-500 animate-pulse' : 'text-[var(--text-muted)]'}`} size={16} />
             <input 
@@ -606,7 +626,7 @@ function AppInner() {
               }}
               onFocus={() => setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
-              placeholder="Search invoices by number (e.g. SA-001)..." 
+              placeholder="Search invoices (e.g. SA-001)..." 
               disabled={searchLoading}
               className="w-full bg-[var(--bg-card)] border border-[var(--border-base)] rounded py-1.5 pl-9 pr-8 text-sm focus:outline-none focus:border-blue-500 transition-all placeholder:text-[var(--text-muted)] text-[var(--text-main)] disabled:opacity-75"
             />
@@ -671,47 +691,265 @@ function AppInner() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 px-6">
+        {/* Header Right Actions */}
+        <div className="flex items-center gap-1 sm:gap-2 px-1 sm:px-4 md:px-6 shrink-0">
+          {/* Mobile Search Toggle Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setMobileSearchOpen(prev => !prev);
+              if (!mobileSearchOpen) {
+                setTimeout(() => mobileSearchInputRef.current?.focus(), 150);
+              }
+            }}
+            className={`md:hidden p-2 rounded-lg transition-colors cursor-pointer flex items-center justify-center ${
+              mobileSearchOpen 
+                ? 'bg-neutral-200 dark:bg-neutral-800 text-[var(--brand-primary)]' 
+                : 'text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200/60 dark:hover:bg-neutral-800'
+            }`}
+            title="Toggle Search"
+            aria-label="Toggle Search"
+          >
+            {mobileSearchOpen ? <X size={20} /> : <Search size={20} />}
+          </button>
+
           <NotificationBell />
 
           {isAdmin && (
             <button 
               onClick={() => setShowAdminPortal(true)}
-              className="h-9 overflow-hidden group bg-transparent text-[var(--text-main)] px-3 rounded text-sm font-medium border border-transparent hover:border-[var(--border-base)] transition-all cursor-pointer"
+              className="hidden sm:inline-flex items-center gap-1.5 h-8 px-2.5 rounded text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 transition-colors cursor-pointer"
+              title="Open Admin Portal"
             >
-              <div className="flex flex-col transition-transform duration-500 group-hover:-translate-y-9 ease-in-out">
-                <div className="h-9 flex items-center justify-center whitespace-nowrap">
-                  Admin
-                </div>
-                <div className="h-9 flex items-center justify-center whitespace-nowrap text-blue-600 font-semibold">
-                  Log In
-                </div>
-              </div>
+              <span>Admin Portal</span>
             </button>
           )}
           
+          {/* User Profile & Log Out Button */}
           <button 
             onClick={() => {
               logout();
               navigate('/');
             }}
-            className="h-9 overflow-hidden group bg-[var(--bg-card)] text-[var(--text-main)] px-4 rounded text-sm font-semibold transition-all border border-[var(--border-base)] shadow-sm hover:border-neutral-400 cursor-pointer"
+            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded bg-[var(--bg-card)] hover:bg-red-50 hover:border-red-300 dark:hover:bg-red-950/30 text-[var(--text-main)] hover:text-red-600 dark:hover:text-red-400 text-xs font-medium transition-colors border border-[var(--border-base)] shadow-xs cursor-pointer group"
+            title={`Logged in as ${currentUser.name} (${currentUser.role || 'Staff'}). Click to Log Out`}
+            aria-label="Log Out"
           >
-            <div className="flex flex-col transition-transform duration-500 group-hover:-translate-y-9 ease-in-out">
-              <div className="h-9 flex items-center justify-center whitespace-nowrap font-semibold">
-                {currentUser.name}
-              </div>
-              <div className="h-9 flex items-center justify-center whitespace-nowrap text-red-600 font-semibold">
-                Log Out
-              </div>
-            </div>
+            <User size={14} className="text-slate-400 group-hover:text-red-500 transition-colors shrink-0" />
+            <span className="hidden sm:inline max-w-[100px] truncate font-semibold">
+              {currentUser.name}
+            </span>
+            <LogOut size={13} className="text-slate-400 group-hover:text-red-500 transition-colors shrink-0 ml-0.5" />
           </button>
         </div>
+
+        {/* Expandable Mobile Search Dropdown Bar */}
+        <AnimatePresence>
+          {mobileSearchOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="md:hidden absolute top-full left-0 right-0 bg-[var(--bg-header)] border-b border-[var(--border-base)] p-2 shadow-lg z-[9999] overflow-hidden"
+            >
+              <div className="relative">
+                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${searchLoading ? 'text-blue-500 animate-pulse' : 'text-[var(--text-muted)]'}`} size={16} />
+                <input 
+                  ref={mobileSearchInputRef}
+                  type="text" 
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setSearchQuery('');
+                      setShowSuggestions(false);
+                      setMobileSearchOpen(false);
+                    } else if (e.key === 'Enter') {
+                      handleSearch(e);
+                      setMobileSearchOpen(false);
+                    }
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
+                  placeholder="Search invoice (e.g. SA-001)..." 
+                  disabled={searchLoading}
+                  className="w-full bg-[var(--bg-card)] border border-[var(--border-base)] rounded py-2 pl-9 pr-8 text-sm focus:outline-none focus:border-blue-500 transition-all placeholder:text-[var(--text-muted)] text-[var(--text-main)]"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setSearchQuery('');
+                      setShowSuggestions(false);
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded cursor-pointer"
+                    title="Clear Search"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+
+                {showSuggestions && suggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-[var(--bg-card)] border border-[var(--border-base)] rounded-lg shadow-xl z-[99999] overflow-hidden py-1 max-h-64 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800">
+                    <div className="px-3 py-1.5 text-[11px] text-[var(--text-muted)] font-semibold uppercase tracking-wider bg-[var(--bg-app)] border-b border-[var(--border-base)]">
+                      Suggested Invoices ({suggestions.length})
+                    </div>
+                    {suggestions.map((inv) => (
+                      <button
+                        key={inv.id}
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery('');
+                          setShowSuggestions(false);
+                          setMobileSearchOpen(false);
+                          navigate(`/${branchSlug}/invoices/${inv.id}`);
+                        }}
+                        className="w-full text-left px-3.5 py-2.5 hover:bg-[var(--bg-app)] flex items-center justify-between text-sm transition-colors group cursor-pointer"
+                      >
+                        <div className="flex flex-col">
+                          <span className="font-semibold font-mono text-[var(--text-main)] group-hover:text-blue-600 transition-colors">
+                            {inv.invoice_number}
+                          </span>
+                          <span className="text-xs text-[var(--text-muted)] mt-0.5">
+                            {inv.customer_name || 'Walk-in Customer'}
+                          </span>
+                        </div>
+                        <div className="text-right flex flex-col items-end">
+                          <span className="font-bold font-mono text-[var(--text-main)]">
+                            €{(parseFloat(inv.grand_total) || 0).toFixed(2)}
+                          </span>
+                          <span className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                            {new Date(inv.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {searchError && (
+                  <div className="mt-1.5 bg-red-500/10 border border-red-500/20 text-red-500 text-xs py-1.5 px-3 rounded flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
+                    <span>{searchError}</span>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
 
+      {/* Mobile Drawer Slider Navigation */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <>
+            {/* Backdrop Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[200] md:hidden"
+            />
+
+            {/* Sliding Left Drawer */}
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 26, stiffness: 280 }}
+              className="fixed inset-y-0 left-0 w-72 max-w-[82vw] bg-[var(--bg-sidebar)] text-white z-[201] flex flex-col shadow-2xl md:hidden overflow-hidden"
+            >
+              {/* Drawer Top Header */}
+              <div className="h-14 flex items-center justify-between px-4 border-b border-white/10 bg-black/20 shrink-0">
+                <div className="flex items-center gap-2.5 truncate">
+                  <LayoutGrid size={22} className="text-[var(--brand-primary)] shrink-0" />
+                  <span className="font-bold text-base text-white truncate">
+                    {currentUser?.business_name || 'EPOS Navigation'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-1.5 text-white/70 hover:text-white rounded-lg hover:bg-white/10 cursor-pointer transition-colors"
+                  aria-label="Close menu"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Drawer Navigation List */}
+              <nav className="flex-1 py-2 px-2 overflow-y-auto space-y-1 custom-scrollbar">
+                {/* Home tile inside drawer */}
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    navigate(`/${branchSlug}/home`);
+                  }}
+                  className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-lg text-left transition-all cursor-pointer ${
+                    currentView === 'home'
+                      ? 'bg-white/20 text-white font-semibold border-l-4 border-[var(--brand-primary)]'
+                      : 'text-slate-200 hover:bg-white/10 hover:text-white font-normal'
+                  }`}
+                >
+                  <LayoutGrid size={22} strokeWidth={1.75} className={currentView === 'home' ? 'text-[var(--brand-primary)]' : 'text-slate-300'} />
+                  <span className="text-[15px] font-medium">Home Menu</span>
+                </button>
+
+                {menuItems.map((item) => {
+                  const isActive = currentView === item.id;
+                  const label = item.label || (item.id === 'end-of-day' ? 'End of Day' : item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        handleSidebarNavigate(item.id);
+                      }}
+                      className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-lg text-left transition-all cursor-pointer ${
+                        isActive 
+                          ? 'bg-white/20 text-white font-semibold border-l-4 border-[var(--brand-primary)]' 
+                          : 'text-slate-200 hover:bg-white/10 hover:text-white font-normal'
+                      }`}
+                    >
+                      <item.icon size={22} strokeWidth={1.75} className={isActive ? 'text-[var(--brand-primary)]' : 'text-slate-300'} />
+                      <span className="text-[15px] font-medium">{label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+
+              {/* Drawer Footer */}
+              <div className="p-3 border-t border-white/10 bg-black/20 shrink-0 flex items-center justify-between">
+                <div className="flex flex-col truncate pr-2">
+                  <span className="text-sm font-semibold text-white truncate">{currentUser.name}</span>
+                  <span className="text-xs text-slate-400 capitalize">{currentUser.role || 'Staff'}</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    logout();
+                    navigate('/');
+                  }}
+                  className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs font-semibold rounded border border-red-500/30 cursor-pointer"
+                >
+                  Log Out
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <aside className="w-28 bg-[var(--bg-sidebar)] text-white flex flex-col z-20 shadow-lg shrink-0 overflow-y-auto custom-scrollbar">
+        {/* Desktop Sidebar (100% Unchanged on Desktop md:flex, Hidden on Mobile) */}
+        <aside className="hidden md:flex w-28 bg-[var(--bg-sidebar)] text-white flex-col z-20 shadow-lg shrink-0 overflow-y-auto custom-scrollbar">
           <nav className="flex-1 py-1 flex flex-col items-center">
             {menuItems.map((item) => (
               <button

@@ -17,7 +17,8 @@ import {
   ExternalLink,
   Calendar,
   RotateCcw,
-  Loader2
+  Loader2,
+  Banknote
 } from 'lucide-react';
 import { Payment, ClosingReport, ClosingReportPayment } from '../types';
 import { useThermalSettings, ThermalPrinterSettings, CompanyInfo } from '../hooks/useThermalSettings';
@@ -514,7 +515,7 @@ const EndOfDayA4: React.FC<PrintProps> = ({
       {comments && (
         <div className="mt-8">
           <h3 className="text-[11px] font-bold mb-2 uppercase tracking-widest text-gray-500">Manager Notes</h3>
-          <div className="p-4 bg-gray-50 border-l-4 border-gray-900 text-sm font-bold text-gray-900 leading-relaxed shadow-sm whitespace-pre-wrap">
+          <div className="p-4 bg-gray-50 border-l-4 border-gray-900 text-sm font-bold text-gray-900 leading-relaxed whitespace-pre-wrap">
             {comments}
           </div>
         </div>
@@ -570,19 +571,19 @@ const CashCounter: React.FC<CashCounterProps> = ({ onClose, onConfirm, title = '
   const total = Object.entries(counts).reduce((sum, [val, count]) => sum + (Number(val) * count), 0);
 
   return (
-    <div className="no-print fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-slate-900 rounded border border-slate-300 dark:border-slate-700 shadow-xl max-w-md w-full p-5 space-y-4 text-slate-800 dark:text-slate-100">
-        <div className="flex items-center justify-between border-b pb-2 border-slate-200 dark:border-slate-800">
+    <div className="no-print fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50">
+      <div className="bg-white dark:bg-slate-900 rounded border border-slate-300 dark:border-slate-700 max-w-md w-full p-4 sm:p-5 space-y-4 text-slate-800 dark:text-slate-100 max-h-[92vh] flex flex-col">
+        <div className="flex items-center justify-between border-b pb-2 border-slate-200 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-2">
             <Calculator size={18} className="text-slate-700 dark:text-slate-300" />
             <h3 className="font-bold text-slate-800 dark:text-white text-base">{title}</h3>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1">
             <X size={18} />
           </button>
         </div>
 
-        <div className="space-y-2 text-[14px] max-h-[60vh] overflow-y-auto pr-1">
+        <div className="space-y-2 text-[14px] flex-1 overflow-y-auto pr-1">
           <div className="grid grid-cols-3 font-semibold text-slate-600 dark:text-slate-400 pb-1 border-b border-slate-100 dark:border-slate-800">
             <span>Denomination</span>
             <span className="text-center">Quantity</span>
@@ -609,24 +610,24 @@ const CashCounter: React.FC<CashCounterProps> = ({ onClose, onConfirm, title = '
           </div>
         </div>
 
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-3 flex items-center justify-between">
-          <div className="text-[14px] text-slate-600 dark:text-slate-400">
-            Counted Total: <span className="font-mono font-bold text-slate-900 dark:text-white text-base">€{total.toFixed(2)}</span>
+        <div className="border-t border-slate-200 dark:border-slate-800 pt-3 flex items-center justify-between shrink-0">
+          <div className="text-[13px] sm:text-[14px] text-slate-600 dark:text-slate-400">
+            Counted: <span className="font-mono font-bold text-slate-900 dark:text-white text-sm sm:text-base">€{total.toFixed(2)}</span>
           </div>
           <div className="flex gap-2">
             <button 
               type="button" 
               onClick={onClose} 
-              className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[14px] font-medium rounded cursor-pointer"
+              className="px-3 sm:px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[13px] sm:text-[14px] font-medium rounded cursor-pointer"
             >
               Cancel
             </button>
             <button 
               type="button" 
               onClick={() => onConfirm(total)} 
-              className="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-[14px] font-semibold rounded cursor-pointer"
+              className="px-3.5 sm:px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-[13px] sm:text-[14px] font-semibold rounded cursor-pointer"
             >
-              Apply Count
+              Apply
             </button>
           </div>
         </div>
@@ -655,25 +656,25 @@ const EndOfDayListModal: React.FC<EndOfDayListModalProps> = ({ onClose, onSelect
   }, []);
 
   return (
-    <div className="no-print fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-slate-900 rounded border border-slate-300 dark:border-slate-700 shadow-xl max-w-2xl w-full p-5 space-y-4 text-slate-800 dark:text-slate-100">
-        <div className="flex items-center justify-between border-b pb-2 border-slate-200 dark:border-slate-800">
+    <div className="no-print fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50">
+      <div className="bg-white dark:bg-slate-900 rounded border border-slate-300 dark:border-slate-700 max-w-2xl w-full p-4 sm:p-5 space-y-4 text-slate-800 dark:text-slate-100 max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between border-b pb-2 border-slate-200 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-2">
             <List size={18} className="text-slate-700 dark:text-slate-300" />
             <h3 className="font-bold text-slate-800 dark:text-white text-base">End of Day Reports History</h3>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1">
             <X size={18} />
           </button>
         </div>
 
-        <div className="max-h-[60vh] overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overflow-x-auto">
           {loading ? (
             <div className="py-12 text-center text-slate-500 text-sm">Loading reports history...</div>
           ) : reports.length === 0 ? (
             <div className="py-12 text-center text-slate-400 text-sm italic">No saved End of Day reports found.</div>
           ) : (
-            <table className="w-full text-left text-xs sm:text-sm border-collapse">
+            <table className="w-full text-left text-xs sm:text-sm border-collapse min-w-[500px]">
               <thead>
                 <tr className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-700">
                   <th className="py-2.5 px-3">Date</th>
@@ -713,7 +714,7 @@ const EndOfDayListModal: React.FC<EndOfDayListModalProps> = ({ onClose, onSelect
           )}
         </div>
 
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-3 flex justify-end">
+        <div className="border-t border-slate-200 dark:border-slate-800 pt-3 flex justify-end shrink-0">
           <button 
             type="button" 
             onClick={onClose} 
@@ -866,7 +867,7 @@ const CleanCalendarPicker: React.FC<CalendarPickerProps> = ({
   }
 
   return (
-    <div className="w-72 p-3 bg-[#f2f2f2] dark:bg-slate-900 border border-[#cccccc] dark:border-slate-700 shadow-md z-50 text-sm select-none rounded">
+    <div className="w-72 p-3 bg-[#f2f2f2] dark:bg-slate-900 border border-[#cccccc] dark:border-slate-700 z-50 text-sm select-none rounded">
       {/* Month Navigation */}
       <div className="flex items-center justify-between mb-2 pb-1 border-b border-[#dfdfdf] dark:border-slate-800">
         <button
@@ -1259,23 +1260,31 @@ export default function EndOfDay() {
   return (
     <div className="flex flex-col h-full bg-[#f2f2f2] dark:bg-slate-950 text-black dark:text-slate-200 text-base font-sans">
       {/* Main Content Area */}
-      <div className={`flex-1 overflow-auto p-3 sm:p-6 space-y-6 transition-opacity duration-150 ${isRefreshing ? 'opacity-80' : 'opacity-100'}`}>
-        <div className="max-w-[1400px] mx-auto space-y-6">
+      <div className={`flex-1 overflow-auto p-2.5 sm:p-6 space-y-4 sm:space-y-6 transition-opacity duration-150 ${isRefreshing ? 'opacity-80' : 'opacity-100'}`}>
+        <div className="max-w-[1400px] mx-auto space-y-4 sm:space-y-6">
 
           {/* Section 1: End of Day Report Top Summary Card */}
-          <div className="w-full bg-white dark:bg-slate-900 border border-[#d8d8d8] dark:border-slate-800 rounded p-4 sm:p-6 shadow-sm flex flex-col gap-4">
+          <div className="w-full bg-white dark:bg-slate-900 border border-[#d8d8d8] dark:border-slate-800 rounded p-3 sm:p-6 flex flex-col gap-4">
             
             {/* Top Navigation Header inside Card */}
-            <header className="flex items-center justify-between gap-3 pb-2 border-b border-transparent">
+            <header className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pb-2 border-b border-transparent">
               {/* Title */}
-              <h1 className="font-normal text-slate-800 dark:text-white tracking-tight flex items-center gap-2 shrink-0" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>
-                <FileText size={24} className="text-[#00c9db] dark:text-sky-400" />
-                <span>End of Day Report</span>
+              <h1 className="font-normal text-slate-800 dark:text-white tracking-tight flex items-center gap-2 shrink-0 justify-between md:justify-start" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>
+                <div className="flex items-center gap-2">
+                  <FileText size={24} className="text-[#00c9db] dark:text-sky-400" />
+                  <span>End of Day Report</span>
+                </div>
+                {isRefreshing && (
+                  <div className="md:hidden flex items-center gap-1.5 px-2 py-0.5 bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-[11px] font-medium rounded-full">
+                    <div className="w-1.5 h-1.5 bg-sky-500 rounded-full animate-ping"></div>
+                    <span>Syncing</span>
+                  </div>
+                )}
               </h1>
 
               {/* Date Badge with Clean Navigation */}
-              <div className="relative inline-flex items-center shrink-0">
-                <div className="bg-[#e75325] text-white px-4 py-1.5 text-[16px] font-semibold rounded shadow-sm flex items-center gap-2 min-w-[220px] justify-center">
+              <div className="relative inline-flex items-center justify-center shrink-0 w-full md:w-auto">
+                <div className="bg-[#e75325] text-white px-3 sm:px-4 py-1.5 text-[15px] sm:text-[16px] font-semibold rounded flex items-center justify-between sm:justify-center gap-2 w-full sm:w-auto min-w-0 sm:min-w-[220px]">
                   <button 
                     type="button" 
                     onClick={(e) => { e.stopPropagation(); handlePrevDay(); setShowCalendar(false); }}
@@ -1319,9 +1328,9 @@ export default function EndOfDay() {
               </div>
 
               {/* Action Buttons */}
-              <div className="no-print flex items-center gap-2 relative">
+              <div className="no-print flex items-center justify-end gap-2 relative w-full md:w-auto">
                 {isRefreshing && (
-                  <div className="absolute -top-1 -left-2 -translate-y-full flex items-center gap-1.5 px-2 py-0.5 bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-[11px] font-medium rounded-full shadow-sm">
+                  <div className="hidden md:flex absolute -top-1 -left-2 -translate-y-full items-center gap-1.5 px-2 py-0.5 bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-[11px] font-medium rounded-full">
                     <div className="w-1.5 h-1.5 bg-sky-500 rounded-full animate-ping"></div>
                     <span>Syncing</span>
                   </div>
@@ -1330,20 +1339,20 @@ export default function EndOfDay() {
                 <button 
                   type="button" 
                   onClick={() => setShowEodListModal(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[14px] font-medium border border-slate-300 dark:border-slate-600 rounded shadow-sm transition cursor-pointer"
+                  className="flex-1 md:flex-initial inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[13px] sm:text-[14px] font-medium border border-slate-300 dark:border-slate-600 rounded transition cursor-pointer"
                 >
                   <List size={16} className="text-slate-500 dark:text-slate-400" />
                   <span>End of Day List</span>
                 </button>
 
-                <div className="relative inline-block">
+                <div className="relative inline-block flex-1 md:flex-initial">
                   <button 
                     type="button" 
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowPrintOptions(prev => !prev);
                     }} 
-                    className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-[#00c9db] hover:bg-[#00b2c2] text-slate-900 text-[14px] font-semibold rounded shadow-sm transition cursor-pointer"
+                    className="w-full md:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-1.5 bg-[#00c9db] hover:bg-[#00b2c2] text-slate-900 text-[13px] sm:text-[14px] font-semibold rounded transition cursor-pointer"
                   >
                     <Printer size={16} />
                     <span>Print</span>
@@ -1354,7 +1363,7 @@ export default function EndOfDay() {
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setShowPrintOptions(false)} />
                       <div 
-                        className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 py-1.5 rounded"
+                        className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 z-50 py-1.5 rounded"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <button 
@@ -1386,8 +1395,181 @@ export default function EndOfDay() {
               </div>
             </header>
 
-            {/* Reconciliation Table */}
-            <div className="overflow-x-auto w-full">
+            {/* Section 1: Mobile Native Card View (hidden on md and up) */}
+            <div className="md:hidden space-y-3">
+              {/* Cash Reconciliation Card */}
+              <div className="bg-white dark:bg-slate-800/40 border border-[#dcdcdc] dark:border-slate-700 p-3.5 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+                  <span className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-1.5">
+                    <Banknote size={16} className="text-emerald-600" />
+                    Cash Reconciliation
+                  </span>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowCashCounter('counted')}
+                    className="px-2.5 py-1 bg-white hover:bg-slate-100 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-medium border border-slate-300 dark:border-slate-600 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Calculator size={13} className="text-slate-500" />
+                    <span>Drawer Counter</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  {/* Cash Counted Input */}
+                  <div className="flex items-center justify-between gap-2">
+                    <label htmlFor="mobileCashCounted" className="text-slate-600 dark:text-slate-400 text-xs font-medium">
+                      Cash Counted:
+                    </label>
+                    <div className="w-36">
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        id="mobileCashCounted"
+                        value={cashCounted || ''} 
+                        onChange={(e) => setCountedValues(prev => ({ ...prev, Cash: parseFloat(e.target.value) || 0 }))}
+                        placeholder="0.00"
+                        className="w-full text-right px-2.5 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Starting Balance Input */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <label htmlFor="mobileStartingBalance" className="text-slate-600 dark:text-slate-400 text-xs font-medium">
+                        Starting Balance:
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowCashCounter('starting')}
+                        className="text-[11px] text-sky-600 dark:text-sky-400 hover:underline cursor-pointer"
+                        title="Count Starting Balance"
+                      >
+                        (Count)
+                      </button>
+                    </div>
+                    <div className="w-36">
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        id="mobileStartingBalance"
+                        value={startingBalance || ''} 
+                        onChange={(e) => setStartingBalance(parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                        className="w-full text-right px-2.5 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Calculated Cash Summary */}
+                  <div className="pt-2 border-t border-slate-200 dark:border-slate-700 grid grid-cols-3 gap-1.5 text-center text-xs">
+                    <div className="bg-[#f8f9fa] dark:bg-slate-900 p-2 border border-slate-200 dark:border-slate-800">
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-medium">Calculated</div>
+                      <div className="font-mono font-bold text-slate-900 dark:text-white text-[13px] mt-0.5">{formatMoney(totalCashSales)}</div>
+                    </div>
+                    <div className="bg-[#f8f9fa] dark:bg-slate-900 p-2 border border-slate-200 dark:border-slate-800">
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-medium">Net Counted</div>
+                      <div className="font-mono font-bold text-slate-900 dark:text-white text-[13px] mt-0.5">{formatMoney(countedCashNet)}</div>
+                    </div>
+                    <div className="bg-[#f8f9fa] dark:bg-slate-900 p-2 border border-slate-200 dark:border-slate-800">
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-medium">Difference</div>
+                      <div className={`font-mono font-bold text-[13px] mt-0.5 ${diffCash === 0 ? 'text-emerald-600' : diffCash > 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                        {formatMoney(diffCash, true)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card / Electronic Payments Card */}
+              <div className="bg-white dark:bg-slate-800/40 border border-[#dcdcdc] dark:border-slate-700 p-3.5 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+                  <span className="font-bold text-slate-800 dark:text-slate-100 text-sm">
+                    Debit Card & Other Methods
+                  </span>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  {/* Debit Card */}
+                  <div className="bg-[#f8f9fa] dark:bg-slate-900 p-2.5 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-slate-800 dark:text-slate-200 text-xs">Debit Card</span>
+                      <div className="text-xs text-slate-500">
+                        System: <span className="font-mono font-bold text-slate-900 dark:text-white">{formatMoney(totalCardSales)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <label htmlFor="mobileCardCounted" className="text-slate-500 text-xs">Counted:</label>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        id="mobileCardCounted"
+                        value={cardCounted || ''} 
+                        onChange={(e) => setCountedValues(prev => ({ ...prev, Card: parseFloat(e.target.value) || 0, 'Debit Card': parseFloat(e.target.value) || 0 }))}
+                        placeholder="0.00"
+                        className="w-32 text-right px-2 py-1 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-500">Difference:</span>
+                      <span className={`font-mono font-semibold ${diffCard === 0 ? 'text-slate-600 dark:text-slate-300' : diffCard > 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                        {formatMoney(diffCard, true)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Other Payments if present */}
+                  {(totalOtherSales > 0 || otherCounted > 0) && (
+                    <div className="bg-[#f8f9fa] dark:bg-slate-900 p-2.5 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-slate-800 dark:text-slate-200 text-xs">Other Payments</span>
+                        <div className="text-xs text-slate-500">
+                          System: <span className="font-mono font-bold text-slate-900 dark:text-white">{formatMoney(totalOtherSales)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500 text-xs">Counted:</span>
+                        <input 
+                          type="number" 
+                          step="0.01" 
+                          value={otherCounted || ''} 
+                          onChange={(e) => setCountedValues(prev => ({ ...prev, Other: parseFloat(e.target.value) || 0 }))}
+                          placeholder="0.00"
+                          className="w-32 text-right px-2 py-1 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
+                        <span className="text-slate-500">Difference:</span>
+                        <span className={`font-mono font-semibold ${diffOther === 0 ? 'text-slate-600 dark:text-slate-300' : diffOther > 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                          {formatMoney(diffOther, true)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Overall Total Reconciliation Summary Card (Mobile) */}
+              <div className="bg-[#f8f9fa] dark:bg-slate-800/80 border border-[#dcdcdc] dark:border-slate-700 p-3.5 flex items-center justify-between">
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">Total Difference</div>
+                  <div className={`text-xl font-mono font-bold mt-0.5 ${diffTotal === 0 ? 'text-emerald-700 dark:text-emerald-400' : diffTotal > 0 ? 'text-blue-700 dark:text-sky-400' : 'text-red-700 dark:text-red-400'}`}>
+                    {formatMoney(diffTotal, true)}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium">Calculated / Counted</div>
+                  <div className="font-mono text-sm font-bold text-slate-900 dark:text-white mt-0.5">
+                    <span>{formatMoney(calculatedTotal)}</span>
+                    <span className="text-slate-400 mx-1.5 font-normal">/</span>
+                    <span>{formatMoney(countedTotal)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 1 Desktop Reconciliation Table (100% Identical Original on md and up) */}
+            <div className="hidden md:block overflow-x-auto w-full">
               <table className="w-full border-collapse border border-[#dcdcdc] dark:border-slate-800 text-[15px]">
                 <colgroup>
                   <col className="w-[35%] sm:w-[40%]" />
@@ -1419,7 +1601,7 @@ export default function EndOfDay() {
                       <button 
                         type="button" 
                         onClick={() => setShowCashCounter('counted')}
-                        className="px-3.5 py-1.5 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[14px] border border-slate-300 dark:border-slate-600 rounded shadow-sm whitespace-nowrap cursor-pointer transition flex items-center justify-center gap-1.5 w-full sm:w-auto"
+                        className="px-3.5 py-1.5 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[14px] border border-slate-300 dark:border-slate-600 rounded whitespace-nowrap cursor-pointer transition flex items-center justify-center gap-1.5 w-full sm:w-auto"
                       >
                         <Calculator size={15} className="text-slate-500" />
                         <span>Cash Drawer Counter</span>
@@ -1448,7 +1630,7 @@ export default function EndOfDay() {
                       <button 
                         type="button" 
                         onClick={() => setShowCashCounter('starting')}
-                        className="px-3.5 py-1.5 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[14px] border border-slate-300 dark:border-slate-600 rounded shadow-sm whitespace-nowrap cursor-pointer transition flex items-center justify-center gap-1.5 w-full sm:w-auto"
+                        className="px-3.5 py-1.5 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[14px] border border-slate-300 dark:border-slate-600 rounded whitespace-nowrap cursor-pointer transition flex items-center justify-center gap-1.5 w-full sm:w-auto"
                       >
                         <Calculator size={15} className="text-slate-500" />
                         <span>Cash Drawer Counter</span>
@@ -1557,24 +1739,24 @@ export default function EndOfDay() {
             </div>
 
             {/* Comments / Discrepancies Textarea & Saving Button */}
-            <div className="flex flex-col sm:flex-row items-start gap-4 pt-2">
-              <label htmlFor="comments" className="w-28 text-left sm:text-right font-medium text-slate-700 dark:text-slate-300 text-[16px] pt-2 shrink-0">
+            <div className="flex flex-col sm:flex-row items-start gap-2 sm:gap-4 pt-2">
+              <label htmlFor="comments" className="text-left sm:text-right font-medium text-slate-700 dark:text-slate-300 text-sm sm:text-[16px] pt-1 sm:pt-2 shrink-0 sm:w-28">
                 Comments :
               </label>
-              <div className="w-full flex flex-col items-end gap-3">
+              <div className="w-full flex flex-col items-stretch sm:items-end gap-3">
                 <textarea 
                   id="comments" 
                   rows={2} 
                   value={comments}
                   onChange={(e) => setComments(e.target.value)}
                   placeholder="Enter reconciliation notes or register discrepancies..." 
-                  className="w-full border border-slate-300 dark:border-slate-700 rounded p-2.5 text-[16px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 bg-white dark:bg-slate-800 transition shadow-inner"
+                  className="w-full border border-slate-300 dark:border-slate-700 rounded p-2.5 text-sm sm:text-[16px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 bg-white dark:bg-slate-800 transition"
                 ></textarea>
 
-                {/* Save End of Day Button in Bottom Right */}
-                <div className="flex items-center gap-3">
+                {/* Save End of Day Button */}
+                <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
                   {saveSuccess && (
-                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-sm flex items-center gap-1.5 animate-in fade-in">
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-xs sm:text-sm flex items-center gap-1.5 animate-in fade-in">
                       <CheckCircle2 size={16} /> Saved Successfully
                     </span>
                   )}
@@ -1582,7 +1764,7 @@ export default function EndOfDay() {
                     type="button"
                     onClick={handleSaveEndOfDay}
                     disabled={isSaving}
-                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded shadow transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    className="w-full sm:w-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
                     {isSaving ? (
                       <>
@@ -1592,7 +1774,7 @@ export default function EndOfDay() {
                     ) : (
                       <>
                         <Save size={16} />
-                        <span>Save</span>
+                        <span>Save End of Day</span>
                       </>
                     )}
                   </button>
@@ -1604,13 +1786,13 @@ export default function EndOfDay() {
 
           {/* Detailed Transaction Breakdown */}
           <div className="bg-white dark:bg-slate-900 border border-[#e5e5e5] dark:border-slate-800 overflow-hidden rounded">
-            <div className="p-4 bg-white dark:bg-slate-900 border-b border-[#e5e5e5] dark:border-slate-800 flex items-center justify-between px-6">
+            <div className="p-3 sm:p-4 bg-white dark:bg-slate-900 border-b border-[#e5e5e5] dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 sm:px-6">
               <h2 className="text-base font-semibold text-black dark:text-white">Transaction Breakdown</h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <select 
                   value={paymentTypeFilter}
                   onChange={(e) => setPaymentTypeFilter(e.target.value as any)}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-[#cccccc] dark:border-slate-700 text-black dark:text-slate-200 text-sm font-medium outline-none focus:border-[#91c9f7] rounded cursor-pointer"
+                  className="w-full sm:w-auto px-3 py-1.5 bg-white dark:bg-slate-800 border border-[#cccccc] dark:border-slate-700 text-black dark:text-slate-200 text-sm font-medium outline-none focus:border-[#91c9f7] rounded cursor-pointer"
                 >
                   <option value="All">All Payments ({allPayments.length})</option>
                   <option value="Cash">Cash ({allPayments.filter(p => isCashPayment(p.method) && !isRefundPayment(p)).length})</option>
@@ -1621,7 +1803,113 @@ export default function EndOfDay() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Mobile Native Transaction Breakdown List (hidden on md and up) */}
+            <div className="md:hidden divide-y divide-[#ececec] dark:divide-slate-800/60">
+              {filteredPayments.length === 0 ? (
+                <div className="py-8 text-center text-[#a0a0a0] text-sm italic">
+                  No transactions found for this selection.
+                </div>
+              ) : (
+                filteredPayments.map((payment, idx) => {
+                  const isRefund = isRefundPayment(payment);
+                  const baseMethod = getBasePaymentMethod(payment.method);
+
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`p-3.5 space-y-2 ${isRefund ? 'bg-rose-50/40 dark:bg-rose-950/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'} transition-colors`}
+                    >
+                      {/* Top Row: Invoice link + Time + Amount */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {payment.invoice_id ? (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/${branchSlug || 'default'}/invoices/${payment.invoice_id}`)}
+                              className={`inline-flex items-center gap-1 font-mono font-bold text-sm hover:underline cursor-pointer ${
+                                isRefund ? 'text-rose-700' : 'text-blue-700 dark:text-blue-400'
+                              }`}
+                              title={`Open Invoice ${payment.invoice_number || `#${payment.invoice_id}`}`}
+                            >
+                              <span>{payment.invoice_number || `#${payment.invoice_id}`}</span>
+                              <ExternalLink size={12} className="opacity-70" />
+                            </button>
+                          ) : (
+                            <span className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              {payment.invoice_number || 'Deposit'}
+                            </span>
+                          )}
+                          <span className="text-[11px] font-mono text-slate-400">
+                            {payment.paid_at ? new Date(payment.paid_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '--:--'}
+                          </span>
+                        </div>
+
+                        {/* Amount */}
+                        <div className={`font-mono font-bold text-base ${isRefund ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
+                          {isRefund ? '-' : ''}€{Math.abs(Number(payment.amount) || 0).toFixed(2)}
+                        </div>
+                      </div>
+
+                      {/* Middle: Products summary / Customer */}
+                      <div className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">
+                        {payment.products_summary || payment.customer_name || 'Walk-in Customer'}
+                      </div>
+
+                      {/* Bottom: Staff name + Payment Method selector */}
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          Staff: <span className="font-medium text-slate-700 dark:text-slate-200">{payment.user_name || 'Staff'}</span>
+                        </span>
+
+                        <div className="flex items-center gap-1.5">
+                          {isRefund && (
+                            <span className="text-[10px] text-rose-700 dark:text-rose-400 font-bold uppercase">
+                              Refund
+                            </span>
+                          )}
+                          <select 
+                            value={baseMethod}
+                            onChange={(e) => {
+                              const newBase = e.target.value;
+                              const targetMethod = isRefund ? `Refund (${newBase})` : newBase;
+                              updatePaymentMethod(payment.id, targetMethod);
+                            }}
+                            className={`px-2 py-0.5 text-xs bg-white dark:bg-slate-800 outline-none cursor-pointer rounded transition-colors ${
+                              isRefund 
+                                ? 'border border-rose-400 text-rose-700 dark:text-rose-400 dark:border-rose-700' 
+                                : baseMethod === 'Cash'
+                                ? 'border border-emerald-500 text-black dark:text-emerald-300 dark:border-emerald-700'
+                                : baseMethod === 'Card'
+                                ? 'border border-blue-500 text-black dark:text-blue-300 dark:border-blue-700'
+                                : 'border border-amber-500 text-black dark:text-amber-300 dark:border-amber-700'
+                            }`}
+                          >
+                            <option value="Cash">Cash</option>
+                            <option value="Card">Card</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+
+              {/* Mobile Total Bar */}
+              {filteredPayments.length > 0 && (
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border-t border-[#e5e5e5] dark:border-slate-700 flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase text-slate-600 dark:text-slate-300">
+                    {paymentTypeFilter === 'All' ? 'Total' : `Total (${paymentTypeFilter})`}
+                  </span>
+                  <span className="text-base font-mono font-bold text-slate-900 dark:text-blue-400">
+                    €{filteredPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Transaction Breakdown Table (hidden on mobile, visible md and up) */}
+            <div className="hidden md:block overflow-x-auto w-full">
               <table className="w-full text-left text-[14px] bg-white dark:bg-slate-900">
                 <thead>
                   <tr className="bg-white dark:bg-slate-900 text-[#707070] dark:text-slate-300 font-semibold border-b border-[#e5e5e5] dark:border-slate-800 text-[13px]">

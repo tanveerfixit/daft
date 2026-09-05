@@ -5,6 +5,7 @@ import {
   Loader2,
   Plus,
   AlertTriangle,
+  ArrowRight,
   X
 } from 'lucide-react';
 import ThermalReceipt from './ThermalReceipt';
@@ -1052,12 +1053,12 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   return (
     <div className="flex flex-col h-full bg-[#f9fafb] text-[#333333] select-none w-full overflow-hidden" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
       {/* Top Bar */}
-      <header className="flex items-center justify-between bg-[#f9fafb] px-6 py-4 shrink-0">
-        <h1 className="text-[#333333] font-normal" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>Cash Register</h1>
+      <header className="flex items-center justify-between bg-[#f9fafb] px-3 sm:px-6 py-2.5 sm:py-4 shrink-0">
+        <h1 className="text-[#333333] font-normal text-lg sm:text-[22px]" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>Cash Register</h1>
       </header>
 
       {/* Main Content */}
-      <main className="p-4 grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-4 flex-1 overflow-y-auto">
+      <main className="p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-3 sm:gap-4 flex-1 overflow-y-auto pb-20 lg:pb-4">
         {/* Left Column */}
         <section className="flex flex-col gap-4 min-w-0">
           {/* Search / Scan bar */}
@@ -1117,49 +1118,75 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
         </section>
 
         {/* Right Column: Sidebar (Customer, Totals, Payment) */}
-        <Sidebar 
-          selectedCustomer={selectedCustomer}
-          customerSearch={customerSearch}
-          setCustomerSearch={setCustomerSearch}
-          customerResults={customerResults}
-          onSelectCustomer={(c) => {
-            setSelectedCustomer(c);
-            setCustomerSearch('');
-            setCustomerResults([]);
-            addActivity('Customer Selected', `${c.name} attached to sale`, 'customer');
-          }}
-          onClearCustomer={() => {
-            setSelectedCustomer(null);
-            setAddedPayments(prev => prev.filter(p => p.method !== 'Wallet'));
-          }}
-          onOpenNewCustomerModal={() => setShowNewCustomerModal(true)}
-          onOpenDepositModal={() => setShowDepositModal(true)}
-          
-          subtotal={grossSubtotal}
-          taxableTotal={netSubtotal}
-          tax={taxAmount}
-          discount={discountTotal}
-          total={total}
-          totalQty={totalQty}
-          taxOption={taxOption}
-          setTaxOption={setTaxOption}
-          
-          addedPayments={addedPayments}
-          paymentMethod={paymentMethod}
-          setPaymentMethod={setPaymentMethod}
-          paymentAmount={paymentAmount}
-          setPaymentAmount={setPaymentAmount}
-          onAddPayment={handleAddPayment}
-          onRemovePayment={removePayment}
-          remainingAmount={remainingAmount}
-          
-          onCheckout={handleCheckout}
-          onQuickCheckout={handleQuickCheckout}
-          onClearCart={() => setShowDiscardConfirm(true)}
-          isCartEmpty={cart.length === 0}
-          isPaymentComplete={isPaymentComplete}
-          availableMethods={availableMethods}
-        />
+        <div id="checkout-sidebar" className="w-full">
+          <Sidebar 
+            selectedCustomer={selectedCustomer}
+            customerSearch={customerSearch}
+            setCustomerSearch={setCustomerSearch}
+            customerResults={customerResults}
+            onSelectCustomer={(c) => {
+              setSelectedCustomer(c);
+              setCustomerSearch('');
+              setCustomerResults([]);
+              addActivity('Customer Selected', `${c.name} attached to sale`, 'customer');
+            }}
+            onClearCustomer={() => {
+              setSelectedCustomer(null);
+              setAddedPayments(prev => prev.filter(p => p.method !== 'Wallet'));
+            }}
+            onOpenNewCustomerModal={() => setShowNewCustomerModal(true)}
+            onOpenDepositModal={() => setShowDepositModal(true)}
+            
+            subtotal={grossSubtotal}
+            taxableTotal={netSubtotal}
+            tax={taxAmount}
+            discount={discountTotal}
+            total={total}
+            totalQty={totalQty}
+            taxOption={taxOption}
+            setTaxOption={setTaxOption}
+            
+            addedPayments={addedPayments}
+            paymentMethod={paymentMethod}
+            setPaymentMethod={setPaymentMethod}
+            paymentAmount={paymentAmount}
+            setPaymentAmount={setPaymentAmount}
+            onAddPayment={handleAddPayment}
+            onRemovePayment={removePayment}
+            remainingAmount={remainingAmount}
+            
+            onCheckout={handleCheckout}
+            onQuickCheckout={handleQuickCheckout}
+            onClearCart={() => setShowDiscardConfirm(true)}
+            isCartEmpty={cart.length === 0}
+            isPaymentComplete={isPaymentComplete}
+            availableMethods={availableMethods}
+          />
+        </div>
+
+        {/* Mobile Sticky Quick Summary & Pay Button */}
+        {cart.length > 0 && (
+          <div className="fixed bottom-3 left-3 right-3 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 shadow-xl rounded-xl p-3 flex items-center justify-between z-40 lg:hidden font-sans">
+            <div className="flex flex-col">
+              <span className="text-xs text-neutral-500 font-medium">
+                {totalQty} {totalQty === 1 ? 'item' : 'items'} in cart
+              </span>
+              <span className="text-lg font-bold font-mono text-neutral-900 dark:text-white leading-tight">
+                €{total.toFixed(2)}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                document.getElementById('checkout-sidebar')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="bg-[rgb(2,133,181)] hover:bg-[rgb(2,115,160)] text-white text-sm font-semibold px-4 py-2 rounded-lg shadow-sm active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>Go to Payment</span>
+              <ArrowRight size={16} />
+            </button>
+          </div>
+        )}
       </main>
 
       {/* Discard Sale Confirmation Modal */}

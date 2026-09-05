@@ -24,8 +24,8 @@ export const CartTable: React.FC<CartTableProps> = ({
 }) => {
   return (
     <div className="bg-white dark:bg-black border border-[#d8d8d8] dark:border-neutral-800 rounded-none overflow-hidden font-sans transition-all duration-200">
-      <div className="overflow-y-auto max-h-[60vh] custom-scrollbar">
-        <table className="w-full text-[16px] border-collapse">
+      <div className="overflow-x-auto overflow-y-auto max-h-[60vh] custom-scrollbar">
+        <table className="w-full min-w-[540px] md:min-w-0 text-[15px] sm:text-[16px] border-collapse">
           <thead className="sticky top-0 z-10" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
             <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
               <th className="text-center px-2 py-1.5 w-10 border-r border-neutral-300 dark:border-neutral-700">#</th>

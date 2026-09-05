@@ -39,20 +39,20 @@ const HomeMenu: React.FC<HomeMenuProps> = ({ onNavigate }) => {
 
   return (
     <div 
-      className="p-4 bg-[var(--bg-app)] h-full overflow-auto transition-colors duration-300 select-none"
+      className="p-2 sm:p-4 bg-[var(--bg-app)] h-full overflow-auto transition-colors duration-300 select-none"
       style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
     >
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 2xl:grid-cols-14 gap-3 max-w-[1600px]">
+      <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 2xl:grid-cols-14 gap-2 sm:gap-3 max-w-[1600px]">
         {menuTiles.map((tile) => (
           <button
             key={tile.id}
             onClick={() => onNavigate(tile.id)}
-            className="flex flex-col items-center justify-center bg-[rgb(2,133,181)] text-white p-2 rounded shadow-md transition-all aspect-square group w-full border border-[rgb(2,133,181)] hover:-translate-y-1 hover:brightness-110 cursor-pointer"
+            className="flex flex-col items-center justify-center bg-[rgb(2,133,181)] text-white p-1.5 sm:p-2 rounded shadow-sm sm:shadow-md transition-all aspect-square group w-full border border-[rgb(2,133,181)] hover:-translate-y-1 hover:brightness-110 active:scale-[0.97] cursor-pointer"
           >
-            <div className="mb-1 group-hover:scale-110 transition-all duration-200 flex items-center justify-center">
-              <tile.icon size={30} strokeWidth={1.5} className="text-white" />
+            <div className="mb-1 group-hover:scale-110 transition-all duration-200 flex items-center justify-center shrink-0">
+              <tile.icon className="w-6 h-6 sm:w-7 sm:h-7 md:w-[30px] md:h-[30px] text-white" strokeWidth={1.5} />
             </div>
-            <span className="text-[14px] font-normal text-center leading-tight px-0.5 mt-1 text-white">
+            <span className="text-[11px] sm:text-[13px] md:text-[14px] font-normal text-center leading-tight px-0.5 mt-0.5 sm:mt-1 text-white break-words line-clamp-2">
               {tile.label}
             </span>
           </button>
