@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Printer, ExternalLink, X } from 'lucide-react';
+import { Plus, Search, Printer, Tag, ExternalLink, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Repair } from '../types';
 import { useAuth } from '../context/AuthContext';
 import RepairIntakeForm from './RepairIntakeForm';
+import RepairPrintModal from './RepairPrintModal';
+import { printRepairDeviceLabel } from '../utils/repairPrint';
 
 const slugify = (str: string) => str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
@@ -20,7 +22,7 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState('new');
-  const [printRepair, setPrintRepair] = useState<Repair | null>(null);
+  const [selectedPrintRepair, setSelectedPrintRepair] = useState<Repair | null>(null);
 
   const fetchRepairs = async () => {
     try {
@@ -54,15 +56,7 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
     return () => window.removeEventListener('focus', handleFocus);
   }, [isActive]);
 
-  useEffect(() => {
-    if (printRepair) {
-      const timer = setTimeout(() => {
-        window.print();
-        setPrintRepair(null);
-      }, 150);
-      return () => clearTimeout(timer);
-    }
-  }, [printRepair]);
+
 
   const filtered = Array.isArray(repairs) ? repairs.filter(r => {
     const matchesSearch = !searchTerm || 
@@ -216,14 +210,22 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
                   </span>
                 </td>
                 <td className="px-1.5 py-0.5 text-center" onClick={e => e.stopPropagation()}>
-                  <div className="flex items-center justify-center">
+                  <div className="flex items-center justify-center gap-1">
                     <button
                       type="button"
-                      title="Print ticket"
-                      onClick={() => setPrintRepair(repair)}
-                      className="p-1 text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white cursor-pointer inline-flex items-center justify-center"
+                      title="Print Dymo Device Sticker (Attach to device)"
+                      onClick={() => printRepairDeviceLabel(repair)}
+                      className="p-1.5 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded cursor-pointer transition-colors inline-flex items-center justify-center"
                     >
-                      <Printer size={16} />
+                      <Tag size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Print Options / Customer Ticket"
+                      onClick={() => setSelectedPrintRepair(repair)}
+                      className="p-1.5 text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded cursor-pointer transition-colors inline-flex items-center justify-center"
+                    >
+                      <Printer size={15} />
                     </button>
                   </div>
                 </td>
@@ -283,91 +285,12 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
         />
       )}
 
-      {/* Hidden Print Container for Short Repair Ticket */}
-      {printRepair && (
-        <div id="repair-thermal-receipt" className="hidden print:block fixed inset-0 bg-white z-[9999] p-4 text-black font-mono w-[72mm] leading-tight">
-          <style>{`
-            @media print {
-              @page {
-                margin: 0;
-                size: 80mm auto;
-              }
-              body * {
-                visibility: hidden;
-              }
-              #repair-thermal-receipt, #repair-thermal-receipt * {
-                visibility: visible;
-              }
-              #repair-thermal-receipt {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 72mm;
-                max-width: 72mm;
-                padding: 4mm;
-                box-sizing: border-box;
-                background: white !important;
-                color: black !important;
-              }
-            }
-          `}</style>
-          <div className="flex flex-col text-xs space-y-1">
-            <div className="text-center font-black uppercase text-sm border-b border-dashed border-black pb-1.5 mb-1.5">
-              Repair Job Ticket
-            </div>
-            <div className="flex justify-between">
-              <span className="font-bold">Job #:</span>
-              <span>#{printRepair.id}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-bold">Date:</span>
-              <span>{new Date(printRepair.created_at || '').toLocaleDateString()}</span>
-            </div>
-            <div className="border-b border-dashed border-black my-1" />
-            
-            <div className="flex justify-between gap-2">
-              <span className="font-bold shrink-0">Device:</span>
-              <span className="text-right font-medium truncate">{printRepair.device_model}</span>
-            </div>
-            <div className="flex justify-between gap-2">
-              <span className="font-bold shrink-0">Name:</span>
-              <span className="text-right font-medium truncate">{printRepair.customer_name || 'Walk-in Customer'}</span>
-            </div>
-            {printRepair.phone && (
-              <div className="flex justify-between gap-2">
-                <span className="font-bold shrink-0">Mobile:</span>
-                <span className="text-right font-medium">{printRepair.phone}</span>
-              </div>
-            )}
-            
-            <div className="border-b border-dashed border-black my-1" />
-            <div className="flex flex-col">
-              <span className="font-bold">Fault Description:</span>
-              <span className="pl-1 mt-0.5 whitespace-pre-wrap">{printRepair.issue}</span>
-            </div>
-            
-            <div className="border-b border-dashed border-black my-1" />
-            <div className="flex justify-between font-bold text-sm mt-1">
-              <span>Price:</span>
-              <span>{Number(printRepair.total_quote || 0) > 0 ? `€${Number(printRepair.total_quote || 0).toFixed(2)}` : 'Estimate Pending'}</span>
-            </div>
-            {Number(printRepair.deposit_paid || 0) > 0 && (
-              <div className="flex justify-between text-xs">
-                <span>Deposit Paid:</span>
-                <span>€{Number(printRepair.deposit_paid || 0).toFixed(2)}</span>
-              </div>
-            )}
-            {Number(printRepair.total_quote || 0) > 0 && Number(printRepair.remaining_balance || 0) > 0 && (
-              <div className="flex justify-between text-xs font-bold">
-                <span>Remaining:</span>
-                <span>€{Number(printRepair.remaining_balance || 0).toFixed(2)}</span>
-              </div>
-            )}
-            <div className="border-t border-dashed border-black pt-2 mt-4 text-center text-[10px] text-neutral-500">
-              Thank you for choosing Mobigo!
-            </div>
-          </div>
-        </div>
+      {/* Repair Print Modal */}
+      {selectedPrintRepair && (
+        <RepairPrintModal
+          repair={selectedPrintRepair}
+          onClose={() => setSelectedPrintRepair(null)}
+        />
       )}
     </div>
   );

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Printer, Phone, Mail, Wrench, Pencil, Save, Loader2, CreditCard } from 'lucide-react';
+import { ArrowLeft, Printer, Tag, Phone, Mail, Wrench, Pencil, Save, Loader2, CreditCard } from 'lucide-react';
+import { printRepairDeviceLabel, printRepairCustomerReceipt } from '../utils/repairPrint';
+import RepairPrintModal from './RepairPrintModal';
 
 interface RepairDetailsProps {
   repairId: number;
@@ -29,6 +31,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
   const [isEditingQuote, setIsEditingQuote] = useState(false);
   const [quoteInput, setQuoteInput] = useState('');
   const [savingQuote, setSavingQuote] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
 
   const fetchJob = async () => {
     try {
@@ -162,12 +165,22 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={handlePrint}
-              className="px-3 py-1.5 bg-white border border-[#e5e7eb] hover:bg-gray-50 text-gray-700 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
-              title="Print Repair Ticket"
+              type="button"
+              onClick={() => printRepairDeviceLabel(job)}
+              className="px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-300 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+              title="Print Dymo Device Sticker (Attach to device)"
+            >
+              <Tag size={14} className="text-blue-600 dark:text-blue-400" />
+              <span>Dymo Device Sticker</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPrintModal(true)}
+              className="px-3 py-1.5 bg-white border border-[#e5e7eb] hover:bg-gray-50 text-gray-700 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+              title="Print Customer Ticket & Options"
             >
               <Printer size={14} />
-              <span>Print Ticket</span>
+              <span>Print Options</span>
             </button>
           </div>
         </div>
@@ -590,6 +603,14 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
           Please retain this ticket for collecting your device.
         </div>
       </div>
+
+      {/* Repair Print Modal */}
+      {showPrintModal && (
+        <RepairPrintModal
+          repair={job}
+          onClose={() => setShowPrintModal(false)}
+        />
+      )}
 
     </div>
   );
