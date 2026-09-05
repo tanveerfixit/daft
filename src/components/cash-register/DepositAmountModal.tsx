@@ -25,8 +25,8 @@ export const DepositAmountModal: React.FC<DepositAmountModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 font-sans animate-in fade-in duration-150">
-      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-md overflow-hidden shadow-2xl rounded-none flex flex-col">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-3 sm:p-4 font-sans animate-in fade-in duration-150">
+      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl rounded-none flex flex-col">
         {/* Header */}
         <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
           <div className="flex items-center gap-2">

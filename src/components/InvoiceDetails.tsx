@@ -302,28 +302,28 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
     const totalPaymentsReceived = (invoice.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
     return (
-      <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-sans text-sm px-3 pb-2 pt-0 select-none w-full overflow-auto">
+      <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-sans text-sm px-2 sm:px-3 pb-2 pt-0 select-none w-full overflow-auto">
         {/* Header */}
-        <div className="py-2 flex justify-between items-center sticky top-0 z-10 mb-2 bg-neutral-100 dark:bg-neutral-950">
+        <div className="py-2.5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sticky top-0 z-10 mb-2 bg-neutral-100 dark:bg-neutral-950 border-b sm:border-b-0 border-neutral-200 dark:border-neutral-800">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Refund Items</h2>
           </div>
           <button 
             onClick={() => setIsRefundView(false)}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-3 rounded-none text-sm flex items-center gap-1.5 transition-all shadow-none cursor-pointer"
+            className="w-full sm:w-auto justify-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1.5 px-3 text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer"
           >
             <List size={15} />
-            Sales Invoices
+            <span>Sales Invoices</span>
           </button>
         </div>
 
         {/* Card: Invoice Entries */}
         <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
           {/* Card Header Bar */}
-          <div className="bg-neutral-100 dark:bg-neutral-900 px-4 py-2.5 border-b border-neutral-300 dark:border-neutral-800 flex flex-wrap justify-between items-center gap-3">
+          <div className="bg-neutral-100 dark:bg-neutral-900 px-3 sm:px-4 py-2.5 border-b border-neutral-300 dark:border-neutral-800 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5 sm:gap-3">
             <span className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Invoice Entries</span>
             
-            <div className="flex items-center gap-6 text-xs">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-xs">
               <div className="flex items-center gap-2">
                 <span className="text-neutral-800 dark:text-neutral-200 font-bold">Sales Person<span className="text-red-500">*</span></span>
                 <select className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 px-2 py-1 rounded-none text-neutral-800 dark:text-neutral-200 text-xs outline-none cursor-pointer">
@@ -337,14 +337,15 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
                   type="text" 
                   readOnly 
                   value={invoice.customer?.name || 'Walk-in Customer'} 
-                  className="bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 px-2 py-1 rounded-none text-neutral-800 dark:text-neutral-200 text-xs w-44 outline-none"
+                  className="bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 px-2 py-1 rounded-none text-neutral-800 dark:text-neutral-200 text-xs w-36 sm:w-44 outline-none"
                 />
               </div>
             </div>
           </div>
 
-          {/* Refund Items Table */}
-          <table className="w-full text-left border-collapse">
+          {/* Refund Items Table with Horizontal Scroll on Mobile */}
+          <div className="overflow-x-auto w-full">
+            <table className="w-full min-w-[650px] md:min-w-0 text-left border-collapse">
             <thead>
               <tr className="bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-xs font-bold text-neutral-800 dark:text-neutral-200">
                 <th className="px-3 py-2 border-r border-neutral-300 dark:border-neutral-800 w-10 text-center">#</th>
@@ -549,14 +550,15 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
 
-        {/* Footer Actions matching Image 1 */}
-        <div className="flex justify-end items-center gap-3 mt-4">
+        {/* Footer Actions */}
+        <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-2 sm:gap-3 mt-4">
           <button
             type="button"
             onClick={() => setIsRefundView(false)}
-            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-none text-sm shadow-none transition-all flex items-center gap-2 cursor-pointer"
+            className="w-full sm:w-auto justify-center bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 sm:py-2 px-6 rounded-none text-sm shadow-none transition-all flex items-center gap-2 cursor-pointer"
           >
             <X size={16} />
             <span>Cancel</span>
@@ -566,7 +568,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
             type="button"
             onClick={handleOpenSettlementModal}
             disabled={refundTotal <= 0}
-            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-2 px-6 rounded-none text-sm shadow-none transition-all flex items-center gap-2 cursor-pointer"
+            className="w-full sm:w-auto justify-center bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-2.5 sm:py-2 px-6 rounded-none text-sm shadow-none transition-all flex items-center gap-2 cursor-pointer"
           >
             <Banknote size={18} />
             <span>Refund Items</span>
@@ -577,8 +579,8 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
             RENDER: STEP 2 - SETTLEMENT MODAL (Matching Image 2)
            ───────────────────────────────────────────────────────────────────────────── */}
         {showSettlementModal && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg overflow-hidden shadow-2xl rounded-none flex flex-col animate-in fade-in zoom-in-95 duration-150">
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-3 sm:p-4">
+            <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl rounded-none flex flex-col animate-in fade-in zoom-in-95 duration-150">
               {/* Header */}
               <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
                 <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
@@ -725,51 +727,51 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
   // RENDER: STANDARD INVOICE VIEW
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-sans text-sm px-3 pb-2 pt-0 select-none w-full overflow-auto">
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-sans text-sm px-2 sm:px-3 pb-2 pt-0 select-none w-full overflow-auto">
       {/* Header */}
-      <div className="py-2 flex justify-between items-center sticky top-0 z-10 mb-2.5 bg-neutral-100 dark:bg-neutral-950">
-        <div className="flex items-center gap-3">
-          <h2 className="font-semibold text-neutral-900 dark:text-neutral-100" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>
-            View Invoice - {invoice.invoice_number}
+      <div className="py-2.5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5 sticky top-0 z-10 mb-2.5 bg-neutral-100 dark:bg-neutral-950 border-b sm:border-b-0 border-neutral-200 dark:border-neutral-800">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="font-semibold text-neutral-900 dark:text-neutral-100 text-lg sm:text-[22px] tracking-tight">
+            View Invoice - <span className="font-mono text-blue-600 dark:text-blue-400">{invoice.invoice_number}</span>
           </h2>
           {invoice.status === 'void' && (
-            <span className="bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-2.5 py-0.5 rounded-none text-xs font-bold uppercase tracking-wider border border-red-200 dark:border-red-900/50">
+            <span className="bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-none text-xs font-bold uppercase tracking-wider border border-red-200 dark:border-red-900/50">
               Void / Fully Refunded
             </span>
           )}
           {invoice.status === 'partially_refunded' && (
-            <span className="bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 px-2.5 py-0.5 rounded-none text-xs font-bold uppercase tracking-wider border border-amber-300 dark:border-amber-900/50">
+            <span className="bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-none text-xs font-bold uppercase tracking-wider border border-amber-300 dark:border-amber-900/50">
               Partially Refunded
             </span>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-end">
           <button 
             onClick={onBack}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-3 rounded-none text-sm flex items-center gap-1.5 transition-all shadow-none cursor-pointer"
+            className="flex-1 sm:flex-initial justify-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1.5 px-3 text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer"
           >
-            <List size={15} />
-            Sales Invoices
+            <List size={14} />
+            <span>Invoices</span>
           </button>
 
           {/* Email Button */}
           <button 
             onClick={handleOpenEmailModal}
-            className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-3 rounded-none text-sm flex items-center gap-1.5 transition-all shadow-none cursor-pointer"
+            className="flex-1 sm:flex-initial justify-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1.5 px-3 text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer"
             title="Send Invoice to Any Email Address"
           >
-            <Mail size={15} />
-            Email
+            <Mail size={14} />
+            <span>Email</span>
           </button>
           
           {/* Print Dropdown */}
-          <div className="relative" ref={printMenuRef}>
+          <div className="relative flex-1 sm:flex-initial" ref={printMenuRef}>
             <button 
               onClick={() => setShowPrintMenu(!showPrintMenu)}
-              className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-3 rounded-none text-sm flex items-center gap-1.5 transition-all shadow-none cursor-pointer"
+              className="w-full sm:w-auto justify-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1.5 px-3 text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer"
             >
-              <Printer size={15} />
-              Print
+              <Printer size={14} />
+              <span>Print</span>
               <ChevronDown size={13} className={`transition-transform ${showPrintMenu ? 'rotate-180' : ''}`} />
             </button>
 
@@ -806,7 +808,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
 
       <div className="space-y-3">
         {/* Info Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3">
           {/* Customer Info */}
           <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
             <div className="bg-neutral-100 dark:bg-neutral-900 px-3 py-1.5 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-2">
@@ -819,25 +821,25 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
                 {invoice.customer_id ? (
                   <button 
                     onClick={() => onSelectCustomer?.(invoice.customer_id!)}
-                    className="text-blue-600 dark:text-blue-400 flex items-center gap-1 hover:underline font-normal cursor-pointer"
+                    className="text-blue-600 dark:text-blue-400 flex items-center gap-1 hover:underline font-normal cursor-pointer truncate"
                   >
-                    <span>{invoice.customer?.name}</span>
-                    <ExternalLink size={12} className="inline opacity-80" />
+                    <span className="truncate">{invoice.customer?.name}</span>
+                    <ExternalLink size={12} className="inline opacity-80 shrink-0" />
                   </button>
                 ) : (
-                  <span className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-normal cursor-pointer">
-                    <span>{invoice.customer?.name || 'Walk in Customer'}</span>
-                    <ExternalLink size={12} className="inline opacity-80" />
+                  <span className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-normal cursor-pointer truncate">
+                    <span className="truncate">{invoice.customer?.name || 'Walk in Customer'}</span>
+                    <ExternalLink size={12} className="inline opacity-80 shrink-0" />
                   </span>
                 )}
               </div>
               <div className="flex border-b border-neutral-200 dark:border-neutral-800 pb-1.5">
                 <span className="w-28 font-bold text-neutral-800 dark:text-neutral-200">Email:</span>
-                <span className="text-neutral-600 dark:text-neutral-400">{invoice.customer?.email || ''}</span>
+                <span className="text-neutral-600 dark:text-neutral-400 truncate">{invoice.customer?.email || '-'}</span>
               </div>
               <div className="flex">
                 <span className="w-28 font-bold text-neutral-800 dark:text-neutral-200">Phone No.:</span>
-                <span className="text-neutral-600 dark:text-neutral-400">{invoice.customer?.phone || ''}</span>
+                <span className="text-neutral-600 dark:text-neutral-400">{invoice.customer?.phone || '-'}</span>
               </div>
             </div>
           </div>
@@ -855,7 +857,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
               </div>
               <div className="flex border-b border-neutral-200 dark:border-neutral-800 pb-1.5">
                 <span className="w-32 font-bold text-neutral-800 dark:text-neutral-200">Sales Person:</span>
-                <span className="text-neutral-700 dark:text-neutral-300">{invoice.branch_name || currentUser?.branch_name || invoice.user_name || currentUser?.name || 'Main Branch'}</span>
+                <span className="text-neutral-700 dark:text-neutral-300 truncate">{invoice.branch_name || currentUser?.branch_name || invoice.user_name || currentUser?.name || 'Main Branch'}</span>
               </div>
               <div className="flex">
                 <span className="w-32 font-bold text-neutral-800 dark:text-neutral-200">Date:</span>
@@ -865,8 +867,109 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
           </div>
         </div>
 
-        {/* Items Table */}
-        <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
+        {/* Mobile Items View (hidden on md and up) */}
+        <div className="md:hidden bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-800">
+          <div className="bg-neutral-100 dark:bg-neutral-900 px-3 py-2 font-bold text-xs uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
+            Purchased Items ({invoice.items.length})
+          </div>
+
+          {invoice.items.map((item, idx) => {
+            const isItemRefunded = (Number(item.refunded_quantity) || 0) > 0;
+            const isFullyRefunded = (Number(item.refunded_quantity) || 0) >= item.quantity;
+            return (
+              <div key={idx} className="p-3 space-y-1.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-0.5 flex-1">
+                    <div className="font-medium text-sm text-neutral-900 dark:text-neutral-100">
+                      {item.product_name}
+                      {item.sku_code && (
+                        <span className="text-blue-600 dark:text-blue-400 ml-1 text-xs">({item.sku_code})</span>
+                      )}
+                    </div>
+                    {item.imei && (
+                      <div className="font-mono text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                        <span>IMEI: {item.imei}</span>
+                        <ExternalLink size={10} className="opacity-70" />
+                      </div>
+                    )}
+                    {item.notes && (
+                      <div className="text-xs text-neutral-500 italic">Note: {item.notes}</div>
+                    )}
+                  </div>
+                  <div className="text-right font-mono font-bold text-sm text-neutral-900 dark:text-neutral-100 shrink-0">
+                    €{(Number(item.total) || 0).toFixed(2)}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400 pt-1">
+                  <span>Qty: <strong className="text-neutral-800 dark:text-neutral-200">{item.quantity}</strong> × €{(Number(item.price) || 0).toFixed(2)}</span>
+                  {isItemRefunded && (
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 border ${
+                      isFullyRefunded 
+                        ? 'bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50' 
+                        : 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-900/50'
+                    }`}>
+                      Refunded ({item.refunded_quantity}/{item.quantity})
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Mobile Totals Box */}
+          {(() => {
+            const taxDetails = getInvoiceTaxDetails(invoice);
+            const totalPaid = (invoice.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+            const changeDue = Math.max(0, totalPaid - (Number(invoice.grand_total) || 0));
+
+            return (
+              <div className="bg-[#f8f9fa] dark:bg-neutral-900/90 p-3 space-y-1.5 border-t border-neutral-300 dark:border-neutral-800 text-xs">
+                <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
+                  <span>{taxDetails.taxType === 'included' ? 'Net Total (Excl. VAT):' : 'Taxable Total:'}</span>
+                  <span className="font-mono font-medium text-neutral-900 dark:text-neutral-100">€{taxDetails.netAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
+                  <span>{taxDetails.label}:</span>
+                  <span className="font-mono font-medium text-neutral-900 dark:text-neutral-100">€{taxDetails.taxAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-bold text-neutral-900 dark:text-neutral-100 pt-1.5 border-t border-neutral-200 dark:border-neutral-800">
+                  <span>Grand Total:</span>
+                  <span className="font-mono text-base font-black">€{(Number(invoice.grand_total) || 0).toFixed(2)}</span>
+                </div>
+
+                {/* Payments */}
+                <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 space-y-1">
+                  {invoice.payments && invoice.payments.length > 0 ? (
+                    invoice.payments.map((payment, idx) => (
+                      <div key={idx} className="flex justify-between text-[11px] text-neutral-600 dark:text-neutral-400">
+                        <span>{payment.method} Payment ({formatDate(payment.paid_at)} {formatTime(payment.paid_at)}):</span>
+                        <span className={`font-mono font-semibold ${(Number(payment.amount) || 0) < 0 ? 'text-red-600' : 'text-neutral-900 dark:text-neutral-100'}`}>
+                          €{(Number(payment.amount) || 0).toFixed(2)}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex justify-between text-[11px] text-neutral-600 dark:text-neutral-400">
+                      <span>{invoice.payment_method} Payment:</span>
+                      <span className="font-mono font-semibold text-neutral-900 dark:text-neutral-100">€{(Number(invoice.grand_total) || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {changeDue > 0.005 && (
+                    <div className="flex justify-between text-sm font-bold text-red-600 dark:text-red-400 pt-1">
+                      <span>Change Due:</span>
+                      <span className="font-mono">€{changeDue.toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Desktop Items Table (hidden on mobile, 100% original layout on md and up) */}
+        <div className="hidden md:block bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
           <table className="w-full text-left border-collapse">
             <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
               <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
@@ -953,7 +1056,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
                     </tr>
                     <tr className="bg-white dark:bg-black text-sm">
                       <td colSpan={3} className="border-r border-neutral-200 dark:border-neutral-800"></td>
-                      <td className="px-3 py-1.5 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-neutral-900 dark:text-neutral-100">Grand Total :</td>
+                      <td className="px-3 py-1.5 border-r border-neutral-200 dark:border-neutral-800 text-right font-bold text-neutral-800 dark:text-neutral-200">Grand Total :</td>
                       <td className="px-3 py-1.5 text-right font-mono font-bold text-neutral-900 dark:text-neutral-100">€{(Number(invoice.grand_total) || 0).toFixed(2)}</td>
                     </tr>
                   </>
@@ -1002,11 +1105,11 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-end items-center gap-3">
+        <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-2 sm:gap-3">
           {invoice.status !== 'void' ? (
             <button 
               onClick={handleStartRefund}
-              className="bg-amber-400 hover:bg-amber-500 text-neutral-900 font-bold py-1.5 px-5 rounded-none text-sm shadow-none transition-all cursor-pointer flex items-center gap-2"
+              className="w-full sm:w-auto justify-center bg-amber-400 hover:bg-amber-500 text-neutral-900 font-bold py-2 sm:py-1.5 px-5 rounded-none text-sm shadow-none transition-all cursor-pointer flex items-center gap-2"
             >
               <RotateCcw size={15} />
               <span>Create Refund</span>
@@ -1015,7 +1118,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
               )}
             </button>
           ) : (
-            <div className="text-sm font-bold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-950/40 px-3 py-1.5 rounded-none border border-red-200 dark:border-red-900/50">
+            <div className="text-sm font-bold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-950/40 px-3 py-1.5 rounded-none border border-red-200 dark:border-red-900/50 text-center sm:text-left">
               This invoice has been fully refunded.
             </div>
           )}
@@ -1023,13 +1126,13 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
 
         {/* Activity Log */}
         <div className="bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850 rounded-none shadow-none overflow-hidden">
-          <div className="bg-neutral-100 dark:bg-neutral-900/60 px-3 py-1.5 border-b border-neutral-200 dark:border-neutral-850 flex justify-between items-center">
+          <div className="bg-neutral-100 dark:bg-neutral-900/60 px-3 py-2 border-b border-neutral-200 dark:border-neutral-850 flex flex-wrap justify-between items-center gap-2">
             <h3 className="text-sm font-semibold text-black dark:text-white">Activity Log</h3>
             <div className="flex gap-2 items-center">
               <select 
                 value={activityFilter}
                 onChange={(e) => setActivityFilter(e.target.value)}
-                className="bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 px-2 py-0.5 text-xs text-neutral-900 dark:text-neutral-100 outline-none rounded-none cursor-pointer"
+                className="bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 px-2 py-1 text-xs text-neutral-900 dark:text-neutral-100 outline-none rounded-none cursor-pointer"
               >
                 <option value="All Activities">All Activities</option>
                 {Array.from(new Set((invoice.activities || []).map(a => a.activity).filter(Boolean))).map((type) => (
@@ -1045,12 +1148,13 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
               </button>
             </div>
           </div>
-          <table className="w-full text-left border-collapse text-[15px]">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full min-w-[550px] md:min-w-0 text-left border-collapse text-[15px]">
             <thead>
               <tr className="bg-neutral-100 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-800 text-[15px] font-semibold text-black dark:text-white">
                 <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-28">Date</th>
-                <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-800 w-24">Time</th>
-                <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-800 w-36">User</th>
+                <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-24">Time</th>
+                <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 w-36">User</th>
                 <th className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-800 w-44">Activity</th>
                 <th className="px-1.5 py-0.5">Details</th>
               </tr>
@@ -1079,6 +1183,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
               })()}
             </tbody>
           </table>
+          </div>
           <div className="p-1.5 bg-white dark:bg-black border-t border-neutral-200 dark:border-neutral-850 flex justify-between items-center text-xs text-neutral-500 dark:text-neutral-400">
             <div className="flex items-center gap-2">
               <select className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-1 py-0.5 outline-none font-mono">
@@ -1097,8 +1202,8 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
 
       {/* Email Invoice Modal */}
       {showEmailModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 font-sans animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg overflow-hidden shadow-2xl rounded-none flex flex-col">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-3 sm:p-4 font-sans animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl rounded-none flex flex-col">
             <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <Mail size={18} className="text-neutral-700 dark:text-neutral-300" />
@@ -1240,8 +1345,8 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
 
       {/* Add Note Modal */}
       {showNoteModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 font-sans animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg overflow-hidden shadow-2xl rounded-none flex flex-col">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-3 sm:p-4 font-sans animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl rounded-none flex flex-col">
             <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <FileText size={18} className="text-neutral-700 dark:text-neutral-300" />

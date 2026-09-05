@@ -23,8 +23,8 @@ export const ReviewCheckoutModal: React.FC<ReviewCheckoutModalProps> = ({
   const changeDue = Math.max(0, totalPaid - grandTotal);
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 font-sans animate-in fade-in duration-150">
-      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg overflow-hidden flex flex-col rounded-none shadow-2xl">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-3 sm:p-4 font-sans animate-in fade-in duration-150">
+      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg max-h-[90vh] overflow-y-auto flex flex-col rounded-none shadow-2xl">
         
         {/* Header */}
         <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">

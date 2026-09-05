@@ -107,12 +107,12 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 font-sans animate-in fade-in duration-150"
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-3 sm:p-4 font-sans animate-in fade-in duration-150"
       onKeyDown={handleKeyDown}
     >
-      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg overflow-hidden shadow-2xl rounded-none flex flex-col">
+      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg max-h-[90vh] overflow-hidden rounded-none flex flex-col">
         {/* Modal Header */}
-        <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
+        <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center shrink-0">
           <div className="min-w-0 pr-2">
             <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 truncate">
               {item.product_name}
@@ -132,7 +132,7 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-4 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 text-sm">
+        <div className="p-4 sm:p-6 space-y-4 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 text-sm overflow-y-auto">
           <div className="grid grid-cols-2 gap-4">
             {/* Unit Price */}
             <div>

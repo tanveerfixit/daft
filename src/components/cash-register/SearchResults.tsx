@@ -66,7 +66,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   };
 
   return (
-    <div className="absolute top-full left-0 right-0 z-[60] bg-white border border-[#d8d8d8] mt-1 shadow-lg text-base text-[#333333] rounded overflow-hidden" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+    <div className="absolute top-full left-0 right-0 z-[60] bg-white border border-[#d8d8d8] mt-1 text-base text-[#333333] rounded-none overflow-hidden" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
       <div className="max-h-60 overflow-y-auto divide-y divide-[#d8d8d8]">
         {results.map((product, idx) => (
           <button
@@ -105,7 +105,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
           </button>
         ))}
       </div>
-      <div className="bg-[#f9fafb] px-4 py-2 border-t border-[#d8d8d8] text-xs text-[#757575] font-medium flex items-center justify-between">
+      <div className="hidden sm:flex bg-[#f9fafb] px-4 py-2 border-t border-[#d8d8d8] text-xs text-[#757575] font-medium items-center justify-between">
         <span>Press <kbd className="px-1.5 py-0.5 bg-white border border-[#d8d8d8] rounded text-xs font-mono font-bold">Enter</kbd> to select</span>
         <span>Use <kbd className="px-1.5 py-0.5 bg-white border border-[#d8d8d8] rounded text-xs font-mono font-bold">↑</kbd> <kbd className="px-1.5 py-0.5 bg-white border border-[#d8d8d8] rounded text-xs font-mono font-bold">↓</kbd> to navigate</span>
       </div>

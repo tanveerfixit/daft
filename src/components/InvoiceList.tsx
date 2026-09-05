@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, List, X } from 'lucide-react';
+import { Search, List, X, FileText, User } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Invoice } from '../types';
 import { getInvoiceTaxDetails } from '../utils/tax';
 import { useAuth } from '../context/AuthContext';
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActive }: Props) {
+  const navigate = useNavigate();
+  const { branchSlug } = useParams<{ branchSlug?: string }>();
   const { currentUser } = useAuth();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(false);
@@ -111,69 +114,25 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
   }) : [];
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-2 pb-2 pt-0 select-none w-full" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-1.5 sm:px-2 pb-2 pt-0 select-none w-full" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
-        <h2 className="font-medium text-black dark:text-white" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '24px' }}>Sales Invoices</h2>
-        <button className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer">
+      <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-3 sm:px-4 py-2.5 sm:py-3 border-b border-neutral-200 dark:border-neutral-850">
+        <h2 className="font-medium text-black dark:text-white flex items-center gap-2" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>
+          <FileText size={22} className="text-[var(--brand-primary)] shrink-0" />
+          <span>Sales Invoices</span>
+        </h2>
+        <button 
+          onClick={() => navigate(`/${branchSlug || 'default'}/register`)}
+          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-3 sm:px-4 rounded text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer"
+        >
           <span>Cash Register</span>
         </button>
       </div>
 
       {/* Filters & Search */}
-      <div className="p-2 flex flex-wrap gap-2 items-center bg-white dark:bg-black border-b border-neutral-200 dark:border-neutral-850 shrink-0">
-        <div className="flex items-center gap-2">
-          <select 
-            value={dateRange}
-            onChange={(e) => setDateRange(e.target.value as any)}
-            className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 font-normal text-sm cursor-pointer"
-          >
-            <option value="today">Today</option>
-            <option value="yesterday">Yesterday</option>
-            <option value="weekly">Weekly (Last 7 Days)</option>
-            <option value="monthly">Monthly (This Month)</option>
-            <option value="custom">Custom Range</option>
-          </select>
-
-          {dateRange === 'custom' && (
-            <div className="flex items-center gap-2">
-              <input 
-                type="date"
-                value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
-                className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 text-sm font-normal"
-              />
-              <span className="text-neutral-500 dark:text-neutral-400 text-xs">to</span>
-              <input 
-                type="date"
-                value={customEnd}
-                onChange={(e) => setCustomEnd(e.target.value)}
-                className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 text-sm font-normal"
-              />
-            </div>
-          )}
-        </div>
-
-        <select className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none w-48 h-8 opacity-50 cursor-not-allowed text-sm font-normal">
-          <option>All Types</option>
-        </select>
-        
-        {(dateRange !== 'today' || searchTerm) && (
-          <button
-            onClick={() => {
-              setDateRange('today');
-              setSearchTerm('');
-              setCustomStart(getLocalDateString());
-              setCustomEnd(getLocalDateString());
-            }}
-            className="text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 border border-red-200 dark:border-red-900/60 px-2 py-1 rounded transition-colors cursor-pointer"
-            title="Reset to today's invoices and clear search"
-          >
-            Reset Filters
-          </button>
-        )}
-        
-        <div className="relative flex-1 max-w-md ml-auto">
+      <div className="p-2 sm:p-2.5 flex flex-col sm:flex-row flex-wrap gap-2 items-stretch sm:items-center bg-white dark:bg-black border-b border-neutral-200 dark:border-neutral-850 shrink-0">
+        {/* Search Input */}
+        <div className="relative w-full sm:flex-1 sm:max-w-md sm:order-2 sm:ml-auto">
           <input
             ref={searchInputRef}
             type="text"
@@ -188,9 +147,9 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
                 setSearchTerm('');
               }
             }}
-            className="w-full pl-3 pr-16 py-1 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-sm font-normal outline-none focus:border-neutral-400 h-8"
+            className="w-full pl-3 pr-16 py-1.5 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded text-sm outline-none focus:border-neutral-400 h-9 sm:h-8"
           />
-          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
             {searchTerm && (
               <button
                 type="button"
@@ -198,7 +157,7 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
                   setSearchTerm('');
                   searchInputRef.current?.focus();
                 }}
-                className="p-0.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded cursor-pointer"
+                className="p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer"
                 title="Clear Search"
               >
                 <X size={14} />
@@ -207,10 +166,130 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
             <Search size={16} className="text-neutral-500 dark:text-neutral-400" />
           </div>
         </div>
+
+        {/* Date Filter & Options */}
+        <div className="flex flex-wrap items-center gap-2 sm:order-1">
+          <select 
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value as any)}
+            className="flex-1 sm:flex-initial bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded px-2.5 py-1 outline-none focus:border-neutral-400 h-9 sm:h-8 font-normal text-xs sm:text-sm cursor-pointer"
+          >
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="weekly">Weekly (Last 7 Days)</option>
+            <option value="monthly">Monthly (This Month)</option>
+            <option value="custom">Custom Range</option>
+          </select>
+
+          {dateRange === 'custom' && (
+            <div className="flex items-center gap-1.5 w-full sm:w-auto">
+              <input 
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="flex-1 sm:flex-initial bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded px-2 py-1 outline-none h-8 text-xs font-normal"
+              />
+              <span className="text-neutral-500 dark:text-neutral-400 text-xs">to</span>
+              <input 
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="flex-1 sm:flex-initial bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded px-2 py-1 outline-none h-8 text-xs font-normal"
+              />
+            </div>
+          )}
+
+          <select className="hidden sm:inline-block bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded px-2.5 py-1 outline-none w-36 sm:w-48 h-8 opacity-50 cursor-not-allowed text-xs sm:text-sm font-normal">
+            <option>All Types</option>
+          </select>
+          
+          {(dateRange !== 'today' || searchTerm) && (
+            <button
+              onClick={() => {
+                setDateRange('today');
+                setSearchTerm('');
+                setCustomStart(getLocalDateString());
+                setCustomEnd(getLocalDateString());
+              }}
+              className="text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 border border-red-200 dark:border-red-900/60 px-2 py-1 rounded transition-colors cursor-pointer"
+              title="Reset to today's invoices and clear search"
+            >
+              Reset
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Table Content */}
-      <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
+      {/* Mobile Native Card View (hidden on md and up) */}
+      <div className="md:hidden flex-1 overflow-auto bg-white dark:bg-black divide-y divide-neutral-200 dark:divide-neutral-800 border border-neutral-200 dark:border-neutral-850">
+        {loading ? (
+          <div className="py-12 text-center text-neutral-500 italic text-sm">
+            Loading invoice records... Please wait
+          </div>
+        ) : filteredInvoices.length === 0 ? (
+          <div className="py-12 text-center text-neutral-500 italic text-sm">
+            No sales invoices found for this period.
+          </div>
+        ) : (
+          filteredInvoices.map((invoice) => {
+            const taxDetails = getInvoiceTaxDetails(invoice);
+            return (
+              <div
+                key={invoice.id}
+                onClick={() => onSelectInvoice(invoice.id)}
+                className="p-3 space-y-2 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 active:bg-neutral-100 dark:active:bg-neutral-800/80 transition-colors cursor-pointer"
+              >
+                {/* Top row: Invoice #, Date/Time, Grand Total */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">
+                      {invoice.invoice_number}
+                    </span>
+                    <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
+                      {formatDate(invoice.created_at)} {formatTime(invoice.created_at)}
+                    </span>
+                  </div>
+                  <div className="font-mono font-bold text-base text-neutral-900 dark:text-neutral-100">
+                    €{(Number(invoice.grand_total) || 0).toFixed(2)}
+                  </div>
+                </div>
+
+                {/* Middle row: Products Summary */}
+                <div className="text-xs text-neutral-700 dark:text-neutral-300 font-normal line-clamp-2">
+                  {invoice.products_summary || (
+                    <span className="text-neutral-400 dark:text-neutral-500 italic">No items recorded</span>
+                  )}
+                </div>
+
+                {/* Bottom row: Customer, Sales Person, Tax */}
+                <div className="flex items-center justify-between text-xs pt-1.5 border-t border-neutral-100 dark:border-neutral-850">
+                  <div className="flex items-center gap-1.5 text-neutral-600 dark:text-neutral-400 truncate max-w-[65%]">
+                    <User size={12} className="text-neutral-400 shrink-0" />
+                    <span className="truncate">
+                      {invoice.customer_name || 'Walk-in Customer'}
+                    </span>
+                    <span className="text-neutral-400">•</span>
+                    <span className="truncate text-[11px]">
+                      {invoice.branch_name || currentUser?.branch_name || invoice.user_name || currentUser?.name || 'Staff'}
+                    </span>
+                  </div>
+
+                  <div className="text-right font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
+                    {Number(invoice.tax_total) > 0.001 ? (
+                      <span>VAT €{taxDetails.taxAmount.toFixed(2)}</span>
+                    ) : (
+                      <span className="text-neutral-400">No Tax</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop Table Content (hidden on mobile, 100% original layout on md and up) */}
+      <div className="hidden md:block flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
         <table className="w-full text-left border-collapse bg-white dark:bg-black text-[15px]">
           <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
             <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">

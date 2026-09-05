@@ -1058,7 +1058,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       </header>
 
       {/* Main Content */}
-      <main className="p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-3 sm:gap-4 flex-1 overflow-y-auto pb-20 lg:pb-4">
+      <main className="p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-3 sm:gap-4 flex-1 overflow-y-auto pb-24 lg:pb-4">
         {/* Left Column */}
         <section className="flex flex-col gap-4 min-w-0">
           {/* Search / Scan bar */}
@@ -1166,12 +1166,12 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
         {/* Mobile Sticky Quick Summary & Pay Button */}
         {cart.length > 0 && (
-          <div className="fixed bottom-3 left-3 right-3 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 shadow-xl rounded-xl p-3 flex items-center justify-between z-40 lg:hidden font-sans">
+          <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-neutral-900 border-t border-neutral-300 dark:border-neutral-700 p-3 px-4 flex items-center justify-between z-40 lg:hidden font-sans">
             <div className="flex flex-col">
               <span className="text-xs text-neutral-500 font-medium">
                 {totalQty} {totalQty === 1 ? 'item' : 'items'} in cart
               </span>
-              <span className="text-lg font-bold font-mono text-neutral-900 dark:text-white leading-tight">
+              <span className="text-xl font-bold font-mono text-neutral-900 dark:text-white leading-tight">
                 €{total.toFixed(2)}
               </span>
             </div>
@@ -1180,7 +1180,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
               onClick={() => {
                 document.getElementById('checkout-sidebar')?.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="bg-[rgb(2,133,181)] hover:bg-[rgb(2,115,160)] text-white text-sm font-semibold px-4 py-2 rounded-lg shadow-sm active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+              className="bg-[rgb(2,133,181)] hover:bg-[rgb(2,115,160)] text-white text-sm font-bold px-5 py-2.5 transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <span>Go to Payment</span>
               <ArrowRight size={16} />

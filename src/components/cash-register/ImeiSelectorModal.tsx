@@ -19,8 +19,8 @@ export const ImeiSelectorModal: React.FC<ImeiSelectorModalProps> = ({
   if (!product) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-4 font-sans animate-in fade-in duration-150">
-      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-3 sm:p-4 font-sans animate-in fade-in duration-150">
+      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
           <div className="flex items-center gap-2">

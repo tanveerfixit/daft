@@ -81,10 +81,10 @@ export default function CustomerFormModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 font-sans animate-in fade-in duration-150">
-      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-xl overflow-hidden shadow-2xl rounded-none flex flex-col">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-3 sm:p-4 font-sans animate-in fade-in duration-150">
+      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-xl max-h-[90vh] overflow-hidden rounded-none flex flex-col">
         {/* Header */}
-        <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
+        <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center shrink-0">
           <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
             {initialData?.id ? 'Edit Customer' : 'Customer Information'}
           </h3>
@@ -98,7 +98,7 @@ export default function CustomerFormModal({
         </div>
 
         {/* Tabs */}
-        <div className="px-6 pt-3 flex gap-2 bg-neutral-50 dark:bg-neutral-900/50 border-b border-neutral-200 dark:border-neutral-800">
+        <div className="px-4 sm:px-6 pt-3 flex gap-2 bg-neutral-50 dark:bg-neutral-900/50 border-b border-neutral-200 dark:border-neutral-800 overflow-x-auto shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('basic')}
@@ -135,7 +135,7 @@ export default function CustomerFormModal({
         </div>
 
         {/* Form Content */}
-        <form onSubmit={handleSubmit} autoComplete="off" className="flex-1 overflow-auto p-6 space-y-4 bg-white dark:bg-black text-sm text-neutral-900 dark:text-neutral-100">
+        <form onSubmit={handleSubmit} autoComplete="off" className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-white dark:bg-black text-sm text-neutral-900 dark:text-neutral-100">
           {activeTab === 'basic' && (
             <div className="space-y-3.5">
               <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
@@ -301,7 +301,7 @@ export default function CustomerFormModal({
           )}
 
           {/* Footer */}
-          <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-3 -mx-6 -mb-6 mt-6">
+          <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-3 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 mt-6 shrink-0">
             <button
               type="button"
               onClick={onClose}
