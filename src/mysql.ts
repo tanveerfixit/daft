@@ -71,7 +71,7 @@ export async function getBranchPrefix(branchId?: number | null, fallback = 'SKU'
 
 // ─── Schema Initialisation ───────────────────────────────────────────────────
 
-export const CURRENT_SCHEMA_VERSION = '2026_09_DEVICE_TENANCY_V2';
+export const CURRENT_SCHEMA_VERSION = '2026_09_DEVICE_BRANCH_ISOLATION_V3';
 
 async function ensureIndex(conn: any, tableName: string, indexName: string, columns: string) {
   try {
@@ -1091,6 +1091,48 @@ export async function initSchema() {
       console.log('[MySQL] Migration: safely backfilled devices user_id with 0 data loss');
     } catch (e: any) {
       console.warn('[MySQL] Device user_id backfill warning:', e.message);
+    }
+
+    // Auto-Heal Legacy Devices: Ensure all devices have valid business_id and branch_id
+    try {
+      await conn.query(`
+        UPDATE devices d
+        JOIN product_skus s ON d.sku_id = s.id
+        JOIN products p ON s.product_id = p.id
+        SET d.business_id = p.business_id
+        WHERE d.business_id IS NULL OR d.business_id = 0
+      `);
+      await conn.query(`
+        UPDATE devices d
+        JOIN products p ON d.product_id = p.id
+        SET d.business_id = p.business_id
+        WHERE d.business_id IS NULL OR d.business_id = 0
+      `);
+      await conn.query(`
+        UPDATE devices d
+        JOIN users u ON d.user_id = u.id
+        SET d.business_id = u.business_id
+        WHERE d.business_id IS NULL OR d.business_id = 0
+      `);
+      await conn.query(`
+        UPDATE devices d
+        JOIN users u ON d.user_id = u.id
+        SET d.branch_id = u.branch_id
+        WHERE (d.branch_id IS NULL OR d.branch_id = 0) AND u.branch_id IS NOT NULL
+      `);
+      await conn.query(`
+        UPDATE devices d
+        JOIN (
+          SELECT business_id, MIN(id) AS first_branch_id 
+          FROM branches 
+          GROUP BY business_id
+        ) b ON d.business_id = b.business_id
+        SET d.branch_id = b.first_branch_id
+        WHERE d.branch_id IS NULL OR d.branch_id = 0
+      `);
+      console.log('[MySQL] Migration: auto-healed legacy devices business_id and branch_id');
+    } catch (e: any) {
+      console.warn('[MySQL] Device business/branch auto-heal warning:', e.message);
     }
 
     // Ensure all performance composite indexes exist
