@@ -271,7 +271,6 @@ export async function printRepairCustomerReceipt(repair: RepairPrintData, custom
           .row { display: flex; justify-content: space-between; }
           #barcode { width: 90% !important; height: 28px !important; margin: 4px auto; display: block; }
         </style>
-        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
       </head>
       <body>
         <div class="text-center">
@@ -279,7 +278,7 @@ export async function printRepairCustomerReceipt(repair: RepairPrintData, custom
           ${company?.address ? `<div style="font-size: 10px;">${company.address}</div>` : ''}
           ${company?.phone ? `<div style="font-size: 10px;">Tel: ${company.phone}</div>` : ''}
           <div class="border-b my-1"></div>
-          <div style="font-size: 13px; font-weight: 900; letter-spacing: 0.5px;">REPAIR CHECK-IN TICKET</div>
+          <div style="font-size: 13px; font-weight: 900; letter-spacing: 0.5px;">REPAIR TICKET</div>
           <div style="font-size: 14px; font-weight: 900; margin: 2px 0;">JOB #${repair.id}</div>
           <div style="font-size: 10px;">${dateStr}</div>
         </div>

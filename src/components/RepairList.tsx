@@ -4,8 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Repair } from '../types';
 import { useAuth } from '../context/AuthContext';
 import RepairIntakeForm from './RepairIntakeForm';
-import RepairPrintModal from './RepairPrintModal';
-import { printRepairDeviceLabel } from '../utils/repairPrint';
+import { printRepairDeviceLabel, printRepairCustomerReceipt } from '../utils/repairPrint';
 
 const slugify = (str: string) => str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
@@ -22,7 +21,6 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState('new');
-  const [selectedPrintRepair, setSelectedPrintRepair] = useState<Repair | null>(null);
 
   const fetchRepairs = async () => {
     try {
@@ -221,8 +219,8 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
                     </button>
                     <button
                       type="button"
-                      title="Print Options / Customer Ticket"
-                      onClick={() => setSelectedPrintRepair(repair)}
+                      title="Print Customer Repair Ticket (Thermal)"
+                      onClick={() => printRepairCustomerReceipt(repair)}
                       className="p-1.5 text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded cursor-pointer transition-colors inline-flex items-center justify-center"
                     >
                       <Printer size={15} />
@@ -282,14 +280,6 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
             }
           }}
           initialCustomerId={preSelectedCustomerId}
-        />
-      )}
-
-      {/* Repair Print Modal */}
-      {selectedPrintRepair && (
-        <RepairPrintModal
-          repair={selectedPrintRepair}
-          onClose={() => setSelectedPrintRepair(null)}
         />
       )}
     </div>
