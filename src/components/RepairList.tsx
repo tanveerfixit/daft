@@ -213,17 +213,17 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
                       type="button"
                       title="Print Dymo Device Sticker (Attach to device)"
                       onClick={() => printRepairDeviceLabel(repair)}
-                      className="p-1.5 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded cursor-pointer transition-colors inline-flex items-center justify-center"
+                      className="p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200 cursor-pointer transition-colors inline-flex items-center justify-center"
                     >
-                      <Tag size={15} />
+                      <Tag size={16} />
                     </button>
                     <button
                       type="button"
                       title="Print Customer Repair Ticket (Thermal)"
                       onClick={() => printRepairCustomerReceipt(repair)}
-                      className="p-1.5 text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded cursor-pointer transition-colors inline-flex items-center justify-center"
+                      className="p-1 text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white cursor-pointer transition-colors inline-flex items-center justify-center"
                     >
-                      <Printer size={15} />
+                      <Printer size={16} />
                     </button>
                   </div>
                 </td>
