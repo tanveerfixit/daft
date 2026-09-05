@@ -52,14 +52,45 @@ export default function ProductFormModal({
     }
   }, [initialData]);
 
+  const getDefaultCategoryId = (type: string | undefined, catList: Category[]): number | undefined => {
+    if (!catList || catList.length === 0) return undefined;
+    if (type === 'serialized') {
+      const phones = catList.find(c => c.name.trim().toLowerCase() === 'phones')
+        || catList.find(c => c.name.trim().toLowerCase() === 'phone')
+        || catList.find(c => c.name.trim().toLowerCase().includes('phone'));
+      return phones ? phones.id : undefined;
+    } else if (type === 'stock' || !type) {
+      const accessories = catList.find(c => c.name.trim().toLowerCase() === 'accessories')
+        || catList.find(c => c.name.trim().toLowerCase() === 'accessory')
+        || catList.find(c => c.name.trim().toLowerCase().includes('accessories'));
+      return accessories ? accessories.id : undefined;
+    }
+    return undefined;
+  };
+
   useEffect(() => {
     if (isOpen) {
       if (!initialCategories) {
         fetch('/api/categories')
           .then(res => res.json())
-          .then(data => setCategories(Array.isArray(data) ? data : []))
+          .then(data => {
+            const list = Array.isArray(data) ? data : [];
+            setCategories(list);
+            if (!initialData?.category_id) {
+              setFormData(prev => ({
+                ...prev,
+                category_id: prev.category_id ?? getDefaultCategoryId(prev.product_type || 'stock', list)
+              }));
+            }
+          })
           .catch(console.error);
+      } else if (!initialData?.category_id) {
+        setFormData(prev => ({
+          ...prev,
+          category_id: prev.category_id ?? getDefaultCategoryId(prev.product_type || 'stock', initialCategories)
+        }));
       }
+
       if (!initialManufacturers) {
         fetch('/api/manufacturers')
           .then(res => res.json())

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pool, query, queryOne, execute } from '../mysql.js';
+import { pool, query, queryOne, execute, getBranchPrefix } from '../mysql.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -219,17 +219,25 @@ router.post('/:id/payments', async (req: any, res, next) => {
     const [cRows] = await conn.execute(checkSql, checkParams);
     if ((cRows as any[]).length === 0) throw new Error('Customer not found or access denied');
 
-    // Generate DE-### invoice for wallet deposit
+    // Generate branch-YYMM-#### invoice for wallet deposit
+    const branchPrefix = await getBranchPrefix(req.user.branch_id);
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(-2);
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yymm = `${yy}${mm}`;
+    const invoicePrefix = `${branchPrefix}-${yymm}`;
+
     const [lastDE] = await conn.execute(
-      "SELECT invoice_number FROM invoices WHERE invoice_number LIKE 'DE-%' AND business_id=? ORDER BY id DESC LIMIT 1",
-      [req.user.business_id]
+      'SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? AND business_id=? ORDER BY id DESC LIMIT 1',
+      [`${invoicePrefix}-%`, req.user.business_id]
     );
     let nextDENum = 1;
     if ((lastDE as any[]).length > 0) {
-      const lastNum = parseInt((lastDE as any[])[0].invoice_number.split('-')[1]);
+      const parts = String((lastDE as any[])[0].invoice_number).split('-');
+      const lastNum = parseInt(parts[parts.length - 1], 10);
       if (!isNaN(lastNum)) nextDENum = lastNum + 1;
     }
-    const invoiceNumber = `DE-${String(nextDENum).padStart(3, '0')}`;
+    const invoiceNumber = `${invoicePrefix}-${String(nextDENum).padStart(4, '0')}`;
 
     const [invR] = await conn.execute(
       `INSERT INTO invoices (business_id, branch_id, user_id, customer_id, invoice_number, type, 

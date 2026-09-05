@@ -142,6 +142,168 @@ router.post('/add', async (req: any, res, next) => {
   finally { conn.release(); }
 });
 
+const batchAddDevicesSchema = z.object({
+  branch_id: z.number().or(z.string().transform(Number)).optional(),
+  supplier_id: z.number().or(z.string().transform(Number)).nullable().optional(),
+  po_number: z.string().optional(),
+  items: z.array(z.object({
+    sku_id: z.number().or(z.string().transform(Number)),
+    imei: z.string().min(1, 'IMEI/Serial is required'),
+    cost_price: z.number().or(z.string().transform(Number)).optional(),
+    selling_price: z.number().or(z.string().transform(Number)).optional(),
+    color: z.string().optional(),
+    gb: z.string().optional(),
+    condition: z.string().optional()
+  })).min(1, 'At least one device is required')
+});
+
+// POST /api/inventory/batch-add-devices
+router.post('/batch-add-devices', async (req: any, res, next) => {
+  const data = batchAddDevicesSchema.parse(req.body);
+  const { branch_id, supplier_id, po_number, items } = data;
+  const activeBranchId = branch_id || req.user.branch_id;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // 1. Fetch products info for all sku_ids
+    const skuIds = [...new Set(items.map(i => i.sku_id))];
+    const [skuRows] = await conn.query(`
+      SELECT s.id as sku_id, s.sku_code, s.barcode, p.id as product_id, p.name as product_name, p.product_type
+      FROM product_skus s JOIN products p ON s.product_id=p.id 
+      WHERE s.id IN (?) AND p.business_id=?
+    `, [skuIds, req.user.business_id]);
+    
+    const skuMap = new Map((skuRows as any[]).map(r => [r.sku_id, r]));
+
+    // 2. Validate in-batch duplicate IMEIs
+    const imeiList = items.map(it => it.imei.trim());
+    const lowerImeis = imeiList.map(s => s.toLowerCase());
+    const duplicateInBatch = lowerImeis.find((s, idx) => lowerImeis.indexOf(s) !== idx);
+    if (duplicateInBatch) {
+      await conn.rollback();
+      return res.status(400).json({ error: `Double-scan detected: Duplicate IMEI "${duplicateInBatch}" in current batch.` });
+    }
+
+    // 3. Validate database duplicate IMEIs
+    for (const item of items) {
+      const cleanImei = item.imei.trim();
+      const [existing] = await conn.execute(
+        'SELECT id, imei, status FROM devices WHERE (imei = ? OR imei_serial = ?) AND business_id = ? LIMIT 1',
+        [cleanImei, cleanImei, req.user.business_id]
+      );
+      if ((existing as any[]).length > 0) {
+        const dev = (existing as any[])[0];
+        await conn.rollback();
+        return res.status(400).json({ error: `IMEI "${cleanImei}" already exists in inventory (Status: ${dev.status}).` });
+      }
+    }
+
+    // 4. Generate or find Purchase Order
+    let finalPoNumber = po_number?.trim();
+    if (!finalPoNumber) {
+      const [lastPo] = await conn.execute('SELECT id FROM purchase_orders WHERE business_id=? ORDER BY id DESC LIMIT 1', [req.user.business_id]);
+      const nextSerial = String(((lastPo as any[])[0]?.id || 0) + 1).padStart(2, '0');
+      finalPoNumber = `PO${nextSerial}`;
+    }
+
+    const totalBatchCost = items.reduce((sum, it) => sum + (Number(it.cost_price) || 0), 0);
+
+    const [existPo] = await conn.execute('SELECT id FROM purchase_orders WHERE po_number=? AND business_id=?', [finalPoNumber, req.user.business_id]);
+    let poId: number;
+    if ((existPo as any[]).length === 0) {
+      const [pr] = await conn.execute(
+        "INSERT INTO purchase_orders (business_id,branch_id,supplier_id,po_number,status,total,expected_at) VALUES (?,?,?,?,'received',?,NOW())",
+        [req.user.business_id, activeBranchId, supplier_id || null, finalPoNumber, totalBatchCost]
+      );
+      poId = (pr as any).insertId;
+    } else {
+      poId = (existPo as any[])[0].id;
+      await conn.execute('UPDATE purchase_orders SET total=total+?, supplier_id=COALESCE(?, supplier_id) WHERE id=?', 
+        [totalBatchCost, supplier_id || null, poId]);
+    }
+
+    // 5. Group by product for PO items
+    const productGroups = new Map<number, { count: number; cost: number; name: string }>();
+    for (const item of items) {
+      const skuInfo = skuMap.get(item.sku_id);
+      if (!skuInfo) throw new Error(`SKU ID ${item.sku_id} not found`);
+      const existingGrp = productGroups.get(skuInfo.product_id) || { count: 0, cost: 0, name: skuInfo.product_name };
+      existingGrp.count += 1;
+      existingGrp.cost += (Number(item.cost_price) || 0);
+      productGroups.set(skuInfo.product_id, existingGrp);
+    }
+
+    for (const [prodId, grp] of productGroups.entries()) {
+      const avgCost = grp.count > 0 ? grp.cost / grp.count : 0;
+      await conn.execute(
+        'INSERT INTO purchase_order_items (po_id,product_id,description,ordered_qty,received_qty,unit_cost,total) VALUES (?,?,?,?,?,?,?)',
+        [poId, prodId, grp.name, grp.count, grp.count, avgCost, grp.cost]
+      );
+    }
+
+    // 6. Insert devices
+    const insertedDevices: any[] = [];
+    for (const item of items) {
+      const skuInfo = skuMap.get(item.sku_id)!;
+      const cleanImei = item.imei.trim();
+      const itemCost = Number(item.cost_price) || 0;
+      const itemSelling = Number(item.selling_price) || 0;
+
+      const [devResult] = await conn.execute(
+        "INSERT INTO devices (business_id,branch_id,user_id,sku_id,imei,cost_price,selling_price,color,gb,`condition`,po_number,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,'in_stock')",
+        [req.user.business_id, activeBranchId, req.userId, item.sku_id, cleanImei, itemCost, itemSelling, item.color || null, item.gb || null, item.condition || 'New', finalPoNumber]
+      );
+      const insertedDevId = (devResult as any).insertId;
+
+      insertedDevices.push({
+        id: insertedDevId,
+        sku_id: item.sku_id,
+        product_name: skuInfo.product_name,
+        sku_code: skuInfo.sku_code,
+        barcode: skuInfo.barcode || skuInfo.sku_code,
+        imei: cleanImei,
+        color: item.color || '',
+        gb: item.gb || '',
+        condition: item.condition || 'New',
+        cost_price: itemCost,
+        selling_price: itemSelling
+      });
+
+      const imeiLogDesc = `IMEI: ${cleanImei} (${skuInfo.product_name} ${item.gb || ''} ${item.color || ''} ${item.condition || ''}) added via Batch PO: ${finalPoNumber}`;
+      await conn.execute(
+        'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [insertedDevId, req.userId, 'Device Created', imeiLogDesc]
+      );
+      await conn.execute(
+        'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [item.sku_id, req.userId, 'Device Created', `Device with IMEI ${cleanImei} added to inventory`]
+      );
+      await conn.execute(
+        'INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [req.user.business_id, activeBranchId, insertedDevId, skuInfo.product_id, req.userId, req.user?.name || 'System', 'Device Created', `IMEI: ${cleanImei} (${skuInfo.product_name}) added to inventory`, 'device', insertedDevId, `/devices/${insertedDevId}`]
+      );
+      await conn.execute(
+        'INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,1) ON DUPLICATE KEY UPDATE quantity=quantity+1',
+        [activeBranchId, item.sku_id]
+      );
+      await conn.execute(
+        "INSERT INTO inventory_movements (business_id,branch_id,sku_id,device_id,movement_type,quantity,unit_cost,reference_type,reference_id) VALUES (?,?,?,?,?,?,?,?,?)",
+        [req.user.business_id, activeBranchId, item.sku_id, insertedDevId, 'purchase', 1, itemCost, 'purchase_order', poId]
+      );
+    }
+
+    await conn.commit();
+    res.json({ success: true, po_number: finalPoNumber, devices: insertedDevices });
+  } catch (e: any) {
+    await conn.rollback();
+    console.error('[inventory/batch-add-devices] Error:', e.message);
+    next(e);
+  } finally {
+    conn.release();
+  }
+});
+
 // GET /api/purchase-orders
 router.get('/purchase-orders', async (req: any, res, next) => {
   try {
@@ -878,13 +1040,19 @@ router.delete('/devices/:id', async (req: any, res, next) => {
 
 // GET /api/devices
 router.get('/devices', async (req: any, res, next) => {
-  const status = req.query.status || 'in_stock';
+  const status = req.query.status || 'all';
   const branchId = req.query.branch_id;
   try {
     const isSuper = req.user.role === 'superadmin';
     let filterClause = '';
-    const params: any[] = [req.user.business_id, status];
+    const params: any[] = [req.user.business_id];
     
+    let statusClause = '';
+    if (status && status !== 'all') {
+      statusClause = 'AND d.status=?';
+      params.push(status);
+    }
+
     if (!isSuper) {
       filterClause = 'AND d.branch_id=? AND d.user_id=?';
       params.push(req.user.branch_id, req.userId);
@@ -905,7 +1073,7 @@ router.get('/devices', async (req: any, res, next) => {
       LEFT JOIN users u ON d.user_id=u.id
       LEFT JOIN invoice_items ii ON d.id=ii.device_id
       LEFT JOIN invoices inv ON ii.invoice_id=inv.id
-      WHERE d.business_id=? AND d.status=? ${filterClause}
+      WHERE d.business_id=? ${statusClause} ${filterClause}
       ORDER BY d.created_at DESC
     `;
     res.json(await query(sql, params));
@@ -1612,6 +1780,7 @@ const createRepairSchema = z.object({
   first_name: z.string().optional(),
   last_name: z.string().optional(),
   phone: z.string().optional(),
+  email: z.string().optional().nullable(),
   device_model: z.string().optional(),
   issue: z.string().optional(),
   status: z.string().optional(),
@@ -1630,6 +1799,7 @@ router.post('/repairs', async (req: any, res, next) => {
       customer_id, 
       customer_name, 
       phone, 
+      email,
       device_model, 
       issue, 
       status,
@@ -1648,19 +1818,22 @@ router.post('/repairs', async (req: any, res, next) => {
     // If no customer_id but phone is provided, handle customer lookup/creation
     if (!finalCustomerId && phone) {
       const [existing] = await conn.execute(
-        'SELECT id FROM customers WHERE phone = ? AND business_id = ? AND deleted_at IS NULL LIMIT 1',
+        'SELECT id, email FROM customers WHERE phone = ? AND business_id = ? AND deleted_at IS NULL LIMIT 1',
         [phone, req.user.business_id]
       );
       
       if ((existing as any[]).length > 0) {
         finalCustomerId = (existing as any[])[0].id;
+        if (email && !(existing as any[])[0].email) {
+          await conn.execute('UPDATE customers SET email = ? WHERE id = ?', [email, finalCustomerId]);
+        }
       } else {
         // Create new customer
-        const combinedName = `${first_name || ''} ${last_name || ''}`.trim() || `Customer (${phone})`;
+        const combinedName = customer_name?.trim() || `${first_name || ''} ${last_name || ''}`.trim() || `Customer (${phone})`;
 
         const [newCust] = await conn.execute(
-          'INSERT INTO customers (business_id, branch_id, name, first_name, last_name, phone) VALUES (?, ?, ?, ?, ?, ?)',
-          [req.user.business_id, req.user.branch_id, combinedName, first_name || '', last_name || '', phone]
+          'INSERT INTO customers (business_id, branch_id, name, first_name, last_name, phone, email) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [req.user.business_id, req.user.branch_id, combinedName, first_name || combinedName, last_name || '', phone, email || null]
         );
         finalCustomerId = (newCust as any).insertId;
       }

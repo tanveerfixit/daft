@@ -132,9 +132,9 @@ export default function NotificationBell() {
         className="relative p-2 rounded-lg text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200/60 dark:hover:bg-neutral-800 transition-colors cursor-pointer flex items-center justify-center"
         title="What's New & System Updates"
       >
-        <Bell size={19} />
+        <Bell size={22} />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 flex items-center justify-center min-w-[17px] h-[17px] px-1 text-[10px] font-bold text-white bg-red-600 rounded-full shadow-xs ring-2 ring-white dark:ring-neutral-900 animate-pulse">
+          <span className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-600 rounded-full shadow-xs ring-2 ring-white dark:ring-neutral-900">
             {unreadCount}
           </span>
         )}

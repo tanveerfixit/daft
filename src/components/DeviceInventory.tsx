@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Search, X } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Search, X, Layers, Plus } from 'lucide-react';
 
 interface Device {
   id: number;
@@ -25,8 +26,10 @@ interface Props {
 }
 
 export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectDevice, isActive = true }: Props) {
+  const navigate = useNavigate();
+  const { branchSlug } = useParams<{ branchSlug?: string }>();
   const [devices, setDevices] = useState<Device[]>([]);
-  const [statusFilter, setStatusFilter] = useState('in_stock');
+  const [statusFilter, setStatusFilter] = useState('all');
   
   // Filtering & Pagination State
   const [searchQuery, setSearchQuery] = useState('');
@@ -142,9 +145,19 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
         <h2 className="font-medium text-black dark:text-white" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '24px' }}>Devices Inventory</h2>
-        <span className="text-xs font-medium px-2.5 py-0.5 rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300">
-          {totalFiltered} Serialized Units
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate(`/${branchSlug || 'default'}/batch-device-intake`)}
+            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors"
+          >
+            <Layers size={14} />
+            + Batch Device Intake
+          </button>
+          <span className="text-xs font-medium px-2.5 py-1 rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300">
+            {totalFiltered} Serialized Units
+          </span>
+        </div>
       </div>
 
       {/* Filters & Search */}
@@ -154,8 +167,9 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
           onChange={(e) => setStatusFilter(e.target.value)}
           className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 font-normal text-sm cursor-pointer w-48"
         >
-          <option value="in_stock">Devices in Inventory</option>
-          <option value="sold">Sold Devices</option>
+          <option value="all">All Devices</option>
+          <option value="sold">Sold</option>
+          <option value="in_stock">In Inventory</option>
           <option value="repair">In Repair</option>
         </select>
         
@@ -186,10 +200,10 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
           {uniqueConditions.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         
-        {(statusFilter !== 'in_stock' || selectedModel !== 'all' || selectedColor !== 'all' || selectedCondition !== 'all' || searchQuery) && (
+        {(statusFilter !== 'all' || selectedModel !== 'all' || selectedColor !== 'all' || selectedCondition !== 'all' || searchQuery) && (
           <button
             onClick={() => {
-              setStatusFilter('in_stock');
+              setStatusFilter('all');
               setSelectedModel('all');
               setSelectedColor('all');
               setSelectedCondition('all');
@@ -197,7 +211,7 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
               setCurrentPage(1);
             }}
             className="text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 border border-red-200 dark:border-red-900/60 px-2 py-1 rounded transition-colors cursor-pointer"
-            title="Reset all filters to in-stock devices"
+            title="Reset all filters"
           >
             Reset Filters
           </button>
@@ -289,7 +303,7 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
                     {new Date(device.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-')}
                   </td>
                   <td className="px-2 py-0.5 text-center text-neutral-600 dark:text-neutral-400 font-mono whitespace-nowrap">
-                    {device.invoice_number || 'In Inventory'}
+                    {device.invoice_number || (device.status === 'sold' ? 'Sold' : (device.status === 'repair' ? 'In Repair' : 'In Inventory'))}
                   </td>
                 </tr>
               ))

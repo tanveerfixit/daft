@@ -2806,15 +2806,16 @@ var init_products = __esm({
     });
     router3.get("/special/get-repair-product", async (req, res, next) => {
       const businessId = req.user?.business_id;
+      const branchId = req.user?.branch_id;
       if (!businessId) return res.status(401).json({ error: "Business context missing" });
-      const repairSkuCode = `REPAIR-SERVICE-${businessId}`;
       const findProduct = async () => {
         return await queryOne(`
       SELECT s.id as sku_id, p.id as product_id, p.name as product_name, s.sku_code, s.selling_price
       FROM product_skus s
       JOIN products p ON s.product_id = p.id
-      WHERE s.sku_code = ? AND p.business_id = ?
-    `, [repairSkuCode, businessId]);
+      WHERE p.business_id = ? AND p.product_type = 'service' AND p.name = 'Repair Service' AND p.deleted_at IS NULL
+      ORDER BY s.id ASC LIMIT 1
+    `, [businessId]);
       };
       try {
         let skuInfo = await findProduct();
@@ -2822,20 +2823,28 @@ var init_products = __esm({
         const conn = await pool.getConnection();
         try {
           await conn.beginTransaction();
-          const [check] = await conn.execute("SELECT id FROM product_skus WHERE sku_code = ?", [repairSkuCode]);
+          const [check] = await conn.execute(
+            `SELECT s.id as sku_id, p.id as product_id, p.name as product_name, s.sku_code, s.selling_price
+         FROM product_skus s
+         JOIN products p ON s.product_id = p.id
+         WHERE p.business_id = ? AND p.product_type = 'service' AND p.name = 'Repair Service' AND p.deleted_at IS NULL
+         ORDER BY s.id ASC LIMIT 1`,
+            [businessId]
+          );
           if (check.length > 0) {
             await conn.rollback();
-            skuInfo = await findProduct();
-            return res.json(skuInfo);
+            return res.json(check[0]);
           }
           const [pr] = await conn.execute(
             "INSERT INTO products (business_id,name,product_type,allow_overselling) VALUES (?,?,?,?)",
             [businessId, "Repair Service", "service", 1]
           );
           const productId = pr.insertId;
+          const branchPrefix = await getBranchPrefix(branchId);
+          const finalSku = `${branchPrefix}-${String(productId).padStart(5, "0")}`;
           const [sr] = await conn.execute(
             "INSERT INTO product_skus (product_id,sku_code,barcode,cost_price,selling_price) VALUES (?,?,?,?,?)",
-            [productId, repairSkuCode, repairSkuCode, 0, 0]
+            [productId, finalSku, finalSku, 0, 0]
           );
           const skuId = sr.insertId;
           await conn.commit();
@@ -2843,7 +2852,7 @@ var init_products = __esm({
             sku_id: skuId,
             product_id: productId,
             product_name: "Repair Service",
-            sku_code: repairSkuCode,
+            sku_code: finalSku,
             selling_price: 0
           });
         } catch (innerErr) {
@@ -2860,6 +2869,93 @@ var init_products = __esm({
       } catch (e) {
         console.error("[RepairProduct] Error:", e.message);
         res.status(500).json({ error: e.message || "Failed to initialize repair product" });
+      }
+    });
+    router3.get("/serialized-models", async (req, res, next) => {
+      try {
+        const businessId = req.user.business_id;
+        const { search } = req.query;
+        let whereClause = "WHERE p.business_id = ? AND p.deleted_at IS NULL";
+        const params = [businessId];
+        const rawSearch = search ? String(search).trim() : "";
+        if (rawSearch !== "") {
+          const tokens = rawSearch.split(/\s+/).filter((t) => t.length > 0);
+          if (tokens.length > 0) {
+            const tokenConditions = tokens.map(
+              () => "(p.name LIKE ? OR s.sku_code LIKE ? OR s.barcode LIKE ? OR COALESCE(m.name, '') LIKE ? OR COALESCE(c.name, '') LIKE ?)"
+            ).join(" AND ");
+            whereClause += ` AND (${tokenConditions})`;
+            tokens.forEach((t) => {
+              const pattern = `%${t}%`;
+              params.push(pattern, pattern, pattern, pattern, pattern);
+            });
+          }
+        } else {
+          whereClause += ` AND (LOWER(COALESCE(p.product_type, '')) IN ('serialized', 'serial') OR s.id IN (SELECT DISTINCT sku_id FROM devices WHERE business_id = ?))`;
+          params.push(businessId);
+        }
+        const sql = `
+      SELECT DISTINCT s.id as sku_id, p.id as product_id, p.name as product_name, s.sku_code, s.barcode,
+             COALESCE(s.selling_price, p.base_unit_price, 0) as selling_price, s.cost_price,
+             c.name as category_name, m.name as manufacturer_name,
+             p.product_type
+      FROM products p
+      JOIN product_skus s ON s.product_id = p.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+      ${whereClause}
+      ORDER BY 
+        CASE 
+          WHEN LOWER(COALESCE(p.product_type, '')) = 'serialized' THEN 1
+          WHEN LOWER(COALESCE(p.product_type, '')) = 'serial' THEN 2
+          WHEN s.id IN (SELECT DISTINCT sku_id FROM devices WHERE business_id = ${businessId}) THEN 3
+          WHEN LOWER(COALESCE(c.name, '')) LIKE '%phone%' OR LOWER(COALESCE(c.name, '')) LIKE '%device%' THEN 4
+          ELSE 5
+        END,
+        p.name ASC
+      LIMIT 200
+    `;
+        let models = await query(sql, params);
+        if ((!models || models.length === 0) && rawSearch !== "") {
+          const tokens = rawSearch.split(/\s+/).filter((t) => t.length > 0);
+          if (tokens.length > 1) {
+            let orWhere = "WHERE p.business_id = ? AND p.deleted_at IS NULL AND (";
+            const orConditions = tokens.map(
+              () => "(p.name LIKE ? OR s.sku_code LIKE ? OR s.barcode LIKE ? OR COALESCE(m.name, '') LIKE ? OR COALESCE(c.name, '') LIKE ?)"
+            ).join(" OR ");
+            orWhere += `${orConditions})`;
+            const orParams = [businessId];
+            tokens.forEach((t) => {
+              const pattern = `%${t}%`;
+              orParams.push(pattern, pattern, pattern, pattern, pattern);
+            });
+            const orSql = `
+          SELECT DISTINCT s.id as sku_id, p.id as product_id, p.name as product_name, s.sku_code, s.barcode,
+                 COALESCE(s.selling_price, p.base_unit_price, 0) as selling_price, s.cost_price,
+                 c.name as category_name, m.name as manufacturer_name,
+                 p.product_type
+          FROM products p
+          JOIN product_skus s ON s.product_id = p.id
+          LEFT JOIN categories c ON p.category_id = c.id
+          LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+          ${orWhere}
+          ORDER BY 
+            CASE 
+              WHEN LOWER(COALESCE(p.product_type, '')) = 'serialized' THEN 1
+              WHEN LOWER(COALESCE(p.product_type, '')) = 'serial' THEN 2
+              WHEN s.id IN (SELECT DISTINCT sku_id FROM devices WHERE business_id = ${businessId}) THEN 3
+              ELSE 4
+            END,
+            p.name ASC
+          LIMIT 100
+        `;
+            models = await query(orSql, orParams);
+          }
+        }
+        res.json(models || []);
+      } catch (e) {
+        console.error("[serialized-models] Error:", e.message);
+        next(e);
       }
     });
     router3.get("/:id", async (req, res, next) => {
@@ -3514,16 +3610,23 @@ var init_customers = __esm({
         const checkParams = isSuper ? [req.params.id, req.user.business_id] : [req.params.id, req.user.business_id, req.user.branch_id];
         const [cRows] = await conn.execute(checkSql, checkParams);
         if (cRows.length === 0) throw new Error("Customer not found or access denied");
+        const branchPrefix = await getBranchPrefix(req.user.branch_id);
+        const now = /* @__PURE__ */ new Date();
+        const yy = String(now.getFullYear()).slice(-2);
+        const mm = String(now.getMonth() + 1).padStart(2, "0");
+        const yymm = `${yy}${mm}`;
+        const invoicePrefix = `${branchPrefix}-${yymm}`;
         const [lastDE] = await conn.execute(
-          "SELECT invoice_number FROM invoices WHERE invoice_number LIKE 'DE-%' AND business_id=? ORDER BY id DESC LIMIT 1",
-          [req.user.business_id]
+          "SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? AND business_id=? ORDER BY id DESC LIMIT 1",
+          [`${invoicePrefix}-%`, req.user.business_id]
         );
         let nextDENum = 1;
         if (lastDE.length > 0) {
-          const lastNum = parseInt(lastDE[0].invoice_number.split("-")[1]);
+          const parts = String(lastDE[0].invoice_number).split("-");
+          const lastNum = parseInt(parts[parts.length - 1], 10);
           if (!isNaN(lastNum)) nextDENum = lastNum + 1;
         }
-        const invoiceNumber = `DE-${String(nextDENum).padStart(3, "0")}`;
+        const invoiceNumber = `${invoicePrefix}-${String(nextDENum).padStart(4, "0")}`;
         const [invR] = await conn.execute(
           `INSERT INTO invoices (business_id, branch_id, user_id, customer_id, invoice_number, type, 
         subtotal, tax_total, discount_total, grand_total, paid_amount, due_amount, status)
@@ -3573,48 +3676,28 @@ var init_invoices = __esm({
         const isDeveloper = req.user.role === "developer";
         const branchId = req.user.branch_id;
         const searchTerm = q.trim();
-        const match = searchTerm.match(/^([a-zA-Z]*)[^0-9]*(\d*)$/);
-        let sql = "";
-        let params = [];
-        if (match && match[2]) {
-          const prefix = match[1].toUpperCase();
-          const num = parseInt(match[2], 10);
-          sql = `
-        SELECT i.id, i.invoice_number, c.name as customer_name, i.grand_total, i.created_at
-        FROM invoices i
-        LEFT JOIN customers c ON i.customer_id=c.id
-        WHERE i.business_id=?
-        AND CAST(SUBSTRING_INDEX(i.invoice_number, '-', -1) AS UNSIGNED) LIKE ?
-        ${prefix ? "AND i.invoice_number LIKE ?" : ""}
-        ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
-        ORDER BY i.created_at DESC
-        LIMIT 5
-      `;
-          params.push(req.user.business_id);
-          params.push(`${num}%`);
-          if (prefix) {
-            params.push(`${prefix}-%`);
-          }
-          if (!isDeveloper && branchId) {
-            params.push(branchId);
-          }
-        } else {
-          sql = `
-        SELECT i.id, i.invoice_number, c.name as customer_name, i.grand_total, i.created_at
-        FROM invoices i
-        LEFT JOIN customers c ON i.customer_id=c.id
-        WHERE i.business_id=?
-        AND (i.invoice_number LIKE ? OR c.name LIKE ?)
-        ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
-        ORDER BY i.created_at DESC
-        LIMIT 5
-      `;
-          params.push(req.user.business_id);
-          params.push(`%${searchTerm}%`);
-          params.push(`%${searchTerm}%`);
-          if (!isDeveloper && branchId) {
-            params.push(branchId);
-          }
+        const digitsOnly = searchTerm.replace(/\D/g, "");
+        const num = digitsOnly ? parseInt(digitsOnly, 10) : null;
+        let sql = `
+      SELECT i.id, i.invoice_number, c.name as customer_name, i.grand_total, i.created_at
+      FROM invoices i
+      LEFT JOIN customers c ON i.customer_id=c.id
+      WHERE i.business_id=?
+      AND (
+        i.invoice_number LIKE ?
+        OR c.name LIKE ?
+        ${num !== null ? "OR CAST(SUBSTRING_INDEX(i.invoice_number, '-', -1) AS UNSIGNED) = ?" : ""}
+      )
+      ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
+      ORDER BY i.created_at DESC
+      LIMIT 5
+    `;
+        const params = [req.user.business_id, `%${searchTerm}%`, `%${searchTerm}%`];
+        if (num !== null) {
+          params.push(num);
+        }
+        if (!isDeveloper && branchId) {
+          params.push(branchId);
         }
         const rows = await query(sql, params);
         res.json(rows);
@@ -3627,41 +3710,27 @@ var init_invoices = __esm({
         const isDeveloper = req.user.role === "developer";
         const branchId = req.user.branch_id;
         const searchTerm = req.params.invoiceNumber.trim();
-        const match = searchTerm.match(/^([a-zA-Z]*)[^0-9]*(\d+)$/);
-        let sql = "";
-        let params = [];
-        if (match) {
-          const prefix = match[1].toUpperCase();
-          const num = parseInt(match[2], 10);
-          sql = `
-        SELECT id FROM invoices 
-        WHERE CAST(SUBSTRING_INDEX(invoice_number, '-', -1) AS UNSIGNED) = ? 
-        AND business_id=? 
-        ${prefix ? "AND invoice_number LIKE ?" : ""}
-        ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
-        ORDER BY id DESC
-        LIMIT 1
-      `;
+        const digitsOnly = searchTerm.replace(/\D/g, "");
+        const num = digitsOnly ? parseInt(digitsOnly, 10) : null;
+        let sql = `
+      SELECT id FROM invoices 
+      WHERE (
+        invoice_number = ? 
+        OR invoice_number LIKE ?
+        ${num !== null ? "OR CAST(SUBSTRING_INDEX(invoice_number, '-', -1) AS UNSIGNED) = ?" : ""}
+      )
+      AND business_id=? 
+      ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
+      ORDER BY id DESC
+      LIMIT 1
+    `;
+        const params = [searchTerm, `%${searchTerm}%`];
+        if (num !== null) {
           params.push(num);
-          params.push(req.user.business_id);
-          if (prefix) {
-            params.push(`${prefix}-%`);
-          }
-          if (!isDeveloper && branchId) {
-            params.push(branchId);
-          }
-        } else {
-          sql = `
-        SELECT id FROM invoices 
-        WHERE invoice_number LIKE ? AND business_id=? 
-        ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
-        ORDER BY id DESC
-        LIMIT 1
-      `;
-          params = [`%${searchTerm}%`, req.user.business_id];
-          if (!isDeveloper && branchId) {
-            params.push(branchId);
-          }
+        }
+        params.push(req.user.business_id);
+        if (!isDeveloper && branchId) {
+          params.push(branchId);
         }
         const inv = await queryOne(sql, params);
         res.json(inv || {});
@@ -4174,17 +4243,23 @@ var init_invoices = __esm({
         const isDeposit = (items || []).some((item) => item.is_deposit);
         const isRepair = (items || []).some((item) => item.is_repair_payment);
         const invoiceType = isRepair ? "repair" : isDeposit ? "deposit" : "sale";
-        const prefix = isRepair ? "RE" : isDeposit ? "DE" : "SA";
+        const branchPrefix = await getBranchPrefix(req.user.branch_id);
+        const now = /* @__PURE__ */ new Date();
+        const yy = String(now.getFullYear()).slice(-2);
+        const mm = String(now.getMonth() + 1).padStart(2, "0");
+        const yymm = `${yy}${mm}`;
+        const invoicePrefix = `${branchPrefix}-${yymm}`;
         const [lastInv] = await conn.execute(
-          `SELECT invoice_number FROM invoices WHERE invoice_number LIKE '${prefix}-%' AND business_id=? ORDER BY id DESC LIMIT 1`,
-          [req.user.business_id]
+          "SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? AND business_id=? ORDER BY id DESC LIMIT 1",
+          [`${invoicePrefix}-%`, req.user.business_id]
         );
         let nextNum = 1;
         if (lastInv.length > 0) {
-          const lastNum = parseInt(lastInv[0].invoice_number.split("-")[1]);
+          const parts = String(lastInv[0].invoice_number).split("-");
+          const lastNum = parseInt(parts[parts.length - 1], 10);
           if (!isNaN(lastNum)) nextNum = lastNum + 1;
         }
-        const invoiceNumber = `${prefix}-${String(nextNum).padStart(3, "0")}`;
+        const invoiceNumber = `${invoicePrefix}-${String(nextNum).padStart(4, "0")}`;
         const grandTotalNum = Number(grand_total) || 0;
         const rawTotalPaid = (payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
         const totalPaid = Math.min(grandTotalNum, rawTotalPaid);
@@ -4218,10 +4293,12 @@ var init_invoices = __esm({
         for (const item of items) {
           let skuId = item.id || item.sku_id;
           if ((!skuId || skuId === 0) && item.is_repair_payment) {
-            const repairSkuCode = `REPAIR-SERVICE-${req.user.business_id}`;
             const [existing] = await conn.execute(
-              "SELECT s.id FROM product_skus s JOIN products p ON s.product_id=p.id WHERE s.sku_code = ? AND p.business_id = ?",
-              [repairSkuCode, req.user.business_id]
+              `SELECT s.id FROM product_skus s 
+           JOIN products p ON s.product_id=p.id 
+           WHERE p.business_id = ? AND p.product_type = 'service' AND p.name = 'Repair Service' AND p.deleted_at IS NULL
+           ORDER BY s.id ASC LIMIT 1`,
+              [req.user.business_id]
             );
             if (existing.length > 0) {
               skuId = existing[0].id;
@@ -4231,9 +4308,11 @@ var init_invoices = __esm({
                 [req.user.business_id, "Repair Service", "service", 1]
               );
               const productId = pr.insertId;
+              const branchPrefix2 = await getBranchPrefix(req.user.branch_id);
+              const finalSku = `${branchPrefix2}-${String(productId).padStart(5, "0")}`;
               const [sr] = await conn.execute(
                 "INSERT INTO product_skus (product_id,sku_code,barcode,cost_price,selling_price) VALUES (?,?,?,?,?)",
-                [productId, repairSkuCode, repairSkuCode, 0, 0]
+                [productId, finalSku, finalSku, 0, 0]
               );
               skuId = sr.insertId;
             }
@@ -5610,7 +5689,7 @@ __export(inventory_exports, {
 });
 import { Router as Router8 } from "express";
 import { z as z7 } from "zod";
-var router8, addInventorySchema, updateDeviceSchema, deviceActivitySchema, transferSchema, createRepairSchema, updateRepairSchema, inventory_default;
+var router8, addInventorySchema, batchAddDevicesSchema, updateDeviceSchema, deviceActivitySchema, transferSchema, createRepairSchema, updateRepairSchema, inventory_default;
 var init_inventory = __esm({
   "src/routes/inventory.ts"() {
     init_mysql();
@@ -5750,6 +5829,147 @@ var init_inventory = __esm({
       } catch (e) {
         await conn.rollback();
         console.error("[inventory/add] Error:", e.message, e.sql || "");
+        next(e);
+      } finally {
+        conn.release();
+      }
+    });
+    batchAddDevicesSchema = z7.object({
+      branch_id: z7.number().or(z7.string().transform(Number)).optional(),
+      supplier_id: z7.number().or(z7.string().transform(Number)).nullable().optional(),
+      po_number: z7.string().optional(),
+      items: z7.array(z7.object({
+        sku_id: z7.number().or(z7.string().transform(Number)),
+        imei: z7.string().min(1, "IMEI/Serial is required"),
+        cost_price: z7.number().or(z7.string().transform(Number)).optional(),
+        selling_price: z7.number().or(z7.string().transform(Number)).optional(),
+        color: z7.string().optional(),
+        gb: z7.string().optional(),
+        condition: z7.string().optional()
+      })).min(1, "At least one device is required")
+    });
+    router8.post("/batch-add-devices", async (req, res, next) => {
+      const data = batchAddDevicesSchema.parse(req.body);
+      const { branch_id, supplier_id, po_number, items } = data;
+      const activeBranchId = branch_id || req.user.branch_id;
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const skuIds = [...new Set(items.map((i) => i.sku_id))];
+        const [skuRows] = await conn.query(`
+      SELECT s.id as sku_id, s.sku_code, s.barcode, p.id as product_id, p.name as product_name, p.product_type
+      FROM product_skus s JOIN products p ON s.product_id=p.id 
+      WHERE s.id IN (?) AND p.business_id=?
+    `, [skuIds, req.user.business_id]);
+        const skuMap = new Map(skuRows.map((r) => [r.sku_id, r]));
+        const imeiList = items.map((it) => it.imei.trim());
+        const lowerImeis = imeiList.map((s) => s.toLowerCase());
+        const duplicateInBatch = lowerImeis.find((s, idx) => lowerImeis.indexOf(s) !== idx);
+        if (duplicateInBatch) {
+          await conn.rollback();
+          return res.status(400).json({ error: `Double-scan detected: Duplicate IMEI "${duplicateInBatch}" in current batch.` });
+        }
+        for (const item of items) {
+          const cleanImei = item.imei.trim();
+          const [existing] = await conn.execute(
+            "SELECT id, imei, status FROM devices WHERE (imei = ? OR imei_serial = ?) AND business_id = ? LIMIT 1",
+            [cleanImei, cleanImei, req.user.business_id]
+          );
+          if (existing.length > 0) {
+            const dev = existing[0];
+            await conn.rollback();
+            return res.status(400).json({ error: `IMEI "${cleanImei}" already exists in inventory (Status: ${dev.status}).` });
+          }
+        }
+        let finalPoNumber = po_number?.trim();
+        if (!finalPoNumber) {
+          const [lastPo] = await conn.execute("SELECT id FROM purchase_orders WHERE business_id=? ORDER BY id DESC LIMIT 1", [req.user.business_id]);
+          const nextSerial = String((lastPo[0]?.id || 0) + 1).padStart(2, "0");
+          finalPoNumber = `PO${nextSerial}`;
+        }
+        const totalBatchCost = items.reduce((sum, it) => sum + (Number(it.cost_price) || 0), 0);
+        const [existPo] = await conn.execute("SELECT id FROM purchase_orders WHERE po_number=? AND business_id=?", [finalPoNumber, req.user.business_id]);
+        let poId;
+        if (existPo.length === 0) {
+          const [pr] = await conn.execute(
+            "INSERT INTO purchase_orders (business_id,branch_id,supplier_id,po_number,status,total,expected_at) VALUES (?,?,?,?,'received',?,NOW())",
+            [req.user.business_id, activeBranchId, supplier_id || null, finalPoNumber, totalBatchCost]
+          );
+          poId = pr.insertId;
+        } else {
+          poId = existPo[0].id;
+          await conn.execute(
+            "UPDATE purchase_orders SET total=total+?, supplier_id=COALESCE(?, supplier_id) WHERE id=?",
+            [totalBatchCost, supplier_id || null, poId]
+          );
+        }
+        const productGroups = /* @__PURE__ */ new Map();
+        for (const item of items) {
+          const skuInfo = skuMap.get(item.sku_id);
+          if (!skuInfo) throw new Error(`SKU ID ${item.sku_id} not found`);
+          const existingGrp = productGroups.get(skuInfo.product_id) || { count: 0, cost: 0, name: skuInfo.product_name };
+          existingGrp.count += 1;
+          existingGrp.cost += Number(item.cost_price) || 0;
+          productGroups.set(skuInfo.product_id, existingGrp);
+        }
+        for (const [prodId, grp] of productGroups.entries()) {
+          const avgCost = grp.count > 0 ? grp.cost / grp.count : 0;
+          await conn.execute(
+            "INSERT INTO purchase_order_items (po_id,product_id,description,ordered_qty,received_qty,unit_cost,total) VALUES (?,?,?,?,?,?,?)",
+            [poId, prodId, grp.name, grp.count, grp.count, avgCost, grp.cost]
+          );
+        }
+        const insertedDevices = [];
+        for (const item of items) {
+          const skuInfo = skuMap.get(item.sku_id);
+          const cleanImei = item.imei.trim();
+          const itemCost = Number(item.cost_price) || 0;
+          const itemSelling = Number(item.selling_price) || 0;
+          const [devResult] = await conn.execute(
+            "INSERT INTO devices (business_id,branch_id,user_id,sku_id,imei,cost_price,selling_price,color,gb,`condition`,po_number,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,'in_stock')",
+            [req.user.business_id, activeBranchId, req.userId, item.sku_id, cleanImei, itemCost, itemSelling, item.color || null, item.gb || null, item.condition || "New", finalPoNumber]
+          );
+          const insertedDevId = devResult.insertId;
+          insertedDevices.push({
+            id: insertedDevId,
+            sku_id: item.sku_id,
+            product_name: skuInfo.product_name,
+            sku_code: skuInfo.sku_code,
+            barcode: skuInfo.barcode || skuInfo.sku_code,
+            imei: cleanImei,
+            color: item.color || "",
+            gb: item.gb || "",
+            condition: item.condition || "New",
+            cost_price: itemCost,
+            selling_price: itemSelling
+          });
+          const imeiLogDesc = `IMEI: ${cleanImei} (${skuInfo.product_name} ${item.gb || ""} ${item.color || ""} ${item.condition || ""}) added via Batch PO: ${finalPoNumber}`;
+          await conn.execute(
+            "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [insertedDevId, req.userId, "Device Created", imeiLogDesc]
+          );
+          await conn.execute(
+            "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [item.sku_id, req.userId, "Device Created", `Device with IMEI ${cleanImei} added to inventory`]
+          );
+          await conn.execute(
+            "INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [req.user.business_id, activeBranchId, insertedDevId, skuInfo.product_id, req.userId, req.user?.name || "System", "Device Created", `IMEI: ${cleanImei} (${skuInfo.product_name}) added to inventory`, "device", insertedDevId, `/devices/${insertedDevId}`]
+          );
+          await conn.execute(
+            "INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,1) ON DUPLICATE KEY UPDATE quantity=quantity+1",
+            [activeBranchId, item.sku_id]
+          );
+          await conn.execute(
+            "INSERT INTO inventory_movements (business_id,branch_id,sku_id,device_id,movement_type,quantity,unit_cost,reference_type,reference_id) VALUES (?,?,?,?,?,?,?,?,?)",
+            [req.user.business_id, activeBranchId, item.sku_id, insertedDevId, "purchase", 1, itemCost, "purchase_order", poId]
+          );
+        }
+        await conn.commit();
+        res.json({ success: true, po_number: finalPoNumber, devices: insertedDevices });
+      } catch (e) {
+        await conn.rollback();
+        console.error("[inventory/batch-add-devices] Error:", e.message);
         next(e);
       } finally {
         conn.release();
@@ -6427,12 +6647,17 @@ var init_inventory = __esm({
       }
     });
     router8.get("/devices", async (req, res, next) => {
-      const status = req.query.status || "in_stock";
+      const status = req.query.status || "all";
       const branchId = req.query.branch_id;
       try {
         const isSuper = req.user.role === "superadmin";
         let filterClause = "";
-        const params = [req.user.business_id, status];
+        const params = [req.user.business_id];
+        let statusClause = "";
+        if (status && status !== "all") {
+          statusClause = "AND d.status=?";
+          params.push(status);
+        }
         if (!isSuper) {
           filterClause = "AND d.branch_id=? AND d.user_id=?";
           params.push(req.user.branch_id, req.userId);
@@ -6452,7 +6677,7 @@ var init_inventory = __esm({
       LEFT JOIN users u ON d.user_id=u.id
       LEFT JOIN invoice_items ii ON d.id=ii.device_id
       LEFT JOIN invoices inv ON ii.invoice_id=inv.id
-      WHERE d.business_id=? AND d.status=? ${filterClause}
+      WHERE d.business_id=? ${statusClause} ${filterClause}
       ORDER BY d.created_at DESC
     `;
         res.json(await query(sql, params));
@@ -7105,6 +7330,7 @@ var init_inventory = __esm({
       first_name: z7.string().optional(),
       last_name: z7.string().optional(),
       phone: z7.string().optional(),
+      email: z7.string().optional().nullable(),
       device_model: z7.string().optional(),
       issue: z7.string().optional(),
       status: z7.string().optional(),
@@ -7121,6 +7347,7 @@ var init_inventory = __esm({
           customer_id,
           customer_name,
           phone,
+          email,
           device_model,
           issue,
           status,
@@ -7135,16 +7362,19 @@ var init_inventory = __esm({
         let finalCustomerId = customer_id;
         if (!finalCustomerId && phone) {
           const [existing] = await conn.execute(
-            "SELECT id FROM customers WHERE phone = ? AND business_id = ? AND deleted_at IS NULL LIMIT 1",
+            "SELECT id, email FROM customers WHERE phone = ? AND business_id = ? AND deleted_at IS NULL LIMIT 1",
             [phone, req.user.business_id]
           );
           if (existing.length > 0) {
             finalCustomerId = existing[0].id;
+            if (email && !existing[0].email) {
+              await conn.execute("UPDATE customers SET email = ? WHERE id = ?", [email, finalCustomerId]);
+            }
           } else {
-            const combinedName = `${first_name || ""} ${last_name || ""}`.trim() || `Customer (${phone})`;
+            const combinedName = customer_name?.trim() || `${first_name || ""} ${last_name || ""}`.trim() || `Customer (${phone})`;
             const [newCust] = await conn.execute(
-              "INSERT INTO customers (business_id, branch_id, name, first_name, last_name, phone) VALUES (?, ?, ?, ?, ?, ?)",
-              [req.user.business_id, req.user.branch_id, combinedName, first_name || "", last_name || "", phone]
+              "INSERT INTO customers (business_id, branch_id, name, first_name, last_name, phone, email) VALUES (?, ?, ?, ?, ?, ?, ?)",
+              [req.user.business_id, req.user.branch_id, combinedName, first_name || combinedName, last_name || "", phone, email || null]
             );
             finalCustomerId = newCust.insertId;
           }

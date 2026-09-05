@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { 
   Printer, 
   List, 
@@ -951,6 +952,8 @@ const CleanCalendarPicker: React.FC<CalendarPickerProps> = ({
 };
 
 export default function EndOfDay() {
+  const navigate = useNavigate();
+  const { branchSlug } = useParams<{ branchSlug?: string }>();
   const [reportDate, setReportDate] = useState(getTodayString());
   const [showCalendar, setShowCalendar] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -1651,9 +1654,23 @@ export default function EndOfDay() {
                             {payment.paid_at ? new Date(payment.paid_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '--:--'}
                           </td>
                           <td className="py-3 px-6 font-mono font-medium">
-                            <span className={isRefund ? 'text-rose-700 font-semibold' : 'text-blue-700 dark:text-blue-400'}>
-                              {payment.invoice_number || 'Deposit'}
-                            </span>
+                            {payment.invoice_id ? (
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/${branchSlug || 'default'}/invoices/${payment.invoice_id}`)}
+                                className={`inline-flex items-center gap-1 hover:underline cursor-pointer group text-left ${
+                                  isRefund ? 'text-rose-700 font-semibold' : 'text-blue-700 dark:text-blue-400 font-bold'
+                                }`}
+                                title={`Open Invoice ${payment.invoice_number || `#${payment.invoice_id}`}`}
+                              >
+                                <span>{payment.invoice_number || `#${payment.invoice_id}`}</span>
+                                <ExternalLink size={12} className="opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                              </button>
+                            ) : (
+                              <span className={isRefund ? 'text-rose-700 font-semibold' : 'text-[#707070] dark:text-slate-400'}>
+                                {payment.invoice_number || 'Deposit'}
+                              </span>
+                            )}
                           </td>
                           <td className="py-3 px-6 text-black dark:text-slate-300 max-w-[280px] truncate" title={payment.products_summary || payment.customer_name || '--'}>
                             {payment.products_summary || payment.customer_name || 'Walk-in Customer'}

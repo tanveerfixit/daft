@@ -433,17 +433,17 @@ router.get('/special/get-deposit-product', async (req: any, res, next) => {
 // GET /api/products/special/get-repair-product
 router.get('/special/get-repair-product', async (req: any, res, next) => {
   const businessId = req.user?.business_id;
+  const branchId = req.user?.branch_id;
   if (!businessId) return res.status(401).json({ error: 'Business context missing' });
 
-  const repairSkuCode = `REPAIR-SERVICE-${businessId}`;
-  
   const findProduct = async () => {
     return await queryOne(`
       SELECT s.id as sku_id, p.id as product_id, p.name as product_name, s.sku_code, s.selling_price
       FROM product_skus s
       JOIN products p ON s.product_id = p.id
-      WHERE s.sku_code = ? AND p.business_id = ?
-    `, [repairSkuCode, businessId]);
+      WHERE p.business_id = ? AND p.product_type = 'service' AND p.name = 'Repair Service' AND p.deleted_at IS NULL
+      ORDER BY s.id ASC LIMIT 1
+    `, [businessId]);
   };
 
   try {
@@ -454,11 +454,17 @@ router.get('/special/get-repair-product', async (req: any, res, next) => {
     try {
       await conn.beginTransaction();
       
-      const [check] = await conn.execute('SELECT id FROM product_skus WHERE sku_code = ?', [repairSkuCode]);
+      const [check] = await conn.execute(
+        `SELECT s.id as sku_id, p.id as product_id, p.name as product_name, s.sku_code, s.selling_price
+         FROM product_skus s
+         JOIN products p ON s.product_id = p.id
+         WHERE p.business_id = ? AND p.product_type = 'service' AND p.name = 'Repair Service' AND p.deleted_at IS NULL
+         ORDER BY s.id ASC LIMIT 1`,
+        [businessId]
+      );
       if ((check as any[]).length > 0) {
         await conn.rollback();
-        skuInfo = await findProduct();
-        return res.json(skuInfo);
+        return res.json((check as any[])[0]);
       }
 
       const [pr] = await conn.execute(
@@ -466,10 +472,12 @@ router.get('/special/get-repair-product', async (req: any, res, next) => {
         [businessId, 'Repair Service', 'service', 1]
       );
       const productId = (pr as any).insertId;
+      const branchPrefix = await getBranchPrefix(branchId);
+      const finalSku = `${branchPrefix}-${String(productId).padStart(5, '0')}`;
       
       const [sr] = await conn.execute(
         'INSERT INTO product_skus (product_id,sku_code,barcode,cost_price,selling_price) VALUES (?,?,?,?,?)',
-        [productId, repairSkuCode, repairSkuCode, 0, 0]
+        [productId, finalSku, finalSku, 0, 0]
       );
       const skuId = (sr as any).insertId;
       
@@ -479,7 +487,7 @@ router.get('/special/get-repair-product', async (req: any, res, next) => {
         sku_id: skuId,
         product_id: productId,
         product_name: 'Repair Service',
-        sku_code: repairSkuCode,
+        sku_code: finalSku,
         selling_price: 0
       });
     } catch (innerErr: any) {
@@ -495,6 +503,104 @@ router.get('/special/get-repair-product', async (req: any, res, next) => {
   } catch (e: any) {
     console.error('[RepairProduct] Error:', e.message);
     res.status(500).json({ error: e.message || 'Failed to initialize repair product' });
+  }
+});
+
+// GET /api/products/serialized-models
+router.get('/serialized-models', async (req: any, res, next) => {
+  try {
+    const businessId = req.user.business_id;
+    const { search } = req.query;
+    
+    let whereClause = 'WHERE p.business_id = ? AND p.deleted_at IS NULL';
+    const params: any[] = [businessId];
+
+    const rawSearch = search ? String(search).trim() : '';
+    if (rawSearch !== '') {
+      const tokens = rawSearch.split(/\s+/).filter(t => t.length > 0);
+      if (tokens.length > 0) {
+        // AND match for all tokens across name, sku_code, barcode, brand, category
+        const tokenConditions = tokens.map(() => 
+          '(p.name LIKE ? OR s.sku_code LIKE ? OR s.barcode LIKE ? OR COALESCE(m.name, \'\') LIKE ? OR COALESCE(c.name, \'\') LIKE ?)'
+        ).join(' AND ');
+        whereClause += ` AND (${tokenConditions})`;
+        tokens.forEach(t => {
+          const pattern = `%${t}%`;
+          params.push(pattern, pattern, pattern, pattern, pattern);
+        });
+      }
+    } else {
+      // On initial load (no search term), return only serialized products or products already having device records
+      whereClause += ` AND (LOWER(COALESCE(p.product_type, '')) IN ('serialized', 'serial') OR s.id IN (SELECT DISTINCT sku_id FROM devices WHERE business_id = ?))`;
+      params.push(businessId);
+    }
+
+    const sql = `
+      SELECT DISTINCT s.id as sku_id, p.id as product_id, p.name as product_name, s.sku_code, s.barcode,
+             COALESCE(s.selling_price, p.base_unit_price, 0) as selling_price, s.cost_price,
+             c.name as category_name, m.name as manufacturer_name,
+             p.product_type
+      FROM products p
+      JOIN product_skus s ON s.product_id = p.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+      ${whereClause}
+      ORDER BY 
+        CASE 
+          WHEN LOWER(COALESCE(p.product_type, '')) = 'serialized' THEN 1
+          WHEN LOWER(COALESCE(p.product_type, '')) = 'serial' THEN 2
+          WHEN s.id IN (SELECT DISTINCT sku_id FROM devices WHERE business_id = ${businessId}) THEN 3
+          WHEN LOWER(COALESCE(c.name, '')) LIKE '%phone%' OR LOWER(COALESCE(c.name, '')) LIKE '%device%' THEN 4
+          ELSE 5
+        END,
+        p.name ASC
+      LIMIT 200
+    `;
+    
+    let models = await query(sql, params);
+
+    // Fallback: if AND tokens yielded no results but there were multiple tokens, try partial OR match
+    if ((!models || models.length === 0) && rawSearch !== '') {
+      const tokens = rawSearch.split(/\s+/).filter(t => t.length > 0);
+      if (tokens.length > 1) {
+        let orWhere = 'WHERE p.business_id = ? AND p.deleted_at IS NULL AND (';
+        const orConditions = tokens.map(() => 
+          '(p.name LIKE ? OR s.sku_code LIKE ? OR s.barcode LIKE ? OR COALESCE(m.name, \'\') LIKE ? OR COALESCE(c.name, \'\') LIKE ?)'
+        ).join(' OR ');
+        orWhere += `${orConditions})`;
+        const orParams: any[] = [businessId];
+        tokens.forEach(t => {
+          const pattern = `%${t}%`;
+          orParams.push(pattern, pattern, pattern, pattern, pattern);
+        });
+        const orSql = `
+          SELECT DISTINCT s.id as sku_id, p.id as product_id, p.name as product_name, s.sku_code, s.barcode,
+                 COALESCE(s.selling_price, p.base_unit_price, 0) as selling_price, s.cost_price,
+                 c.name as category_name, m.name as manufacturer_name,
+                 p.product_type
+          FROM products p
+          JOIN product_skus s ON s.product_id = p.id
+          LEFT JOIN categories c ON p.category_id = c.id
+          LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+          ${orWhere}
+          ORDER BY 
+            CASE 
+              WHEN LOWER(COALESCE(p.product_type, '')) = 'serialized' THEN 1
+              WHEN LOWER(COALESCE(p.product_type, '')) = 'serial' THEN 2
+              WHEN s.id IN (SELECT DISTINCT sku_id FROM devices WHERE business_id = ${businessId}) THEN 3
+              ELSE 4
+            END,
+            p.name ASC
+          LIMIT 100
+        `;
+        models = await query(orSql, orParams);
+      }
+    }
+
+    res.json(models || []);
+  } catch (e: any) {
+    console.error('[serialized-models] Error:', e.message);
+    next(e);
   }
 });
 

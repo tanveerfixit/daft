@@ -48,16 +48,57 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
     alert_message: cloneProduct?.alert_message || ''
   });
 
+  const getDefaultCategoryId = (type: ProductTypeKey, catList: Category[]): string => {
+    if (!catList || catList.length === 0) return '';
+    if (type === 'serialized') {
+      const phones = catList.find(c => c.name.trim().toLowerCase() === 'phones')
+        || catList.find(c => c.name.trim().toLowerCase() === 'phone')
+        || catList.find(c => c.name.trim().toLowerCase().includes('phone'));
+      return phones ? String(phones.id) : '';
+    } else if (type === 'stock') {
+      const accessories = catList.find(c => c.name.trim().toLowerCase() === 'accessories')
+        || catList.find(c => c.name.trim().toLowerCase() === 'accessory')
+        || catList.find(c => c.name.trim().toLowerCase().includes('accessories'));
+      return accessories ? String(accessories.id) : '';
+    }
+    return '';
+  };
+
   const handleTabChange = (type: ProductTypeKey) => {
     setActiveType(type);
     setSearchParams({ type });
     if (nameInputRef.current) {
       nameInputRef.current.focus();
     }
+    if (!cloneProduct?.category_id) {
+      const defaultCatId = getDefaultCategoryId(type, categories);
+      if (defaultCatId) {
+        setFormData(prev => ({
+          ...prev,
+          category_id: defaultCatId
+        }));
+      }
+    }
   };
 
   useEffect(() => {
-    fetch('/api/categories').then(res => res.json()).then(setCategories);
+    fetch('/api/categories')
+      .then(res => res.json())
+      .then((data: Category[]) => {
+        const catList = Array.isArray(data) ? data : [];
+        setCategories(catList);
+        if (!cloneProduct?.category_id) {
+          const defaultCatId = getDefaultCategoryId(activeType, catList);
+          if (defaultCatId) {
+            setFormData(prev => ({
+              ...prev,
+              category_id: prev.category_id || defaultCatId
+            }));
+          }
+        }
+      })
+      .catch(console.error);
+
     fetch('/api/manufacturers').then(res => res.json()).then(setManufacturers);
     fetch('/api/products?limit=1000')
       .then(res => res.json())

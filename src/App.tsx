@@ -38,6 +38,7 @@ import AddInventory from './components/AddInventory';
 import DeviceDetailView from './components/inventory/DeviceDetails';
 import GettingStarted from './components/GettingStarted';
 import BranchTransfer from './components/BranchTransfer';
+import BatchDeviceIntake from './components/BatchDeviceIntake';
 import ActivityReport from './components/ActivityReport';
 import NotificationBell from './components/NotificationBell';
 import AdminPortal from './components/admin/AdminPortal';
@@ -249,6 +250,17 @@ const DeviceDetailRoute = () => {
       deviceId={Number(id)} 
       onBack={() => navigate(`/${branchSlug}/devices`)} 
       onOpenPrinterSettings={() => navigate(`/${branchSlug}/getting-started?tab=manage-label-printer`)}
+    />
+  );
+};
+
+const BatchDeviceIntakeRoute = () => {
+  const navigate = useNavigate();
+  const branchSlug = slugify(useAuth().currentUser?.branch_name || 'branch');
+  return (
+    <BatchDeviceIntake 
+      onBack={() => navigate(`/${branchSlug}/devices`)} 
+      onSuccess={() => navigate(`/${branchSlug}/devices`)} 
     />
   );
 };
@@ -565,10 +577,10 @@ function AppInner() {
           
           <button 
             onClick={() => navigate(`/${branchSlug}/home`)} 
-            className="pl-2 flex flex-col items-start font-sans cursor-pointer hover:opacity-85 transition-opacity"
+            className="pl-2 flex flex-col items-start font-brand cursor-pointer hover:opacity-85 transition-opacity"
             title="Home Menu"
           >
-            <h1 className="text-[22px] font-bold text-[var(--brand-primary)] font-sans tracking-tight leading-none">
+            <h1 className="text-[24px] font-bold text-[var(--brand-primary)] font-brand tracking-tight leading-none">
               {currentUser?.business_name || currentUser?.branch_name || 'EPOS'}
             </h1>
           </button>
@@ -665,13 +677,13 @@ function AppInner() {
           {isAdmin && (
             <button 
               onClick={() => setShowAdminPortal(true)}
-              className="h-8 overflow-hidden group bg-transparent text-[var(--text-main)] px-3 rounded text-xs font-medium border border-transparent hover:border-[var(--border-base)] transition-all cursor-pointer"
+              className="h-9 overflow-hidden group bg-transparent text-[var(--text-main)] px-3 rounded text-sm font-medium border border-transparent hover:border-[var(--border-base)] transition-all cursor-pointer"
             >
-              <div className="flex flex-col transition-transform duration-500 group-hover:-translate-y-8 ease-in-out">
-                <div className="h-8 flex items-center justify-center whitespace-nowrap">
+              <div className="flex flex-col transition-transform duration-500 group-hover:-translate-y-9 ease-in-out">
+                <div className="h-9 flex items-center justify-center whitespace-nowrap">
                   Admin
                 </div>
-                <div className="h-8 flex items-center justify-center whitespace-nowrap text-blue-600 font-semibold">
+                <div className="h-9 flex items-center justify-center whitespace-nowrap text-blue-600 font-semibold">
                   Log In
                 </div>
               </div>
@@ -683,13 +695,13 @@ function AppInner() {
               logout();
               navigate('/');
             }}
-            className="h-8 overflow-hidden group bg-[var(--bg-card)] text-[var(--text-main)] px-4 rounded text-xs font-medium transition-all border border-[var(--border-base)] shadow-sm hover:border-neutral-400 cursor-pointer"
+            className="h-9 overflow-hidden group bg-[var(--bg-card)] text-[var(--text-main)] px-4 rounded text-sm font-semibold transition-all border border-[var(--border-base)] shadow-sm hover:border-neutral-400 cursor-pointer"
           >
-            <div className="flex flex-col transition-transform duration-500 group-hover:-translate-y-8 ease-in-out">
-              <div className="h-8 flex items-center justify-center whitespace-nowrap">
+            <div className="flex flex-col transition-transform duration-500 group-hover:-translate-y-9 ease-in-out">
+              <div className="h-9 flex items-center justify-center whitespace-nowrap font-semibold">
                 {currentUser.name}
               </div>
-              <div className="h-8 flex items-center justify-center whitespace-nowrap text-red-600 font-semibold">
+              <div className="h-9 flex items-center justify-center whitespace-nowrap text-red-600 font-semibold">
                 Log Out
               </div>
             </div>
@@ -774,6 +786,7 @@ function AppInner() {
                   <Route path="/:branchSlug/customers/:id" element={<CustomerDetailsRoute />} />
                   <Route path="/:branchSlug/repairs/:id" element={<RepairDetailsRoute />} />
                   <Route path="/:branchSlug/devices/:id" element={<DeviceDetailRoute />} />
+                  <Route path="/:branchSlug/batch-device-intake" element={<BatchDeviceIntakeRoute />} />
                   <Route path="/:branchSlug/sku-devices/:id" element={<SkuDeviceDetailsRoute />} />
                   <Route path="/:branchSlug/purchase-orders/:id" element={<PurchaseOrderDetailRoute />} />
                   <Route path="/:branchSlug/manage-data" element={<ManageData />} />

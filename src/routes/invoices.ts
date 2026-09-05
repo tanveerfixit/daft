@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pool, query, queryOne, execute } from '../mysql.js';
+import { pool, query, queryOne, execute, getBranchPrefix } from '../mysql.js';
 import { z } from 'zod';
 import { sendInvoiceEmail } from '../services/mailer.js';
 
@@ -13,50 +13,30 @@ router.get('/suggestions', async (req: any, res, next) => {
     const branchId = req.user.branch_id;
     const searchTerm = q.trim();
     
-    // Parse prefix (letters) and number (digits)
-    const match = searchTerm.match(/^([a-zA-Z]*)[^0-9]*(\d*)$/);
-    let sql = '';
-    let params: any[] = [];
+    // Parse digits if any
+    const digitsOnly = searchTerm.replace(/\D/g, '');
+    const num = digitsOnly ? parseInt(digitsOnly, 10) : null;
     
-    if (match && match[2]) {
-      const prefix = match[1].toUpperCase();
-      const num = parseInt(match[2], 10);
-      sql = `
-        SELECT i.id, i.invoice_number, c.name as customer_name, i.grand_total, i.created_at
-        FROM invoices i
-        LEFT JOIN customers c ON i.customer_id=c.id
-        WHERE i.business_id=?
-        AND CAST(SUBSTRING_INDEX(i.invoice_number, '-', -1) AS UNSIGNED) LIKE ?
-        ${prefix ? "AND i.invoice_number LIKE ?" : ""}
-        ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
-        ORDER BY i.created_at DESC
-        LIMIT 5
-      `;
-      params.push(req.user.business_id);
-      params.push(`${num}%`);
-      if (prefix) {
-        params.push(`${prefix}-%`);
-      }
-      if (!isDeveloper && branchId) {
-        params.push(branchId);
-      }
-    } else {
-      sql = `
-        SELECT i.id, i.invoice_number, c.name as customer_name, i.grand_total, i.created_at
-        FROM invoices i
-        LEFT JOIN customers c ON i.customer_id=c.id
-        WHERE i.business_id=?
-        AND (i.invoice_number LIKE ? OR c.name LIKE ?)
-        ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
-        ORDER BY i.created_at DESC
-        LIMIT 5
-      `;
-      params.push(req.user.business_id);
-      params.push(`%${searchTerm}%`);
-      params.push(`%${searchTerm}%`);
-      if (!isDeveloper && branchId) {
-        params.push(branchId);
-      }
+    let sql = `
+      SELECT i.id, i.invoice_number, c.name as customer_name, i.grand_total, i.created_at
+      FROM invoices i
+      LEFT JOIN customers c ON i.customer_id=c.id
+      WHERE i.business_id=?
+      AND (
+        i.invoice_number LIKE ?
+        OR c.name LIKE ?
+        ${num !== null ? "OR CAST(SUBSTRING_INDEX(i.invoice_number, '-', -1) AS UNSIGNED) = ?" : ""}
+      )
+      ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
+      ORDER BY i.created_at DESC
+      LIMIT 5
+    `;
+    const params: any[] = [req.user.business_id, `%${searchTerm}%`, `%${searchTerm}%`];
+    if (num !== null) {
+      params.push(num);
+    }
+    if (!isDeveloper && branchId) {
+      params.push(branchId);
     }
     
     const rows = await query(sql, params);
@@ -70,45 +50,28 @@ router.get('/by-number/:invoiceNumber', async (req: any, res, next) => {
     const branchId = req.user.branch_id;
     const searchTerm = req.params.invoiceNumber.trim();
     
-    // Parse prefix (letters) and number (digits)
-    const match = searchTerm.match(/^([a-zA-Z]*)[^0-9]*(\d+)$/);
+    const digitsOnly = searchTerm.replace(/\D/g, '');
+    const num = digitsOnly ? parseInt(digitsOnly, 10) : null;
     
-    let sql = '';
-    let params: any[] = [];
-    
-    if (match) {
-      const prefix = match[1].toUpperCase();
-      const num = parseInt(match[2], 10);
-      
-      sql = `
-        SELECT id FROM invoices 
-        WHERE CAST(SUBSTRING_INDEX(invoice_number, '-', -1) AS UNSIGNED) = ? 
-        AND business_id=? 
-        ${prefix ? "AND invoice_number LIKE ?" : ""}
-        ${(!isDeveloper && branchId) ? 'AND branch_id=?' : ''}
-        ORDER BY id DESC
-        LIMIT 1
-      `;
+    let sql = `
+      SELECT id FROM invoices 
+      WHERE (
+        invoice_number = ? 
+        OR invoice_number LIKE ?
+        ${num !== null ? "OR CAST(SUBSTRING_INDEX(invoice_number, '-', -1) AS UNSIGNED) = ?" : ""}
+      )
+      AND business_id=? 
+      ${(!isDeveloper && branchId) ? 'AND branch_id=?' : ''}
+      ORDER BY id DESC
+      LIMIT 1
+    `;
+    const params: any[] = [searchTerm, `%${searchTerm}%`];
+    if (num !== null) {
       params.push(num);
-      params.push(req.user.business_id);
-      if (prefix) {
-        params.push(`${prefix}-%`);
-      }
-      if (!isDeveloper && branchId) {
-        params.push(branchId);
-      }
-    } else {
-      sql = `
-        SELECT id FROM invoices 
-        WHERE invoice_number LIKE ? AND business_id=? 
-        ${(!isDeveloper && branchId) ? 'AND branch_id=?' : ''}
-        ORDER BY id DESC
-        LIMIT 1
-      `;
-      params = [`%${searchTerm}%`, req.user.business_id];
-      if (!isDeveloper && branchId) {
-        params.push(branchId);
-      }
+    }
+    params.push(req.user.business_id);
+    if (!isDeveloper && branchId) {
+      params.push(branchId);
     }
     
     const inv = await queryOne(sql, params) as any;
@@ -670,18 +633,25 @@ router.post('/', async (req: any, res, next) => {
     const isDeposit = (items || []).some((item: any) => item.is_deposit);
     const isRepair = (items || []).some((item: any) => item.is_repair_payment);
     const invoiceType = isRepair ? 'repair' : (isDeposit ? 'deposit' : 'sale');
-    const prefix = isRepair ? 'RE' : (isDeposit ? 'DE' : 'SA');
+
+    const branchPrefix = await getBranchPrefix(req.user.branch_id);
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(-2);
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yymm = `${yy}${mm}`;
+    const invoicePrefix = `${branchPrefix}-${yymm}`;
 
     const [lastInv] = await conn.execute(
-      `SELECT invoice_number FROM invoices WHERE invoice_number LIKE '${prefix}-%' AND business_id=? ORDER BY id DESC LIMIT 1`,
-      [req.user.business_id]
+      'SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? AND business_id=? ORDER BY id DESC LIMIT 1',
+      [`${invoicePrefix}-%`, req.user.business_id]
     );
     let nextNum = 1;
     if ((lastInv as any[]).length > 0) {
-      const lastNum = parseInt((lastInv as any[])[0].invoice_number.split('-')[1]);
+      const parts = String((lastInv as any[])[0].invoice_number).split('-');
+      const lastNum = parseInt(parts[parts.length - 1], 10);
       if (!isNaN(lastNum)) nextNum = lastNum + 1;
     }
-    const invoiceNumber = `${prefix}-${String(nextNum).padStart(3, '0')}`;
+    const invoiceNumber = `${invoicePrefix}-${String(nextNum).padStart(4, '0')}`;
     const grandTotalNum = Number(grand_total) || 0;
     const rawTotalPaid = (payments || []).reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0);
     const totalPaid = Math.min(grandTotalNum, rawTotalPaid);
@@ -717,10 +687,12 @@ router.post('/', async (req: any, res, next) => {
     for (const item of items) {
       let skuId = item.id || item.sku_id;
       if ((!skuId || skuId === 0) && item.is_repair_payment) {
-        const repairSkuCode = `REPAIR-SERVICE-${req.user.business_id}`;
         const [existing] = await conn.execute(
-          'SELECT s.id FROM product_skus s JOIN products p ON s.product_id=p.id WHERE s.sku_code = ? AND p.business_id = ?',
-          [repairSkuCode, req.user.business_id]
+          `SELECT s.id FROM product_skus s 
+           JOIN products p ON s.product_id=p.id 
+           WHERE p.business_id = ? AND p.product_type = 'service' AND p.name = 'Repair Service' AND p.deleted_at IS NULL
+           ORDER BY s.id ASC LIMIT 1`,
+          [req.user.business_id]
         );
         if ((existing as any[]).length > 0) {
           skuId = (existing as any[])[0].id;
@@ -730,9 +702,11 @@ router.post('/', async (req: any, res, next) => {
             [req.user.business_id, 'Repair Service', 'service', 1]
           );
           const productId = (pr as any).insertId;
+          const branchPrefix = await getBranchPrefix(req.user.branch_id);
+          const finalSku = `${branchPrefix}-${String(productId).padStart(5, '0')}`;
           const [sr] = await conn.execute(
             'INSERT INTO product_skus (product_id,sku_code,barcode,cost_price,selling_price) VALUES (?,?,?,?,?)',
-            [productId, repairSkuCode, repairSkuCode, 0, 0]
+            [productId, finalSku, finalSku, 0, 0]
           );
           skuId = (sr as any).insertId;
         }
