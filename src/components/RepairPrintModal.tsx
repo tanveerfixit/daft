@@ -93,7 +93,7 @@ export default function RepairPrintModal({ repair, onClose }: RepairPrintModalPr
               <div>
                 <div className="font-bold text-sm text-neutral-900 dark:text-neutral-100">Device Sticker</div>
                 <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-                  Dymo / Label printer sticker with barcode to stick on phone
+                  Dymo / Label printer sticker with clean typography to stick on phone
                 </div>
               </div>
             </button>
@@ -134,19 +134,19 @@ export default function RepairPrintModal({ repair, onClose }: RepairPrintModalPr
             </div>
             
             {selectedFormat === 'label' ? (
-              <div className="p-3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 rounded text-xs space-y-1 font-mono shadow-xs">
+              <div className="p-3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 rounded text-xs space-y-1.5 font-mono shadow-xs">
                 <div className="flex justify-between items-center border-b border-neutral-300 pb-1 font-bold">
-                  <span className="bg-black text-white px-1.5 py-0.5 rounded text-[10px]">JOB #{repair.id}</span>
+                  <span className="bg-black text-white px-2 py-0.5 rounded text-[11px]">JOB #{repair.id}</span>
                   <span className="text-neutral-600 text-[10px]">{new Date().toLocaleDateString('en-IE', { day: '2-digit', month: 'short' })}</span>
                 </div>
-                <div className="font-bold text-neutral-900 dark:text-white uppercase truncate">{repair.device_model}</div>
-                <div className="text-[11px] text-neutral-600 truncate">{customerName} {phone ? `• ${phone}` : ''}</div>
-                <div className="text-[10px] text-neutral-500 truncate italic">Fault: {repair.issue || 'General Inspection'}</div>
-                <div className="flex justify-between text-[10px] font-bold pt-1 border-t border-dashed border-neutral-200">
-                  <span>Quote: {quoteVal > 0 ? `€${quoteVal.toFixed(2)}` : 'Pending'}</span>
-                  {depositVal > 0 && <span>Dep: €{depositVal.toFixed(2)}</span>}
+                <div className="font-bold text-neutral-900 dark:text-white uppercase truncate text-sm">{repair.device_model}</div>
+                <div className="text-xs text-neutral-700 dark:text-neutral-300 truncate font-semibold">👤 {customerName} {phone ? `• 📞 ${phone}` : ''}</div>
+                <div className="text-[11px] text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 p-1 rounded">Fault: {repair.issue || 'General Inspection / Repair'}</div>
+                <div className="flex justify-between text-xs font-bold pt-1 border-t border-dashed border-neutral-300">
+                  <span>{quoteVal > 0 ? `Quote: €${quoteVal.toFixed(2)}` : 'Quote: Pending'}</span>
+                  {depositVal > 0 && <span>Dep: €${depositVal.toFixed(2)}</span>}
+                  <span>{remainingVal > 0 ? `Bal: €${remainingVal.toFixed(2)}` : ''}</span>
                 </div>
-                <div className="text-center pt-1 text-[10px] font-mono tracking-widest text-neutral-400">||| |||| |||||| |||</div>
               </div>
             ) : (
               <div className="p-3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 rounded text-xs space-y-1 font-mono shadow-xs">

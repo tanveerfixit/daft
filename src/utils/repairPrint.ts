@@ -28,18 +28,13 @@ export interface RepairPrintData {
  */
 export async function printRepairDeviceLabel(repair: RepairPrintData, customSettings?: any) {
   let printerSettings = customSettings;
-  let companyInfo: any = null;
 
   if (!printerSettings) {
     try {
-      const [pRes, cRes] = await Promise.all([
-        fetch('/api/printer-settings').then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('/api/company').then(r => r.ok ? r.json() : null).catch(() => null)
-      ]);
+      const pRes = await fetch('/api/printer-settings').then(r => r.ok ? r.json() : null).catch(() => null);
       printerSettings = pRes;
-      companyInfo = cRes;
     } catch {
-      // Fallbacks used below
+      // Fallback
     }
   }
 
@@ -67,8 +62,9 @@ export async function printRepairDeviceLabel(repair: RepairPrintData, customSett
   const quoteVal = Number(repair.total_quote || 0);
   const depositVal = Number(repair.deposit_paid || 0);
   const remainingVal = Number(repair.remaining_balance || (quoteVal - depositVal));
-  const dateStr = repair.created_at ? new Date(repair.created_at).toLocaleDateString('en-IE', { day: '2-digit', month: 'short' }) : new Date().toLocaleDateString('en-IE', { day: '2-digit', month: 'short' });
-  const barcodeValue = `JOB-${repair.id}`;
+  const dateStr = repair.created_at 
+    ? new Date(repair.created_at).toLocaleDateString('en-IE', { day: '2-digit', month: 'short', year: '2-digit' }) 
+    : new Date().toLocaleDateString('en-IE', { day: '2-digit', month: 'short', year: '2-digit' });
 
   printWindow.document.write(`
     <!DOCTYPE html>
@@ -93,9 +89,9 @@ export async function printRepairDeviceLabel(repair: RepairPrintData, customSett
           body {
             padding: ${margin_top}mm ${margin_right}mm ${margin_bottom}mm ${margin_left}mm;
             font-family: ${font_family}, Arial, sans-serif;
-            font-size: 10px;
+            font-size: 11px;
             box-sizing: border-box;
-            line-height: 1.15;
+            line-height: 1.2;
           }
           * {
             -webkit-print-color-adjust: exact;
@@ -107,90 +103,74 @@ export async function printRepairDeviceLabel(repair: RepairPrintData, customSett
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            padding: 1px 2px;
+            padding: 2px;
           }
           .header-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border-bottom: 1.5px solid #000;
-            padding-bottom: 1px;
-            margin-bottom: 1px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 2px;
+            margin-bottom: 2px;
           }
           .job-badge {
-            font-size: 11px;
+            font-size: 13px;
             font-weight: 900;
             background: #000;
             color: #fff;
-            padding: 1px 4px;
+            padding: 1px 5px;
             border-radius: 2px;
             letter-spacing: 0.5px;
           }
           .date-badge {
-            font-size: 8.5px;
+            font-size: 10px;
             font-weight: 700;
           }
           .device-name {
-            font-size: 10.5px;
+            font-size: 12px;
             font-weight: 900;
             text-transform: uppercase;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            line-height: 1.2;
+            line-height: 1.25;
+            color: #000;
           }
           .customer-row {
-            font-size: 8.5px;
+            font-size: 10px;
             font-weight: 700;
             display: flex;
             justify-content: space-between;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            padding: 1px 0;
           }
           .fault-box {
-            font-size: 8px;
+            font-size: 9.5px;
             font-weight: 600;
-            line-height: 1.1;
+            line-height: 1.15;
             color: #111;
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
             background: #f4f4f4;
-            padding: 1px 2px;
-            border-radius: 1px;
-            border: 0.5px solid #ddd;
+            padding: 2px 3px;
+            border-radius: 2px;
+            border: 1px solid #ccc;
           }
           .price-row {
-            font-size: 8.5px;
+            font-size: 10px;
             font-weight: 800;
             display: flex;
             justify-content: space-between;
             align-items: center;
-          }
-          .barcode-wrapper {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            border-top: 1px dashed #000;
+            padding-top: 2px;
             margin-top: 1px;
           }
-          #barcode {
-            width: 96% !important;
-            max-height: 18px !important;
-            display: block;
-          }
-          .barcode-num {
-            font-size: 7.5px;
-            font-family: monospace;
-            font-weight: 700;
-            line-height: 1;
-            letter-spacing: 1px;
-          }
         </style>
-        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
       </head>
       <body>
         <div class="sticker-container">
@@ -202,39 +182,22 @@ export async function printRepairDeviceLabel(repair: RepairPrintData, customSett
           <div class="device-name">${repair.device_model || 'DEVICE REPAIR'}</div>
           
           <div class="customer-row">
-            <span>${customerName}</span>
-            <span>${phone}</span>
+            <span>👤 ${customerName}</span>
+            <span>📞 ${phone}</span>
           </div>
 
           <div class="fault-box">
-            ${repair.issue ? `Fault: ${repair.issue}` : 'General Inspection'}
+            <b>Fault:</b> ${repair.issue || 'General Inspection / Repair'}
           </div>
 
           <div class="price-row">
-            <span>${quoteVal > 0 ? `Est: €${quoteVal.toFixed(2)}` : 'Est: Pending'}</span>
+            <span>${quoteVal > 0 ? `Quote: €${quoteVal.toFixed(2)}` : 'Quote: Pending'}</span>
             ${depositVal > 0 ? `<span>Dep: €${depositVal.toFixed(2)}</span>` : ''}
-            ${remainingVal > 0 && depositVal > 0 ? `<span>Bal: €${remainingVal.toFixed(2)}</span>` : ''}
-          </div>
-
-          <div class="barcode-wrapper">
-            <svg id="barcode"></svg>
-            <div class="barcode-num">JOB-${repair.id}</div>
+            <span>${remainingVal > 0 ? `Bal: €${remainingVal.toFixed(2)}` : (quoteVal > 0 ? `Bal: €${quoteVal.toFixed(2)}` : '')}</span>
           </div>
         </div>
 
         <script>
-          try {
-            JsBarcode("#barcode", "${barcodeValue}", {
-              format: "CODE128",
-              width: 1.2,
-              height: 16,
-              displayValue: false,
-              margin: 0
-            });
-          } catch (e) {
-            console.error("Barcode generation failed", e);
-          }
-
           window.addEventListener('load', () => {
             setTimeout(() => {
               window.focus();
@@ -332,7 +295,7 @@ export async function printRepairCustomerReceipt(repair: RepairPrintData, custom
           <div style="padding-left: 4px; font-size: 11px;">${repair.issue || 'Inspection & Diagnosis'}</div>
         </div>
 
-        <div class="border-t border-b py-1 my-1">
+        <div class="border-t border-b py-1.5 my-1.5">
           <div class="row">
             <span>Estimated Quote:</span>
             <span class="font-bold">${quoteVal > 0 ? `€${quoteVal.toFixed(2)}` : 'Pending'}</span>
@@ -343,36 +306,19 @@ export async function printRepairCustomerReceipt(repair: RepairPrintData, custom
               <span>€${depositVal.toFixed(2)}</span>
             </div>
           ` : ''}
-          <div class="row" style="font-size: 13px; font-weight: 900; margin-top: 2px;">
+          <div class="row" style="font-size: 13px; font-weight: 900; margin-top: 3px;">
             <span>Balance Due:</span>
             <span>€${remainingVal > 0 ? remainingVal.toFixed(2) : (quoteVal > 0 ? quoteVal.toFixed(2) : '0.00')}</span>
           </div>
         </div>
 
-        <div class="text-center" style="margin-top: 8px;">
-          <svg id="barcode"></svg>
-          <div style="font-size: 9px; font-family: monospace;">JOB-${repair.id}</div>
-        </div>
-
-        <div class="border-t my-1"></div>
-        <div class="text-center" style="font-size: 9.5px; color: #333;">
+        <div class="border-t my-2"></div>
+        <div class="text-center" style="font-size: 10px; color: #333;">
           <div>Please retain this ticket to collect your device.</div>
-          <div>Thank you for your custom!</div>
+          <div style="margin-top: 2px;">Thank you for your custom!</div>
         </div>
 
         <script>
-          try {
-            JsBarcode("#barcode", "JOB-${repair.id}", {
-              format: "CODE128",
-              width: 1.5,
-              height: 25,
-              displayValue: false,
-              margin: 0
-            });
-          } catch (e) {
-            console.error("Barcode generation failed", e);
-          }
-
           window.addEventListener('load', () => {
             setTimeout(() => {
               window.focus();
