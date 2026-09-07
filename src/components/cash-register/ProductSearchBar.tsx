@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, X, Plus, Grid } from 'lucide-react';
+import { Search, X, Plus } from 'lucide-react';
 
 interface ProductSearchBarProps {
   searchQuery: string;
@@ -7,6 +7,8 @@ interface ProductSearchBarProps {
   onClear: () => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onQuickAddClick?: () => void;
+  onToggleSpeedGrid?: () => void;
+  isSpeedGridOpen?: boolean;
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
@@ -16,6 +18,8 @@ export const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
   onClear,
   onKeyDown,
   onQuickAddClick,
+  onToggleSpeedGrid,
+  isSpeedGridOpen,
   inputRef
 }) => {
   return (
@@ -62,12 +66,30 @@ export const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
         </button>
       )}
 
+      {/* Speed Grid Toggle Button with 4-Color Grid Icon */}
       <button
         type="button"
-        className="flex items-center justify-center w-11 h-11 border border-[#d8d8d8] rounded hover:bg-gray-50 text-[#333333] transition-colors cursor-pointer shrink-0"
-        title="View Product Grid"
+        onClick={onToggleSpeedGrid}
+        className={`flex items-center justify-center w-11 h-11 border rounded transition-colors cursor-pointer shrink-0 ${
+          isSpeedGridOpen
+            ? 'border-blue-600 bg-blue-50/80'
+            : 'border-[#d8d8d8] hover:bg-gray-50'
+        }`}
+        title={isSpeedGridOpen ? "Close Speed Grid" : "Open Speed Grid (Fast Keys)"}
       >
-        <Grid className="w-5 h-5" />
+        <svg
+          className="w-5 h-5 transition-transform hover:scale-105"
+          viewBox="0 0 24 24"
+        >
+          {/* Top-Left: Red */}
+          <rect x="2.3" y="2.3" width="8.8" height="8.8" rx="2.4" fill="#ef4444" />
+          {/* Top-Right: Blue */}
+          <rect x="12.9" y="2.3" width="8.8" height="8.8" rx="2.4" fill="#3b82f6" />
+          {/* Bottom-Left: Green */}
+          <rect x="2.3" y="12.9" width="8.8" height="8.8" rx="2.4" fill="#10b981" />
+          {/* Bottom-Right: Yellow / Amber */}
+          <rect x="12.9" y="12.9" width="8.8" height="8.8" rx="2.4" fill="#f59e0b" />
+        </svg>
       </button>
     </div>
   );

@@ -15,6 +15,7 @@ import { safeCustomerName } from '../utils/customerName';
 // Import refactored components
 import { ProductSearchBar } from './cash-register/ProductSearchBar';
 import { SearchResults } from './cash-register/SearchResults';
+import { SpeedGrid } from './cash-register/SpeedGrid';
 import { CartTable } from './cash-register/CartTable';
 import { ActivityLog } from './cash-register/ActivityLog';
 import { Sidebar } from './cash-register/Sidebar';
@@ -45,6 +46,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
   // Quick Add State
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showSpeedGrid, setShowSpeedGrid] = useState(false);
   const [quickName, setQuickName] = useState('');
   const [quickBarcode, setQuickBarcode] = useState('');
   const [quickCost, setQuickCost] = useState('');
@@ -1090,6 +1092,8 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                 }
               }}
               onQuickAddClick={() => openQuickAdd(searchQuery)}
+              onToggleSpeedGrid={() => setShowSpeedGrid(prev => !prev)}
+              isSpeedGridOpen={showSpeedGrid}
             />
             
             {/* Search Results (Floating) */}
@@ -1101,6 +1105,11 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
               activeIndex={activeSearchIndex}
             />
           </div>
+
+          {/* Speed Grid (Fast Keys 1-Click Addition, hidden by default, toggled by quickgrid icon) */}
+          {showSpeedGrid && (
+            <SpeedGrid onAddProduct={addToCart} onClose={() => setShowSpeedGrid(false)} />
+          )}
 
           {/* Cart Table */}
           <CartTable 

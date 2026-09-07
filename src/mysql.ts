@@ -71,7 +71,7 @@ export async function getBranchPrefix(branchId?: number | null, fallback = 'SKU'
 
 // ─── Schema Initialisation ───────────────────────────────────────────────────
 
-export const CURRENT_SCHEMA_VERSION = '2026_09_DEVICE_BRANCH_ISOLATION_V3';
+export const CURRENT_SCHEMA_VERSION = '2026_09_SPEED_GRID_V1';
 
 async function ensureIndex(conn: any, tableName: string, indexName: string, columns: string) {
   try {
@@ -883,6 +883,39 @@ export async function initSchema() {
         final_price DECIMAL(10, 2),
         FOREIGN KEY (sale_id) REFERENCES pos_sales(id),
         FOREIGN KEY (device_id) REFERENCES devices(id)
+      )
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS speed_grid_categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        business_id INT NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        sort_order INT NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
+        INDEX idx_speed_cat_biz (business_id, sort_order)
+      )
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS speed_grid_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        business_id INT NOT NULL,
+        category_id INT NOT NULL,
+        product_id INT NOT NULL,
+        sku_id INT NOT NULL,
+        custom_label VARCHAR(100) NULL,
+        sort_order INT NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
+        FOREIGN KEY (category_id) REFERENCES speed_grid_categories(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+        FOREIGN KEY (sku_id) REFERENCES product_skus(id) ON DELETE CASCADE,
+        INDEX idx_speed_item_cat (category_id, sort_order),
+        INDEX idx_speed_item_biz (business_id)
       )
     `);
 

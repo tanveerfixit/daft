@@ -5,10 +5,11 @@ import {
   Calendar, CheckCircle2, AlertCircle, RefreshCw, FileJson, ArrowDownToLine, 
   ArrowUpFromLine, Check, ShieldCheck, Database, ScanBarcode, Search, Trash2, 
   Smartphone, ListPlus, CheckCheck, Bell, BellRing, Volume2, Coins, Calculator,
-  Sparkles
+  Sparkles, LayoutGrid
 } from 'lucide-react';
 import ThermalReceipt from './ThermalReceipt';
 import { StartingCashModal } from './StartingCashModal';
+import SpeedGridSettings from './settings/SpeedGridSettings';
 
 interface SettingsData {
   currency: string;
@@ -1519,6 +1520,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
 
   const tabs = [
     { id: 'manage-invoices', label: 'Import / Export Invoices', icon: FileSpreadsheet },
+    { id: 'speed-grid', label: 'Speed Grid (POS)', icon: LayoutGrid },
     { id: 'manage-thermal-printer', label: 'Manage Thermal Printer', icon: Printer },
     { id: 'manage-eod-report', label: 'End of Day Report', icon: FileText },
     { id: 'account-setup', label: 'Account Setup', icon: Settings },
@@ -1558,7 +1560,9 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
 
         {/* Content Area */}
         <div className="flex-1 bg-white border border-slate-200 rounded shadow-sm p-8 overflow-auto">
-          {activeTab === 'manage-invoices' ? (
+          {activeTab === 'speed-grid' ? (
+            <SpeedGridSettings />
+          ) : activeTab === 'manage-invoices' ? (
             <div className="max-w-5xl space-y-8">
               <div>
                 <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2.5" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>

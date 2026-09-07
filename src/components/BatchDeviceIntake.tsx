@@ -1015,7 +1015,7 @@ export default function BatchDeviceIntake({
 
         <button
           type="button"
-          onClick={handleAddRow}
+          onClick={() => handleAddRow()}
           className="px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold rounded text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer transition-colors"
         >
           <Plus size={16} /> Add Device Line
@@ -1055,7 +1055,7 @@ export default function BatchDeviceIntake({
                     
                     {/* Product Selector Column */}
                     <td className="py-2.5 px-3.5 relative">
-                      <div className="relative" ref={el => dropdownContainerRefs.current[idx] = el}>
+                      <div className="relative" ref={el => { dropdownContainerRefs.current[idx] = el; }}>
                         <button
                           type="button"
                           onClick={() => {
@@ -1185,7 +1185,7 @@ export default function BatchDeviceIntake({
                     <td className="py-2.5 px-3.5">
                       <div className="relative">
                         <input 
-                          ref={el => imeiInputRefs.current[idx] = el}
+                          ref={el => { imeiInputRefs.current[idx] = el; }}
                           type="text"
                           placeholder="Scan or type IMEI / Serial..."
                           value={row.imei}
@@ -1294,7 +1294,7 @@ export default function BatchDeviceIntake({
         <div className="p-4 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-3">
           <button
             type="button"
-            onClick={handleAddRow}
+            onClick={() => handleAddRow()}
             className="px-4 py-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 text-sm font-bold rounded flex items-center gap-2 cursor-pointer shadow-xs"
           >
             <Plus size={16} /> Add Another Device Line
