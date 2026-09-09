@@ -74,16 +74,22 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
     repairing: repairs.filter(r => r.status === 'repairing').length,
     completed: repairs.filter(r => r.status === 'completed').length,
     collected: repairs.filter(r => r.status === 'collected').length,
+    unrepairable: repairs.filter(r => r.status === 'unrepairable').length,
+    cancelled: repairs.filter(r => r.status === 'cancelled').length,
+    collected_unfixed: repairs.filter(r => r.status === 'collected_unfixed').length,
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'new':        return 'text-neutral-700 dark:text-neutral-300';
-      case 'diagnosed':  return 'text-blue-600 dark:text-blue-400';
-      case 'repairing':  return 'text-purple-600 dark:text-purple-400';
-      case 'completed':  return 'text-emerald-600 dark:text-emerald-400 font-bold';
-      case 'collected':  return 'text-neutral-500 dark:text-neutral-400';
-      default:           return 'text-neutral-600 dark:text-neutral-400';
+      case 'new':               return { label: 'New / Booked', color: 'text-neutral-700 dark:text-neutral-300' };
+      case 'diagnosed':         return { label: 'Diagnosed', color: 'text-blue-600 dark:text-blue-400 font-semibold' };
+      case 'repairing':         return { label: 'In Progress', color: 'text-purple-600 dark:text-purple-400 font-semibold' };
+      case 'completed':         return { label: 'Completed', color: 'text-emerald-600 dark:text-emerald-400 font-bold' };
+      case 'collected':         return { label: 'Collected', color: 'text-neutral-500 dark:text-neutral-400' };
+      case 'unrepairable':      return { label: 'Cannot Fix', color: 'text-red-600 dark:text-red-400 font-bold' };
+      case 'cancelled':         return { label: 'Cancelled', color: 'text-slate-500 dark:text-slate-400 font-medium' };
+      case 'collected_unfixed': return { label: 'Returned (Unfixed)', color: 'text-neutral-400' };
+      default:                  return { label: status?.replace('_', ' ') || 'Unknown', color: 'text-neutral-600 dark:text-neutral-400' };
     }
   };
 
@@ -116,6 +122,9 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
             <option value="repairing">In Progress ({statusCounts.repairing || 0})</option>
             <option value="completed">Completed ({statusCounts.completed || 0})</option>
             <option value="collected">Collected ({statusCounts.collected || 0})</option>
+            <option value="unrepairable">Cannot Fix / BER ({statusCounts.unrepairable || 0})</option>
+            <option value="cancelled">Cancelled / Declined ({statusCounts.cancelled || 0})</option>
+            <option value="collected_unfixed">Returned Unfixed ({statusCounts.collected_unfixed || 0})</option>
           </select>
         </div>
 
@@ -203,9 +212,14 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
                   {(repair as any).customer_phone || (repair as any).phone || '—'}
                 </td>
                 <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850">
-                  <span className={`text-[15px] font-semibold capitalize ${getStatusColor(repair.status)}`}>
-                    {repair.status?.replace('_', ' ')}
-                  </span>
+                  {(() => {
+                    const badge = getStatusBadge(repair.status);
+                    return (
+                      <span className={`text-[15px] ${badge.color}`}>
+                        {badge.label}
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td className="px-1.5 py-0.5 text-center" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center justify-center gap-1">

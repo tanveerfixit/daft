@@ -13,6 +13,8 @@ export interface Product {
   category_name?: string;
   manufacturer_name?: string;
   total_stock?: number;
+  units_sold?: number;
+  has_sales?: boolean;
   allow_overselling?: boolean | number;
   device_id?: number;
   min_stock_level?: number;
@@ -164,7 +166,7 @@ export interface Repair {
   phone?: string;
   device_model: string;
   issue: string;
-  status: 'new' | 'diagnosed' | 'repairing' | 'completed' | 'collected';
+  status: 'new' | 'diagnosed' | 'repairing' | 'completed' | 'collected' | 'unrepairable' | 'cancelled' | 'collected_unfixed';
   total_quote?: number;
   deposit_paid?: number;
   remaining_balance?: number;

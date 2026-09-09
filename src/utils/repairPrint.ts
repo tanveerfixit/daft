@@ -239,11 +239,30 @@ export async function printRepairCustomerReceipt(repair: RepairPrintData, custom
   const remainingVal = Number(repair.remaining_balance || (quoteVal - depositVal));
   const dateStr = repair.created_at ? new Date(repair.created_at).toLocaleString('en-IE') : new Date().toLocaleString('en-IE');
 
+  const isUnfixed = repair.status === 'unrepairable' || repair.status === 'cancelled' || repair.status === 'collected_unfixed';
+  const isCancelled = repair.status === 'cancelled';
+  const isCannotFix = repair.status === 'unrepairable';
+  const isCollectedUnfixed = repair.status === 'collected_unfixed';
+
+  const ticketTitle = isCancelled 
+    ? 'JOB CANCELLATION VOUCHER' 
+    : (isCannotFix || isCollectedUnfixed) 
+    ? 'DEVICE RETURN VOUCHER' 
+    : 'REPAIR TICKET';
+
+  const statusLabel = isCancelled 
+    ? 'CANCELLED BY CUSTOMER' 
+    : isCannotFix 
+    ? 'CANNOT FIX / BER' 
+    : isCollectedUnfixed 
+    ? 'RETURNED (UNFIXED)' 
+    : repair.status?.replace('_', ' ').toUpperCase() || 'BOOKED';
+
   printWindow.document.write(`
     <!DOCTYPE html>
     <html>
       <head>
-        <title>Repair Receipt #${repair.id}</title>
+        <title>${ticketTitle} #${repair.id}</title>
         <meta charset="utf-8" />
         <style>
           @page {
@@ -269,7 +288,8 @@ export async function printRepairCustomerReceipt(repair: RepairPrintData, custom
           .my-1 { margin-top: 4px; margin-bottom: 4px; }
           .py-1 { padding-top: 4px; padding-bottom: 4px; }
           .row { display: flex; justify-content: space-between; }
-          #barcode { width: 90% !important; height: 28px !important; margin: 4px auto; display: block; }
+          .badge { display: inline-block; padding: 2px 6px; font-weight: bold; border-radius: 3px; font-size: 11px; margin-top: 3px; }
+          .badge-danger { border: 1px solid #000; background: #eee; }
         </style>
       </head>
       <body>
@@ -278,9 +298,10 @@ export async function printRepairCustomerReceipt(repair: RepairPrintData, custom
           ${company?.address ? `<div style="font-size: 10px;">${company.address}</div>` : ''}
           ${company?.phone ? `<div style="font-size: 10px;">Tel: ${company.phone}</div>` : ''}
           <div class="border-b my-1"></div>
-          <div style="font-size: 13px; font-weight: 900; letter-spacing: 0.5px;">REPAIR TICKET</div>
+          <div style="font-size: 13px; font-weight: 900; letter-spacing: 0.5px;">${ticketTitle}</div>
           <div style="font-size: 14px; font-weight: 900; margin: 2px 0;">JOB #${repair.id}</div>
           <div style="font-size: 10px;">${dateStr}</div>
+          <div class="badge badge-danger">STATUS: ${statusLabel}</div>
         </div>
 
         <div class="border-b my-1"></div>
@@ -294,28 +315,55 @@ export async function printRepairCustomerReceipt(repair: RepairPrintData, custom
           <div style="padding-left: 4px; font-size: 11px;">${repair.issue || 'Inspection & Diagnosis'}</div>
         </div>
 
-        <div class="border-t border-b py-1.5 my-1.5">
-          <div class="row">
-            <span>Estimated Quote:</span>
-            <span class="font-bold">${quoteVal > 0 ? `€${quoteVal.toFixed(2)}` : 'Pending'}</span>
-          </div>
-          ${depositVal > 0 ? `
+        ${isUnfixed ? `
+          <div class="border-t border-b py-1.5 my-1.5">
             <div class="row">
-              <span>Deposit Paid:</span>
-              <span>€${depositVal.toFixed(2)}</span>
+              <span class="font-bold">Device Outcome:</span>
+              <span class="font-bold">${isCannotFix ? 'Unrepairable (BER)' : isCancelled ? 'Job Cancelled / Declined' : 'Returned Unfixed'}</span>
             </div>
-          ` : ''}
-          <div class="row" style="font-size: 13px; font-weight: 900; margin-top: 3px;">
-            <span>Balance Due:</span>
-            <span>€${remainingVal > 0 ? remainingVal.toFixed(2) : (quoteVal > 0 ? quoteVal.toFixed(2) : '0.00')}</span>
+            ${depositVal > 0 ? `
+              <div class="row" style="margin-top: 3px;">
+                <span>Deposit Accounted:</span>
+                <span>€${depositVal.toFixed(2)}</span>
+              </div>
+            ` : ''}
           </div>
-        </div>
 
-        <div class="border-t my-2"></div>
-        <div class="text-center" style="font-size: 10px; color: #333;">
-          <div>Please retain this ticket to collect your device.</div>
-          <div style="margin-top: 2px;">Thank you for your custom!</div>
-        </div>
+          <div style="margin-top: 10px; font-size: 10px;">
+            <div><b>Customer Return Acknowledgment:</b></div>
+            <div style="font-size: 9px; color: #444; margin-top: 2px;">
+              I confirm the return of my device in the condition described above.
+            </div>
+            <div style="margin-top: 20px; border-bottom: 1px solid #000; width: 100%;"></div>
+            <div class="row" style="font-size: 9px; margin-top: 2px;">
+              <span>Signature</span>
+              <span>Date: ____/____/________</span>
+            </div>
+          </div>
+        ` : `
+          <div class="border-t border-b py-1.5 my-1.5">
+            <div class="row">
+              <span>Estimated Quote:</span>
+              <span class="font-bold">${quoteVal > 0 ? `€${quoteVal.toFixed(2)}` : 'Pending'}</span>
+            </div>
+            ${depositVal > 0 ? `
+              <div class="row">
+                <span>Deposit Paid:</span>
+                <span>€${depositVal.toFixed(2)}</span>
+              </div>
+            ` : ''}
+            <div class="row" style="font-size: 13px; font-weight: 900; margin-top: 3px;">
+              <span>Balance Due:</span>
+              <span>€${remainingVal > 0 ? remainingVal.toFixed(2) : (quoteVal > 0 ? quoteVal.toFixed(2) : '0.00')}</span>
+            </div>
+          </div>
+
+          <div class="border-t my-2"></div>
+          <div class="text-center" style="font-size: 10px; color: #333;">
+            <div>Please retain this ticket to collect your device.</div>
+            <div style="margin-top: 2px;">Thank you for your custom!</div>
+          </div>
+        `}
 
         <script>
           window.addEventListener('load', () => {

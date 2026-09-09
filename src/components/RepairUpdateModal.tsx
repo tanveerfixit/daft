@@ -9,11 +9,23 @@ interface RepairUpdateModalProps {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'new',       label: 'New',          color: 'bg-[var(--bg-zebra)] text-[var(--text-main)] border-[var(--border-header)]' },
-  { value: 'diagnosed', label: 'Diagnosed',    color: 'bg-[var(--bg-hover)] text-[var(--brand-primary)] border-[var(--brand-primary)]' },
-  { value: 'repairing', label: 'Under Process', color: 'bg-[var(--brand-warning)]/10 text-[var(--brand-warning)] border-[var(--brand-warning)]' },
-  { value: 'completed', label: 'Completed',    color: 'bg-[var(--brand-success)]/10 text-[var(--brand-success)] border-[var(--brand-success)]' },
-  { value: 'collected', label: 'Collected',    color: 'bg-[var(--bg-accent-subtle)] text-[var(--text-muted)] border-[var(--border-header)]' },
+  { value: 'new',               label: 'New / Booked',                 color: 'bg-[var(--bg-zebra)] text-[var(--text-main)] border-[var(--border-header)]' },
+  { value: 'diagnosed',         label: 'Diagnosed',                    color: 'bg-[var(--bg-hover)] text-[var(--brand-primary)] border-[var(--brand-primary)]' },
+  { value: 'repairing',         label: 'Under Process',                color: 'bg-[var(--brand-warning)]/10 text-[var(--brand-warning)] border-[var(--brand-warning)]' },
+  { value: 'completed',         label: 'Completed (Ready to Collect)', color: 'bg-[var(--brand-success)]/10 text-[var(--brand-success)] border-[var(--brand-success)]' },
+  { value: 'collected',         label: 'Collected (Fixed)',            color: 'bg-[var(--bg-accent-subtle)] text-[var(--text-muted)] border-[var(--border-header)]' },
+  { value: 'unrepairable',      label: 'Cannot Fix / BER',             color: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30' },
+  { value: 'cancelled',         label: 'Cancelled / Declined',         color: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/30' },
+  { value: 'collected_unfixed', label: 'Returned Unfixed (Collected)', color: 'bg-neutral-500/10 text-neutral-500 border-neutral-500/30' },
+];
+
+const QUICK_REASONS = [
+  'Water Damage / Board Short',
+  'Parts Unavailable / Obsolete',
+  'Customer Declined Updated Quote',
+  'Customer Changed Mind',
+  'Beyond Economic Repair (BER)',
+  'Device Irreparable'
 ];
 
 export default function RepairUpdateModal({ repair, onClose, onSaved }: RepairUpdateModalProps) {
@@ -134,30 +146,57 @@ export default function RepairUpdateModal({ repair, onClose, onSaved }: RepairUp
           {/* STATUS TAB */}
           {activeTab === 'status' && (
             <div className="space-y-3">
-              <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-4">Select New Status</p>
-              {STATUS_OPTIONS.map(opt => (
-                <label
-                  key={opt.value}
-                  className={`flex items-center gap-3 px-4 py-3 rounded border cursor-pointer transition-all ${
-                    status === opt.value
-                      ? opt.color + ' border-current shadow-sm'
-                      : 'border-[var(--border-base)] hover:bg-[var(--bg-hover)]'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="status"
-                    value={opt.value}
-                    checked={status === opt.value}
-                    onChange={() => setStatus(opt.value as Repair['status'])}
-                    className="accent-[var(--brand-primary)]"
-                  />
-                  <span className="font-bold text-sm">{opt.label}</span>
-                  {repair.status === opt.value && (
-                    <span className="ml-auto text-[10px] text-[var(--text-muted-more)] font-bold">CURRENT</span>
-                  )}
-                </label>
-              ))}
+              <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Select New Status</p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {STATUS_OPTIONS.map(opt => (
+                  <label
+                    key={opt.value}
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded border cursor-pointer transition-all text-xs font-bold ${
+                      status === opt.value
+                        ? opt.color + ' border-current shadow-sm'
+                        : 'border-[var(--border-base)] hover:bg-[var(--bg-hover)] text-[var(--text-main)]'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="status"
+                      value={opt.value}
+                      checked={status === opt.value}
+                      onChange={() => setStatus(opt.value as Repair['status'])}
+                      className="accent-[var(--brand-primary)] shrink-0"
+                    />
+                    <span className="truncate">{opt.label}</span>
+                    {repair.status === opt.value && (
+                      <span className="ml-auto text-[9px] text-[var(--text-muted-more)] font-bold">CURRENT</span>
+                    )}
+                  </label>
+                ))}
+              </div>
+
+              {/* Quick Reason Selector for Cannot Fix / Cancelled */}
+              {(status === 'unrepairable' || status === 'cancelled') && (
+                <div className="mt-4 p-3 bg-red-50/50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 rounded-lg space-y-2 animate-in fade-in duration-150">
+                  <p className="text-xs font-bold text-red-700 dark:text-red-300 flex items-center gap-1.5">
+                    <AlertCircle size={14} />
+                    <span>Select Reason / Internal Note:</span>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {QUICK_REASONS.map(reason => (
+                      <button
+                        key={reason}
+                        type="button"
+                        onClick={() => {
+                          setNotes(prev => prev ? `${prev}\n• ${reason}` : `• ${reason}`);
+                        }}
+                        className="px-2 py-1 bg-white dark:bg-neutral-900 hover:bg-red-100 dark:hover:bg-red-900/40 text-neutral-800 dark:text-neutral-200 border border-red-200 dark:border-red-800/60 rounded text-[11px] font-medium transition-colors cursor-pointer"
+                      >
+                        + {reason}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

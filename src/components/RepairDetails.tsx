@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Printer, Tag, Phone, Mail, Wrench, Pencil, Save, Loader2, CreditCard } from 'lucide-react';
+import { ArrowLeft, Printer, Tag, Phone, Mail, Wrench, Pencil, Save, Loader2, CreditCard, AlertTriangle, XCircle, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { printRepairDeviceLabel, printRepairCustomerReceipt } from '../utils/repairPrint';
 
 interface RepairDetailsProps {
@@ -15,6 +15,26 @@ const STEPS = [
   { value: 'repairing', label: 'Under Process', index: 2 },
   { value: 'completed', label: 'Completed', index: 3 },
   { value: 'collected', label: 'Collected', index: 4 },
+];
+
+const STATUS_OPTIONS = [
+  { value: 'new', label: 'New / Booked' },
+  { value: 'diagnosed', label: 'Diagnosed' },
+  { value: 'repairing', label: 'Under Process' },
+  { value: 'completed', label: 'Completed (Ready for pickup)' },
+  { value: 'collected', label: 'Collected (Fixed)' },
+  { value: 'unrepairable', label: 'Cannot Fix / BER' },
+  { value: 'cancelled', label: 'Cancelled by Customer' },
+  { value: 'collected_unfixed', label: 'Returned to Customer (Unfixed)' },
+];
+
+const QUICK_REASONS = [
+  'Water Damage / Board Short',
+  'Parts Unavailable / Obsolete',
+  'Customer Declined Updated Quote',
+  'Beyond Economic Repair (BER)',
+  'Customer Changed Mind',
+  'Device Irreparable',
 ];
 
 export default function RepairDetails({ repairId, onBack, onPayAtRegister, onViewInvoice }: RepairDetailsProps) {
@@ -420,7 +440,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
             
             {/* Update Status Card */}
             <div className="bg-white border border-[#e5e7eb] rounded shadow-sm overflow-hidden">
-              <div className="bg-[#f8f9fa] px-5 py-4 border-b border-[#e5e7eb] flex justify-between items-center">
+              <div className="bg-[#f8f9fa] px-5 py-4 border-b border-[#e5e7eb] flex flex-wrap justify-between items-center gap-3">
                 <div className="flex items-center gap-3">
                   <h2 className="font-semibold text-gray-800 text-lg">Status:</h2>
                   <select
@@ -429,7 +449,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
                     onChange={(e) => setStatus(e.target.value)}
                     className="bg-white border border-gray-300 rounded py-1.5 px-3 text-sm font-bold text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer hover:bg-gray-50 transition-colors"
                   >
-                    {STEPS.map(s => (
+                    {STATUS_OPTIONS.map(s => (
                       <option key={s.value} value={s.value}>
                         {s.label}
                       </option>
@@ -444,43 +464,120 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
               </div>
               <div className="p-5">
                 
-                {/* Stepper Design */}
-                <div className="flex items-center justify-between mb-6 relative" id="stepper-container">
-                  <div className="absolute left-0 top-1/2 w-full h-0.5 bg-gray-200 -z-10 -translate-y-1/2"></div>
-                  
-                  {STEPS.map((step, idx) => {
-                    const isActive = idx === currentStepIndex;
-                    const isCompleted = idx < currentStepIndex;
-
-                    let circleClass = 'w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-bold border-4 border-white transition-colors cursor-pointer';
-                    let textClass = 'text-xs font-medium text-gray-500 cursor-pointer';
-
-                    if (isActive) {
-                      circleClass = 'w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold border-4 border-white shadow-sm ring-1 ring-blue-600 cursor-pointer';
-                      textClass = 'text-xs font-bold text-blue-600 cursor-pointer';
-                    } else if (isCompleted) {
-                      circleClass = 'w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold border-4 border-white cursor-pointer';
-                      textClass = 'text-xs font-medium text-blue-600 cursor-pointer';
-                    }
-
-                    return (
-                      <div 
-                        key={step.value} 
-                        onClick={() => setStatus(step.value)} 
-                        className="stepper-item flex flex-col items-center gap-2 bg-white px-2 cursor-pointer"
-                        title={`Set status to ${step.label}`}
-                      >
-                        <div className={circleClass}>
-                          {idx + 1}
-                        </div>
-                        <span className={textClass}>
-                          {step.label}
-                        </span>
+                {/* Special Status Banner for Cannot Fix / Cancelled / Returned */}
+                {status === 'unrepairable' ? (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-red-900">
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={20} />
+                      <div>
+                        <div className="font-bold text-sm text-red-800">Device Declared Unrepairable / Cannot Fix</div>
+                        <div className="text-xs text-red-700 mt-0.5">Device is physically in store waiting for customer pickup.</div>
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStatus('collected_unfixed');
+                        setNewNote(prev => (prev ? `${prev}\n` : '') + `[${new Date().toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' })}] Returned unfixed device to customer.`);
+                      }}
+                      className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold transition-colors shrink-0 shadow-xs cursor-pointer flex items-center gap-1.5"
+                    >
+                      <RotateCcw size={14} />
+                      <span>Mark Returned to Customer</span>
+                    </button>
+                  </div>
+                ) : status === 'cancelled' ? (
+                  <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-slate-900">
+                    <div className="flex items-start gap-2.5">
+                      <XCircle className="text-slate-600 shrink-0 mt-0.5" size={20} />
+                      <div>
+                        <div className="font-bold text-sm text-slate-800">Job Cancelled / Quote Declined</div>
+                        <div className="text-xs text-slate-600 mt-0.5">Repair was cancelled. Device is waiting to be returned to customer.</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStatus('collected_unfixed');
+                        setNewNote(prev => (prev ? `${prev}\n` : '') + `[${new Date().toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' })}] Returned cancelled device to customer.`);
+                      }}
+                      className="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded text-xs font-bold transition-colors shrink-0 shadow-xs cursor-pointer flex items-center gap-1.5"
+                    >
+                      <RotateCcw size={14} />
+                      <span>Mark Returned to Customer</span>
+                    </button>
+                  </div>
+                ) : status === 'collected_unfixed' ? (
+                  <div className="mb-6 p-4 bg-neutral-100 border border-neutral-300 rounded-lg flex items-center gap-2.5 text-neutral-800">
+                    <CheckCircle2 className="text-neutral-600 shrink-0" size={20} />
+                    <div>
+                      <div className="font-bold text-sm text-neutral-800">Device Returned (Unfixed)</div>
+                      <div className="text-xs text-neutral-600 mt-0.5">The uncompleted/unfixed device has been returned to the customer. Job closed.</div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Standard Stepper Design */
+                  <div className="flex items-center justify-between mb-6 relative" id="stepper-container">
+                    <div className="absolute left-0 top-1/2 w-full h-0.5 bg-gray-200 -z-10 -translate-y-1/2"></div>
+                    
+                    {STEPS.map((step, idx) => {
+                      const isActive = idx === currentStepIndex;
+                      const isCompleted = idx < currentStepIndex;
+
+                      let circleClass = 'w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center font-bold border-4 border-white transition-colors cursor-pointer';
+                      let textClass = 'text-xs font-medium text-gray-500 cursor-pointer';
+
+                      if (isActive) {
+                        circleClass = 'w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold border-4 border-white shadow-sm ring-1 ring-blue-600 cursor-pointer';
+                        textClass = 'text-xs font-bold text-blue-600 cursor-pointer';
+                      } else if (isCompleted) {
+                        circleClass = 'w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold border-4 border-white cursor-pointer';
+                        textClass = 'text-xs font-medium text-blue-600 cursor-pointer';
+                      }
+
+                      return (
+                        <div 
+                          key={step.value} 
+                          onClick={() => setStatus(step.value)} 
+                          className="stepper-item flex flex-col items-center gap-2 bg-white px-2 cursor-pointer"
+                          title={`Set status to ${step.label}`}
+                        >
+                          <div className={circleClass}>
+                            {idx + 1}
+                          </div>
+                          <span className={textClass}>
+                            {step.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 
+                {/* Quick reason tag chips for Cannot Fix / Cancelled */}
+                {(status === 'unrepairable' || status === 'cancelled') && (
+                  <div className="mb-3">
+                    <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1.5">
+                      Quick Reason Tags (Click to add to note):
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {QUICK_REASONS.map(reason => (
+                        <button
+                          key={reason}
+                          type="button"
+                          onClick={() => {
+                            const timeStr = new Date().toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' });
+                            setNewNote(prev => (prev ? `${prev}\n` : '') + `[${timeStr}] ${reason}`);
+                          }}
+                          className="px-2.5 py-1 text-xs bg-neutral-100 dark:bg-neutral-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-neutral-700 dark:text-neutral-300 hover:text-blue-700 rounded border border-neutral-200 dark:border-neutral-700 transition-colors cursor-pointer"
+                        >
+                          + {reason}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <textarea
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}

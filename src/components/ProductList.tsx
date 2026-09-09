@@ -74,6 +74,7 @@ export default function ProductList({
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedManufacturer, setSelectedManufacturer] = useState('');
   const [selectedType, setSelectedType] = useState('');
+  const [selectedStockStatus, setSelectedStockStatus] = useState('');
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -102,6 +103,9 @@ export default function ProductList({
     if (selectedType && selectedType !== 'All Types' && selectedType !== 'All Products') {
       url += `&product_type=${selectedType}`;
     }
+    if (selectedStockStatus && selectedStockStatus !== 'all') {
+      url += `&stock_status=${selectedStockStatus}`;
+    }
 
     fetch(url)
       .then(res => res.json())
@@ -129,7 +133,7 @@ export default function ProductList({
 
   useEffect(() => {
     fetchProducts();
-  }, [currentPage, itemsPerPage, searchQuery, selectedCategory, selectedManufacturer, selectedType]);
+  }, [currentPage, itemsPerPage, searchQuery, selectedCategory, selectedManufacturer, selectedType, selectedStockStatus]);
 
   useEffect(() => {
     if (isActive) {
@@ -143,7 +147,7 @@ export default function ProductList({
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [isActive, currentPage, itemsPerPage, searchQuery, selectedCategory, selectedManufacturer, selectedType]);
+  }, [isActive, currentPage, itemsPerPage, searchQuery, selectedCategory, selectedManufacturer, selectedType, selectedStockStatus]);
 
   useEffect(() => {
     fetch('/api/categories').then(res => res.json()).then(setCategories);
@@ -246,13 +250,28 @@ export default function ProductList({
           <option value="All Categories">All Categories</option>
           {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
+
+        <select 
+          value={selectedStockStatus}
+          onChange={(e) => { setSelectedStockStatus(e.target.value); setCurrentPage(1); }}
+          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 text-sm cursor-pointer w-56"
+        >
+          <option value="">All Stock Status</option>
+          <option value="in_stock">In Stock (&gt; 0)</option>
+          <option value="negative_stock">Negative Stock (&lt; 0 e.g. -1, -5)</option>
+          <option value="zero_stock">Zero Stock (= 0)</option>
+          <option value="out_of_stock">Out of Stock / Sold (≤ 0)</option>
+          <option value="sold_out">Sold Out (≤ 0 &amp; Invoiced)</option>
+          <option value="has_sales">Has Sales History</option>
+        </select>
         
-        {(selectedType || selectedManufacturer || selectedCategory || searchInput) && (
+        {(selectedType || selectedManufacturer || selectedCategory || selectedStockStatus || searchInput) && (
           <button
             onClick={() => {
               setSelectedType('');
               setSelectedManufacturer('');
               setSelectedCategory('');
+              setSelectedStockStatus('');
               setSearchInput('');
               setSearchQuery('');
               setCurrentPage(1);
@@ -416,9 +435,29 @@ export default function ProductList({
                     €{(Number(product.selling_price) || 0).toFixed(2)}
                   </td>
                   <td className="px-1.5 py-0.5 text-center font-bold">
-                    <span className={product.total_stock && product.total_stock > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
-                      {product.total_stock || 0}
-                    </span>
+                    {product.total_stock !== undefined && product.total_stock > 0 ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-mono">
+                        {product.total_stock}
+                      </span>
+                    ) : product.total_stock !== undefined && product.total_stock < 0 ? (
+                      <span 
+                        className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 font-mono"
+                        title={`Negative Stock / Oversold (${product.total_stock})`}
+                      >
+                        {product.total_stock}
+                      </span>
+                    ) : product.has_sales ? (
+                      <span 
+                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-850 dark:bg-amber-950 dark:text-amber-300 font-sans" 
+                        title={`Sold out · ${product.units_sold || 0} unit(s) invoiced`}
+                      >
+                        0 · Sold
+                      </span>
+                    ) : (
+                      <span className="text-neutral-400 dark:text-neutral-600 font-mono">
+                        0
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))

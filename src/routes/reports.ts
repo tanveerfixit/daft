@@ -27,10 +27,10 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
     const salesKpi = await queryOne(salesSql, salesParams) as any;
 
     // 2. REPAIRS KPI:
-    // - Open: running total of non-collected repairs
+    // - Open: running total of non-collected repairs (excluding collected, cancelled, and returned unfixed)
     let openRepairsSql = `
       SELECT COUNT(id) as count FROM jobs 
-      WHERE business_id=? AND status != 'collected'
+      WHERE business_id=? AND status NOT IN ('collected', 'cancelled', 'collected_unfixed')
       ${(!isDeveloper && branchId) ? 'AND branch_id=?' : ''}
     `;
     const openRepairsParams = (!isDeveloper && branchId) ? [businessId, branchId] : [businessId];
@@ -127,6 +127,196 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
       };
     });
 
+    // 6. Daily Sales Trend
+    let dailyTrendSql = `
+      SELECT DATE_FORMAT(created_at, '%Y-%m-%d') as date,
+             COUNT(id) as count,
+             COALESCE(SUM(grand_total), 0) as total
+      FROM invoices
+      WHERE business_id=? AND created_at >= ? AND created_at <= ?
+      ${(!isDeveloper && branchId) ? 'AND branch_id=?' : ''}
+      GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d')
+      ORDER BY date ASC
+    `;
+    const dailyTrendParams = (!isDeveloper && branchId) ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
+    const dailyTrendRows = await query(dailyTrendSql, dailyTrendParams) as any[];
+
+    // 7. Hourly Peak Trading Trend (0 to 23)
+    let hourlyTrendSql = `
+      SELECT HOUR(created_at) as hour,
+             COUNT(id) as count,
+             COALESCE(SUM(grand_total), 0) as total
+      FROM invoices
+      WHERE business_id=? AND created_at >= ? AND created_at <= ?
+      ${(!isDeveloper && branchId) ? 'AND branch_id=?' : ''}
+      GROUP BY HOUR(created_at)
+      ORDER BY hour ASC
+    `;
+    const hourlyTrendParams = (!isDeveloper && branchId) ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
+    const hourlyTrendRows = await query(hourlyTrendSql, hourlyTrendParams) as any[];
+
+    const hourlyMap = new Map(hourlyTrendRows.map(r => [Number(r.hour), r]));
+    const hourlyTrend = Array.from({ length: 24 }, (_, h) => {
+      const row = hourlyMap.get(h);
+      const displayHour = h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`;
+      return {
+        hour: h,
+        label: displayHour,
+        count: row ? Number(row.count || 0) : 0,
+        total: row ? Number(row.total || 0) : 0
+      };
+    });
+
+    // 8. Executive Financial Metrics (COGS, Net Profit, Margin %, Tax)
+    let profitSql = `
+      SELECT 
+        COALESCE(SUM(i.grand_total), 0) as grand_total,
+        COALESCE(SUM(i.tax_total), 0) as tax_total,
+        COALESCE(SUM(i.discount_total), 0) as discount_total,
+        COALESCE(SUM(ii.quantity * COALESCE(ii.cost, s.cost_price, 0)), 0) as cogs
+      FROM invoices i
+      LEFT JOIN invoice_items ii ON ii.invoice_id = i.id
+      LEFT JOIN product_skus s ON ii.sku_id = s.id
+      WHERE i.business_id=? AND i.created_at >= ? AND i.created_at <= ?
+      ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
+    `;
+    const profitParams = (!isDeveloper && branchId) ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
+    const profitRow = await queryOne(profitSql, profitParams) as any;
+
+    const grossRevenue = Number(salesKpi.total || 0);
+    const cogs = Number(profitRow?.cogs || 0);
+    const grossProfit = Math.max(0, grossRevenue - cogs);
+    const marginPercent = grossRevenue > 0 ? (grossProfit / grossRevenue) * 100 : 0;
+    const aov = salesKpi.count > 0 ? (grossRevenue / salesKpi.count) : 0;
+    const taxTotal = Number(profitRow?.tax_total || 0);
+
+    // 9. Top Profit Drivers ("Money Makers")
+    let topProfitSql = `
+      SELECT 
+        COALESCE(p.name, 'Product') as name,
+        p.id as product_id,
+        SUM(ii.quantity) as qty_sold,
+        COALESCE(SUM(ii.total), 0) as revenue,
+        COALESCE(SUM(ii.quantity * COALESCE(ii.cost, s.cost_price, 0)), 0) as cost,
+        COALESCE(SUM(ii.total - (ii.quantity * COALESCE(ii.cost, s.cost_price, 0))), 0) as profit,
+        COALESCE(bs.quantity, 0) as current_stock
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      LEFT JOIN product_skus s ON ii.sku_id = s.id
+      LEFT JOIN products p ON s.product_id = p.id
+      LEFT JOIN branch_stock bs ON (bs.sku_id = s.id AND bs.branch_id = i.branch_id)
+      WHERE i.business_id=? AND i.created_at >= ? AND i.created_at <= ?
+      ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
+      GROUP BY p.name, p.id, bs.quantity
+      ORDER BY profit DESC
+      LIMIT 10
+    `;
+    const topProfitParams = (!isDeveloper && branchId) ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
+    const topProfitRows = await query(topProfitSql, topProfitParams) as any[];
+
+    const topProfitDrivers = topProfitRows.map(r => {
+      const rev = Number(r.revenue || 0);
+      const prof = Number(r.profit || 0);
+      const margin = rev > 0 ? (prof / rev) * 100 : 0;
+      return {
+        name: r.name,
+        qtySold: Number(r.qty_sold || 0),
+        revenue: rev,
+        profit: prof,
+        marginPercent: margin,
+        currentStock: Number(r.current_stock || 0)
+      };
+    });
+
+    // 10. Growth & Upselling Levers (Attachment Rate, Revenue Split, Repeat Customers)
+    let multiItemSql = `
+      SELECT 
+        COUNT(DISTINCT i.id) as total_invoices,
+        COUNT(DISTINCT CASE WHEN item_counts.item_cnt > 1 THEN i.id END) as multi_item_invoices
+      FROM invoices i
+      JOIN (
+        SELECT invoice_id, SUM(quantity) as item_cnt 
+        FROM invoice_items 
+        GROUP BY invoice_id
+      ) item_counts ON item_counts.invoice_id = i.id
+      WHERE i.business_id=? AND i.created_at >= ? AND i.created_at <= ?
+      ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
+    `;
+    const multiItemParams = (!isDeveloper && branchId) ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
+    const multiItemRow = await queryOne(multiItemSql, multiItemParams) as any;
+
+    const totalInv = Number(multiItemRow?.total_invoices || salesKpi.count || 0);
+    const multiInv = Number(multiItemRow?.multi_item_invoices || 0);
+    const attachmentRate = totalInv > 0 ? (multiInv / totalInv) * 100 : 0;
+
+    let splitSql = `
+      SELECT 
+        COALESCE(SUM(CASE WHEN p.product_type = 'service' OR ii.device_id IS NOT NULL THEN ii.total ELSE 0 END), 0) as repair_revenue,
+        COALESCE(SUM(CASE WHEN p.product_type != 'service' AND ii.device_id IS NULL THEN ii.total ELSE 0 END), 0) as retail_revenue
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      LEFT JOIN product_skus s ON ii.sku_id = s.id
+      LEFT JOIN products p ON s.product_id = p.id
+      WHERE i.business_id=? AND i.created_at >= ? AND i.created_at <= ?
+      ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
+    `;
+    const splitParams = (!isDeveloper && branchId) ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
+    const splitRow = await queryOne(splitSql, splitParams) as any;
+    const repairRev = Number(splitRow?.repair_revenue || 0);
+    const retailRev = Number(splitRow?.retail_revenue || 0);
+    const splitTotal = repairRev + retailRev || 1;
+    const repairPercent = (repairRev / splitTotal) * 100;
+    const retailPercent = (retailRev / splitTotal) * 100;
+
+    let repeatCustSql = `
+      SELECT 
+        COUNT(DISTINCT i.customer_id) as total_customers,
+        COUNT(DISTINCT CASE WHEN cust_orders.order_cnt > 1 THEN i.customer_id END) as repeat_customers
+      FROM invoices i
+      JOIN (
+        SELECT customer_id, COUNT(id) as order_cnt 
+        FROM invoices 
+        WHERE business_id=?
+        GROUP BY customer_id
+      ) cust_orders ON cust_orders.customer_id = i.customer_id
+      WHERE i.business_id=? AND i.customer_id IS NOT NULL AND i.created_at >= ? AND i.created_at <= ?
+      ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
+    `;
+    const repeatCustParams = (!isDeveloper && branchId) ? [businessId, businessId, startDateTime, endDateTime, branchId] : [businessId, businessId, startDateTime, endDateTime];
+    const repeatCustRow = await queryOne(repeatCustSql, repeatCustParams) as any;
+    const totalActiveCust = Number(repeatCustRow?.total_customers || 0);
+    const repeatActiveCust = Number(repeatCustRow?.repeat_customers || 0);
+    const repeatCustomerRate = totalActiveCust > 0 ? (repeatActiveCust / totalActiveCust) * 100 : 0;
+
+    let lowStockSql = `
+      SELECT p.name, COALESCE(bs.quantity, 0) as stock, s.cost_price, s.selling_price as retail_price
+      FROM products p
+      JOIN product_skus s ON s.product_id = p.id
+      JOIN branch_stock bs ON bs.sku_id = s.id
+      WHERE p.business_id=? AND bs.quantity <= 3 AND p.deleted_at IS NULL
+      ${(!isDeveloper && branchId) ? 'AND bs.branch_id=?' : ''}
+      ORDER BY bs.quantity ASC
+      LIMIT 4
+    `;
+    const lowStockParams = (!isDeveloper && branchId) ? [businessId, branchId] : [businessId];
+    const lowStockRows = await query(lowStockSql, lowStockParams) as any[];
+
+    let fixRateSql = `
+      SELECT 
+        COUNT(CASE WHEN status IN ('completed', 'collected') THEN 1 END) as fixed_count,
+        COUNT(CASE WHEN status IN ('unrepairable', 'cancelled') THEN 1 END) as unfixed_count,
+        COUNT(id) as total_jobs
+      FROM jobs
+      WHERE business_id=? AND created_at >= ? AND created_at <= ?
+      ${(!isDeveloper && branchId) ? 'AND branch_id=?' : ''}
+    `;
+    const fixRateParams = (!isDeveloper && branchId) ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
+    const fixRateRow = await queryOne(fixRateSql, fixRateParams) as any;
+    const fixedCount = Number(fixRateRow?.fixed_count || 0);
+    const unfixedCount = Number(fixRateRow?.unfixed_count || 0);
+    const closedJobs = fixedCount + unfixedCount;
+    const fixRate = closedJobs > 0 ? (fixedCount / closedJobs) * 100 : 100;
+
     res.json({
       sales: {
         total: salesKpi.total || 0,
@@ -135,14 +325,44 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
       repairs: {
         open: openRepairsKpi.count || 0,
         added: addedRepairsKpi.count || 0,
-        invoiced: invoicedRepairsKpi.count || 0
+        invoiced: invoicedRepairsKpi.count || 0,
+        fixRate
       },
       customers: {
         added: addedCustomersKpi.count || 0,
         purchased: purchasedCustomersKpi.count || 0
       },
+      financials: {
+        grossRevenue,
+        cogs,
+        grossProfit,
+        marginPercent,
+        aov,
+        taxTotal
+      },
+      topProfitDrivers,
+      growthLevers: {
+        attachmentRate,
+        repairRevenue: repairRev,
+        retailRevenue: retailRev,
+        repairPercent,
+        retailPercent,
+        repeatCustomerRate,
+        reorderAlerts: lowStockRows.map(r => ({
+          name: r.name,
+          stock: Number(r.stock || 0),
+          costPrice: Number(r.cost_price || 0),
+          retailPrice: Number(r.retail_price || 0)
+        }))
+      },
       payments: paymentRows,
-      categories: categoriesReport
+      categories: categoriesReport,
+      dailyTrend: dailyTrendRows.map(r => ({
+        date: r.date,
+        count: Number(r.count || 0),
+        total: Number(r.total || 0)
+      })),
+      hourlyTrend
     });
   } catch (e: any) { next(e); }
 });

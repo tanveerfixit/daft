@@ -10,7 +10,7 @@ router.get('/', async (req: any, res, next) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = (page - 1) * limit;
-    const { search, category_id, manufacturer_id, product_type } = req.query;
+    const { search, category_id, manufacturer_id, product_type, stock_status } = req.query;
 
     let whereClause = 'WHERE p.deleted_at IS NULL AND p.business_id = ?';
     const params: any[] = [req.user.business_id];
@@ -34,6 +34,30 @@ router.get('/', async (req: any, res, next) => {
     if (product_type && String(product_type).trim() !== '' && product_type !== 'All Types' && product_type !== 'All Products') {
       whereClause += ' AND p.product_type = ?';
       params.push(String(product_type).trim());
+    }
+
+    if (stock_status && String(stock_status).trim() !== '' && stock_status !== 'all') {
+      const status = String(stock_status).trim();
+      if (status === 'negative_stock' || status === 'oversold' || status === 'negative') {
+        // Items with negative stock (e.g. -1, -5, etc.)
+        whereClause += ' AND (SELECT COALESCE(SUM(quantity), 0) FROM branch_stock WHERE sku_id = s.id) < 0';
+      } else if (status === 'zero_stock') {
+        // Exactly 0 stock
+        whereClause += ' AND (SELECT COALESCE(SUM(quantity), 0) FROM branch_stock WHERE sku_id = s.id) = 0';
+      } else if (status === 'in_stock') {
+        whereClause += ' AND (SELECT COALESCE(SUM(quantity), 0) FROM branch_stock WHERE sku_id = s.id) > 0';
+      } else if (status === 'out_of_stock') {
+        whereClause += ' AND (SELECT COALESCE(SUM(quantity), 0) FROM branch_stock WHERE sku_id = s.id) <= 0';
+      } else if (status === 'sold_out') {
+        // Zero or negative stock AND has generated invoices/sales in history
+        whereClause += ` AND (SELECT COALESCE(SUM(quantity), 0) FROM branch_stock WHERE sku_id = s.id) <= 0 
+                         AND (EXISTS (SELECT 1 FROM invoice_items ii WHERE ii.sku_id = s.id) 
+                              OR EXISTS (SELECT 1 FROM devices d WHERE d.sku_id = s.id AND d.status = 'sold'))`;
+      } else if (status === 'has_sales') {
+        // Any product with sales/invoice records
+        whereClause += ` AND (EXISTS (SELECT 1 FROM invoice_items ii WHERE ii.sku_id = s.id) 
+                              OR EXISTS (SELECT 1 FROM devices d WHERE d.sku_id = s.id AND d.status = 'sold'))`;
+      }
     }
 
     const countSql = `
@@ -63,25 +87,61 @@ router.get('/', async (req: any, res, next) => {
     
     const products = await query(productsSql, [...params, limit, offset]) as any[];
 
-    // Batch query stock for the current page only using index (eliminates N correlated subqueries)
+    // Batch query stock and sales for current page
     let stockMap: Record<number, number> = {};
+    let salesMap: Record<number, number> = {};
     if (products.length > 0) {
       const skuIds = products.map((p: any) => p.id);
+      const placeholders = skuIds.map(() => '?').join(',');
+
+      // 1. Stock quantities
       const stockRows = await query(
         `SELECT sku_id, COALESCE(SUM(quantity), 0) as total_stock 
          FROM branch_stock 
-         WHERE sku_id IN (${skuIds.map(() => '?').join(',')}) 
+         WHERE sku_id IN (${placeholders}) 
          GROUP BY sku_id`,
         skuIds
       ) as any[];
       stockMap = Object.fromEntries(stockRows.map((r: any) => [r.sku_id, Number(r.total_stock)]));
+
+      // 2. Invoice sales quantities
+      const invoiceSalesRows = await query(
+        `SELECT sku_id, COALESCE(SUM(quantity), 0) as sold_qty
+         FROM invoice_items
+         WHERE sku_id IN (${placeholders})
+         GROUP BY sku_id`,
+        skuIds
+      ) as any[];
+      for (const row of invoiceSalesRows) {
+        salesMap[row.sku_id] = Number(row.sold_qty || 0);
+      }
+
+      // 3. Serialized devices marked as sold
+      const deviceSalesRows = await query(
+        `SELECT sku_id, COUNT(*) as sold_devices
+         FROM devices
+         WHERE sku_id IN (${placeholders}) AND status = 'sold'
+         GROUP BY sku_id`,
+        skuIds
+      ) as any[];
+      for (const row of deviceSalesRows) {
+        if (!salesMap[row.sku_id]) {
+          salesMap[row.sku_id] = Number(row.sold_devices || 0);
+        }
+      }
     }
 
-    const mapped = products.map((p: any) => ({
-      ...p,
-      total_stock: stockMap[p.id] || 0,
-      name: p.product_name + (p.sku_code ? ` (${p.sku_code})` : '')
-    }));
+    const mapped = products.map((p: any) => {
+      const stock = stockMap[p.id] || 0;
+      const sold = salesMap[p.id] || 0;
+      return {
+        ...p,
+        total_stock: stock,
+        units_sold: sold,
+        has_sales: sold > 0,
+        name: p.product_name + (p.sku_code ? ` (${p.sku_code})` : '')
+      };
+    });
 
     res.json({
       products: mapped,
