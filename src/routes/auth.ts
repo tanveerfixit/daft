@@ -28,9 +28,10 @@ function verifyToken(token: string | undefined): any {
   if (revokedTokens.has(token)) return null;
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
-    const resetTime = userPasswordResets.get(decoded.userId);
+    const userId = decoded.userId || decoded.id;
+    const resetTime = userId ? userPasswordResets.get(userId) : undefined;
     if (resetTime && decoded.iat < resetTime) return null;
-    return decoded;
+    return { ...decoded, userId };
   } catch {
     return null;
   }
@@ -82,7 +83,7 @@ export async function requireAuthAsync(req: any, res: any, next: any) {
     next();
   } catch (e: any) { 
     console.error('[Auth] requireAuthAsync error:', e.message);
-    res.status(401).json({ error: 'Invalid or expired token' }); 
+    res.status(500).json({ error: 'Internal server authentication error' }); 
   }
 }
 
@@ -179,7 +180,7 @@ router.post('/signup', async (req: any, res, next) => {
 
       // Issue JWT token
       const token = jwt.sign(
-        { id: userId, email, role: 'staff', business_id: businessId, branch_id: branchId },
+        { userId, email, role: 'staff', business_id: businessId, branch_id: branchId },
         JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -254,8 +255,8 @@ router.post('/login', async (req: any, res, next) => {
     }
     if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
-    // JWT Generation
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '2h' });
+    // JWT Generation (12h session aligned with business work shift)
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '12h' });
     await execute('UPDATE users SET last_login=NOW() WHERE id=?', [user.id]);
     const branch = await queryOne('SELECT * FROM branches WHERE id=?', [user.branch_id]) as any;
     const business = await queryOne('SELECT name FROM businesses WHERE id=?', [user.business_id]) as any;

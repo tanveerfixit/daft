@@ -814,6 +814,37 @@ async function initSchema() {
         FOREIGN KEY (device_id) REFERENCES devices(id)
       )
     `);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS speed_grid_categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        business_id INT NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        sort_order INT NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
+        INDEX idx_speed_cat_biz (business_id, sort_order)
+      )
+    `);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS speed_grid_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        business_id INT NOT NULL,
+        category_id INT NOT NULL,
+        product_id INT NOT NULL,
+        sku_id INT NOT NULL,
+        custom_label VARCHAR(100) NULL,
+        sort_order INT NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
+        FOREIGN KEY (category_id) REFERENCES speed_grid_categories(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+        FOREIGN KEY (sku_id) REFERENCES product_skus(id) ON DELETE CASCADE,
+        INDEX idx_speed_item_cat (category_id, sort_order),
+        INDEX idx_speed_item_biz (business_id)
+      )
+    `);
     const productAlterQueries = [
       "ALTER TABLE products ADD COLUMN sku_barcode VARCHAR(50) UNIQUE AFTER id",
       "ALTER TABLE products ADD COLUMN base_unit_price DECIMAL(10, 2) DEFAULT 0.00 AFTER name",
@@ -1279,7 +1310,7 @@ var init_mysql = __esm({
       keepAliveInitialDelay: 1e4,
       charset: "utf8mb4_unicode_ci"
     });
-    CURRENT_SCHEMA_VERSION = "2026_09_DEVICE_BRANCH_ISOLATION_V3";
+    CURRENT_SCHEMA_VERSION = "2026_09_SPEED_GRID_V1";
   }
 });
 
@@ -1685,9 +1716,10 @@ function verifyToken(token) {
   if (revokedTokens.has(token)) return null;
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    const resetTime = userPasswordResets.get(decoded.userId);
+    const userId = decoded.userId || decoded.id;
+    const resetTime = userId ? userPasswordResets.get(userId) : void 0;
     if (resetTime && decoded.iat < resetTime) return null;
-    return decoded;
+    return { ...decoded, userId };
   } catch {
     return null;
   }
@@ -1727,7 +1759,7 @@ async function requireAuthAsync(req, res, next) {
     next();
   } catch (e) {
     console.error("[Auth] requireAuthAsync error:", e.message);
-    res.status(401).json({ error: "Invalid or expired token" });
+    res.status(500).json({ error: "Internal server authentication error" });
   }
 }
 async function requireAdminAsync(req, res, next) {
@@ -1812,7 +1844,7 @@ var init_auth = __esm({
           await conn.commit();
           conn.release();
           const token = jwt.sign(
-            { id: userId, email, role: "staff", business_id: businessId, branch_id: branchId },
+            { userId, email, role: "staff", business_id: businessId, branch_id: branchId },
             JWT_SECRET,
             { expiresIn: "7d" }
           );
@@ -1877,7 +1909,7 @@ var init_auth = __esm({
           }
         }
         if (!valid) return res.status(401).json({ error: "Invalid email or password" });
-        const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "2h" });
+        const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "12h" });
         await execute("UPDATE users SET last_login=NOW() WHERE id=?", [user.id]);
         const branch = await queryOne("SELECT * FROM branches WHERE id=?", [user.branch_id]);
         const business = await queryOne("SELECT name FROM businesses WHERE id=?", [user.business_id]);
@@ -2788,7 +2820,7 @@ var init_products = __esm({
     });
     router3.get("/special/get-deposit-product", async (req, res, next) => {
       const businessId = req.user?.business_id;
-      if (!businessId) return res.status(401).json({ error: "Business context missing" });
+      if (!businessId) return res.status(400).json({ error: "Business context missing" });
       const depositSkuCode = `DEPOSIT-WALLET-${businessId}`;
       const findProduct = async () => {
         return await queryOne(`
@@ -2847,7 +2879,7 @@ var init_products = __esm({
     router3.get("/special/get-repair-product", async (req, res, next) => {
       const businessId = req.user?.business_id;
       const branchId = req.user?.branch_id;
-      if (!businessId) return res.status(401).json({ error: "Business context missing" });
+      if (!businessId) return res.status(400).json({ error: "Business context missing" });
       const findProduct = async () => {
         return await queryOne(`
       SELECT s.id as sku_id, p.id as product_id, p.name as product_name, s.sku_code, s.selling_price
@@ -5255,7 +5287,19 @@ __export(settings_exports, {
 });
 import { Router as Router7 } from "express";
 import { z as z6 } from "zod";
-var router7, settingsSchema, popupSettingsSchema, authSettingsSchema, companySchema, paymentMethodsSchema, printerSettingsSchema, thermalPrinterSettingsSchema, categoryManufacturerSchema, supplierSchema, settings_default;
+async function ensureDefaultSpeedGridCategories(businessId) {
+  const existing = await query("SELECT id FROM speed_grid_categories WHERE business_id=? ORDER BY sort_order ASC", [businessId]);
+  if (existing.length === 0) {
+    for (let i = 0; i < DEFAULT_SPEED_GRID_CATEGORIES.length; i++) {
+      await execute("INSERT INTO speed_grid_categories (business_id, name, sort_order) VALUES (?, ?, ?)", [
+        businessId,
+        DEFAULT_SPEED_GRID_CATEGORIES[i],
+        i + 1
+      ]);
+    }
+  }
+}
+var router7, settingsSchema, popupSettingsSchema, authSettingsSchema, companySchema, paymentMethodsSchema, printerSettingsSchema, thermalPrinterSettingsSchema, categoryManufacturerSchema, supplierSchema, DEFAULT_SPEED_GRID_CATEGORIES, settings_default;
 var init_settings = __esm({
   "src/routes/settings.ts"() {
     init_mysql();
@@ -5714,6 +5758,203 @@ ${e.stack}
     router7.get("/branches", async (req, res, next) => {
       try {
         res.json(await query("SELECT * FROM branches WHERE business_id=?", [req.user.business_id]));
+      } catch (e) {
+        next(e);
+      }
+    });
+    DEFAULT_SPEED_GRID_CATEGORIES = [
+      "Accessories",
+      "Device",
+      "Vape",
+      "Screen Protectors",
+      "Cables & Chargers",
+      "Cases & Covers",
+      "Repairs & Services",
+      "Trending"
+    ];
+    router7.get("/speed-grid", async (req, res, next) => {
+      const businessId = req.user.business_id;
+      const branchId = req.user.branch_id || 0;
+      try {
+        await ensureDefaultSpeedGridCategories(businessId);
+        const categories = await query(
+          "SELECT id, name, sort_order FROM speed_grid_categories WHERE business_id=? ORDER BY sort_order ASC LIMIT 8",
+          [businessId]
+        );
+        if (categories.length === 0) {
+          return res.json({ categories: [] });
+        }
+        const categoryIds = categories.map((c) => c.id);
+        const placeholders = categoryIds.map(() => "?").join(",");
+        const items = await query(`
+      SELECT 
+        sgi.id,
+        sgi.category_id,
+        sgi.product_id,
+        sgi.sku_id,
+        sgi.custom_label,
+        sgi.sort_order,
+        p.name AS product_name,
+        p.product_type,
+        p.allow_overselling,
+        p.alert_message,
+        ps.sku_code,
+        ps.selling_price,
+        ps.cost_price,
+        COALESCE(bs.quantity, 0) AS stock_quantity
+      FROM speed_grid_items sgi
+      JOIN products p ON sgi.product_id = p.id
+      JOIN product_skus ps ON sgi.sku_id = ps.id
+      LEFT JOIN branch_stock bs ON ps.id = bs.sku_id AND bs.branch_id = ?
+      WHERE sgi.business_id = ? AND sgi.category_id IN (${placeholders})
+        AND p.deleted_at IS NULL
+      ORDER BY sgi.sort_order ASC
+    `, [branchId, businessId, ...categoryIds]);
+        const result = categories.map((cat) => ({
+          ...cat,
+          items: items.filter((item) => item.category_id === cat.id)
+        }));
+        res.json({ categories: result });
+      } catch (e) {
+        next(e);
+      }
+    });
+    router7.post("/speed-grid/save-all", async (req, res, next) => {
+      const businessId = req.user.business_id;
+      const { categories } = req.body;
+      if (!Array.isArray(categories)) {
+        return res.status(400).json({ error: "Categories array is required" });
+      }
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        for (let i = 0; i < Math.min(categories.length, 8); i++) {
+          const cat = categories[i];
+          let catId = cat.id;
+          if (catId) {
+            await conn.execute(
+              "UPDATE speed_grid_categories SET name=?, sort_order=? WHERE id=? AND business_id=?",
+              [cat.name || `Category ${i + 1}`, i + 1, catId, businessId]
+            );
+          } else {
+            const [res2] = await conn.execute(
+              "INSERT INTO speed_grid_categories (business_id, name, sort_order) VALUES (?, ?, ?)",
+              [businessId, cat.name || `Category ${i + 1}`, i + 1]
+            );
+            catId = res2.insertId;
+          }
+          await conn.execute(
+            "DELETE FROM speed_grid_items WHERE category_id=? AND business_id=?",
+            [catId, businessId]
+          );
+          if (Array.isArray(cat.items)) {
+            for (let j = 0; j < Math.min(cat.items.length, 20); j++) {
+              const item = cat.items[j];
+              if (item && item.product_id && item.sku_id) {
+                await conn.execute(
+                  "INSERT INTO speed_grid_items (business_id, category_id, product_id, sku_id, custom_label, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+                  [
+                    businessId,
+                    catId,
+                    item.product_id,
+                    item.sku_id,
+                    item.custom_label ? item.custom_label.trim() : null,
+                    j + 1
+                  ]
+                );
+              }
+            }
+          }
+        }
+        await conn.commit();
+        res.json({ success: true });
+      } catch (e) {
+        await conn.rollback();
+        next(e);
+      } finally {
+        conn.release();
+      }
+    });
+    router7.get("/speed-grid/top-sellers", async (req, res, next) => {
+      const businessId = req.user.business_id;
+      const branchId = req.user.branch_id || 0;
+      const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 365);
+      const categoryId = req.query.category_id ? parseInt(req.query.category_id) : null;
+      try {
+        let sql = `
+      SELECT 
+        p.id AS product_id,
+        ps.id AS sku_id,
+        p.name AS product_name,
+        p.product_type,
+        p.category_id,
+        c.name AS category_name,
+        ps.sku_code,
+        ps.selling_price,
+        ps.cost_price,
+        COALESCE(bs.quantity, 0) AS stock_quantity,
+        SUM(ii.quantity) AS units_sold
+      FROM invoice_items ii
+      JOIN invoices inv ON ii.invoice_id = inv.id
+      JOIN product_skus ps ON ii.sku_id = ps.id
+      JOIN products p ON ps.product_id = p.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN branch_stock bs ON ps.id = bs.sku_id AND bs.branch_id = ?
+      WHERE inv.business_id = ?
+        AND inv.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+        AND p.product_type != 'serialized'
+        AND ii.device_id IS NULL
+        AND p.deleted_at IS NULL
+    `;
+        const params = [branchId, businessId, days];
+        if (categoryId) {
+          sql += " AND p.category_id = ?";
+          params.push(categoryId);
+        }
+        sql += `
+      GROUP BY p.id, ps.id, p.name, p.product_type, p.category_id, c.name, ps.sku_code, ps.selling_price, ps.cost_price, bs.quantity
+      ORDER BY units_sold DESC
+      LIMIT 20
+    `;
+        const rows = await query(sql, params);
+        res.json(rows);
+      } catch (e) {
+        next(e);
+      }
+    });
+    router7.get("/speed-grid/search-products", async (req, res, next) => {
+      const businessId = req.user.business_id;
+      const branchId = req.user.branch_id || 0;
+      const q = (req.query.q || "").trim();
+      try {
+        let sql = `
+      SELECT 
+        p.id AS product_id,
+        ps.id AS sku_id,
+        p.name AS product_name,
+        p.product_type,
+        p.allow_overselling,
+        p.alert_message,
+        c.name AS category_name,
+        ps.sku_code,
+        ps.selling_price,
+        ps.cost_price,
+        COALESCE(bs.quantity, 0) AS stock_quantity
+      FROM products p
+      JOIN product_skus ps ON p.id = ps.product_id
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN branch_stock bs ON ps.id = bs.sku_id AND bs.branch_id = ?
+      WHERE p.business_id = ?
+        AND p.deleted_at IS NULL
+    `;
+        const params = [branchId, businessId];
+        if (q) {
+          sql += " AND (p.name LIKE ? OR ps.sku_code LIKE ? OR ps.barcode LIKE ?)";
+          params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+        }
+        sql += " ORDER BY p.name ASC LIMIT 30";
+        const rows = await query(sql, params);
+        res.json(rows);
       } catch (e) {
         next(e);
       }

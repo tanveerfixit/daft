@@ -361,7 +361,7 @@ router.post('/import-csv', async (req: any, res, next) => {
 // SENIOR: Implementation using a robust 'Find-or-Create' pattern to handle race conditions
 router.get('/special/get-deposit-product', async (req: any, res, next) => {
   const businessId = req.user?.business_id;
-  if (!businessId) return res.status(401).json({ error: 'Business context missing' });
+  if (!businessId) return res.status(400).json({ error: 'Business context missing' });
 
   const depositSkuCode = `DEPOSIT-WALLET-${businessId}`;
   
@@ -434,7 +434,7 @@ router.get('/special/get-deposit-product', async (req: any, res, next) => {
 router.get('/special/get-repair-product', async (req: any, res, next) => {
   const businessId = req.user?.business_id;
   const branchId = req.user?.branch_id;
-  if (!businessId) return res.status(401).json({ error: 'Business context missing' });
+  if (!businessId) return res.status(400).json({ error: 'Business context missing' });
 
   const findProduct = async () => {
     return await queryOne(`
