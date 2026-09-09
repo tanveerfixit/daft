@@ -27,7 +27,7 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
   return (
     <div className="flex flex-col gap-1 relative" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
       {selectedCustomer ? (
-        <div className="flex items-center justify-between gap-3 bg-white border border-[#d8d8d8] rounded p-3">
+        <div className="flex items-center justify-between gap-3 bg-white border-y sm:border border-[#d8d8d8] rounded-none sm:rounded p-3">
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-[#333333] text-base truncate">
               {safeCustomerName(selectedCustomer)}
@@ -63,7 +63,7 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
           </div>
         </div>
       ) : (
-        <div className="flex items-stretch bg-white border border-[#d8d8d8] focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 rounded overflow-hidden transition-all shadow-sm">
+        <div className="flex items-stretch bg-white border-y sm:border border-[#d8d8d8] focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 rounded-none sm:rounded overflow-hidden transition-all shadow-xs">
           <input
             type="text"
             placeholder="Search Customers"
@@ -84,12 +84,13 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
 
       {/* Customer search results dropdown */}
       {!selectedCustomer && customerSearch && customerResults.length > 0 && (
-        <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-[#d8d8d8] shadow-lg rounded max-h-56 overflow-y-auto divide-y divide-[#d8d8d8]">
+        <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-[#d8d8d8] shadow-xl rounded max-h-56 overflow-y-auto divide-y divide-[#d8d8d8]">
           {customerResults.map((customer, idx) => (
             <button
               key={`${customer.id}-${idx}`}
+              type="button"
               onClick={() => onSelectCustomer(customer)}
-              className="w-full text-left p-2.5 hover:bg-gray-50 transition-colors flex items-center justify-between border-0 cursor-pointer font-sans"
+              className="w-full text-left p-2.5 hover:bg-blue-50/80 transition-colors flex items-center justify-between border-0 border-l-4 border-l-transparent hover:border-l-blue-600 cursor-pointer font-sans"
             >
               <div className="min-w-0">
                 <p className="text-base font-semibold text-[#333333] leading-tight truncate">

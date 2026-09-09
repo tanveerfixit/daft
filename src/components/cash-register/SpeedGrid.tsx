@@ -140,7 +140,7 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
 
   return (
     <div 
-      className="bg-white border border-[#d8d8d8] rounded p-2.5 space-y-2.5 transition-all"
+      className="bg-white border-y sm:border border-[#d8d8d8] rounded-none sm:rounded p-2.5 space-y-2.5 transition-all"
       style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
     >
       {/* 8 Categories Bar - Clean Text Buttons */}

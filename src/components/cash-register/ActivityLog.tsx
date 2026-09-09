@@ -37,7 +37,7 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ activities }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-neutral-900 border border-[#d8d8d8] dark:border-neutral-800 rounded shadow-xs overflow-hidden w-full h-fit self-start" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+    <div className="bg-white dark:bg-neutral-900 border-y sm:border border-[#d8d8d8] dark:border-neutral-800 rounded-none sm:rounded shadow-xs overflow-hidden w-full h-fit self-start" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
       {/* Header Bar */}
       <div className="flex items-center justify-between bg-[var(--bg-header)] dark:bg-neutral-800 px-3 py-2 border-b border-neutral-300 dark:border-neutral-700 gap-2 flex-wrap">
         <button 

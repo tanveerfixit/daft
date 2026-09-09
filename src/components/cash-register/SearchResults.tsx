@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Product } from '../../types';
 
 interface SearchResultsProps {
@@ -7,6 +7,7 @@ interface SearchResultsProps {
   onAddProduct: (product: Product) => void;
   onQuickAddClick?: (searchTerm: string) => void;
   activeIndex?: number;
+  onSetActiveIndex?: (index: number) => void;
 }
 
 export const SearchResults: React.FC<SearchResultsProps> = ({
@@ -14,21 +15,33 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   searchQuery,
   onAddProduct,
   onQuickAddClick,
-  activeIndex = 0
+  activeIndex = 0,
+  onSetActiveIndex
 }) => {
   const hasQuery = searchQuery.trim().length >= 2;
+  const activeItemRef = useRef<HTMLButtonElement | null>(null);
+
+  // Auto-scroll active item into view during keyboard navigation
+  useEffect(() => {
+    if (activeItemRef.current) {
+      activeItemRef.current.scrollIntoView({
+        block: 'nearest',
+        behavior: 'smooth'
+      });
+    }
+  }, [activeIndex]);
 
   if (results.length === 0) {
     if (!hasQuery || !onQuickAddClick) return null;
 
     return (
-      <div className="absolute top-full left-0 right-0 z-[60] bg-white border border-[#d8d8d8] p-4 mt-1 text-base text-[#333333] rounded shadow-lg" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+      <div className="absolute top-full left-0 right-0 z-[60] bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 p-4 mt-1 text-base text-neutral-800 dark:text-neutral-200 rounded shadow-xl" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
         <div className="text-center">
-          <p className="mb-2 text-[#757575]">No products found matching "{searchQuery}"</p>
+          <p className="mb-2 text-neutral-500 dark:text-neutral-400">No products found matching "{searchQuery}"</p>
           <button
             type="button"
             onClick={() => onQuickAddClick(searchQuery)}
-            className="px-3.5 py-1.5 bg-[#e5e7eb] hover:bg-[#d8d8d8] text-[#333333] text-sm font-semibold transition-colors rounded cursor-pointer border border-[#d8d8d8]"
+            className="px-3.5 py-1.5 bg-neutral-100 dark:bg-neutral-800 hover:bg-blue-50 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-sm font-semibold transition-colors rounded cursor-pointer border border-blue-200 dark:border-blue-800"
           >
             + Add "{searchQuery}"
           </button>
@@ -52,7 +65,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
         regex.test(part) ? (
           <mark 
             key={i} 
-            className="bg-yellow-200 text-[#333333] px-0.5 rounded font-semibold"
+            className="bg-yellow-200 dark:bg-yellow-400 text-neutral-900 px-0.5 rounded font-bold"
           >
             {part}
           </mark>
@@ -66,50 +79,76 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   };
 
   return (
-    <div className="absolute top-full left-0 right-0 z-[60] bg-white border border-[#d8d8d8] mt-1 text-base text-[#333333] rounded-none overflow-hidden" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
-      <div className="max-h-60 overflow-y-auto divide-y divide-[#d8d8d8]">
-        {results.map((product, idx) => (
-          <button
-            key={`${product.id}-${idx}`}
-            onClick={() => onAddProduct(product)}
-            className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors flex items-center justify-between gap-4 border-0 cursor-pointer font-normal ${
-              idx === activeIndex ? 'bg-[#e5e7eb] text-[#333333]' : 'bg-white text-[#333333]'
-            }`}
-          >
-            <div className="flex-1 min-w-0 text-base flex items-center gap-2 flex-wrap">
-              <span className="font-semibold truncate">
-                {highlightText(product.product_name, searchQuery)}
-              </span>
-              <span className="text-[#d8d8d8]">•</span>
-              <span className="text-[#757575] font-mono text-xs font-semibold whitespace-nowrap">
-                SKU: {product.sku_code || 'N/A'}
-              </span>
-              {((product as any).imei || (product as any).serial) && (
-                <>
-                  <span className="text-[#d8d8d8]">•</span>
-                  <span className="text-[#757575] font-mono text-xs whitespace-nowrap">
-                    {(product as any).imei || (product as any).serial}
+    <div className="absolute top-full left-0 right-0 z-[60] bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 mt-1 text-base text-neutral-800 dark:text-neutral-200 rounded shadow-2xl overflow-hidden" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+      <div className="max-h-72 overflow-y-auto divide-y divide-neutral-200 dark:divide-neutral-800">
+        {results.map((product, idx) => {
+          const isActive = idx === activeIndex;
+
+          return (
+            <button
+              key={`${product.id}-${idx}`}
+              ref={isActive ? activeItemRef : undefined}
+              type="button"
+              onClick={() => onAddProduct(product)}
+              onMouseEnter={() => onSetActiveIndex?.(idx)}
+              className={`w-full text-left py-2.5 transition-colors flex items-center justify-between gap-4 border-0 cursor-pointer font-normal ${
+                isActive
+                  ? 'bg-blue-50/95 dark:bg-blue-950/50 text-neutral-900 dark:text-white border-l-4 border-l-blue-600 pl-3 pr-4 shadow-inner'
+                  : 'bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 border-l-4 border-l-transparent pl-3 pr-4 hover:bg-neutral-50 dark:hover:bg-neutral-850'
+              }`}
+            >
+              <div className="flex-1 min-w-0 text-base flex items-center gap-2 flex-wrap">
+                <span className={`truncate ${isActive ? 'font-bold text-blue-900 dark:text-blue-200' : 'font-semibold text-neutral-900 dark:text-neutral-100'}`}>
+                  {highlightText(product.product_name, searchQuery)}
+                </span>
+                <span className="text-neutral-300 dark:text-neutral-700">•</span>
+                <span className="text-neutral-500 dark:text-neutral-400 font-mono text-xs font-semibold whitespace-nowrap">
+                  SKU: {product.sku_code || 'N/A'}
+                </span>
+                {((product as any).imei || (product as any).serial) && (
+                  <>
+                    <span className="text-neutral-300 dark:text-neutral-700">•</span>
+                    <span className="text-blue-600 dark:text-blue-400 font-mono text-xs font-medium whitespace-nowrap">
+                      IMEI: {(product as any).imei || (product as any).serial}
+                    </span>
+                  </>
+                )}
+                <span className="text-neutral-300 dark:text-neutral-700">•</span>
+                <span className="text-neutral-500 dark:text-neutral-400 text-xs whitespace-nowrap font-medium">
+                  Qty: {product.product_type === 'serialized' ? '1' : product.total_stock || 0}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-3 shrink-0">
+                {isActive && (
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 dark:text-blue-300 bg-blue-100/80 dark:bg-blue-900/60 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
+                    <span>Press</span>
+                    <kbd className="font-mono text-[10px] font-bold bg-white dark:bg-neutral-800 px-1 py-0.2 rounded border border-blue-300 dark:border-blue-700">Enter ↵</kbd>
                   </span>
-                </>
-              )}
-              <span className="text-[#d8d8d8]">•</span>
-              <span className="text-[#757575] text-xs whitespace-nowrap font-medium">
-                Qty: {product.product_type === 'serialized' ? '1' : product.total_stock || 0}
-              </span>
-            </div>
-            <div className="text-right shrink-0">
-              <span className="font-bold font-mono text-base text-[#333333]">
-                €{(Number(product.selling_price) || 0).toFixed(2)}
-              </span>
-            </div>
-          </button>
-        ))}
+                )}
+                <span className="font-bold font-mono text-base text-neutral-900 dark:text-white">
+                  €{(Number(product.selling_price) || 0).toFixed(2)}
+                </span>
+              </div>
+            </button>
+          );
+        })}
       </div>
-      <div className="hidden sm:flex bg-[#f9fafb] px-4 py-2 border-t border-[#d8d8d8] text-xs text-[#757575] font-medium items-center justify-between">
-        <span>Press <kbd className="px-1.5 py-0.5 bg-white border border-[#d8d8d8] rounded text-xs font-mono font-bold">Enter</kbd> to select</span>
-        <span>Use <kbd className="px-1.5 py-0.5 bg-white border border-[#d8d8d8] rounded text-xs font-mono font-bold">↑</kbd> <kbd className="px-1.5 py-0.5 bg-white border border-[#d8d8d8] rounded text-xs font-mono font-bold">↓</kbd> to navigate</span>
+      <div className="hidden sm:flex bg-neutral-50 dark:bg-neutral-850 px-4 py-2 border-t border-neutral-200 dark:border-neutral-800 text-xs text-neutral-500 dark:text-neutral-400 font-medium items-center justify-between">
+        <span className="flex items-center gap-1.5">
+          <span>Press</span>
+          <kbd className="px-1.5 py-0.5 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded text-xs font-mono font-bold text-neutral-700 dark:text-neutral-300">Enter ↵</kbd>
+          <span>to add to cart</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span>Navigate with</span>
+          <kbd className="px-1.5 py-0.5 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded text-xs font-mono font-bold text-neutral-700 dark:text-neutral-300">↑</kbd>
+          <kbd className="px-1.5 py-0.5 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded text-xs font-mono font-bold text-neutral-700 dark:text-neutral-300">↓</kbd>
+          <span>or hover mouse</span>
+        </span>
       </div>
     </div>
   );
 };
+
 

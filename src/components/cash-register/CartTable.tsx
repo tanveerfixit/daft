@@ -23,7 +23,7 @@ export const CartTable: React.FC<CartTableProps> = ({
   onSelectProduct
 }) => {
   return (
-    <div className="bg-white dark:bg-black border border-[#d8d8d8] dark:border-neutral-800 rounded-none overflow-hidden font-sans transition-all duration-200">
+    <div className="bg-white dark:bg-black border-y sm:border border-[#d8d8d8] dark:border-neutral-800 rounded-none sm:rounded overflow-hidden font-sans transition-all duration-200">
       {/* Mobile Card View (hidden on md and up) */}
       <div className="md:hidden divide-y divide-[#d8d8d8] dark:divide-neutral-800 max-h-[60vh] overflow-y-auto custom-scrollbar">
         {cart.length === 0 ? (
@@ -85,11 +85,11 @@ export const CartTable: React.FC<CartTableProps> = ({
                     )}
                   </div>
 
-                  {/* Delete Button */}
+                  {/* Delete Button (Touch-Friendly 38px) */}
                   <button
                     type="button"
                     onClick={() => onRemove(item.id, item.device_id)}
-                    className="p-1.5 text-neutral-400 hover:text-red-600 dark:hover:text-red-400 transition-colors shrink-0 cursor-pointer"
+                    className="min-h-[38px] min-w-[38px] flex items-center justify-center text-neutral-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded transition-colors shrink-0 cursor-pointer"
                     title="Remove item"
                   >
                     <Trash2 size={16} />
@@ -98,26 +98,26 @@ export const CartTable: React.FC<CartTableProps> = ({
 
                 {/* Row 2: Quantity controls, Unit Price, Total & Edit */}
                 <div className="flex items-center justify-between pt-1 border-t border-neutral-100 dark:border-neutral-850">
-                  {/* Quantity Stepper */}
-                  <div className="flex items-center border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900">
+                  {/* Quantity Stepper (Touch-Friendly 36px buttons) */}
+                  <div className="flex items-center border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 rounded">
                     {item.product_type !== 'serialized' ? (
                       <>
                         <button
                           type="button"
                           onClick={() => onUpdateQuantity(item.id, -1, item.device_id)}
                           disabled={(Number(item.quantity) || 1) <= 1}
-                          className="px-2.5 py-1 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 disabled:opacity-30 cursor-pointer"
+                          className="min-h-[36px] min-w-[36px] flex items-center justify-center text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 disabled:opacity-30 cursor-pointer"
                           title="Decrease quantity"
                         >
                           <Minus size={13} />
                         </button>
-                        <span className="px-3 py-1 font-mono font-bold text-sm text-neutral-900 dark:text-neutral-100 min-w-[28px] text-center">
+                        <span className="px-2 py-1 font-mono font-bold text-sm text-neutral-900 dark:text-neutral-100 min-w-[28px] text-center">
                           {item.quantity || 1}
                         </span>
                         <button
                           type="button"
                           onClick={() => onUpdateQuantity(item.id, 1, item.device_id)}
-                          className="px-2.5 py-1 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 cursor-pointer"
+                          className="min-h-[36px] min-w-[36px] flex items-center justify-center text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 cursor-pointer"
                           title="Increase quantity"
                         >
                           <Plus size={13} />
@@ -146,10 +146,11 @@ export const CartTable: React.FC<CartTableProps> = ({
                       </div>
                     </div>
 
+                    {/* Edit Button (Touch-Friendly 36px) */}
                     <button
                       type="button"
                       onClick={() => onEdit(item)}
-                      className="p-1.5 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-700 cursor-pointer"
+                      className="min-h-[36px] min-w-[36px] flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-700 rounded cursor-pointer"
                       title="Edit price/discount"
                     >
                       <Pencil size={13} />

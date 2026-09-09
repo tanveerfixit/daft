@@ -42,7 +42,7 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
   };
 
   return (
-    <div className="pay-widget bg-white border border-[#d8d8d8] rounded p-4 flex flex-col gap-3 text-lg" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+    <div className="pay-widget bg-white border-y sm:border border-[#d8d8d8] rounded-none sm:rounded p-4 flex flex-col gap-3 text-lg" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
       <div className="flex items-center justify-between text-[#333333]">
         <span>Remaining:</span>
         <span className="pay-widget-remaining font-semibold text-xl">
@@ -67,7 +67,7 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
         }}
       />
 
-      <div className={`grid ${methods.length > 3 ? 'grid-cols-4' : 'grid-cols-3'} gap-2`}>
+      <div className={`grid ${methods.length > 3 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'} gap-2`}>
         {methods.map((m) => {
           const isActive = paymentMethod.toLowerCase() === m.toLowerCase();
 

@@ -1008,9 +1008,9 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       </header>
 
       {/* Main Content */}
-      <main className="p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-3 sm:gap-4 flex-1 overflow-y-auto pb-24 lg:pb-4">
+      <main className="p-0 sm:p-4 grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-2.5 sm:gap-4 flex-1 overflow-y-auto pb-28 lg:pb-4">
         {/* Left Column */}
-        <section className="flex flex-col gap-4 min-w-0">
+        <section className="flex flex-col gap-2.5 sm:gap-4 min-w-0">
           {/* Search / Scan bar */}
           <div ref={searchContainerRef} className="relative z-20">
             <ProductSearchBar 
@@ -1051,6 +1051,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
               onAddProduct={addToCart}
               onQuickAddClick={(term) => openQuickAdd(term)}
               activeIndex={activeSearchIndex}
+              onSetActiveIndex={setActiveSearchIndex}
             />
           </div>
 

@@ -94,45 +94,45 @@ export default function SalesTrendChart({
   const activePoint = hoverIndex !== null && coords[hoverIndex] ? coords[hoverIndex] : null;
 
   return (
-    <div className="bg-white dark:bg-neutral-900 rounded border border-neutral-300 dark:border-neutral-800 overflow-hidden flex flex-col h-full">
+    <div className="bg-white dark:bg-neutral-900 rounded-none sm:rounded-lg overflow-hidden flex flex-col h-full">
       {/* Header */}
-      <div className="bg-neutral-100 dark:bg-neutral-850 px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white dark:bg-neutral-900 px-3.5 py-2.5 sm:px-4 sm:py-3 border-b border-blue-200 dark:border-blue-900/60 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <TrendingUp size={18} className="text-blue-600 dark:text-blue-400" />
           <h3 className="font-semibold text-sm text-neutral-800 dark:text-neutral-200">{title}</h3>
         </div>
 
         {/* Metric Switcher */}
-        <div className="flex items-center bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded p-0.5 text-xs font-semibold">
+        <div className="flex items-center gap-2 text-xs font-semibold">
           <button
             type="button"
             onClick={() => setMetric('total')}
-            className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer ${
+            className={`px-1.5 py-1 transition-colors flex items-center gap-1 cursor-pointer ${
               metric === 'total'
-                ? 'bg-blue-600 text-white'
-                : 'text-neutral-600 dark:text-neutral-300 hover:text-neutral-900'
+                ? 'text-blue-600 dark:text-blue-400 font-bold'
+                : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-white'
             }`}
           >
-            <DollarSign size={12} />
+            <DollarSign size={13} />
             <span>Revenue (€)</span>
           </button>
           <button
             type="button"
             onClick={() => setMetric('count')}
-            className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer ${
+            className={`px-1.5 py-1 transition-colors flex items-center gap-1 cursor-pointer ${
               metric === 'count'
-                ? 'bg-blue-600 text-white'
-                : 'text-neutral-600 dark:text-neutral-300 hover:text-neutral-900'
+                ? 'text-blue-600 dark:text-blue-400 font-bold'
+                : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-white'
             }`}
           >
-            <ShoppingBag size={12} />
+            <ShoppingBag size={13} />
             <span>Orders (#)</span>
           </button>
         </div>
       </div>
 
       {/* Stats Summary Bar */}
-      <div className="px-5 py-2.5 bg-neutral-50/50 dark:bg-neutral-900/50 border-b border-neutral-200 dark:border-neutral-800/80 flex items-center justify-between text-xs font-medium">
+      <div className="px-3.5 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between text-xs font-medium">
         <div className="flex items-center gap-4">
           <div>
             <span className="text-neutral-500 mr-1.5">Period Peak:</span>
@@ -153,7 +153,7 @@ export default function SalesTrendChart({
       </div>
 
       {/* Chart Canvas Area */}
-      <div className="p-4 flex-1 flex flex-col justify-center relative min-h-[220px]">
+      <div className="p-2.5 sm:p-4 flex-1 flex flex-col justify-center relative min-h-[220px]">
         {points.length === 0 || maxValue === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-neutral-400 dark:text-neutral-500 text-xs italic gap-1">
             <BarChart2 size={24} className="opacity-40" />

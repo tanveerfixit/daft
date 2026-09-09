@@ -1,5 +1,5 @@
-import React from 'react';
-import { Award, AlertCircle, CheckCircle2, TrendingUp } from 'lucide-react';
+import React, { useState } from 'react';
+import { Award, AlertCircle, CheckCircle2, TrendingUp, ChevronDown } from 'lucide-react';
 
 export interface ProfitDriver {
   name: string;
@@ -15,24 +15,38 @@ interface ProfitDriversTableProps {
 }
 
 export default function ProfitDriversTable({ drivers = [] }: ProfitDriversTableProps) {
+  const [isCollapsed, setIsCollapsed] = useState(true);
+
   return (
-    <div className="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden flex flex-col h-full">
-      {/* Card Header */}
-      <div className="bg-neutral-100 dark:bg-neutral-850 px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+    <div className="bg-white dark:bg-neutral-900 rounded-none sm:rounded-lg overflow-hidden flex flex-col">
+      {/* Card Header (Clickable Toggle) */}
+      <div 
+        onClick={() => setIsCollapsed(prev => !prev)}
+        className={`bg-white dark:bg-neutral-900 px-3.5 py-2.5 sm:px-4 sm:py-3 flex items-center justify-between cursor-pointer select-none transition-colors hover:bg-neutral-50/50 dark:hover:bg-neutral-850/50 ${
+          !isCollapsed ? 'border-b border-blue-200 dark:border-blue-900/60' : ''
+        }`}
+      >
         <div className="flex items-center gap-2">
           <Award size={18} className="text-amber-500" />
           <h3 className="font-semibold text-sm text-neutral-800 dark:text-neutral-200">
             Top 10 Profit Drivers ("Money Makers")
           </h3>
         </div>
-        <span className="text-[11px] font-medium text-neutral-500 bg-white dark:bg-neutral-800 px-2 py-0.5 rounded border border-neutral-200 dark:border-neutral-700">
-          Ranked by Net Profit
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-medium text-neutral-400 hidden sm:inline">
+            Ranked by Net Profit
+          </span>
+          <ChevronDown 
+            size={16} 
+            className={`text-neutral-400 transition-transform duration-200 ${!isCollapsed ? 'rotate-180 text-blue-600 dark:text-blue-400' : ''}`} 
+          />
+        </div>
       </div>
 
-      {/* Table Body */}
-      <div className="overflow-auto max-h-[380px] flex-1">
-        <table className="w-full text-left border-collapse text-xs relative">
+      {/* Collapsible Table Body */}
+      {!isCollapsed && (
+        <div className="overflow-auto max-h-[380px] flex-1">
+          <table className="w-full text-left border-collapse text-xs relative">
           <thead className="sticky top-0 z-10 bg-neutral-50 dark:bg-neutral-850 border-b border-neutral-200 dark:border-neutral-800">
             <tr className="border-b border-neutral-200 dark:border-neutral-800 text-neutral-500 font-semibold uppercase tracking-wider text-[10px]">
               <th className="px-4 py-2.5 bg-neutral-50 dark:bg-neutral-850">Product / Item</th>
@@ -51,7 +65,7 @@ export default function ProfitDriversTable({ drivers = [] }: ProfitDriversTableP
                 <tr key={idx} className="hover:bg-neutral-50 dark:hover:bg-neutral-850/50 transition-colors">
                   <td className="px-4 py-3 font-semibold text-neutral-900 dark:text-neutral-100">
                     <div className="flex items-center gap-2">
-                      <span className="w-4 h-4 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[10px] font-bold text-neutral-500 flex items-center justify-center shrink-0">
+                      <span className="text-[11px] font-bold text-neutral-400 w-3 shrink-0 text-center">
                         {idx + 1}
                       </span>
                       <span className="truncate max-w-[180px] sm:max-w-[240px]" title={d.name}>
@@ -69,19 +83,19 @@ export default function ProfitDriversTable({ drivers = [] }: ProfitDriversTableP
                     €{d.profit.toFixed(2)}
                   </td>
                   <td className="px-3 py-3 text-right">
-                    <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                    <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400">
                       {d.marginPercent.toFixed(1)}%
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center">
                     {isLowStock ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                        <AlertCircle size={10} />
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                        <AlertCircle size={11} />
                         <span>{d.currentStock} left</span>
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-neutral-500">
-                        <CheckCircle2 size={10} className="text-emerald-500" />
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500">
+                        <CheckCircle2 size={11} className="text-emerald-500" />
                         <span>{d.currentStock} in stock</span>
                       </span>
                     )}
@@ -99,11 +113,7 @@ export default function ProfitDriversTable({ drivers = [] }: ProfitDriversTableP
           </tbody>
         </table>
       </div>
-
-      {/* Footer advice */}
-      <div className="bg-neutral-50 dark:bg-neutral-850 px-4 py-2 border-t border-neutral-200 dark:border-neutral-800 text-[11px] text-neutral-500 flex items-center justify-between">
-        <span>💡 Strategy: Ensure top-profit heroes never run out of stock to preserve maximum margin.</span>
-      </div>
+      )}
     </div>
   );
 }

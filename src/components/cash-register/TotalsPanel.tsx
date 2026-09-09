@@ -24,7 +24,7 @@ export const TotalsPanel: React.FC<TotalsPanelProps> = ({
   const netTaxable = taxableTotal !== undefined ? taxableTotal : Math.max(0, subtotal - discount);
 
   return (
-    <div className="bg-white border border-[#d8d8d8] rounded p-5 flex flex-col gap-3 font-sans">
+    <div className="bg-white border-y sm:border border-[#d8d8d8] rounded-none sm:rounded p-4 sm:p-5 flex flex-col gap-3 font-sans">
       {/* Subtotal (Gross Amount before discount) */}
       <div className="flex items-center justify-between text-sm">
         <span className="font-semibold text-neutral-700">Subtotal :</span>

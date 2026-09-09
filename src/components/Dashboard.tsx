@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { TrendingUp, Wrench, Users, Calendar, Search, ArrowRight, BarChart3, Award, Target, RefreshCw } from 'lucide-react';
+import { TrendingUp, Wrench, Users, Calendar, Search, ArrowRight, BarChart3, Award, Target, RefreshCw, CreditCard, Layers } from 'lucide-react';
 import SalesTrendChart from './dashboard/SalesTrendChart';
 import PeakTradingHoursChart from './dashboard/PeakTradingHoursChart';
 import ExecutiveKpiStrip from './dashboard/ExecutiveKpiStrip';
@@ -152,12 +152,12 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
 
   return (
     <div 
-      className="p-3 sm:p-4 space-y-4 bg-[var(--bg-app)] h-full overflow-auto font-sans text-neutral-800 dark:text-neutral-200 transition-colors duration-300"
+      className="p-0 sm:p-4 space-y-3 sm:space-y-4 bg-[var(--bg-app)] h-full overflow-auto font-sans text-neutral-800 dark:text-neutral-200 transition-colors duration-300"
       style={{ fontSize: '14px' }}
     >
       
       {/* Header & Filter Controls (Direct on page, no background card wrapper) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 shrink-0 pt-1 pb-1">
+      <div className="flex flex-wrap items-center justify-between gap-3 shrink-0 px-3 pt-3 sm:px-0 sm:pt-1 pb-1">
         
         {/* Left: Title + Live Status */}
         <div className="flex items-center gap-2.5">
@@ -170,13 +170,13 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
         </div>
 
         {/* Right: Controls with clear, visible native date pickers and readable fonts */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
           
           {/* Timeframe Dropdown */}
           <select
             value={timeframe}
             onChange={(e) => handleTimeframeChange(e.target.value as any)}
-            className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-neutral-850 dark:text-neutral-100 text-sm font-semibold rounded px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer hover:border-neutral-400 dark:hover:border-neutral-600 transition-colors"
+            className="w-full sm:w-auto bg-white dark:bg-neutral-900 text-neutral-850 dark:text-neutral-100 text-sm font-semibold rounded px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer transition-colors"
           >
             <option value="today">Today</option>
             <option value="yesterday">Yesterday</option>
@@ -188,7 +188,7 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
           </select>
 
           {/* Visible, Reliable Date Range Inputs */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center justify-between sm:justify-start gap-1.5 w-full sm:w-auto">
             {/* Start Date */}
             <input
               type="date"
@@ -197,10 +197,10 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
                 setStartDate(e.target.value);
                 setTimeframe('custom');
               }}
-              className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 text-sm font-medium font-mono rounded px-2.5 py-1.5 outline-none focus:border-blue-500 cursor-pointer"
+              className="flex-1 sm:flex-none bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 text-sm font-medium font-mono rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
             />
 
-            <span className="text-neutral-400 text-xs font-bold">to</span>
+            <span className="text-neutral-400 text-xs font-bold px-0.5">to</span>
 
             {/* End Date */}
             <input
@@ -210,7 +210,7 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
                 setEndDate(e.target.value);
                 setTimeframe('custom');
               }}
-              className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 text-sm font-medium font-mono rounded px-2.5 py-1.5 outline-none focus:border-blue-500 cursor-pointer"
+              className="flex-1 sm:flex-none bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 text-sm font-medium font-mono rounded px-2.5 py-1.5 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
             />
 
             {/* Refresh Button */}
@@ -218,7 +218,7 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
               type="button"
               onClick={fetchDashboardStats}
               title="Refresh Analytics"
-              className="px-2.5 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded transition-colors cursor-pointer flex items-center justify-center"
+              className="px-2.5 py-2 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300 hover:text-blue-600 dark:hover:text-blue-400 rounded transition-colors cursor-pointer flex items-center justify-center shrink-0"
             >
               <RefreshCw size={14} className={loading ? 'animate-spin text-blue-600' : ''} />
             </button>
@@ -236,7 +236,7 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
       />
 
       {/* SECTION 3: Interactive Visual Analytics Charts (2-column responsive grid) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-[1600px]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 max-w-[1600px]">
         {/* Sales Trend Progression */}
         <SalesTrendChart
           data={trendDataPoints}
@@ -252,7 +252,7 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
       </div>
 
       {/* SECTION 4: Marketing & Catalog Growth Engine (2-column responsive grid) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-[1600px]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 max-w-[1600px] items-start">
         {/* Top Profit Drivers ("Money Makers") */}
         <ProfitDriversTable
           drivers={data.topProfitDrivers || []}
@@ -265,20 +265,26 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
       </div>
 
       {/* SECTION 5: Payments Summary */}
-      <div className="space-y-2 max-w-[1600px]">
-        <h3 className="text-base font-bold text-blue-600 dark:text-blue-400">Payments</h3>
+      <div className="bg-white dark:bg-neutral-900 rounded-none sm:rounded-lg overflow-hidden flex flex-col max-w-[1600px]">
+        {/* Card Header */}
+        <div className="bg-white dark:bg-neutral-900 px-3.5 py-2.5 sm:px-4 sm:py-3 border-b border-blue-200 dark:border-blue-900/60 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CreditCard size={18} className="text-blue-600 dark:text-blue-400" />
+            <h3 className="font-semibold text-sm text-neutral-800 dark:text-neutral-200">Payments</h3>
+          </div>
+        </div>
         
-        <div className="bg-white dark:bg-neutral-900 rounded border border-neutral-300 dark:border-neutral-800 overflow-hidden">
+        <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-neutral-100 dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-800 text-xs font-bold text-neutral-850 dark:text-neutral-200">
+              <tr className="bg-neutral-50 dark:bg-neutral-850 border-b border-neutral-200 dark:border-neutral-800 text-xs font-bold text-neutral-850 dark:text-neutral-200">
                 <th className="px-4 py-2.5 w-2/3">Payment Type</th>
                 <th className="px-4 py-2.5 text-right">Total</th>
               </tr>
             </thead>
             <tbody>
               {data.payments.map((p, idx) => (
-                <tr key={idx} className="border-b border-neutral-300 last:border-0 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 transition-colors text-sm font-semibold">
+                <tr key={idx} className="border-b border-neutral-200 last:border-0 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 transition-colors text-sm font-semibold">
                   <td className="px-4 py-3 text-neutral-900 dark:text-white">
                     {p.payment_type || '—'}
                   </td>
@@ -300,52 +306,56 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
       </div>
 
       {/* SECTION 6: Category Reporting */}
-      <div className="space-y-2 max-w-[1600px] flex flex-col">
-        <h3 className="text-base font-bold text-blue-600 dark:text-blue-400">Categories</h3>
-        
-        <div className="bg-white dark:bg-neutral-900 rounded border border-neutral-300 dark:border-neutral-800 overflow-hidden flex flex-col">
-          {/* Scrollable container with fixed headers */}
-          <div className="overflow-auto max-h-[350px]">
-            <table className="w-full text-left border-collapse relative">
-              <thead className="sticky top-0 z-10 bg-neutral-100 dark:bg-neutral-850">
-                <tr className="text-xs font-bold text-neutral-850 dark:text-neutral-200">
-                  <th className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 font-bold">Category Name</th>
-                  <th className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 font-bold text-right">Qty Purchased</th>
-                  <th className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 font-bold text-right">Total Cost</th>
-                  <th className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 font-bold text-right">Qty Sold</th>
-                  <th className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-800 font-bold text-right">Total Sales</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categoriesWithSales.map((cat, idx) => (
-                  <tr key={idx} className="border-b border-neutral-300 last:border-0 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 transition-colors text-sm font-semibold">
-                    <td className="px-4 py-3 text-neutral-900 dark:text-white font-medium">
-                      {cat.name}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-neutral-500 dark:text-neutral-400">
-                      {cat.qtyPurchased}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-neutral-500 dark:text-neutral-400">
-                      €{Number(cat.totalCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-[var(--brand-primary)]">
-                      {cat.qtySold}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-neutral-900 dark:text-white">
-                      €{Number(cat.totalSales || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                ))}
-                {categoriesWithSales.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-16 text-center text-sm text-neutral-400 dark:text-neutral-500 italic">
-                      No categories with sales in selected timeframe.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+      <div className="bg-white dark:bg-neutral-900 rounded-none sm:rounded-lg overflow-hidden flex flex-col max-w-[1600px]">
+        {/* Card Header */}
+        <div className="bg-white dark:bg-neutral-900 px-3.5 py-2.5 sm:px-4 sm:py-3 border-b border-blue-200 dark:border-blue-900/60 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Layers size={18} className="text-blue-600 dark:text-blue-400" />
+            <h3 className="font-semibold text-sm text-neutral-800 dark:text-neutral-200">Categories</h3>
           </div>
+        </div>
+        
+        {/* Scrollable container with fixed headers */}
+        <div className="overflow-auto max-h-[350px]">
+          <table className="w-full text-left border-collapse relative">
+            <thead className="sticky top-0 z-10 bg-neutral-50 dark:bg-neutral-850 border-b border-neutral-200 dark:border-neutral-800">
+              <tr className="text-xs font-bold text-neutral-850 dark:text-neutral-200">
+                <th className="px-4 py-2.5 bg-neutral-50 dark:bg-neutral-850 font-bold">Category Name</th>
+                <th className="px-4 py-2.5 bg-neutral-50 dark:bg-neutral-850 font-bold text-right">Qty Purchased</th>
+                <th className="px-4 py-2.5 bg-neutral-50 dark:bg-neutral-850 font-bold text-right">Total Cost</th>
+                <th className="px-4 py-2.5 bg-neutral-50 dark:bg-neutral-850 font-bold text-right">Qty Sold</th>
+                <th className="px-4 py-2.5 bg-neutral-50 dark:bg-neutral-850 font-bold text-right">Total Sales</th>
+              </tr>
+            </thead>
+            <tbody>
+              {categoriesWithSales.map((cat, idx) => (
+                <tr key={idx} className="border-b border-neutral-200 last:border-0 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 transition-colors text-sm font-semibold">
+                  <td className="px-4 py-3 text-neutral-900 dark:text-white font-medium">
+                    {cat.name}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-neutral-500 dark:text-neutral-400">
+                    {cat.qtyPurchased}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-neutral-500 dark:text-neutral-400">
+                    €{Number(cat.totalCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-[var(--brand-primary)]">
+                    {cat.qtySold}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono font-bold text-neutral-900 dark:text-white">
+                    €{Number(cat.totalSales || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              ))}
+              {categoriesWithSales.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-16 text-center text-sm text-neutral-400 dark:text-neutral-500 italic">
+                    No categories with sales in selected timeframe.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
       

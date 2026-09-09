@@ -1,5 +1,5 @@
-import React from 'react';
-import { Target, RefreshCw, Layers, AlertTriangle, ArrowUpRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { Target, RefreshCw, Layers, AlertTriangle, ArrowUpRight, ChevronDown } from 'lucide-react';
 
 interface ReorderItem {
   name: string;
@@ -31,6 +31,7 @@ export default function GrowthLeversCard({
     reorderAlerts: []
   }
 }: GrowthLeversCardProps) {
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const {
     attachmentRate,
     repairPercent,
@@ -40,21 +41,34 @@ export default function GrowthLeversCard({
   } = growthLevers;
 
   return (
-    <div className="bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden flex flex-col h-full">
-      {/* Card Header */}
-      <div className="bg-neutral-100 dark:bg-neutral-850 px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+    <div className="bg-white dark:bg-neutral-900 rounded-none sm:rounded-lg overflow-hidden flex flex-col">
+      {/* Card Header (Clickable Toggle) */}
+      <div 
+        onClick={() => setIsCollapsed(prev => !prev)}
+        className={`bg-white dark:bg-neutral-900 px-3.5 py-2.5 sm:px-4 sm:py-3 flex items-center justify-between cursor-pointer select-none transition-colors hover:bg-neutral-50/50 dark:hover:bg-neutral-850/50 ${
+          !isCollapsed ? 'border-b border-blue-200 dark:border-blue-900/60' : ''
+        }`}
+      >
         <div className="flex items-center gap-2">
           <Target size={18} className="text-blue-600 dark:text-blue-400" />
           <h3 className="font-semibold text-sm text-neutral-800 dark:text-neutral-200">
             Growth & Marketing Levers
           </h3>
         </div>
-        <span className="text-[11px] font-medium text-neutral-500 bg-white dark:bg-neutral-800 px-2 py-0.5 rounded border border-neutral-200 dark:border-neutral-700">
-          Revenue Multipliers
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-medium text-neutral-400 hidden sm:inline">
+            Revenue Multipliers
+          </span>
+          <ChevronDown 
+            size={16} 
+            className={`text-neutral-400 transition-transform duration-200 ${!isCollapsed ? 'rotate-180 text-blue-600 dark:text-blue-400' : ''}`} 
+          />
+        </div>
       </div>
 
-      <div className="p-4 space-y-5 flex-1 flex flex-col justify-between text-xs">
+      {/* Collapsible Card Body */}
+      {!isCollapsed && (
+        <div className="p-3.5 sm:p-4 space-y-4 sm:space-y-5 flex-1 flex flex-col justify-between text-xs">
         
         {/* 1. Attachment / Cross-Sell Rate */}
         <div>
@@ -104,7 +118,7 @@ export default function GrowthLeversCard({
         </div>
 
         {/* 3. Customer Repeat Loyalty Rate */}
-        <div className="flex items-center justify-between p-2.5 bg-neutral-50 dark:bg-neutral-850/60 rounded border border-neutral-200 dark:border-neutral-800">
+        <div className="flex items-center justify-between py-2 border-t border-neutral-100 dark:border-neutral-800/80">
           <div className="flex items-center gap-2">
             <RefreshCw size={15} className="text-emerald-500" />
             <div>
@@ -121,7 +135,7 @@ export default function GrowthLeversCard({
 
         {/* 4. Stock Reorder Warning */}
         {reorderAlerts && reorderAlerts.length > 0 ? (
-          <div>
+          <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800/80">
             <div className="flex items-center justify-between mb-1.5">
               <span className="font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
                 <AlertTriangle size={13} />
@@ -130,11 +144,11 @@ export default function GrowthLeversCard({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               {reorderAlerts.slice(0, 4).map((item, idx) => (
-                <div key={idx} className="p-2 bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 rounded flex justify-between items-center text-[11px]">
-                  <span className="truncate max-w-[130px] font-medium text-amber-900 dark:text-amber-200" title={item.name}>
+                <div key={idx} className="py-1 px-1.5 flex justify-between items-center text-[11px] border-b border-neutral-100 dark:border-neutral-800/60 last:border-0">
+                  <span className="truncate max-w-[130px] font-medium text-neutral-800 dark:text-neutral-200" title={item.name}>
                     {item.name}
                   </span>
-                  <span className="font-mono font-bold text-amber-700 dark:text-amber-400 shrink-0">
+                  <span className="font-mono font-bold text-amber-600 dark:text-amber-400 shrink-0">
                     {item.stock} left
                   </span>
                 </div>
@@ -142,12 +156,13 @@ export default function GrowthLeversCard({
             </div>
           </div>
         ) : (
-          <div className="p-2.5 bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40 rounded text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-2 py-1 border-t border-neutral-100 dark:border-neutral-800/80">
             <span>✓ All active catalog products currently have adequate stock levels.</span>
           </div>
         )}
 
       </div>
+      )}
     </div>
   );
 }

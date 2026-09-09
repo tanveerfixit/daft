@@ -2,6 +2,39 @@
 
 This document tracks all features, architectural enhancements, bug fixes, and UX improvements made to the EPOS application.
 
+## [2026-09-09] - Mobile Responsiveness, Collapsible Panels & Clean Typography
+
+### 📱 Mobile & Responsive UI Enhancements
+* **Mobile Responsive & Edge-to-Edge Layout (`Dashboard.tsx` and all `dashboard/*` components)**:
+  * Cards and container blocks adapt flush to screen edges on mobile devices (`rounded-none sm:rounded-lg`).
+  * Optimized mobile paddings (`p-0 sm:p-4`, `px-3.5 py-2.5 sm:px-4 sm:py-3`) and touch targets.
+  * Header controls, date range inputs, and timeframe selectors wrap cleanly on mobile screens (`flex-wrap sm:flex-nowrap`, `w-full sm:w-auto`, `flex-1 sm:flex-none`).
+  * Horizontal scrolling wrappers (`overflow-x-auto` / `overflow-auto`) added for tabular sections (Payments and Categories) to prevent mobile viewport clipping.
+  * Preserved 100% of desktop styling, grids, and paddings (`sm:`, `md:`, `lg:`).
+
+### 🎯 Cash Register Search & Navigation Enhancements
+* **Synchronized Mouse Hover & Keyboard Arrow Navigation (`SearchResults.tsx`, `CashRegister.tsx`, `CustomerSelector.tsx`)**:
+  * Added instant mouse-hover synchronization with active selection (`onMouseEnter` updates active index) so mouse and keyboard navigation never conflict.
+  * Auto-scrolling on keyboard navigation: active row now automatically scrolls smoothly into view (`scrollIntoView({ block: 'nearest' })`) when cycling up/down through long search lists.
+  * High-visibility active/hover state: distinct blue accent bar (`border-l-4 border-l-blue-600`), soft active background (`bg-blue-50/95 dark:bg-blue-950/50`), bold title, and inline `Press Enter ↵` action shortcut badge on desktop.
+  * Enhanced Customer search dropdown with consistent active border highlight.
+* **Mobile Edge-to-Edge Layout & Touch Targets (`CashRegister.tsx`, `CartTable.tsx`, `CustomerSelector.tsx`, `PaymentPanel.tsx`, `TotalsPanel.tsx`, `SpeedGrid.tsx`)**:
+  * Edge-to-edge flush cards on small mobile screens (`rounded-none sm:rounded border-y sm:border`) across Search Bar, Cart, Customer Selector, Totals, Tender Widget, and Speed Grid.
+  * Expanded mobile touch target sizes on cart items: delete buttons (`38px × 38px`), quantity steppers (`36px × 36px`), and edit buttons (`36px × 36px`).
+  * Adaptive Tender Method grid: adjusted to `grid-cols-2 sm:grid-cols-4` to prevent button squeezing or label truncation on narrow mobile screens.
+  * Preserved 100% of desktop layout, calculations, multi-user session storage, and checkout logic.
+
+### 🎨 UI / UX Enhancements
+* **Collapsible Panels with Default-Collapsed State (`ProfitDriversTable.tsx`, `GrowthLeversCard.tsx`, `Dashboard.tsx`)**:
+  * Made **Top 10 Profit Drivers ("Money Makers")** and **Growth & Marketing Levers** collapsible sections, defaulting to collapsed on load.
+  * Added smooth clickable header toggle with chevron rotation indicator.
+  * Applied independent column alignment (`items-start`) on Section 4 responsive grid.
+* **Clean Text & Active Blue Typography (`Dashboard.tsx`, `ExecutiveKpiStrip.tsx`, `SalesTrendChart.tsx`, `PeakTradingHoursChart.tsx`)**:
+  * Removed borders from the top-right filter controls, timeframe dropdown, date inputs, and refresh button for a clean, borderless header presentation.
+  * Removed filled background color boxes, chips, and badge pill wrappers behind text and icons.
+  * Replaced background button switchers on charts with clean, minimalist typography using blue text (`text-blue-600 dark:text-blue-400 font-bold`) for active filter state.
+  * Unified **Payments** and **Categories** with white header surfaces and subtle tabular layout.
+
 ---
 
 ## [2026-09-05] - Batch Device Intake, Continuous Scanner Flow & Serialized Model Fixes

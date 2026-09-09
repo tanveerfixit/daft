@@ -42,9 +42,9 @@ export default function PeakTradingHoursChart({
   const totalRevenue = useMemo(() => data.reduce((sum, d) => sum + d.total, 0), [data]);
 
   return (
-    <div className="bg-white dark:bg-neutral-900 rounded border border-neutral-300 dark:border-neutral-800 overflow-hidden flex flex-col h-full">
+    <div className="bg-white dark:bg-neutral-900 rounded-none sm:rounded-lg overflow-hidden flex flex-col h-full">
       {/* Header */}
-      <div className="bg-neutral-100 dark:bg-neutral-850 px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white dark:bg-neutral-900 px-3.5 py-2.5 sm:px-4 sm:py-3 border-b border-blue-200 dark:border-blue-900/60 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Clock size={18} className="text-purple-600 dark:text-purple-400" />
           <h3 className="font-semibold text-sm text-neutral-800 dark:text-neutral-200">{title}</h3>
@@ -55,34 +55,34 @@ export default function PeakTradingHoursChart({
           <button
             type="button"
             onClick={() => setShowFullDay(prev => !prev)}
-            className="text-[11px] font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white px-2 py-1 rounded bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 cursor-pointer"
+            className="text-[11px] font-semibold text-neutral-500 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
           >
             {showFullDay ? 'Store Hours (8am-9pm)' : '24h View'}
           </button>
 
-          <div className="flex items-center bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded p-0.5 text-xs font-semibold">
+          <div className="flex items-center gap-2 text-xs font-semibold">
             <button
               type="button"
               onClick={() => setMetric('count')}
-              className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer ${
+              className={`px-1.5 py-1 transition-colors flex items-center gap-1 cursor-pointer ${
                 metric === 'count'
-                  ? 'bg-purple-600 text-white'
-                  : 'text-neutral-600 dark:text-neutral-300 hover:text-neutral-900'
+                  ? 'text-blue-600 dark:text-blue-400 font-bold'
+                  : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-white'
               }`}
             >
-              <ShoppingBag size={12} />
+              <ShoppingBag size={13} />
               <span>Orders (#)</span>
             </button>
             <button
               type="button"
               onClick={() => setMetric('total')}
-              className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer ${
+              className={`px-1.5 py-1 transition-colors flex items-center gap-1 cursor-pointer ${
                 metric === 'total'
-                  ? 'bg-purple-600 text-white'
-                  : 'text-neutral-600 dark:text-neutral-300 hover:text-neutral-900'
+                  ? 'text-blue-600 dark:text-blue-400 font-bold'
+                  : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-white'
               }`}
             >
-              <DollarSign size={12} />
+              <DollarSign size={13} />
               <span>Sales (€)</span>
             </button>
           </div>
@@ -90,7 +90,7 @@ export default function PeakTradingHoursChart({
       </div>
 
       {/* Highlights Bar */}
-      <div className="px-5 py-2.5 bg-neutral-50/50 dark:bg-neutral-900/50 border-b border-neutral-200 dark:border-neutral-800/80 flex items-center justify-between text-xs font-medium">
+      <div className="px-3.5 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between text-xs font-medium">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <Zap size={13} className="text-amber-500" />
@@ -110,7 +110,7 @@ export default function PeakTradingHoursChart({
       </div>
 
       {/* Bar Distribution Chart */}
-      <div className="p-4 flex-1 flex flex-col justify-end min-h-[220px]">
+      <div className="p-2.5 sm:p-4 flex-1 flex flex-col justify-end min-h-[220px]">
         {maxVal === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-neutral-400 dark:text-neutral-500 text-xs italic gap-1">
             <Clock size={24} className="opacity-40" />
@@ -119,7 +119,7 @@ export default function PeakTradingHoursChart({
         ) : (
           <div className="w-full flex flex-col justify-end h-44 relative">
             {/* Bars container */}
-            <div className="grid items-end gap-1 sm:gap-2 h-36 w-full" style={{ gridTemplateColumns: `repeat(${filteredHours.length}, minmax(0, 1fr))` }}>
+            <div className="grid items-end gap-0.5 sm:gap-2 h-36 w-full" style={{ gridTemplateColumns: `repeat(${filteredHours.length}, minmax(0, 1fr))` }}>
               {filteredHours.map((h) => {
                 const val = h[metric];
                 const heightPercent = maxVal > 0 ? Math.max((val / maxVal) * 100, 4) : 4;
@@ -157,7 +157,7 @@ export default function PeakTradingHoursChart({
             </div>
 
             {/* X-Axis Hour Labels */}
-            <div className="grid gap-1 sm:gap-2 pt-2 border-t border-neutral-200 dark:border-neutral-800 w-full text-center" style={{ gridTemplateColumns: `repeat(${filteredHours.length}, minmax(0, 1fr))` }}>
+            <div className="grid gap-0.5 sm:gap-2 pt-2 border-t border-neutral-200 dark:border-neutral-800 w-full text-center" style={{ gridTemplateColumns: `repeat(${filteredHours.length}, minmax(0, 1fr))` }}>
               {filteredHours.map((h, idx) => {
                 // Show every alternate label if tight
                 const isOdd = idx % 2 === 1;
