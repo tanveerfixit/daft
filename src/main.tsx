@@ -38,7 +38,7 @@ window.fetch = async (resource: any, config: any = {}) => {
         sessionStorage.clear();
         const keys = Object.keys(localStorage);
         keys.forEach(k => {
-          if (k.startsWith('epos_') && k !== 'theme') {
+          if (k.startsWith('epos_') && k !== 'theme' && !k.startsWith('epos_read_')) {
             localStorage.removeItem(k);
           }
         });

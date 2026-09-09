@@ -71,7 +71,7 @@ export async function getBranchPrefix(branchId?: number | null, fallback = 'SKU'
 
 // ─── Schema Initialisation ───────────────────────────────────────────────────
 
-export const CURRENT_SCHEMA_VERSION = '2026_09_SPEED_GRID_V1';
+export const CURRENT_SCHEMA_VERSION = '2026_09_PERF_AND_AUTH_V2';
 
 async function ensureIndex(conn: any, tableName: string, indexName: string, columns: string) {
   try {
@@ -1172,6 +1172,7 @@ export async function initSchema() {
     await ensureIndex(conn, 'invoices', 'idx_invoices_biz_branch_date', 'business_id, branch_id, created_at');
     await ensureIndex(conn, 'invoices', 'idx_invoices_number', 'invoice_number');
     await ensureIndex(conn, 'invoices', 'idx_invoices_biz_date', 'business_id, created_at');
+    await ensureIndex(conn, 'invoice_items', 'idx_inv_items_inv_prod', 'invoice_id, product_id');
     await ensureIndex(conn, 'jobs', 'idx_jobs_biz_branch_status', 'business_id, branch_id, status');
     await ensureIndex(conn, 'jobs', 'idx_jobs_biz_date', 'business_id, created_at');
     await ensureIndex(conn, 'jobs', 'idx_jobs_customer', 'customer_id');
@@ -1179,6 +1180,7 @@ export async function initSchema() {
     await ensureIndex(conn, 'products', 'idx_products_biz_name', 'business_id, name');
     await ensureIndex(conn, 'product_skus', 'idx_skus_barcode', 'barcode');
     await ensureIndex(conn, 'product_skus', 'idx_skus_prod_sku', 'product_id, sku_code');
+    await ensureIndex(conn, 'branch_stock', 'idx_branch_stock_sku_branch', 'sku_id, branch_id, quantity');
     await ensureIndex(conn, 'devices', 'idx_devices_biz_branch_status', 'business_id, branch_id, status');
     await ensureIndex(conn, 'devices', 'idx_devices_sku_status', 'sku_id, status, business_id');
     await ensureIndex(conn, 'devices', 'idx_devices_biz_branch_user', 'business_id, branch_id, user_id');
@@ -1190,6 +1192,11 @@ export async function initSchema() {
     await ensureIndex(conn, 'payments', 'idx_payments_customer_paid', 'customer_id, paid_at');
     await ensureIndex(conn, 'closing_reports', 'idx_closing_biz_branch_date', 'business_id, branch_id, report_date');
     await ensureIndex(conn, 'inventory_movements', 'idx_inv_mov_biz_branch_type_date', 'business_id, branch_id, movement_type, created_at');
+    await ensureIndex(conn, 'activity_logs', 'idx_activity_logs_biz_created', 'business_id, created_at');
+    await ensureIndex(conn, 'invoice_activity', 'idx_inv_activity_inv_created', 'invoice_id, created_at');
+    await ensureIndex(conn, 'product_activity', 'idx_prod_activity_sku_created', 'sku_id, created_at');
+    await ensureIndex(conn, 'device_activity', 'idx_dev_activity_dev_created', 'device_id, created_at');
+    await ensureIndex(conn, 'customer_activity', 'idx_cust_activity_cust_created', 'customer_id, created_at');
 
     // Update cached schema version
     await conn.query(
@@ -1199,6 +1206,44 @@ export async function initSchema() {
     );
 
     console.log('[MySQL] Schema initialised and cached successfully');
+  } finally {
+    conn.release();
+  }
+
+  // Ensure 100% password encryption across all database records
+  await migrateAllPasswordsToHash();
+}
+
+// ─── 100% Password Encryption Migration ───────────────────────────────────────
+
+export async function migrateAllPasswordsToHash() {
+  const conn = await pool.getConnection();
+  try {
+    const bcrypt = await import('bcryptjs');
+    // Find any user with non-empty plaintext password or null/empty password_hash
+    const [rows] = await conn.query(
+      "SELECT id, password, password_hash FROM users WHERE (password IS NOT NULL AND password != '') OR password_hash IS NULL OR password_hash = ''"
+    );
+    const usersToMigrate = rows as any[];
+    if (usersToMigrate.length > 0) {
+      console.log(`[MySQL Security] Migrating ${usersToMigrate.length} user password(s) to 100% bcrypt hash...`);
+      for (const u of usersToMigrate) {
+        let hash = u.password_hash;
+        if (!hash || hash.trim() === '') {
+          const raw = u.password && u.password.trim() !== '' ? u.password : 'Admin123';
+          hash = await bcrypt.hash(raw, 10);
+        }
+        await conn.execute(
+          "UPDATE users SET password_hash = ?, password = '', last_generated_password = NULL WHERE id = ?",
+          [hash, u.id]
+        );
+      }
+      console.log('[MySQL Security] All user passwords successfully hashed and plaintext passwords purged.');
+    }
+    // Purge any residual last_generated_password plaintext across the entire users table
+    await conn.query("UPDATE users SET password = '', last_generated_password = NULL WHERE password != '' OR last_generated_password IS NOT NULL");
+  } catch (e: any) {
+    console.error('[MySQL Security] Password migration error:', e.message);
   } finally {
     conn.release();
   }
@@ -1271,15 +1316,15 @@ export async function seedData() {
       const branchId = (brResult as mysql.ResultSetHeader).insertId;
       if (!firstBranchId) firstBranchId = branchId;
 
-      // Create Admin for each branch
+      // Create Admin for each branch with secure password_hash
       await conn.execute(
         `INSERT INTO users (business_id, branch_id, name, email, password, password_hash, role, status)
-         VALUES (?, ?, ?, ?, ?, ?, 'superadmin', 'approved')`,
-        [businessId, branchId, b.name + ' Admin', b.email, 'Admin123', adminHash]
+         VALUES (?, ?, ?, ?, '', ?, 'superadmin', 'approved')`,
+        [businessId, branchId, b.name + ' Admin', b.email, adminHash]
       );
     }
 
-    // Developer Panel user
+    // Developer Panel user with secure password_hash
     const devHash = await bcrypt.hash(process.env.DEV_PASS || 'admin123', 10);
     await conn.execute(
       `INSERT INTO users (business_id, branch_id, name, email, password, password_hash, role, status)
@@ -1325,9 +1370,9 @@ export async function ensureSuperAdmin() {
 
   await pool.execute(
     `INSERT INTO users (business_id, branch_id, name, email, password, password_hash, role, status)
-     VALUES (?, ?, 'Super Admin', 'tanveerfixit@gmail.com', 'Admin123', ?, 'superadmin', 'approved')
-     ON DUPLICATE KEY UPDATE role='superadmin', status='approved', password='Admin123', business_id=?, branch_id=?`,
-    [businessId, branchId, hash, businessId, branchId]
+     VALUES (?, ?, 'Super Admin', 'tanveerfixit@gmail.com', '', ?, 'superadmin', 'approved')
+     ON DUPLICATE KEY UPDATE role='superadmin', status='approved', password='', password_hash=?, business_id=?, branch_id=?`,
+    [businessId, branchId, hash, hash, businessId, branchId]
   );
 
   // ─── Migrate Developer Panel user to role='developer' (FINDING-002) ──────

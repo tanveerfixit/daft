@@ -51,8 +51,7 @@ router.get('/', async (req: any, res, next) => {
       SELECT s.id, p.name as product_name, s.sku_code, s.barcode,
              COALESCE(s.selling_price, p.base_unit_price, 0) as selling_price, s.cost_price, p.product_type,
              c.name as category_name, m.name as manufacturer_name,
-             p.id as product_id,
-             (SELECT SUM(quantity) FROM branch_stock WHERE sku_id = s.id) as total_stock
+             p.id as product_id
       FROM product_skus s
       JOIN products p ON s.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
@@ -62,10 +61,25 @@ router.get('/', async (req: any, res, next) => {
       LIMIT ? OFFSET ?
     `;
     
-    const products = await query(productsSql, [...params, limit, offset]);
+    const products = await query(productsSql, [...params, limit, offset]) as any[];
+
+    // Batch query stock for the current page only using index (eliminates N correlated subqueries)
+    let stockMap: Record<number, number> = {};
+    if (products.length > 0) {
+      const skuIds = products.map((p: any) => p.id);
+      const stockRows = await query(
+        `SELECT sku_id, COALESCE(SUM(quantity), 0) as total_stock 
+         FROM branch_stock 
+         WHERE sku_id IN (${skuIds.map(() => '?').join(',')}) 
+         GROUP BY sku_id`,
+        skuIds
+      ) as any[];
+      stockMap = Object.fromEntries(stockRows.map((r: any) => [r.sku_id, Number(r.total_stock)]));
+    }
 
     const mapped = products.map((p: any) => ({
       ...p,
+      total_stock: stockMap[p.id] || 0,
       name: p.product_name + (p.sku_code ? ` (${p.sku_code})` : '')
     }));
 

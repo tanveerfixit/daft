@@ -53,6 +53,7 @@ import AdminLoginPage from './components/auth/AdminLoginPage';
 import PublicProfile from './components/PublicProfile';
 import { StartingCashModal } from './components/StartingCashModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { getScopedLocalStorage, setScopedLocalStorage, removeScopedLocalStorage } from './utils/storage';
 
 const slugify = (text: string) => {
   return text
@@ -393,7 +394,7 @@ function AppInner() {
     const checkStartingCash = async () => {
       try {
         // BY DEFAULT DISABLED: Only proceed if explicitly enabled by store manager
-        const isLocallyEnabled = localStorage.getItem('epos_enable_starting_cash_popup') === 'true';
+        const isLocallyEnabled = getScopedLocalStorage<string>('enable_starting_cash_popup', currentUser) === 'true';
 
         const headers: Record<string, string> = {
           'Content-Type': 'application/json'
@@ -408,9 +409,9 @@ function AppInner() {
           const settingsData = await settingsRes.json();
           isEnabled = Boolean(settingsData.startup_cash_popup === 1 || settingsData.startup_cash_popup === true);
           if (isEnabled) {
-            localStorage.setItem('epos_enable_starting_cash_popup', 'true');
+            setScopedLocalStorage('enable_starting_cash_popup', 'true', currentUser);
           } else {
-            localStorage.removeItem('epos_enable_starting_cash_popup');
+            removeScopedLocalStorage('enable_starting_cash_popup', currentUser);
           }
         }
 

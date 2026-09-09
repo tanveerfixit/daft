@@ -42,6 +42,7 @@ interface CachedUser {
   expiresAt: number;
 }
 
+const MAX_AUTH_CACHE_SIZE = 500;
 const authUserCache = new Map<number, CachedUser>();
 
 export function invalidateUserAuthCache(userId?: number) {
@@ -50,6 +51,14 @@ export function invalidateUserAuthCache(userId?: number) {
   } else {
     authUserCache.clear();
   }
+}
+
+function setCachedAuthUser(userId: number, user: any) {
+  if (authUserCache.size >= MAX_AUTH_CACHE_SIZE) {
+    const oldestKey = authUserCache.keys().next().value;
+    if (oldestKey !== undefined) authUserCache.delete(oldestKey);
+  }
+  authUserCache.set(userId, { user, expiresAt: Date.now() + 45000 });
 }
 
 export function requireAuth(req: any, res: any, next: any) {
@@ -74,7 +83,7 @@ export async function requireAuthAsync(req: any, res: any, next: any) {
     } else {
       user = await queryOne('SELECT * FROM users WHERE id=?', [decoded.userId]);
       if (!user) return res.status(401).json({ error: 'User not found' });
-      authUserCache.set(decoded.userId, { user, expiresAt: Date.now() + 45000 });
+      setCachedAuthUser(decoded.userId, user);
     }
 
     req._sessionToken = token;
@@ -242,17 +251,17 @@ router.post('/login', async (req: any, res, next) => {
     if (user.status === 'rejected') return res.status(403).json({ error: 'Your account registration was rejected.' });
     if (user.status === 'inactive') return res.status(403).json({ error: 'Your account has been deactivated.' });
 
-    let valid = false;
-    if (user.password_hash) {
-      valid = await bcrypt.compare(password, user.password_hash);
-    } else {
-      // Legacy plaintext fallback — migrate to hash on successful login (FINDING-007)
-      valid = user.password === password;
-      if (valid) {
+    if (!user.password_hash || user.password_hash.trim() === '') {
+      if (user.password && user.password === password) {
         const hash = await bcrypt.hash(password, 10);
-        await execute("UPDATE users SET password_hash=?, password='' WHERE id=?", [hash, user.id]);
+        await execute("UPDATE users SET password_hash=?, password='', last_generated_password=NULL WHERE id=?", [hash, user.id]);
+        user.password_hash = hash;
+      } else {
+        return res.status(401).json({ error: 'Invalid email or password' });
       }
     }
+
+    const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
     // JWT Generation (12h session aligned with business work shift)
@@ -503,9 +512,9 @@ adminRouter.post('/users/:id/reset-password', requireAdminAsync, async (req: any
     if (!user) return res.status(404).json({ error: 'User not found or access denied' });
     const newPass = crypto.randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10) + '!';
     const hash = await bcrypt.hash(newPass, 10);
-    // Store hash only, keep last_generated_password for resend feature (FINDING-007)
-    await execute("UPDATE users SET password='',password_hash=?,last_generated_password=? WHERE id=?",
-      [hash, newPass, user.id]);
+    // 100% Encrypted: Store hash only, never store plaintext in database
+    await execute("UPDATE users SET password='',password_hash=?,last_generated_password=NULL WHERE id=?",
+      [hash, user.id]);
     try { await sendGeneratedPassword({ name: user.name, email: user.email }, newPass); } catch {}
     res.json({ success: true, message: `Password reset and emailed to ${user.email}` });
   } catch (e: any) { next(e); }
@@ -517,11 +526,13 @@ adminRouter.post('/users/:id/resend-password', requireAdminAsync, async (req: an
     const user = await queryOne('SELECT * FROM users WHERE id=? AND business_id=?',
       [req.params.id, req.user.business_id]) as any;
     if (!user) return res.status(404).json({ error: 'User not found or access denied' });
-    if (!user.last_generated_password) {
-      return res.status(400).json({ error: 'No generated password on record. Use Reset Password instead.' });
-    }
-    try { await sendGeneratedPassword({ name: user.name, email: user.email }, user.last_generated_password); } catch {}
-    res.json({ success: true, message: `Password resent to ${user.email}` });
+    // Generate fresh secure temporary password and email it (100% encrypted in DB)
+    const newPass = crypto.randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10) + '!';
+    const hash = await bcrypt.hash(newPass, 10);
+    await execute("UPDATE users SET password='',password_hash=?,last_generated_password=NULL WHERE id=?",
+      [hash, user.id]);
+    try { await sendGeneratedPassword({ name: user.name, email: user.email }, newPass); } catch {}
+    res.json({ success: true, message: `A new temporary password was generated and emailed to ${user.email}` });
   } catch (e: any) { next(e); }
 });
 

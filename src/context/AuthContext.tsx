@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { Clock, ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
+import { getScopedKey, clearUserBranchStorage } from '../utils/storage';
 
 interface User {
   id: number;
@@ -30,7 +31,9 @@ const AuthContext = createContext<AuthContextType | null>(null);
 const INACTIVITY_TIMEOUT_MS = 3 * 60 * 60 * 1000; // 3 hours = 10,800,000 ms
 const WARNING_BEFORE_LOGOUT_MS = 2 * 60 * 1000;   // 2 minutes warning countdown = 120,000 ms
 
-export function clearAllBusinessStorage() {
+export function clearAllBusinessStorage(user?: User | null) {
+  clearUserBranchStorage(user);
+
   const keysToRemove = [
     'epos_token',
     'epos_cart',
@@ -44,28 +47,6 @@ export function clearAllBusinessStorage() {
     sessionStorage.removeItem(k);
     localStorage.removeItem(k);
   });
-
-  // Purge namespaced business keys in sessionStorage
-  try {
-    const sKeys = Object.keys(sessionStorage);
-    sKeys.forEach(key => {
-      if (key.startsWith('epos_') && key !== 'theme') {
-        sessionStorage.removeItem(key);
-      }
-    });
-  } catch (e) {}
-
-  // Purge legacy namespaced business keys in localStorage
-  try {
-    const allKeys = Object.keys(localStorage);
-    allKeys.forEach(key => {
-      if (key.startsWith('epos_') && key !== 'theme') {
-        localStorage.removeItem(key);
-      }
-    });
-  } catch (e) {
-    console.error('Failed to clean storage:', e);
-  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -88,14 +69,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { Authorization: `Bearer ${t}` } 
       }).catch(() => {});
     }
-    clearAllBusinessStorage();
+    clearAllBusinessStorage(currentUser);
     setToken(null);
     setCurrentUser(null);
     setShowWarning(false);
     if (redirect) {
       window.location.replace('/');
     }
-  }, []);
+  }, [currentUser]);
 
   // Initialize Auth & restore token across tabs
   useEffect(() => {
@@ -114,9 +95,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (user.id) { 
             setCurrentUser(user); 
             setToken(savedToken);
-            // Record initial activity
+            // Record initial activity scoped to user & branch
             const now = Date.now();
             lastActivityRef.current = now;
+            const activityKey = getScopedKey('last_activity', user);
+            localStorage.setItem(activityKey, now.toString());
             localStorage.setItem('epos_last_activity', now.toString());
           } else { 
             clearAllBusinessStorage(); 
@@ -139,11 +122,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!res.ok) throw new Error(data.error || 'Login failed');
     
     // Clear residual storage before initializing new business session
-    clearAllBusinessStorage();
+    clearAllBusinessStorage(data.user);
 
     localStorage.setItem('epos_token', data.token);
     sessionStorage.setItem('epos_token', data.token);
     const now = Date.now();
+    const activityKey = getScopedKey('last_activity', data.user);
+    localStorage.setItem(activityKey, now.toString());
     localStorage.setItem('epos_last_activity', now.toString());
     lastActivityRef.current = now;
 
@@ -152,10 +137,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const setSession = useCallback((newToken: string, newUser: User) => {
-    clearAllBusinessStorage();
+    clearAllBusinessStorage(newUser);
     localStorage.setItem('epos_token', newToken);
     sessionStorage.setItem('epos_token', newToken);
     const now = Date.now();
+    const activityKey = getScopedKey('last_activity', newUser);
+    localStorage.setItem(activityKey, now.toString());
     localStorage.setItem('epos_last_activity', now.toString());
     lastActivityRef.current = now;
 
@@ -167,9 +154,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resetInactivityTimer = useCallback(() => {
     const now = Date.now();
     lastActivityRef.current = now;
+    const activityKey = getScopedKey('last_activity', currentUser);
+    localStorage.setItem(activityKey, now.toString());
     localStorage.setItem('epos_last_activity', now.toString());
     setShowWarning(false);
-  }, []);
+  }, [currentUser]);
 
   // ─── Senior Inactivity Engine (3-Hour Idle Detection & Cross-Tab Sync) ─────
   useEffect(() => {
@@ -178,12 +167,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // 1. Throttled activity recorder (records at most once every 5 seconds to prevent performance degradation)
+    const activityKey = getScopedKey('last_activity', currentUser);
+
+    // 1. Throttled activity recorder (records at most once every 5 seconds)
     const handleUserActivity = () => {
       const now = Date.now();
       lastActivityRef.current = now;
 
-      // If warning is currently showing, any user interaction immediately clears it
       setShowWarning(prev => {
         if (prev) return false;
         return prev;
@@ -192,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (now - lastThrottleWriteRef.current > 5000) {
         lastThrottleWriteRef.current = now;
         try {
+          localStorage.setItem(activityKey, now.toString());
           localStorage.setItem('epos_last_activity', now.toString());
         } catch (e) {}
       }
@@ -213,16 +204,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.addEventListener(evt, handleUserActivity, { passive: true });
     });
 
-    // 2. Cross-tab activity synchronization listener
+    // 2. Cross-tab activity synchronization listener (scoped to this user & branch)
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'epos_last_activity' && e.newValue) {
+      if ((e.key === activityKey || e.key === 'epos_last_activity') && e.newValue) {
         const remoteTime = Number(e.newValue);
         if (!isNaN(remoteTime) && remoteTime > lastActivityRef.current) {
           lastActivityRef.current = remoteTime;
           setShowWarning(false);
         }
       } else if (e.key === 'epos_token' && !e.newValue) {
-        // Another tab logged out
+        // Logged out in another tab
         logout(true);
       }
     };
@@ -231,7 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 3. Heartbeat Checker (runs every 1 second to accurately track time and sleep/wake events)
     const checkInactivity = () => {
       // Sync with storage in case another tab updated it
-      const storedTimeStr = localStorage.getItem('epos_last_activity');
+      const storedTimeStr = localStorage.getItem(activityKey) || localStorage.getItem('epos_last_activity');
       if (storedTimeStr) {
         const storedTime = Number(storedTimeStr);
         if (!isNaN(storedTime) && storedTime > lastActivityRef.current) {

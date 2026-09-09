@@ -28,6 +28,7 @@ __export(mysql_exports, {
   getBranchPrefix: () => getBranchPrefix,
   initSchema: () => initSchema,
   logActivity: () => logActivity,
+  migrateAllPasswordsToHash: () => migrateAllPasswordsToHash,
   pool: () => pool,
   query: () => query,
   queryOne: () => queryOne,
@@ -1115,6 +1116,7 @@ async function initSchema() {
     await ensureIndex(conn, "invoices", "idx_invoices_biz_branch_date", "business_id, branch_id, created_at");
     await ensureIndex(conn, "invoices", "idx_invoices_number", "invoice_number");
     await ensureIndex(conn, "invoices", "idx_invoices_biz_date", "business_id, created_at");
+    await ensureIndex(conn, "invoice_items", "idx_inv_items_inv_prod", "invoice_id, product_id");
     await ensureIndex(conn, "jobs", "idx_jobs_biz_branch_status", "business_id, branch_id, status");
     await ensureIndex(conn, "jobs", "idx_jobs_biz_date", "business_id, created_at");
     await ensureIndex(conn, "jobs", "idx_jobs_customer", "customer_id");
@@ -1122,6 +1124,7 @@ async function initSchema() {
     await ensureIndex(conn, "products", "idx_products_biz_name", "business_id, name");
     await ensureIndex(conn, "product_skus", "idx_skus_barcode", "barcode");
     await ensureIndex(conn, "product_skus", "idx_skus_prod_sku", "product_id, sku_code");
+    await ensureIndex(conn, "branch_stock", "idx_branch_stock_sku_branch", "sku_id, branch_id, quantity");
     await ensureIndex(conn, "devices", "idx_devices_biz_branch_status", "business_id, branch_id, status");
     await ensureIndex(conn, "devices", "idx_devices_sku_status", "sku_id, status, business_id");
     await ensureIndex(conn, "devices", "idx_devices_biz_branch_user", "business_id, branch_id, user_id");
@@ -1133,12 +1136,48 @@ async function initSchema() {
     await ensureIndex(conn, "payments", "idx_payments_customer_paid", "customer_id, paid_at");
     await ensureIndex(conn, "closing_reports", "idx_closing_biz_branch_date", "business_id, branch_id, report_date");
     await ensureIndex(conn, "inventory_movements", "idx_inv_mov_biz_branch_type_date", "business_id, branch_id, movement_type, created_at");
+    await ensureIndex(conn, "activity_logs", "idx_activity_logs_biz_created", "business_id, created_at");
+    await ensureIndex(conn, "invoice_activity", "idx_inv_activity_inv_created", "invoice_id, created_at");
+    await ensureIndex(conn, "product_activity", "idx_prod_activity_sku_created", "sku_id, created_at");
+    await ensureIndex(conn, "device_activity", "idx_dev_activity_dev_created", "device_id, created_at");
+    await ensureIndex(conn, "customer_activity", "idx_cust_activity_cust_created", "customer_id, created_at");
     await conn.query(
       `INSERT INTO _schema_meta (key_name, value) VALUES ('schema_version', ?) 
        ON DUPLICATE KEY UPDATE value = ?`,
       [CURRENT_SCHEMA_VERSION, CURRENT_SCHEMA_VERSION]
     );
     console.log("[MySQL] Schema initialised and cached successfully");
+  } finally {
+    conn.release();
+  }
+  await migrateAllPasswordsToHash();
+}
+async function migrateAllPasswordsToHash() {
+  const conn = await pool.getConnection();
+  try {
+    const bcrypt2 = await import("bcryptjs");
+    const [rows] = await conn.query(
+      "SELECT id, password, password_hash FROM users WHERE (password IS NOT NULL AND password != '') OR password_hash IS NULL OR password_hash = ''"
+    );
+    const usersToMigrate = rows;
+    if (usersToMigrate.length > 0) {
+      console.log(`[MySQL Security] Migrating ${usersToMigrate.length} user password(s) to 100% bcrypt hash...`);
+      for (const u of usersToMigrate) {
+        let hash = u.password_hash;
+        if (!hash || hash.trim() === "") {
+          const raw = u.password && u.password.trim() !== "" ? u.password : "Admin123";
+          hash = await bcrypt2.hash(raw, 10);
+        }
+        await conn.execute(
+          "UPDATE users SET password_hash = ?, password = '', last_generated_password = NULL WHERE id = ?",
+          [hash, u.id]
+        );
+      }
+      console.log("[MySQL Security] All user passwords successfully hashed and plaintext passwords purged.");
+    }
+    await conn.query("UPDATE users SET password = '', last_generated_password = NULL WHERE password != '' OR last_generated_password IS NOT NULL");
+  } catch (e) {
+    console.error("[MySQL Security] Password migration error:", e.message);
   } finally {
     conn.release();
   }
@@ -1199,8 +1238,8 @@ async function seedData() {
       if (!firstBranchId) firstBranchId = branchId;
       await conn.execute(
         `INSERT INTO users (business_id, branch_id, name, email, password, password_hash, role, status)
-         VALUES (?, ?, ?, ?, ?, ?, 'superadmin', 'approved')`,
-        [businessId, branchId, b.name + " Admin", b.email, "Admin123", adminHash]
+         VALUES (?, ?, ?, ?, '', ?, 'superadmin', 'approved')`,
+        [businessId, branchId, b.name + " Admin", b.email, adminHash]
       );
     }
     const devHash = await bcrypt2.hash(process.env.DEV_PASS || "admin123", 10);
@@ -1238,9 +1277,9 @@ async function ensureSuperAdmin() {
   const hash = await bcrypt2.hash("Admin123", 10);
   await pool.execute(
     `INSERT INTO users (business_id, branch_id, name, email, password, password_hash, role, status)
-     VALUES (?, ?, 'Super Admin', 'tanveerfixit@gmail.com', 'Admin123', ?, 'superadmin', 'approved')
-     ON DUPLICATE KEY UPDATE role='superadmin', status='approved', password='Admin123', business_id=?, branch_id=?`,
-    [businessId, branchId, hash, businessId, branchId]
+     VALUES (?, ?, 'Super Admin', 'tanveerfixit@gmail.com', '', ?, 'superadmin', 'approved')
+     ON DUPLICATE KEY UPDATE role='superadmin', status='approved', password='', password_hash=?, business_id=?, branch_id=?`,
+    [businessId, branchId, hash, hash, businessId, branchId]
   );
   await pool.execute(
     `UPDATE users SET role='developer', password=''
@@ -1310,7 +1349,7 @@ var init_mysql = __esm({
       keepAliveInitialDelay: 1e4,
       charset: "utf8mb4_unicode_ci"
     });
-    CURRENT_SCHEMA_VERSION = "2026_09_SPEED_GRID_V1";
+    CURRENT_SCHEMA_VERSION = "2026_09_PERF_AND_AUTH_V2";
   }
 });
 
@@ -1349,6 +1388,8 @@ async function getTransporter() {
     connectionTimeout: 5e3,
     greetingTimeout: 5e3,
     socketTimeout: 1e4,
+    disableFileAccess: true,
+    disableUrlAccess: true,
     auth: { user, pass }
   });
   return cachedTransporter;
@@ -1360,9 +1401,14 @@ async function getFromAddress() {
   return `"${name}" <${email}>`;
 }
 async function sendMail(to, subject, html) {
+  if (!to || typeof to !== "string" || to.length > 254) {
+    console.warn("[Mailer] Invalid or oversized recipient email address:", to);
+    return;
+  }
+  const cleanTo = to.trim().replace(/[\r\n\t]/g, "");
   const transporter = await getTransporter();
   const from = await getFromAddress();
-  await transporter.sendMail({ from, to, subject, html });
+  await transporter.sendMail({ from, to: cleanTo, subject, html });
 }
 async function sendAccountApproved(user) {
   const html = `<div style="${baseStyle}">
@@ -1731,6 +1777,13 @@ function invalidateUserAuthCache(userId) {
     authUserCache.clear();
   }
 }
+function setCachedAuthUser(userId, user) {
+  if (authUserCache.size >= MAX_AUTH_CACHE_SIZE) {
+    const oldestKey = authUserCache.keys().next().value;
+    if (oldestKey !== void 0) authUserCache.delete(oldestKey);
+  }
+  authUserCache.set(userId, { user, expiresAt: Date.now() + 45e3 });
+}
 function requireAuth(req, res, next) {
   const token = req.headers["authorization"]?.replace("Bearer ", "");
   const decoded = verifyToken(token);
@@ -1751,7 +1804,7 @@ async function requireAuthAsync(req, res, next) {
     } else {
       user = await queryOne("SELECT * FROM users WHERE id=?", [decoded.userId]);
       if (!user) return res.status(401).json({ error: "User not found" });
-      authUserCache.set(decoded.userId, { user, expiresAt: Date.now() + 45e3 });
+      setCachedAuthUser(decoded.userId, user);
     }
     req._sessionToken = token;
     req.userId = decoded.userId;
@@ -1782,7 +1835,7 @@ async function requireAdminAsync(req, res, next) {
 function slugify(text) {
   return text.toString().toLowerCase().trim().replace(/\s+/g, "-").replace(/[^\w-]+/g, "").replace(/--+/g, "-");
 }
-var JWT_SECRET, revokedTokens, userPasswordResets, _cleanup, authUserCache, router, signupSchema, loginSchema, resetPasswordSchema, adminRouter, getAnnouncementsPath, readAnnouncementsFile, writeAnnouncementsFile, auth_default;
+var JWT_SECRET, revokedTokens, userPasswordResets, _cleanup, MAX_AUTH_CACHE_SIZE, authUserCache, router, signupSchema, loginSchema, resetPasswordSchema, adminRouter, getAnnouncementsPath, readAnnouncementsFile, writeAnnouncementsFile, auth_default;
 var init_auth = __esm({
   "src/routes/auth.ts"() {
     init_mysql();
@@ -1794,6 +1847,7 @@ var init_auth = __esm({
       revokedTokens.clear();
     }, 60 * 60 * 1e3);
     if (typeof _cleanup.unref === "function") _cleanup.unref();
+    MAX_AUTH_CACHE_SIZE = 500;
     authUserCache = /* @__PURE__ */ new Map();
     router = Router();
     signupSchema = z.object({
@@ -1898,16 +1952,16 @@ var init_auth = __esm({
         if (user.status === "pending") return res.status(403).json({ error: "Your account is pending admin approval." });
         if (user.status === "rejected") return res.status(403).json({ error: "Your account registration was rejected." });
         if (user.status === "inactive") return res.status(403).json({ error: "Your account has been deactivated." });
-        let valid = false;
-        if (user.password_hash) {
-          valid = await bcrypt.compare(password, user.password_hash);
-        } else {
-          valid = user.password === password;
-          if (valid) {
+        if (!user.password_hash || user.password_hash.trim() === "") {
+          if (user.password && user.password === password) {
             const hash = await bcrypt.hash(password, 10);
-            await execute("UPDATE users SET password_hash=?, password='' WHERE id=?", [hash, user.id]);
+            await execute("UPDATE users SET password_hash=?, password='', last_generated_password=NULL WHERE id=?", [hash, user.id]);
+            user.password_hash = hash;
+          } else {
+            return res.status(401).json({ error: "Invalid email or password" });
           }
         }
+        const valid = await bcrypt.compare(password, user.password_hash);
         if (!valid) return res.status(401).json({ error: "Invalid email or password" });
         const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "12h" });
         await execute("UPDATE users SET last_login=NOW() WHERE id=?", [user.id]);
@@ -2147,8 +2201,8 @@ var init_auth = __esm({
         const newPass = crypto.randomBytes(6).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) + "!";
         const hash = await bcrypt.hash(newPass, 10);
         await execute(
-          "UPDATE users SET password='',password_hash=?,last_generated_password=? WHERE id=?",
-          [hash, newPass, user.id]
+          "UPDATE users SET password='',password_hash=?,last_generated_password=NULL WHERE id=?",
+          [hash, user.id]
         );
         try {
           await sendGeneratedPassword({ name: user.name, email: user.email }, newPass);
@@ -2166,14 +2220,17 @@ var init_auth = __esm({
           [req.params.id, req.user.business_id]
         );
         if (!user) return res.status(404).json({ error: "User not found or access denied" });
-        if (!user.last_generated_password) {
-          return res.status(400).json({ error: "No generated password on record. Use Reset Password instead." });
-        }
+        const newPass = crypto.randomBytes(6).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) + "!";
+        const hash = await bcrypt.hash(newPass, 10);
+        await execute(
+          "UPDATE users SET password='',password_hash=?,last_generated_password=NULL WHERE id=?",
+          [hash, user.id]
+        );
         try {
-          await sendGeneratedPassword({ name: user.name, email: user.email }, user.last_generated_password);
+          await sendGeneratedPassword({ name: user.name, email: user.email }, newPass);
         } catch {
         }
-        res.json({ success: true, message: `Password resent to ${user.email}` });
+        res.json({ success: true, message: `A new temporary password was generated and emailed to ${user.email}` });
       } catch (e) {
         next(e);
       }
@@ -2551,8 +2608,7 @@ var init_products = __esm({
       SELECT s.id, p.name as product_name, s.sku_code, s.barcode,
              COALESCE(s.selling_price, p.base_unit_price, 0) as selling_price, s.cost_price, p.product_type,
              c.name as category_name, m.name as manufacturer_name,
-             p.id as product_id,
-             (SELECT SUM(quantity) FROM branch_stock WHERE sku_id = s.id) as total_stock
+             p.id as product_id
       FROM product_skus s
       JOIN products p ON s.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
@@ -2562,8 +2618,21 @@ var init_products = __esm({
       LIMIT ? OFFSET ?
     `;
         const products = await query(productsSql, [...params, limit, offset]);
+        let stockMap = {};
+        if (products.length > 0) {
+          const skuIds = products.map((p) => p.id);
+          const stockRows = await query(
+            `SELECT sku_id, COALESCE(SUM(quantity), 0) as total_stock 
+         FROM branch_stock 
+         WHERE sku_id IN (${skuIds.map(() => "?").join(",")}) 
+         GROUP BY sku_id`,
+            skuIds
+          );
+          stockMap = Object.fromEntries(stockRows.map((r) => [r.sku_id, Number(r.total_stock)]));
+        }
         const mapped = products.map((p) => ({
           ...p,
+          total_stock: stockMap[p.id] || 0,
           name: p.product_name + (p.sku_code ? ` (${p.sku_code})` : "")
         }));
         res.json({
@@ -4775,13 +4844,15 @@ var init_reports = __esm({
         const isDeveloper = req.user.role === "developer";
         const branchId = req.user.branch_id;
         const businessId = req.user.business_id;
+        const startDateTime = String(startDate).includes(" ") ? String(startDate) : `${startDate} 00:00:00`;
+        const endDateTime = String(endDate).includes(" ") ? String(endDate) : `${endDate} 23:59:59`;
         let salesSql = `
       SELECT COUNT(id) as count, COALESCE(SUM(grand_total), 0) as total 
       FROM invoices 
-      WHERE business_id=? AND DATE(created_at)>=? AND DATE(created_at)<=?
+      WHERE business_id=? AND created_at >= ? AND created_at <= ?
       ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
     `;
-        const salesParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const salesParams = !isDeveloper && branchId ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
         const salesKpi = await queryOne(salesSql, salesParams);
         let openRepairsSql = `
       SELECT COUNT(id) as count FROM jobs 
@@ -4792,41 +4863,41 @@ var init_reports = __esm({
         const openRepairsKpi = await queryOne(openRepairsSql, openRepairsParams);
         let addedRepairsSql = `
       SELECT COUNT(id) as count FROM jobs 
-      WHERE business_id=? AND DATE(created_at)>=? AND DATE(created_at)<=?
+      WHERE business_id=? AND created_at >= ? AND created_at <= ?
       ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
     `;
-        const addedRepairsParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const addedRepairsParams = !isDeveloper && branchId ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
         const addedRepairsKpi = await queryOne(addedRepairsSql, addedRepairsParams);
         let invoicedRepairsSql = `
       SELECT COUNT(id) as count FROM jobs 
-      WHERE business_id=? AND status='collected' AND DATE(created_at)>=? AND DATE(created_at)<=?
+      WHERE business_id=? AND status='collected' AND created_at >= ? AND created_at <= ?
       ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
     `;
-        const invoicedRepairsParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const invoicedRepairsParams = !isDeveloper && branchId ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
         const invoicedRepairsKpi = await queryOne(invoicedRepairsSql, invoicedRepairsParams);
         let addedCustomersSql = `
       SELECT COUNT(id) as count FROM customers 
-      WHERE business_id=? AND DATE(created_at)>=? AND DATE(created_at)<=? AND deleted_at IS NULL
+      WHERE business_id=? AND created_at >= ? AND created_at <= ? AND deleted_at IS NULL
       ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
     `;
-        const addedCustomersParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const addedCustomersParams = !isDeveloper && branchId ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
         const addedCustomersKpi = await queryOne(addedCustomersSql, addedCustomersParams);
         let purchasedCustomersSql = `
       SELECT COUNT(DISTINCT customer_id) as count FROM invoices
-      WHERE business_id=? AND DATE(created_at)>=? AND DATE(created_at)<=?
+      WHERE business_id=? AND created_at >= ? AND created_at <= ?
       ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
     `;
-        const purchasedCustomersParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const purchasedCustomersParams = !isDeveloper && branchId ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
         const purchasedCustomersKpi = await queryOne(purchasedCustomersSql, purchasedCustomersParams);
         let paymentsSql = `
       SELECT p.method as payment_type, COALESCE(SUM(p.amount), 0) as total 
       FROM payments p
       LEFT JOIN invoices i ON p.invoice_id=i.id
-      WHERE i.business_id=? AND DATE(p.paid_at)>=? AND DATE(p.paid_at)<=?
+      WHERE i.business_id=? AND p.paid_at >= ? AND p.paid_at <= ?
       ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
       GROUP BY p.method
     `;
-        const paymentsParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const paymentsParams = !isDeveloper && branchId ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
         const paymentRows = await query(paymentsSql, paymentsParams);
         const categoryRows = await query(`SELECT id, name FROM categories WHERE business_id=?`, [businessId]);
         let purchasedSql = `
@@ -4834,11 +4905,11 @@ var init_reports = __esm({
       FROM inventory_movements m
       JOIN product_skus s ON m.sku_id=s.id
       JOIN products p ON s.product_id=p.id
-      WHERE m.business_id=? AND m.movement_type='purchase' AND DATE(m.created_at)>=? AND DATE(m.created_at)<=?
+      WHERE m.business_id=? AND m.movement_type='purchase' AND m.created_at >= ? AND m.created_at <= ?
       ${!isDeveloper && branchId ? "AND m.branch_id=?" : ""}
       GROUP BY p.category_id
     `;
-        const purchasedParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const purchasedParams = !isDeveloper && branchId ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
         const purchasedRows = await query(purchasedSql, purchasedParams);
         const purchasedMap = new Map(purchasedRows.map((r) => [r.category_id, r]));
         let soldSql = `
@@ -4847,11 +4918,11 @@ var init_reports = __esm({
       JOIN invoices i ON ii.invoice_id=i.id
       JOIN product_skus s ON ii.sku_id=s.id
       JOIN products p ON s.product_id=p.id
-      WHERE i.business_id=? AND DATE(i.created_at)>=? AND DATE(i.created_at)<=?
+      WHERE i.business_id=? AND i.created_at >= ? AND i.created_at <= ?
       ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
       GROUP BY p.category_id
     `;
-        const soldParams = !isDeveloper && branchId ? [businessId, startDate, endDate, branchId] : [businessId, startDate, endDate];
+        const soldParams = !isDeveloper && branchId ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
         const soldRows = await query(soldSql, soldParams);
         const soldMap = new Map(soldRows.map((r) => [r.category_id, r]));
         const categoriesReport = categoryRows.map((cat) => {
@@ -4891,6 +4962,8 @@ var init_reports = __esm({
       try {
         const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
         const branchId = req.user.branch_id;
+        const startDateTime = `${date} 00:00:00`;
+        const endDateTime = `${date} 23:59:59`;
         const invoicePayments = await query(`
       SELECT p.*, u.name as user_name, i.invoice_number, i.status as invoice_status, c.name as customer_name,
         (
@@ -4911,30 +4984,30 @@ var init_reports = __esm({
       LEFT JOIN invoices i ON p.invoice_id=i.id
       LEFT JOIN users u ON i.user_id=u.id
       LEFT JOIN customers c ON p.customer_id=c.id
-      WHERE DATE(p.paid_at)=? AND i.business_id=? 
+      WHERE p.paid_at >= ? AND p.paid_at <= ? AND i.business_id=? 
       ${!isSuper && branchId ? "AND (i.branch_id=? OR i.branch_id IS NULL)" : ""}
       ORDER BY p.id ASC
-    `, !isSuper && branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
+    `, !isSuper && branchId ? [startDateTime, endDateTime, req.user.business_id, branchId] : [startDateTime, endDateTime, req.user.business_id]);
         const otherMovements = await query(`
       SELECT p.*, 'System' as user_name, c.name as customer_name,
         COALESCE(p.type, 'Customer Deposit') as products_summary
       FROM payments p
       JOIN customers c ON p.customer_id=c.id
-      WHERE DATE(p.paid_at)=? AND p.invoice_id IS NULL AND c.business_id=?
+      WHERE p.paid_at >= ? AND p.paid_at <= ? AND p.invoice_id IS NULL AND c.business_id=?
       ${!isSuper && branchId ? "AND (c.branch_id=? OR c.branch_id IS NULL)" : ""}
       ORDER BY p.id ASC
-    `, !isSuper && branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
+    `, !isSuper && branchId ? [startDateTime, endDateTime, req.user.business_id, branchId] : [startDateTime, endDateTime, req.user.business_id]);
         const summary = await query(`
       SELECT p.method, p.type, SUM(p.amount) as total 
       FROM payments p
       LEFT JOIN invoices i ON p.invoice_id=i.id
       LEFT JOIN customers c ON p.customer_id=c.id
-      WHERE DATE(p.paid_at)=? 
+      WHERE p.paid_at >= ? AND p.paid_at <= ? 
         AND ((p.invoice_id IS NOT NULL AND i.business_id=?) OR (p.invoice_id IS NULL AND c.business_id=?))
       ${!isSuper && branchId ? "AND ((p.invoice_id IS NOT NULL AND (i.branch_id=? OR i.branch_id IS NULL)) OR (p.invoice_id IS NULL AND (c.branch_id=? OR c.branch_id IS NULL)))" : ""}
       GROUP BY p.method, p.type
       ORDER BY p.method ASC
-    `, !isSuper && branchId ? [date, req.user.business_id, req.user.business_id, branchId, branchId] : [date, req.user.business_id, req.user.business_id]);
+    `, !isSuper && branchId ? [startDateTime, endDateTime, req.user.business_id, req.user.business_id, branchId, branchId] : [startDateTime, endDateTime, req.user.business_id, req.user.business_id]);
         const existingReport = await queryOne(`
       SELECT starting_balance, comments, cash_counted, difference 
       FROM closing_reports 
@@ -5129,118 +5202,208 @@ var init_reports = __esm({
           "SELECT id, name FROM users WHERE business_id=? AND deleted_at IS NULL ORDER BY name ASC",
           [businessId]
         );
+        const typeRows = await query(
+          `SELECT DISTINCT activity_type FROM activity_logs WHERE business_id=? AND activity_type IS NOT NULL AND activity_type != '' ORDER BY activity_type ASC`,
+          [businessId]
+        );
+        const standardTypes = ["Invoice Created", "Invoice Updated", "Payment Added", "Customer Created", "Customer Updated", "Product Created", "Stock Adjusted", "Device Checked In", "Status Changed"];
+        const customTypes = typeRows.map((r) => r.activity_type).filter(Boolean);
+        const activityTypes = Array.from(/* @__PURE__ */ new Set([...customTypes, ...standardTypes])).sort();
+        const dateStart = start_date ? String(start_date).includes(" ") ? String(start_date) : `${start_date} 00:00:00` : null;
+        const dateEnd = end_date ? String(end_date).includes(" ") ? String(end_date) : `${end_date} 23:59:59` : null;
+        const buildSubquery = (table) => {
+          const p = [];
+          let sql = "";
+          if (table === "al") {
+            let where = "(al.business_id = ? OR (al.business_id IS NULL AND u.business_id = ?))";
+            p.push(businessId, businessId);
+            if (dateStart) {
+              where += " AND al.created_at >= ?";
+              p.push(dateStart);
+            }
+            if (dateEnd) {
+              where += " AND al.created_at <= ?";
+              p.push(dateEnd);
+            }
+            if (user_id && user_id !== "all") {
+              where += " AND al.user_id = ?";
+              p.push(Number(user_id));
+            }
+            sql = `
+          SELECT 
+            CONCAT('al_', al.id) as log_id,
+            COALESCE(al.business_id, u.business_id) as business_id,
+            al.user_id,
+            COALESCE(al.user_name, u.name, 'System') as user_name,
+            COALESCE(al.activity_type, 'General Activity') as activity_type,
+            COALESCE(al.description, '') as details,
+            COALESCE(al.reference_type, IF(al.device_id IS NOT NULL, 'device', IF(al.product_id IS NOT NULL, 'product', NULL))) as reference_type,
+            COALESCE(al.reference_id, al.device_id, al.product_id) as reference_id,
+            COALESCE(al.reference_link, IF(al.device_id IS NOT NULL, CONCAT('/devices/', al.device_id), IF(al.product_id IS NOT NULL, CONCAT('/products/', al.product_id), NULL))) as reference_link,
+            al.ip_address,
+            al.created_at
+          FROM activity_logs al
+          LEFT JOIN users u ON al.user_id = u.id
+          WHERE ${where}
+        `;
+          } else if (table === "ia") {
+            let where = "i.business_id = ?";
+            p.push(businessId);
+            if (dateStart) {
+              where += " AND ia.created_at >= ?";
+              p.push(dateStart);
+            }
+            if (dateEnd) {
+              where += " AND ia.created_at <= ?";
+              p.push(dateEnd);
+            }
+            if (user_id && user_id !== "all") {
+              where += " AND ia.user_id = ?";
+              p.push(Number(user_id));
+            }
+            sql = `
+          SELECT 
+            CONCAT('inv_', ia.id) as log_id,
+            i.business_id as business_id,
+            ia.user_id,
+            COALESCE(u.name, 'System') as user_name,
+            ia.activity as activity_type,
+            ia.details,
+            'invoice' as reference_type,
+            ia.invoice_id as reference_id,
+            CONCAT('/invoices/', ia.invoice_id) as reference_link,
+            NULL as ip_address,
+            ia.created_at
+          FROM invoice_activity ia
+          JOIN invoices i ON ia.invoice_id = i.id
+          LEFT JOIN users u ON ia.user_id = u.id
+          WHERE ${where}
+        `;
+          } else if (table === "ca") {
+            let where = "c.business_id = ?";
+            p.push(businessId);
+            if (dateStart) {
+              where += " AND ca.created_at >= ?";
+              p.push(dateStart);
+            }
+            if (dateEnd) {
+              where += " AND ca.created_at <= ?";
+              p.push(dateEnd);
+            }
+            if (user_id && user_id !== "all") {
+              where += " AND ca.user_id = ?";
+              p.push(Number(user_id));
+            }
+            sql = `
+          SELECT 
+            CONCAT('cust_', ca.id) as log_id,
+            c.business_id as business_id,
+            ca.user_id,
+            COALESCE(u.name, 'System') as user_name,
+            ca.activity as activity_type,
+            ca.details,
+            'customer' as reference_type,
+            ca.customer_id as reference_id,
+            CONCAT('/customers/', ca.customer_id) as reference_link,
+            NULL as ip_address,
+            ca.created_at
+          FROM customer_activity ca
+          JOIN customers c ON ca.customer_id = c.id
+          LEFT JOIN users u ON ca.user_id = u.id
+          WHERE ${where}
+        `;
+          } else if (table === "pa") {
+            let where = "(p.business_id = ? OR (p.business_id IS NULL AND u.business_id = ?))";
+            p.push(businessId, businessId);
+            if (dateStart) {
+              where += " AND pa.created_at >= ?";
+              p.push(dateStart);
+            }
+            if (dateEnd) {
+              where += " AND pa.created_at <= ?";
+              p.push(dateEnd);
+            }
+            if (user_id && user_id !== "all") {
+              where += " AND pa.user_id = ?";
+              p.push(Number(user_id));
+            }
+            sql = `
+          SELECT 
+            CONCAT('prod_', pa.id) as log_id,
+            COALESCE(p.business_id, u.business_id) as business_id,
+            pa.user_id,
+            COALESCE(u.name, 'System') as user_name,
+            pa.activity as activity_type,
+            pa.details,
+            'product' as reference_type,
+            COALESCE(p.id, pa.sku_id) as reference_id,
+            CONCAT('/products/', COALESCE(p.id, pa.sku_id)) as reference_link,
+            NULL as ip_address,
+            pa.created_at
+          FROM product_activity pa
+          LEFT JOIN product_skus ps ON pa.sku_id = ps.id
+          LEFT JOIN products p ON ps.product_id = p.id
+          LEFT JOIN users u ON pa.user_id = u.id
+          WHERE ${where}
+        `;
+          } else if (table === "da") {
+            let where = "d.business_id = ?";
+            p.push(businessId);
+            if (dateStart) {
+              where += " AND da.created_at >= ?";
+              p.push(dateStart);
+            }
+            if (dateEnd) {
+              where += " AND da.created_at <= ?";
+              p.push(dateEnd);
+            }
+            if (user_id && user_id !== "all") {
+              where += " AND da.user_id = ?";
+              p.push(Number(user_id));
+            }
+            sql = `
+          SELECT 
+            CONCAT('dev_', da.id) as log_id,
+            d.business_id as business_id,
+            da.user_id,
+            COALESCE(u.name, 'System') as user_name,
+            da.activity as activity_type,
+            da.details,
+            'device' as reference_type,
+            d.id as reference_id,
+            CONCAT('/devices/', d.id) as reference_link,
+            NULL as ip_address,
+            da.created_at
+          FROM device_activity da
+          JOIN devices d ON da.device_id = d.id
+          LEFT JOIN users u ON da.user_id = u.id
+          WHERE ${where}
+        `;
+          }
+          return { sql, params: p };
+        };
+        const qAL = buildSubquery("al");
+        const qIA = buildSubquery("ia");
+        const qCA = buildSubquery("ca");
+        const qPA = buildSubquery("pa");
+        const qDA = buildSubquery("da");
         const unifiedSql = `
-      SELECT 
-        CONCAT('al_', al.id) as log_id,
-        COALESCE(al.business_id, u.business_id) as business_id,
-        al.user_id,
-        COALESCE(al.user_name, u.name, 'System') as user_name,
-        COALESCE(al.activity_type, 'General Activity') as activity_type,
-        COALESCE(al.description, '') as details,
-        COALESCE(al.reference_type, IF(al.device_id IS NOT NULL, 'device', IF(al.product_id IS NOT NULL, 'product', NULL))) as reference_type,
-        COALESCE(al.reference_id, al.device_id, al.product_id) as reference_id,
-        COALESCE(al.reference_link, IF(al.device_id IS NOT NULL, CONCAT('/devices/', al.device_id), IF(al.product_id IS NOT NULL, CONCAT('/products/', al.product_id), NULL))) as reference_link,
-        al.ip_address,
-        al.created_at
-      FROM activity_logs al
-      LEFT JOIN users u ON al.user_id = u.id
-      WHERE COALESCE(al.business_id, u.business_id) = ?
-
+      ${qAL.sql}
       UNION ALL
-
-      SELECT 
-        CONCAT('inv_', ia.id) as log_id,
-        i.business_id as business_id,
-        ia.user_id,
-        COALESCE(u.name, 'System') as user_name,
-        ia.activity as activity_type,
-        ia.details,
-        'invoice' as reference_type,
-        ia.invoice_id as reference_id,
-        CONCAT('/invoices/', ia.invoice_id) as reference_link,
-        NULL as ip_address,
-        ia.created_at
-      FROM invoice_activity ia
-      JOIN invoices i ON ia.invoice_id = i.id
-      LEFT JOIN users u ON ia.user_id = u.id
-      WHERE i.business_id = ?
-
+      ${qIA.sql}
       UNION ALL
-
-      SELECT 
-        CONCAT('cust_', ca.id) as log_id,
-        c.business_id as business_id,
-        ca.user_id,
-        COALESCE(u.name, 'System') as user_name,
-        ca.activity as activity_type,
-        ca.details,
-        'customer' as reference_type,
-        ca.customer_id as reference_id,
-        CONCAT('/customers/', ca.customer_id) as reference_link,
-        NULL as ip_address,
-        ca.created_at
-      FROM customer_activity ca
-      JOIN customers c ON ca.customer_id = c.id
-      LEFT JOIN users u ON ca.user_id = u.id
-      WHERE c.business_id = ?
-
+      ${qCA.sql}
       UNION ALL
-
-      SELECT 
-        CONCAT('prod_', pa.id) as log_id,
-        COALESCE(p.business_id, u.business_id) as business_id,
-        pa.user_id,
-        COALESCE(u.name, 'System') as user_name,
-        pa.activity as activity_type,
-        pa.details,
-        'product' as reference_type,
-        COALESCE(p.id, pa.sku_id) as reference_id,
-        CONCAT('/products/', COALESCE(p.id, pa.sku_id)) as reference_link,
-        NULL as ip_address,
-        pa.created_at
-      FROM product_activity pa
-      LEFT JOIN product_skus ps ON pa.sku_id = ps.id
-      LEFT JOIN products p ON ps.product_id = p.id
-      LEFT JOIN users u ON pa.user_id = u.id
-      WHERE COALESCE(p.business_id, u.business_id) = ?
-
+      ${qPA.sql}
       UNION ALL
-
-      SELECT 
-        CONCAT('dev_', da.id) as log_id,
-        d.business_id as business_id,
-        da.user_id,
-        COALESCE(u.name, 'System') as user_name,
-        da.activity as activity_type,
-        da.details,
-        'device' as reference_type,
-        d.id as reference_id,
-        CONCAT('/devices/', d.id) as reference_link,
-        NULL as ip_address,
-        da.created_at
-      FROM device_activity da
-      JOIN devices d ON da.device_id = d.id
-      LEFT JOIN users u ON da.user_id = u.id
-      WHERE d.business_id = ?
+      ${qDA.sql}
     `;
-        const subParams = [businessId, businessId, businessId, businessId, businessId];
+        const subParams = [...qAL.params, ...qIA.params, ...qCA.params, ...qPA.params, ...qDA.params];
         let filterClauses = [];
         let filterParams = [];
         if (activity_type && activity_type !== "all") {
           filterClauses.push("feed.activity_type = ?");
           filterParams.push(activity_type);
-        }
-        if (user_id && user_id !== "all") {
-          filterClauses.push("feed.user_id = ?");
-          filterParams.push(Number(user_id));
-        }
-        if (start_date) {
-          filterClauses.push("DATE(feed.created_at) >= ?");
-          filterParams.push(start_date);
-        }
-        if (end_date) {
-          filterClauses.push("DATE(feed.created_at) <= ?");
-          filterParams.push(end_date);
         }
         if (search) {
           filterClauses.push("(feed.details LIKE ? OR feed.activity_type LIKE ? OR feed.user_name LIKE ?)");
@@ -5252,11 +5415,6 @@ var init_reports = __esm({
     `;
         const countResult = await queryOne(countSql, [...subParams, ...filterParams]);
         const total = countResult?.total || 0;
-        const typesSql = `
-      SELECT DISTINCT feed.activity_type FROM (${unifiedSql}) feed WHERE feed.activity_type IS NOT NULL AND feed.activity_type != '' ORDER BY feed.activity_type ASC
-    `;
-        const typesRows = await query(typesSql, subParams);
-        const activityTypes = typesRows.map((r) => r.activity_type).filter(Boolean);
         const dataSql = `
       SELECT feed.* FROM (${unifiedSql}) feed 
       ${whereSql}

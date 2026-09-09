@@ -21,7 +21,11 @@ export interface Announcement {
   link?: string;
 }
 
+import { useAuth } from '../context/AuthContext';
+import { getScopedLocalStorage, setScopedLocalStorage, getScopedKey } from '../utils/storage';
+
 export default function NotificationBell() {
+  const { currentUser } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [readIds, setReadIds] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -30,16 +34,30 @@ export default function NotificationBell() {
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Load announcements & read state from localStorage and API
+  // Load announcements & read state from namespaced localStorage and API
   useEffect(() => {
-    try {
-      const storedRead = localStorage.getItem('epos_read_announcements');
-      if (storedRead) {
-        setReadIds(JSON.parse(storedRead));
+    const loadReadState = () => {
+      try {
+        const stored = getScopedLocalStorage<string[]>('read_announcements', currentUser, []);
+        if (Array.isArray(stored)) {
+          setReadIds(stored.map(String));
+        }
+      } catch (e) {
+        console.error('Failed to parse read announcements from localStorage', e);
       }
-    } catch (e) {
-      console.error('Failed to parse read announcements from localStorage', e);
-    }
+    };
+
+    loadReadState();
+
+    const currentKey = getScopedKey('read_announcements', currentUser);
+
+    // Listen to storage updates from other tabs for this user
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === currentKey || e.key === 'epos_read_announcements') {
+        loadReadState();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
     
     // Fetch latest announcements from API with fallback to bundled data
     fetch('/api/public/announcements')
@@ -54,7 +72,9 @@ export default function NotificationBell() {
       .catch(() => {
         setAnnouncements(initialAnnouncements as Announcement[]);
       });
-  }, []);
+
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [currentUser]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -67,24 +87,26 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const unreadCount = announcements.filter(a => !readIds.includes(a.id)).length;
+  const unreadCount = announcements.filter(a => !readIds.includes(String(a.id))).length;
 
-  const markAllAsRead = () => {
-    const allIds = announcements.map(a => a.id);
+  const markAllAsRead = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const allIds = announcements.map(a => String(a.id));
     setReadIds(allIds);
     try {
-      localStorage.setItem('epos_read_announcements', JSON.stringify(allIds));
+      setScopedLocalStorage('read_announcements', allIds, currentUser);
     } catch (e) {
       console.error('Failed to save read announcements to localStorage', e);
     }
   };
 
-  const markSingleAsRead = (id: string) => {
-    if (!readIds.includes(id)) {
-      const updated = [...readIds, id];
+  const markSingleAsRead = (id: string | number) => {
+    const strId = String(id);
+    if (!readIds.includes(strId)) {
+      const updated = [...readIds, strId];
       setReadIds(updated);
       try {
-        localStorage.setItem('epos_read_announcements', JSON.stringify(updated));
+        setScopedLocalStorage('read_announcements', updated, currentUser);
       } catch (e) {
         console.error('Failed to save read announcements to localStorage', e);
       }
@@ -209,7 +231,7 @@ export default function NotificationBell() {
               </div>
             ) : (
               filteredAnnouncements.map((item) => {
-                const isRead = readIds.includes(item.id);
+                const isRead = readIds.includes(String(item.id));
                 const isExpanded = expandedId === item.id;
 
                 return (

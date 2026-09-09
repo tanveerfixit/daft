@@ -52,7 +52,7 @@ export const ActivityReport: React.FC = () => {
     return `${y}-${m}-${d}`;
   };
 
-  const [dateRange, setDateRange] = useState<'today' | 'yesterday' | 'weekly' | 'monthly' | 'all' | 'custom'>('all');
+  const [dateRange, setDateRange] = useState<'today' | 'yesterday' | 'weekly' | 'monthly' | 'all' | 'custom'>('today');
   const [customStart, setCustomStart] = useState(getLocalDateString());
   const [customEnd, setCustomEnd] = useState(getLocalDateString());
   const [selectedActivity, setSelectedActivity] = useState('all');
@@ -290,11 +290,11 @@ export const ActivityReport: React.FC = () => {
             onChange={(e) => setDateRange(e.target.value as any)}
             className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 font-normal text-sm cursor-pointer"
           >
-            <option value="all">All Dates</option>
             <option value="today">Today</option>
             <option value="yesterday">Yesterday</option>
             <option value="weekly">Weekly (Last 7 Days)</option>
             <option value="monthly">Monthly (This Month)</option>
+            <option value="all">All Dates</option>
             <option value="custom">Custom Range</option>
           </select>
 

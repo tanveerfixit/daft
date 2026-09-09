@@ -41,6 +41,8 @@ async function getTransporter() {
     connectionTimeout: 5000,
     greetingTimeout: 5000,
     socketTimeout: 10000,
+    disableFileAccess: true,
+    disableUrlAccess: true,
     auth: { user, pass },
   });
 
@@ -55,9 +57,14 @@ async function getFromAddress() {
 }
 
 async function sendMail(to: string, subject: string, html: string) {
+  if (!to || typeof to !== 'string' || to.length > 254) {
+    console.warn('[Mailer] Invalid or oversized recipient email address:', to);
+    return;
+  }
+  const cleanTo = to.trim().replace(/[\r\n\t]/g, '');
   const transporter = await getTransporter();
   const from = await getFromAddress();
-  await transporter.sendMail({ from, to, subject, html });
+  await transporter.sendMail({ from, to: cleanTo, subject, html });
 }
 
 const baseStyle = `font-family:'Inter',sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px;border-radius:8px;`;
