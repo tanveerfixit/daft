@@ -121,9 +121,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
     const baseFontSize = fontSizeMap[font_size] || '12px';
 
     const priceVal = device.selling_price || device.price;
-    const ramText = device.ram ? (device.ram.toLowerCase().includes('gb') ? device.ram : `${device.ram}GB`) : '';
-    const gbText = device.gb ? (device.gb.toLowerCase().includes('gb') ? device.gb : `${device.gb}GB`) : '';
-    const specsCombined = [ramText, gbText].filter(Boolean).join(' / ') || [device.color, device.condition].filter(Boolean).join(' • ') || 'Standard';
+    const specsCombined = [device.color, device.condition].filter(Boolean).join(' • ');
     const imeiOrSerial = device.imei || device.imei_serial || device.serial_number || 'N/A';
 
     printWindow.document.write(`

@@ -1460,7 +1460,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
         <body>
           <div class="label-content">
             <div class="device-name">Apple iPhone 14 Pro</div>
-            <div class="specs">6GB / 128GB</div>
+            <div class="specs">Space Black • Grade A</div>
             <div class="price">${currSymbol}499.00</div>
             <div class="barcode-wrapper">
               <div class="barcode-container">
@@ -2802,9 +2802,9 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                         Apple iPhone 14 Pro Max
                       </div>
 
-                      {/* 2. Ram / Storage */}
+                      {/* 2. Color / Condition */}
                       <div className="text-slate-700 font-semibold leading-none truncate px-0.5 w-full" style={{ fontSize: '0.9em' }}>
-                        6GB / 128GB
+                        Space Black • Grade A
                       </div>
 
                       {/* 3. Price (Bold) */}

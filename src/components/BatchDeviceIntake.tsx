@@ -641,11 +641,13 @@ export default function BatchDeviceIntake({
     const labelSize = printerSettings?.label_size || '2.25" (57mm) x 1.25" (32mm) Dymo 11354 / 30334';
     const isSmallDymo = labelSize.includes('11354') || labelSize.includes('30334') || labelSize.includes('57mm');
 
-    const labelsHtml = selected.map((dev, idx) => `
+    const labelsHtml = selected.map((dev, idx) => {
+      const specs = [dev.color, dev.condition].filter(Boolean).join(' • ');
+      return `
       <div class="label-page">
         <div class="label-header">
           <div class="prod-title">${dev.product_name}</div>
-          <div class="prod-specs">${[dev.gb, dev.color, dev.condition].filter(Boolean).join(' • ')}</div>
+          ${specs ? `<div class="prod-specs">${specs}</div>` : ''}
         </div>
         <div class="barcode-box">
           <svg id="barcode-${idx}"></svg>
@@ -655,7 +657,8 @@ export default function BatchDeviceIntake({
           <span class="price-tag">€${(Number(dev.selling_price) || 0).toFixed(2)}</span>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     const scripts = selected.map((dev, idx) => `
       JsBarcode("#barcode-${idx}", "${dev.imei}", {

@@ -403,9 +403,7 @@ export default function AddInventory({
     const fallbackPrice = sellingPrice || product?.selling_price;
 
     const labelsHtml = devicesToPrint.map((dev, idx) => {
-      const ramText = '';
-      const gbText = dev.gb ? (dev.gb.toLowerCase().includes('gb') ? dev.gb : `${dev.gb}GB`) : '';
-      const specsCombined = [ramText, gbText].filter(Boolean).join(' / ') || [dev.color, dev.condition].filter(Boolean).join(' • ') || 'Standard';
+      const specsCombined = [dev.color, dev.condition].filter(Boolean).join(' • ');
       const imeiOrSerial = dev.imei || 'N/A';
       const pVal = dev.selling_price || fallbackPrice;
 
@@ -413,7 +411,7 @@ export default function AddInventory({
         <div class="label-page">
           <div class="label-content">
             <div class="device-name">${product?.manufacturer_name ? `${product.manufacturer_name} ` : ''}${product?.product_name || 'DEVICE'}</div>
-            <div class="specs">${specsCombined}</div>
+            ${specsCombined ? `<div class="specs">${specsCombined}</div>` : ''}
             ${pVal ? `<div class="price">€${Number(pVal).toFixed(2)}</div>` : ''}
             <div class="barcode-wrapper">
               <div class="barcode-container">
