@@ -19,6 +19,53 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
+// src/utils/crypto.ts
+import crypto from "crypto";
+function getEncryptionKey() {
+  const secret = process.env.ENCRYPTION_KEY || process.env.JWT_SECRET || "epos_secure_system_key_2026_default";
+  return crypto.createHash("sha256").update(secret).digest();
+}
+function encryptSecret(plainText) {
+  if (!plainText || plainText.trim() === "") return "";
+  if (plainText.startsWith(PREFIX)) return plainText;
+  const key = getEncryptionKey();
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+  let encrypted = cipher.update(plainText, "utf8", "hex");
+  encrypted += cipher.final("hex");
+  const authTag = cipher.getAuthTag().toString("hex");
+  return `${PREFIX}${iv.toString("hex")}:${authTag}:${encrypted}`;
+}
+function decryptSecret(cipherText) {
+  if (!cipherText || typeof cipherText !== "string" || !cipherText.startsWith(PREFIX)) {
+    return cipherText || "";
+  }
+  try {
+    const parts = cipherText.slice(PREFIX.length).split(":");
+    if (parts.length !== 3) return cipherText;
+    const [ivHex, authTagHex, encryptedHex] = parts;
+    const key = getEncryptionKey();
+    const iv = Buffer.from(ivHex, "hex");
+    const authTag = Buffer.from(authTagHex, "hex");
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(encryptedHex, "hex", "utf8");
+    decrypted += decipher.final("utf8");
+    return decrypted;
+  } catch (e) {
+    console.error("[Crypto] Decryption error:", e.message);
+    return "";
+  }
+}
+var ALGORITHM, IV_LENGTH, PREFIX;
+var init_crypto = __esm({
+  "src/utils/crypto.ts"() {
+    ALGORITHM = "aes-256-gcm";
+    IV_LENGTH = 12;
+    PREFIX = "enc_v1:";
+  }
+});
+
 // src/mysql.ts
 var mysql_exports = {};
 __export(mysql_exports, {
@@ -29,6 +76,7 @@ __export(mysql_exports, {
   initSchema: () => initSchema,
   logActivity: () => logActivity,
   migrateAllPasswordsToHash: () => migrateAllPasswordsToHash,
+  migrateSmtpSettingsEncryption: () => migrateSmtpSettingsEncryption,
   pool: () => pool,
   query: () => query,
   queryOne: () => queryOne,
@@ -1151,6 +1199,7 @@ async function initSchema() {
     conn.release();
   }
   await migrateAllPasswordsToHash();
+  await migrateSmtpSettingsEncryption();
 }
 async function migrateAllPasswordsToHash() {
   const conn = await pool.getConnection();
@@ -1178,6 +1227,26 @@ async function migrateAllPasswordsToHash() {
     await conn.query("UPDATE users SET password = '', last_generated_password = NULL WHERE password != '' OR last_generated_password IS NOT NULL");
   } catch (e) {
     console.error("[MySQL Security] Password migration error:", e.message);
+  } finally {
+    conn.release();
+  }
+}
+async function migrateSmtpSettingsEncryption() {
+  const conn = await pool.getConnection();
+  try {
+    const [rows] = await conn.query(
+      "SELECT id, pass FROM smtp_settings WHERE pass IS NOT NULL AND pass != ''"
+    );
+    const smtpRows = rows;
+    for (const row of smtpRows) {
+      if (row.pass && !row.pass.startsWith("enc_v1:")) {
+        const encrypted = encryptSecret(row.pass);
+        await conn.execute("UPDATE smtp_settings SET pass = ? WHERE id = ?", [encrypted, row.id]);
+        console.log(`[MySQL Security] Encrypted plaintext SMTP password for record #${row.id} with AES-256-GCM`);
+      }
+    }
+  } catch (e) {
+    console.error("[MySQL Security] SMTP encryption migration error:", e.message);
   } finally {
     conn.release();
   }
@@ -1327,6 +1396,7 @@ async function logActivity({
 var pool, CURRENT_SCHEMA_VERSION;
 var init_mysql = __esm({
   "src/mysql.ts"() {
+    init_crypto();
     dotenv.config();
     if (process.env.DB_PASS === void 0) {
       throw new Error("[SECURITY FATAL] DB_PASS is not set in the .env file. Refusing to start with insecure credentials.");
@@ -1362,13 +1432,15 @@ function invalidateMailTransporter() {
 async function getTransporter() {
   const settings = await queryOne("SELECT * FROM smtp_settings WHERE business_id = 1");
   let user = process.env.SMTP_USER || "noreply@clarelab.com";
-  let pass = process.env.SMTP_PASS || "Tani!!8877";
+  let pass = process.env.SMTP_PASS || "";
   let host = process.env.SMTP_HOST || "smtp.hostinger.com";
   let port = Number(process.env.SMTP_PORT) || 465;
   let secure = process.env.SMTP_SECURE !== "false";
-  if (settings && settings.user && settings.pass) {
+  if (settings && settings.user) {
     user = settings.user;
-    pass = settings.pass;
+    if (settings.pass) {
+      pass = decryptSecret(settings.pass);
+    }
     host = settings.host || "smtp.hostinger.com";
     port = Number(settings.port) || 465;
     secure = settings.secure === 1;
@@ -1734,6 +1806,7 @@ var cachedTransporter, cachedKey, baseStyle;
 var init_mailer = __esm({
   "src/services/mailer.ts"() {
     init_mysql();
+    init_crypto();
     cachedTransporter = null;
     cachedKey = "";
     baseStyle = `font-family:'Inter',sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px;border-radius:8px;`;
@@ -1754,7 +1827,7 @@ __export(auth_exports, {
 });
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
+import crypto2 from "crypto";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 function verifyToken(token) {
@@ -1839,6 +1912,7 @@ var JWT_SECRET, revokedTokens, userPasswordResets, _cleanup, MAX_AUTH_CACHE_SIZE
 var init_auth = __esm({
   "src/routes/auth.ts"() {
     init_mysql();
+    init_crypto();
     init_mailer();
     JWT_SECRET = process.env.JWT_SECRET || "EPOS_SUPER_SECRET_FALLBACK_KEY_2026";
     revokedTokens = /* @__PURE__ */ new Set();
@@ -2075,7 +2149,7 @@ var init_auth = __esm({
         if (isNaN(expiry) || expiry < Date.now()) {
           return res.status(400).json({ error: "OTP has expired. Please request a new one." });
         }
-        const reset_token = crypto.randomUUID();
+        const reset_token = crypto2.randomUUID();
         const tokenExpires = new Date(Date.now() + 30 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
         await execute(
           "UPDATE users SET otp_code=NULL,otp_expires=NULL,reset_token=?,reset_token_expires=? WHERE id=?",
@@ -2198,7 +2272,7 @@ var init_auth = __esm({
           [req.params.id, req.user.business_id]
         );
         if (!user) return res.status(404).json({ error: "User not found or access denied" });
-        const newPass = crypto.randomBytes(6).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) + "!";
+        const newPass = crypto2.randomBytes(6).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) + "!";
         const hash = await bcrypt.hash(newPass, 10);
         await execute(
           "UPDATE users SET password='',password_hash=?,last_generated_password=NULL WHERE id=?",
@@ -2220,7 +2294,7 @@ var init_auth = __esm({
           [req.params.id, req.user.business_id]
         );
         if (!user) return res.status(404).json({ error: "User not found or access denied" });
-        const newPass = crypto.randomBytes(6).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) + "!";
+        const newPass = crypto2.randomBytes(6).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) + "!";
         const hash = await bcrypt.hash(newPass, 10);
         await execute(
           "UPDATE users SET password='',password_hash=?,last_generated_password=NULL WHERE id=?",
@@ -2319,16 +2393,19 @@ var init_auth = __esm({
       const { host, port, secure, user, pass, from_name, from_email } = req.body;
       try {
         const existing = await queryOne("SELECT * FROM smtp_settings WHERE business_id = 1");
-        const updatedPass = pass && pass !== "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" && pass !== "********" ? pass : existing?.pass || process.env.SMTP_PASS || "Tani!!8877";
+        let encryptedPass = existing?.pass || (process.env.SMTP_PASS ? encryptSecret(process.env.SMTP_PASS) : "");
+        if (pass && pass !== "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" && pass !== "********" && String(pass).trim() !== "") {
+          encryptedPass = encryptSecret(String(pass).trim());
+        }
         if (existing) {
           await execute(
             "UPDATE smtp_settings SET host=?, port=?, secure=?, user=?, pass=?, from_name=?, from_email=? WHERE business_id = 1",
-            [host, port, secure ? 1 : 0, user, updatedPass, from_name, from_email]
+            [host, port, secure ? 1 : 0, user, encryptedPass, from_name, from_email]
           );
         } else {
           await execute(
             "INSERT INTO smtp_settings (business_id, host, port, secure, user, pass, from_name, from_email) VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
-            [host, port, secure ? 1 : 0, user, updatedPass, from_name, from_email]
+            [host, port, secure ? 1 : 0, user, encryptedPass, from_name, from_email]
           );
         }
         invalidateMailTransporter();

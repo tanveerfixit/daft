@@ -1,5 +1,6 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import { encryptSecret } from './utils/crypto.js';
 dotenv.config();
 
 // SECURITY: Credentials must come from environment variables (FINDING-001)
@@ -1212,6 +1213,8 @@ export async function initSchema() {
 
   // Ensure 100% password encryption across all database records
   await migrateAllPasswordsToHash();
+  // Ensure 100% AES-256-GCM encryption for SMTP settings at rest
+  await migrateSmtpSettingsEncryption();
 }
 
 // ─── 100% Password Encryption Migration ───────────────────────────────────────
@@ -1244,6 +1247,29 @@ export async function migrateAllPasswordsToHash() {
     await conn.query("UPDATE users SET password = '', last_generated_password = NULL WHERE password != '' OR last_generated_password IS NOT NULL");
   } catch (e: any) {
     console.error('[MySQL Security] Password migration error:', e.message);
+  } finally {
+    conn.release();
+  }
+}
+
+// ─── 100% AES-256-GCM SMTP Settings Encryption Migration ──────────────────────
+
+export async function migrateSmtpSettingsEncryption() {
+  const conn = await pool.getConnection();
+  try {
+    const [rows] = await conn.query(
+      "SELECT id, pass FROM smtp_settings WHERE pass IS NOT NULL AND pass != ''"
+    );
+    const smtpRows = rows as any[];
+    for (const row of smtpRows) {
+      if (row.pass && !row.pass.startsWith('enc_v1:')) {
+        const encrypted = encryptSecret(row.pass);
+        await conn.execute("UPDATE smtp_settings SET pass = ? WHERE id = ?", [encrypted, row.id]);
+        console.log(`[MySQL Security] Encrypted plaintext SMTP password for record #${row.id} with AES-256-GCM`);
+      }
+    }
+  } catch (e: any) {
+    console.error('[MySQL Security] SMTP encryption migration error:', e.message);
   } finally {
     conn.release();
   }

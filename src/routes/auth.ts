@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool, query, queryOne, execute, logActivity } from '../mysql.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { encryptSecret, decryptSecret } from '../utils/crypto.js';
 import { sendAccountPending, sendAccountApproved, sendAccountRejected, sendAccountDeactivated, sendOtpCode, sendGeneratedPassword, sendTestEmail, invalidateMailTransporter } from '../services/mailer.js';
 
 import jwt from 'jsonwebtoken';
@@ -615,16 +616,18 @@ adminRouter.put('/smtp', requireAdminAsync, async (req: any, res, next) => {
   const { host, port, secure, user, pass, from_name, from_email } = req.body;
   try {
     const existing = await queryOne('SELECT * FROM smtp_settings WHERE business_id = 1') as any;
-    const updatedPass = (pass && pass !== '••••••••' && pass !== '********') 
-      ? pass 
-      : (existing?.pass || process.env.SMTP_PASS || 'Tani!!8877');
+    let encryptedPass = existing?.pass || (process.env.SMTP_PASS ? encryptSecret(process.env.SMTP_PASS) : '');
+    
+    if (pass && pass !== '••••••••' && pass !== '********' && String(pass).trim() !== '') {
+      encryptedPass = encryptSecret(String(pass).trim());
+    }
 
     if (existing) {
       await execute('UPDATE smtp_settings SET host=?, port=?, secure=?, user=?, pass=?, from_name=?, from_email=? WHERE business_id = 1',
-        [host, port, secure ? 1 : 0, user, updatedPass, from_name, from_email]);
+        [host, port, secure ? 1 : 0, user, encryptedPass, from_name, from_email]);
     } else {
       await execute('INSERT INTO smtp_settings (business_id, host, port, secure, user, pass, from_name, from_email) VALUES (1, ?, ?, ?, ?, ?, ?, ?)',
-        [host, port, secure ? 1 : 0, user, updatedPass, from_name, from_email]);
+        [host, port, secure ? 1 : 0, user, encryptedPass, from_name, from_email]);
     }
     invalidateMailTransporter();
     res.json({ success: true });

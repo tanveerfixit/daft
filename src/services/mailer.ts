@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { queryOne } from '../mysql.js';
+import { decryptSecret } from '../utils/crypto.js';
 
 let cachedTransporter: nodemailer.Transporter | null = null;
 let cachedKey: string = '';
@@ -12,14 +13,16 @@ export function invalidateMailTransporter() {
 async function getTransporter() {
   const settings = await queryOne('SELECT * FROM smtp_settings WHERE business_id = 1') as any;
   let user = process.env.SMTP_USER || 'noreply@clarelab.com';
-  let pass = process.env.SMTP_PASS || 'Tani!!8877';
+  let pass = process.env.SMTP_PASS || '';
   let host = process.env.SMTP_HOST || 'smtp.hostinger.com';
   let port = Number(process.env.SMTP_PORT) || 465;
   let secure = process.env.SMTP_SECURE !== 'false';
 
-  if (settings && settings.user && settings.pass) {
+  if (settings && settings.user) {
     user = settings.user;
-    pass = settings.pass;
+    if (settings.pass) {
+      pass = decryptSecret(settings.pass);
+    }
     host = settings.host || 'smtp.hostinger.com';
     port = Number(settings.port) || 465;
     secure = settings.secure === 1;
