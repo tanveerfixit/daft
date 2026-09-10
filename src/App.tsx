@@ -399,7 +399,7 @@ function AppInner() {
         const headers: Record<string, string> = {
           'Content-Type': 'application/json'
         };
-        const token = sessionStorage.getItem('epos_token') || localStorage.getItem('epos_token');
+        const token = sessionStorage.getItem('epos_token');
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
         // Fetch settings: popup only runs if explicitly enabled (1 / true)
@@ -455,7 +455,7 @@ function AppInner() {
         const headers: Record<string, string> = {
           'Content-Type': 'application/json'
         };
-        const token = sessionStorage.getItem('epos_token') || localStorage.getItem('epos_token');
+        const token = sessionStorage.getItem('epos_token');
         if (token) {
           headers['Authorization'] = `Bearer ${token}`;
         }
@@ -526,7 +526,7 @@ function AppInner() {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json'
       };
-      const token = sessionStorage.getItem('epos_token') || localStorage.getItem('epos_token');
+      const token = sessionStorage.getItem('epos_token');
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }

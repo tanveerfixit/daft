@@ -143,21 +143,29 @@ export function clearUserBranchStorage(user?: StorageUserContext | null): void {
     const userScope = user?.id ? `u_${user.id}` : '';
     const branchScope = user?.branch_id ? `br_${user.branch_id}` : '';
 
-    // Clear matching keys in localStorage
+    // Clear matching keys in localStorage (scoped to this user/branch or un-scoped globals)
     const localKeys = Object.keys(localStorage);
     localKeys.forEach(k => {
       if (k.startsWith(prefix) && k !== 'theme' && !k.includes('read_announcements')) {
-        if (!userScope || (k.includes(userScope) || k.includes(branchScope))) {
+        if (userScope || branchScope) {
+          if ((userScope && k.includes(userScope)) || (branchScope && k.includes(branchScope))) {
+            localStorage.removeItem(k);
+          }
+        } else if (!k.includes('_u_')) {
           localStorage.removeItem(k);
         }
       }
     });
 
-    // Clear matching keys in sessionStorage
+    // Clear matching keys in sessionStorage for this tab
     const sessionKeys = Object.keys(sessionStorage);
     sessionKeys.forEach(k => {
       if (k.startsWith(prefix) && k !== 'theme' && !k.includes('read_announcements')) {
-        if (!userScope || (k.includes(userScope) || k.includes(branchScope))) {
+        if (userScope || branchScope) {
+          if ((userScope && k.includes(userScope)) || (branchScope && k.includes(branchScope))) {
+            sessionStorage.removeItem(k);
+          }
+        } else {
           sessionStorage.removeItem(k);
         }
       }

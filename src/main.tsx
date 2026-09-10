@@ -16,7 +16,7 @@ window.fetch = async (resource: any, config: any = {}) => {
   try {
     let url = typeof resource === 'string' ? resource : (resource?.url || '');
     if (typeof url === 'string' && url.startsWith('/api/')) {
-      const token = sessionStorage.getItem('epos_token') || localStorage.getItem('epos_token');
+      const token = sessionStorage.getItem('epos_token');
       if (token) {
         if (config?.headers instanceof Headers) {
           if (!config.headers.has('Authorization')) {
@@ -36,13 +36,6 @@ window.fetch = async (resource: any, config: any = {}) => {
     if (response.status === 401 && typeof url === 'string' && !url.includes('/api/auth/login') && !url.includes('/api/auth/me')) {
       try {
         sessionStorage.clear();
-        const keys = Object.keys(localStorage);
-        keys.forEach(k => {
-          if (k.startsWith('epos_') && k !== 'theme' && !k.startsWith('epos_read_')) {
-            localStorage.removeItem(k);
-          }
-        });
-        localStorage.removeItem('token');
       } catch (e) {}
       window.location.replace('/');
       return new Response(JSON.stringify({}), {

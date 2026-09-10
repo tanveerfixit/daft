@@ -45,7 +45,6 @@ export function clearAllBusinessStorage(user?: User | null) {
   ];
   keysToRemove.forEach(k => {
     sessionStorage.removeItem(k);
-    localStorage.removeItem(k);
   });
 }
 
@@ -62,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const lastThrottleWriteRef = useRef<number>(0);
 
   const logout = useCallback((redirect: boolean = true) => {
-    const t = localStorage.getItem('epos_token') || sessionStorage.getItem('epos_token');
+    const t = sessionStorage.getItem('epos_token');
     if (t) {
       fetch('/api/auth/logout', { 
         method: 'POST', 
@@ -78,14 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [currentUser]);
 
-  // Initialize Auth & restore token across tabs
+  // Initialize Auth & restore token for this tab session
   useEffect(() => {
-    const savedToken = localStorage.getItem('epos_token') || sessionStorage.getItem('epos_token');
+    const savedToken = sessionStorage.getItem('epos_token');
     if (savedToken) {
-      // Ensure both localStorage and sessionStorage have the token
-      localStorage.setItem('epos_token', savedToken);
-      sessionStorage.setItem('epos_token', savedToken);
-
       fetch('/api/auth/me', { headers: { Authorization: `Bearer ${savedToken}` } })
         .then(r => {
           if (!r.ok) throw new Error('Auth check failed');
@@ -99,8 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const now = Date.now();
             lastActivityRef.current = now;
             const activityKey = getScopedKey('last_activity', user);
-            localStorage.setItem(activityKey, now.toString());
-            localStorage.setItem('epos_last_activity', now.toString());
+            sessionStorage.setItem(activityKey, now.toString());
+            sessionStorage.setItem('epos_last_activity', now.toString());
           } else { 
             clearAllBusinessStorage(); 
           }
@@ -121,15 +116,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Login failed');
     
-    // Clear residual storage before initializing new business session
+    // Clear residual storage before initializing new business session in this tab
     clearAllBusinessStorage(data.user);
 
-    localStorage.setItem('epos_token', data.token);
     sessionStorage.setItem('epos_token', data.token);
     const now = Date.now();
     const activityKey = getScopedKey('last_activity', data.user);
-    localStorage.setItem(activityKey, now.toString());
-    localStorage.setItem('epos_last_activity', now.toString());
+    sessionStorage.setItem(activityKey, now.toString());
+    sessionStorage.setItem('epos_last_activity', now.toString());
     lastActivityRef.current = now;
 
     setToken(data.token);
@@ -138,12 +132,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setSession = useCallback((newToken: string, newUser: User) => {
     clearAllBusinessStorage(newUser);
-    localStorage.setItem('epos_token', newToken);
     sessionStorage.setItem('epos_token', newToken);
     const now = Date.now();
     const activityKey = getScopedKey('last_activity', newUser);
-    localStorage.setItem(activityKey, now.toString());
-    localStorage.setItem('epos_last_activity', now.toString());
+    sessionStorage.setItem(activityKey, now.toString());
+    sessionStorage.setItem('epos_last_activity', now.toString());
     lastActivityRef.current = now;
 
     setToken(newToken);
@@ -155,12 +148,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const now = Date.now();
     lastActivityRef.current = now;
     const activityKey = getScopedKey('last_activity', currentUser);
-    localStorage.setItem(activityKey, now.toString());
-    localStorage.setItem('epos_last_activity', now.toString());
+    sessionStorage.setItem(activityKey, now.toString());
+    sessionStorage.setItem('epos_last_activity', now.toString());
     setShowWarning(false);
   }, [currentUser]);
 
-  // ─── Senior Inactivity Engine (3-Hour Idle Detection & Cross-Tab Sync) ─────
+  // ─── Senior Inactivity Engine (3-Hour Idle Detection Scoped Per Tab) ─────
   useEffect(() => {
     if (!token) {
       setShowWarning(false);
@@ -182,8 +175,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (now - lastThrottleWriteRef.current > 5000) {
         lastThrottleWriteRef.current = now;
         try {
-          localStorage.setItem(activityKey, now.toString());
-          localStorage.setItem('epos_last_activity', now.toString());
+          sessionStorage.setItem(activityKey, now.toString());
+          sessionStorage.setItem('epos_last_activity', now.toString());
         } catch (e) {}
       }
     };
@@ -204,25 +197,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.addEventListener(evt, handleUserActivity, { passive: true });
     });
 
-    // 2. Cross-tab activity synchronization listener (scoped to this user & branch)
-    const handleStorageChange = (e: StorageEvent) => {
-      if ((e.key === activityKey || e.key === 'epos_last_activity') && e.newValue) {
-        const remoteTime = Number(e.newValue);
-        if (!isNaN(remoteTime) && remoteTime > lastActivityRef.current) {
-          lastActivityRef.current = remoteTime;
-          setShowWarning(false);
-        }
-      } else if (e.key === 'epos_token' && !e.newValue) {
-        // Logged out in another tab
-        logout(true);
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-
-    // 3. Heartbeat Checker (runs every 1 second to accurately track time and sleep/wake events)
+    // 2. Heartbeat Checker (runs every 1 second to accurately track time and sleep/wake events)
     const checkInactivity = () => {
-      // Sync with storage in case another tab updated it
-      const storedTimeStr = localStorage.getItem(activityKey) || localStorage.getItem('epos_last_activity');
+      const storedTimeStr = sessionStorage.getItem(activityKey) || sessionStorage.getItem('epos_last_activity');
       if (storedTimeStr) {
         const storedTime = Number(storedTimeStr);
         if (!isNaN(storedTime) && storedTime > lastActivityRef.current) {
@@ -266,12 +243,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       interactionEvents.forEach(evt => {
         window.removeEventListener(evt, handleUserActivity);
       });
-      window.removeEventListener('storage', handleStorageChange);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       window.removeEventListener('focus', handleVisibilityOrFocus);
       clearInterval(heartbeatInterval);
     };
-  }, [token, logout]);
+  }, [token, currentUser, logout]);
 
   const isMasterAdmin = currentUser?.email === 'tanveerfixit@gmail.com' || currentUser?.email === 'support@techinbox.ie';
 
