@@ -80,10 +80,89 @@ __export(mysql_exports, {
   pool: () => pool,
   query: () => query,
   queryOne: () => queryOne,
-  seedData: () => seedData
+  resolveTimezoneOffset: () => resolveTimezoneOffset,
+  seedData: () => seedData,
+  syncBusinessTimezone: () => syncBusinessTimezone
 });
 import mysql from "mysql2/promise";
 import dotenv from "dotenv";
+function resolveTimezoneOffset(tzInput) {
+  let ianaTz = "Europe/Dublin";
+  if (tzInput) {
+    const trimmed = tzInput.trim();
+    if (trimmed.includes("Europe/Dublin") || trimmed.toLowerCase().includes("dublin") || trimmed.toLowerCase().includes("ireland")) {
+      ianaTz = "Europe/Dublin";
+    } else if (trimmed.includes("Europe/London") || trimmed.toLowerCase().includes("london")) {
+      ianaTz = "Europe/London";
+    } else if (trimmed.includes("Europe/Paris") || trimmed.toLowerCase().includes("paris")) {
+      ianaTz = "Europe/Paris";
+    } else if (trimmed === "UTC" || trimmed === "GMT") {
+      ianaTz = "UTC";
+    } else if (trimmed.includes("America/New_York") || trimmed.toLowerCase().includes("new_york")) {
+      ianaTz = "America/New_York";
+    } else {
+      const match = trimmed.match(/[A-Za-z_]+\/[A-Za-z_]+/);
+      if (match) {
+        ianaTz = match[0];
+      } else {
+        try {
+          Intl.DateTimeFormat(void 0, { timeZone: trimmed });
+          ianaTz = trimmed;
+        } catch {
+          ianaTz = "Europe/Dublin";
+        }
+      }
+    }
+  }
+  try {
+    const now = /* @__PURE__ */ new Date();
+    const utcDate = new Date(now.toLocaleString("en-US", { timeZone: "UTC" }));
+    const tzDate = new Date(now.toLocaleString("en-US", { timeZone: ianaTz }));
+    const diffMinutes = Math.round((tzDate.getTime() - utcDate.getTime()) / 6e4);
+    const sign = diffMinutes >= 0 ? "+" : "-";
+    const absMin = Math.abs(diffMinutes);
+    const hours = String(Math.floor(absMin / 60)).padStart(2, "0");
+    const mins = String(absMin % 60).padStart(2, "0");
+    return { ianaTz, offset: `${sign}${hours}:${mins}` };
+  } catch {
+    return { ianaTz: "Europe/Dublin", offset: "+01:00" };
+  }
+}
+async function syncBusinessTimezone(businessId, tzInput) {
+  let targetTz = tzInput;
+  if (!targetTz && businessId) {
+    const cached = businessTzCache.get(businessId);
+    if (cached) {
+      if (currentSessionOffset !== cached.offset) {
+        currentSessionOffset = cached.offset;
+        try {
+          await pool.query("SET time_zone = ?", [cached.offset]);
+        } catch {
+        }
+      }
+      return cached;
+    }
+    try {
+      const row = await queryOne("SELECT timezone FROM settings WHERE business_id = ? LIMIT 1", [businessId]);
+      if (row?.timezone) {
+        targetTz = row.timezone;
+      }
+    } catch (err) {
+      console.warn("[MySQL] Could not fetch business timezone setting:", err?.message);
+    }
+  }
+  const { ianaTz, offset } = resolveTimezoneOffset(targetTz);
+  currentSessionOffset = offset;
+  if (businessId) {
+    businessTzCache.set(businessId, { ianaTz, offset, raw: targetTz || ianaTz });
+  }
+  try {
+    await pool.query("SET time_zone = ?", [offset]);
+  } catch (err) {
+    console.warn("[MySQL] Failed to execute SET time_zone =", offset, err?.message);
+  }
+  return { ianaTz, offset };
+}
 async function query(sql, params) {
   const [rows] = await pool.execute(sql, params);
   return rows;
@@ -144,6 +223,7 @@ async function initSchema() {
     const currentVersion = metaRows[0]?.value;
     if (currentVersion === CURRENT_SCHEMA_VERSION) {
       console.log("[MySQL] Schema is cached and up-to-date. Skipping redundant DDL checks.");
+      await syncBusinessTimezone();
       return;
     }
     await conn.query("SET FOREIGN_KEY_CHECKS = 0");
@@ -1200,6 +1280,7 @@ async function initSchema() {
   }
   await migrateAllPasswordsToHash();
   await migrateSmtpSettingsEncryption();
+  await syncBusinessTimezone();
 }
 async function migrateAllPasswordsToHash() {
   const conn = await pool.getConnection();
@@ -1393,7 +1474,7 @@ async function logActivity({
     console.error("[ActivityLog] Failed to record activity:", err.message);
   }
 }
-var pool, CURRENT_SCHEMA_VERSION;
+var currentSessionOffset, businessTzCache, pool, CURRENT_SCHEMA_VERSION;
 var init_mysql = __esm({
   "src/mysql.ts"() {
     init_crypto();
@@ -1401,6 +1482,8 @@ var init_mysql = __esm({
     if (process.env.DB_PASS === void 0) {
       throw new Error("[SECURITY FATAL] DB_PASS is not set in the .env file. Refusing to start with insecure credentials.");
     }
+    currentSessionOffset = resolveTimezoneOffset(process.env.APP_TIMEZONE || "Europe/Dublin").offset;
+    businessTzCache = /* @__PURE__ */ new Map();
     pool = mysql.createPool({
       host: process.env.DB_HOST || "127.0.0.1",
       port: Number(process.env.DB_PORT) || 3306,
@@ -1418,6 +1501,18 @@ var init_mysql = __esm({
       enableKeepAlive: true,
       keepAliveInitialDelay: 1e4,
       charset: "utf8mb4_unicode_ci"
+    });
+    pool.on("connection", (conn) => {
+      try {
+        if (typeof conn.query === "function") {
+          conn.query("SET time_zone = ?", [currentSessionOffset], (err) => {
+            if (err) {
+              console.warn("[MySQL] Failed to set session time_zone on new connection:", err?.message);
+            }
+          });
+        }
+      } catch {
+      }
     });
     CURRENT_SCHEMA_VERSION = "2026_09_PERF_AND_AUTH_V2";
   }
@@ -1878,6 +1973,10 @@ async function requireAuthAsync(req, res, next) {
       user = await queryOne("SELECT * FROM users WHERE id=?", [decoded.userId]);
       if (!user) return res.status(401).json({ error: "User not found" });
       setCachedAuthUser(decoded.userId, user);
+    }
+    if (user?.business_id) {
+      syncBusinessTimezone(user.business_id).catch(() => {
+      });
     }
     req._sessionToken = token;
     req.userId = decoded.userId;
@@ -4671,11 +4770,6 @@ var init_invoices = __esm({
            WHERE id = ? AND business_id = ?`,
               [repairAmount, repairAmount, jobId, req.user.business_id]
             );
-            const [jobRows] = await conn.execute("SELECT total_quote, remaining_balance, status FROM jobs WHERE id=? AND business_id=?", [jobId, req.user.business_id]);
-            const updatedJob = jobRows[0];
-            if (updatedJob && Number(updatedJob.total_quote) > 0 && Number(updatedJob.remaining_balance) <= 0 && updatedJob.status !== "completed" && updatedJob.status !== "collected") {
-              await conn.execute("UPDATE jobs SET status=? WHERE id=? AND business_id=?", ["completed", jobId, req.user.business_id]);
-            }
             if (finalCustomerId) {
               await conn.execute(
                 "INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
@@ -5797,7 +5891,16 @@ var init_settings = __esm({
           await execute("INSERT INTO settings (business_id) VALUES (?)", [req.user.business_id]);
           s = await queryOne("SELECT * FROM settings WHERE business_id=?", [req.user.business_id]);
         }
-        res.json(s || {});
+        const tzInfo = await syncBusinessTimezone(req.user.business_id, s?.timezone);
+        const timeRows = await query("SELECT NOW() as mysql_now, @@session.time_zone as session_tz");
+        const timeRow = timeRows?.[0];
+        res.json({
+          ...s || {},
+          active_offset: tzInfo.offset,
+          active_iana: tzInfo.ianaTz,
+          mysql_now: timeRow?.mysql_now,
+          session_tz: timeRow?.session_tz
+        });
       } catch (e) {
         next(e);
       }
@@ -5848,7 +5951,11 @@ var init_settings = __esm({
           daily_eod_popup !== void 0 ? daily_eod_popup ? 1 : 0 : null,
           req.user.business_id
         ]);
-        res.json({ success: true });
+        let tzInfo = { ianaTz: "Europe/Dublin", offset: "+01:00" };
+        if (timezone) {
+          tzInfo = await syncBusinessTimezone(req.user.business_id, timezone);
+        }
+        res.json({ success: true, ...tzInfo });
       } catch (e) {
         next(e);
       }

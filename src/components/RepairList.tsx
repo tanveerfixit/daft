@@ -20,7 +20,7 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('new');
+  const [statusFilter, setStatusFilter] = useState('active');
 
   const fetchRepairs = async () => {
     try {
@@ -54,8 +54,6 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
     return () => window.removeEventListener('focus', handleFocus);
   }, [isActive]);
 
-
-
   const filtered = Array.isArray(repairs) ? repairs.filter(r => {
     const matchesSearch = !searchTerm || 
       String(r.id).includes(searchTerm) ||
@@ -63,12 +61,18 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
       (r.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       ((r as any).customer_phone || '').includes(searchTerm) ||
       (r.status || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
+    const matchesStatus = 
+      statusFilter === 'all' 
+        ? true 
+        : statusFilter === 'active'
+          ? (r.status === 'new' || r.status === 'repairing' || r.status === 'diagnosed')
+          : r.status === statusFilter;
     return matchesSearch && matchesStatus;
   }) : [];
 
   const statusCounts = {
     all: repairs.length,
+    active: repairs.filter(r => r.status === 'new' || r.status === 'repairing' || r.status === 'diagnosed').length,
     new: repairs.filter(r => r.status === 'new').length,
     diagnosed: repairs.filter(r => r.status === 'diagnosed').length,
     repairing: repairs.filter(r => r.status === 'repairing').length,
@@ -83,7 +87,7 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
     switch (status) {
       case 'new':               return { label: 'New / Booked', color: 'text-neutral-700 dark:text-neutral-300' };
       case 'diagnosed':         return { label: 'Diagnosed', color: 'text-blue-600 dark:text-blue-400 font-semibold' };
-      case 'repairing':         return { label: 'In Progress', color: 'text-purple-600 dark:text-purple-400 font-semibold' };
+      case 'repairing':         return { label: 'Under Process', color: 'text-purple-600 dark:text-purple-400 font-semibold' };
       case 'completed':         return { label: 'Completed', color: 'text-emerald-600 dark:text-emerald-400 font-bold' };
       case 'collected':         return { label: 'Collected', color: 'text-neutral-500 dark:text-neutral-400' };
       case 'unrepairable':      return { label: 'Cannot Fix', color: 'text-red-600 dark:text-red-400 font-bold' };
@@ -116,27 +120,28 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
             onChange={(e) => setStatusFilter(e.target.value)}
             className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-none px-2.5 py-1 text-sm font-normal outline-none focus:border-blue-500 cursor-pointer shadow-sm h-8"
           >
-            <option value="new">New / Booked ({statusCounts.new || 0})</option>
-            <option value="all">All Statuses ({statusCounts.all || 0})</option>
+            <option value="active">New / Booked & Under Process ({statusCounts.active || 0})</option>
+            <option value="new">New / Booked Only ({statusCounts.new || 0})</option>
+            <option value="repairing">Under Process ({statusCounts.repairing || 0})</option>
             <option value="diagnosed">Diagnosed ({statusCounts.diagnosed || 0})</option>
-            <option value="repairing">In Progress ({statusCounts.repairing || 0})</option>
             <option value="completed">Completed ({statusCounts.completed || 0})</option>
             <option value="collected">Collected ({statusCounts.collected || 0})</option>
             <option value="unrepairable">Cannot Fix / BER ({statusCounts.unrepairable || 0})</option>
             <option value="cancelled">Cancelled / Declined ({statusCounts.cancelled || 0})</option>
             <option value="collected_unfixed">Returned Unfixed ({statusCounts.collected_unfixed || 0})</option>
+            <option value="all">All Statuses ({statusCounts.all || 0})</option>
           </select>
         </div>
 
-        {(statusFilter !== 'new' || searchTerm) && (
+        {(statusFilter !== 'active' || searchTerm) && (
           <button
             type="button"
             onClick={() => {
-              setStatusFilter('new');
+              setStatusFilter('active');
               setSearchTerm('');
             }}
             className="text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 border border-red-200 dark:border-red-900/60 px-2 py-1 rounded transition-colors cursor-pointer"
-            title="Reset to new/booked repair tickets"
+            title="Reset to active repair tickets"
           >
             Reset Filters
           </button>

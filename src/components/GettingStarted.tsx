@@ -1881,12 +1881,31 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                     <select
                       value={settings.timezone}
                       onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}
-                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
                     >
-                      <option value="UTC/GMT +00:00 - Europe/London">UTC/GMT +00:00 - Europe/London</option>
-                      <option value="UTC/GMT +01:00 - Europe/Dublin">UTC/GMT +01:00 - Europe/Dublin</option>
-                      <option value="UTC/GMT +01:00 - Europe/Paris">UTC/GMT +01:00 - Europe/Paris</option>
+                      <option value="Europe/Dublin">UTC/GMT +01:00 - Europe/Dublin (Ireland)</option>
+                      <option value="Europe/London">UTC/GMT +00:00 - Europe/London (UK)</option>
+                      <option value="Europe/Paris">UTC/GMT +01:00 - Europe/Paris (CET / CEST)</option>
+                      <option value="UTC/GMT +01:00 - Europe/Dublin">UTC/GMT +01:00 - Europe/Dublin (Legacy)</option>
+                      <option value="UTC/GMT +00:00 - Europe/London">UTC/GMT +00:00 - Europe/London (Legacy)</option>
+                      <option value="UTC/GMT +01:00 - Europe/Paris">UTC/GMT +01:00 - Europe/Paris (Legacy)</option>
+                      <option value="UTC">UTC (Coordinated Universal Time)</option>
+                      <option value="America/New_York">America/New_York (US Eastern Time)</option>
                     </select>
+                    <div className="mt-1.5 flex flex-wrap items-center justify-between text-xs text-slate-500 font-mono gap-1">
+                      <span>⚡ Automatically syncs MySQL Database session clock</span>
+                      <span className="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                        {(() => {
+                          try {
+                            const raw = settings.timezone || 'Europe/Dublin';
+                            const iana = raw.includes('Dublin') ? 'Europe/Dublin' : (raw.includes('London') ? 'Europe/London' : (raw.includes('Paris') ? 'Europe/Paris' : (raw.includes('New_York') ? 'America/New_York' : 'Europe/Dublin')));
+                            return `Live: ${new Date().toLocaleTimeString('en-GB', { timeZone: iana, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
+                          } catch {
+                            return `Live: ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
+                          }
+                        })()}
+                      </span>
+                    </div>
                   </div>
                 </div>
 

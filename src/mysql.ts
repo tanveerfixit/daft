@@ -8,6 +8,59 @@ if (process.env.DB_PASS === undefined) {
   throw new Error('[SECURITY FATAL] DB_PASS is not set in the .env file. Refusing to start with insecure credentials.');
 }
 
+/**
+ * Resolves any timezone string (IANA identifier, legacy descriptive label, or offset)
+ * into a verified IANA timezone and its current exact UTC offset (e.g. "+01:00" for Dublin in summer).
+ * Handles Daylight Saving Time (DST) transitions automatically.
+ */
+export function resolveTimezoneOffset(tzInput?: string): { ianaTz: string; offset: string } {
+  let ianaTz = 'Europe/Dublin';
+  if (tzInput) {
+    const trimmed = tzInput.trim();
+    if (trimmed.includes('Europe/Dublin') || trimmed.toLowerCase().includes('dublin') || trimmed.toLowerCase().includes('ireland')) {
+      ianaTz = 'Europe/Dublin';
+    } else if (trimmed.includes('Europe/London') || trimmed.toLowerCase().includes('london')) {
+      ianaTz = 'Europe/London';
+    } else if (trimmed.includes('Europe/Paris') || trimmed.toLowerCase().includes('paris')) {
+      ianaTz = 'Europe/Paris';
+    } else if (trimmed === 'UTC' || trimmed === 'GMT') {
+      ianaTz = 'UTC';
+    } else if (trimmed.includes('America/New_York') || trimmed.toLowerCase().includes('new_york')) {
+      ianaTz = 'America/New_York';
+    } else {
+      const match = trimmed.match(/[A-Za-z_]+\/[A-Za-z_]+/);
+      if (match) {
+        ianaTz = match[0];
+      } else {
+        try {
+          Intl.DateTimeFormat(undefined, { timeZone: trimmed });
+          ianaTz = trimmed;
+        } catch {
+          ianaTz = 'Europe/Dublin';
+        }
+      }
+    }
+  }
+
+  try {
+    const now = new Date();
+    const utcDate = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
+    const tzDate = new Date(now.toLocaleString('en-US', { timeZone: ianaTz }));
+    const diffMinutes = Math.round((tzDate.getTime() - utcDate.getTime()) / 60000);
+    const sign = diffMinutes >= 0 ? '+' : '-';
+    const absMin = Math.abs(diffMinutes);
+    const hours = String(Math.floor(absMin / 60)).padStart(2, '0');
+    const mins = String(absMin % 60).padStart(2, '0');
+    return { ianaTz, offset: `${sign}${hours}:${mins}` };
+  } catch {
+    return { ianaTz: 'Europe/Dublin', offset: '+01:00' };
+  }
+}
+
+// Active session timezone cache
+let currentSessionOffset = resolveTimezoneOffset(process.env.APP_TIMEZONE || 'Europe/Dublin').offset;
+const businessTzCache = new Map<number, { ianaTz: string; offset: string; raw: string }>();
+
 export const pool = mysql.createPool({
   host: process.env.DB_HOST || '127.0.0.1',
   port: Number(process.env.DB_PORT) || 3306,
@@ -27,6 +80,59 @@ export const pool = mysql.createPool({
   charset: 'utf8mb4_unicode_ci'
 });
 
+// Set session timezone on every new underlying connection
+pool.on('connection', (conn: any) => {
+  try {
+    if (typeof conn.query === 'function') {
+      conn.query('SET time_zone = ?', [currentSessionOffset], (err: any) => {
+        if (err) {
+          console.warn('[MySQL] Failed to set session time_zone on new connection:', err?.message);
+        }
+      });
+    }
+  } catch {}
+});
+
+/**
+ * Synchronizes the MySQL connection session timezone to match the business's Account Setup setting.
+ */
+export async function syncBusinessTimezone(businessId?: number, tzInput?: string): Promise<{ ianaTz: string; offset: string }> {
+  let targetTz = tzInput;
+
+  if (!targetTz && businessId) {
+    const cached = businessTzCache.get(businessId);
+    if (cached) {
+      if (currentSessionOffset !== cached.offset) {
+        currentSessionOffset = cached.offset;
+        try { await pool.query('SET time_zone = ?', [cached.offset]); } catch {}
+      }
+      return cached;
+    }
+
+    try {
+      const row = await queryOne<{ timezone: string }>('SELECT timezone FROM settings WHERE business_id = ? LIMIT 1', [businessId]);
+      if (row?.timezone) {
+        targetTz = row.timezone;
+      }
+    } catch (err: any) {
+      console.warn('[MySQL] Could not fetch business timezone setting:', err?.message);
+    }
+  }
+
+  const { ianaTz, offset } = resolveTimezoneOffset(targetTz);
+  currentSessionOffset = offset;
+  if (businessId) {
+    businessTzCache.set(businessId, { ianaTz, offset, raw: targetTz || ianaTz });
+  }
+
+  try {
+    await pool.query('SET time_zone = ?', [offset]);
+  } catch (err: any) {
+    console.warn('[MySQL] Failed to execute SET time_zone =', offset, err?.message);
+  }
+
+  return { ianaTz, offset };
+}
 
 // Convenience wrapper
 export async function query<T = any>(sql: string, params?: any[]): Promise<T[]> {
@@ -106,6 +212,7 @@ export async function initSchema() {
 
     if (currentVersion === CURRENT_SCHEMA_VERSION) {
       console.log('[MySQL] Schema is cached and up-to-date. Skipping redundant DDL checks.');
+      await syncBusinessTimezone();
       return;
     }
 
@@ -1215,6 +1322,8 @@ export async function initSchema() {
   await migrateAllPasswordsToHash();
   // Ensure 100% AES-256-GCM encryption for SMTP settings at rest
   await migrateSmtpSettingsEncryption();
+  // Ensure MySQL session timezone matches business settings
+  await syncBusinessTimezone();
 }
 
 // ─── 100% Password Encryption Migration ───────────────────────────────────────

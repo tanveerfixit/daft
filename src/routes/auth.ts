@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pool, query, queryOne, execute, logActivity } from '../mysql.js';
+import { pool, query, queryOne, execute, logActivity, syncBusinessTimezone } from '../mysql.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { encryptSecret, decryptSecret } from '../utils/crypto.js';
@@ -85,6 +85,10 @@ export async function requireAuthAsync(req: any, res: any, next: any) {
       user = await queryOne('SELECT * FROM users WHERE id=?', [decoded.userId]);
       if (!user) return res.status(401).json({ error: 'User not found' });
       setCachedAuthUser(decoded.userId, user);
+    }
+
+    if (user?.business_id) {
+      syncBusinessTimezone(user.business_id).catch(() => {});
     }
 
     req._sessionToken = token;

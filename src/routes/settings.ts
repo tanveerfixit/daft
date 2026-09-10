@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pool, query, queryOne, execute } from '../mysql.js';
+import { pool, query, queryOne, execute, syncBusinessTimezone, resolveTimezoneOffset } from '../mysql.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -13,7 +13,18 @@ router.get('/settings', async (req: any, res, next) => {
       await execute('INSERT INTO settings (business_id) VALUES (?)', [req.user.business_id]);
       s = await queryOne('SELECT * FROM settings WHERE business_id=?', [req.user.business_id]);
     }
-    res.json(s || {});
+
+    const tzInfo = await syncBusinessTimezone(req.user.business_id, s?.timezone);
+    const timeRows = await query('SELECT NOW() as mysql_now, @@session.time_zone as session_tz');
+    const timeRow = timeRows?.[0] as any;
+
+    res.json({
+      ...(s || {}),
+      active_offset: tzInfo.offset,
+      active_iana: tzInfo.ianaTz,
+      mysql_now: timeRow?.mysql_now,
+      session_tz: timeRow?.session_tz
+    });
   } catch (e: any) { next(e); }
 });
 
@@ -60,7 +71,13 @@ router.post('/settings', async (req: any, res, next) => {
       daily_eod_popup !== undefined ? (daily_eod_popup ? 1 : 0) : null,
       req.user.business_id
     ]);
-    res.json({ success: true });
+
+    let tzInfo = { ianaTz: 'Europe/Dublin', offset: '+01:00' };
+    if (timezone) {
+      tzInfo = await syncBusinessTimezone(req.user.business_id, timezone);
+    }
+
+    res.json({ success: true, ...tzInfo });
   } catch (e: any) { next(e); }
 });
 
