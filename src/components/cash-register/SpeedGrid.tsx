@@ -110,7 +110,7 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
       imei: deviceImei.trim(),
       selling_price: parseFloat(devicePrice) || Number(deviceModalItem.selling_price) || 0,
       cost_price: Number(deviceModalItem.cost_price) || 0,
-      sku_code: deviceModalItem.sku_code || 'DEV-SKU',
+      sku_code: deviceModalItem.sku_code || '',
       product_type: 'serialized',
       allow_overselling: 1,
       total_stock: 1,

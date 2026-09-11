@@ -524,10 +524,15 @@ export default function SpeedGridSettings() {
                   {/* Product Details & Custom Label Input */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <h4 className="text-xs font-bold text-slate-800 truncate" title={item.product_name}>
-                        {item.product_name}
-                      </h4>
-                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-slate-800 truncate" title={item.product_name}>
+                          {item.product_name}
+                        </h4>
+                        <div className="text-[10px] text-slate-400 font-medium">
+                          SKU: {item.sku_code || 'N/A'}
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
                         €{Number(item.selling_price || 0).toFixed(2)}
                       </span>
                     </div>
