@@ -240,6 +240,7 @@ async function initSchema() {
         state VARCHAR(100),
         zip_code VARCHAR(50),
         country VARCHAR(100),
+        vat_number VARCHAR(100),
         status VARCHAR(50) DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
@@ -252,6 +253,12 @@ async function initSchema() {
     } catch (e) {
       if (!e.message?.includes("Duplicate column")) throw e;
     }
+    try {
+      await conn.query("ALTER TABLE businesses ADD COLUMN vat_number VARCHAR(100) AFTER zip_code");
+      console.log("[MySQL] Migration: added vat_number to businesses");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
     await conn.query(`
       CREATE TABLE IF NOT EXISTS branches (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -259,12 +266,19 @@ async function initSchema() {
         name VARCHAR(255) NOT NULL,
         address TEXT,
         phone VARCHAR(100),
+        vat_number VARCHAR(100),
         status VARCHAR(50) DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         deleted_at TIMESTAMP NULL,
         FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
       )
     `);
+    try {
+      await conn.query("ALTER TABLE branches ADD COLUMN vat_number VARCHAR(100) AFTER address");
+      console.log("[MySQL] Migration: added vat_number to branches");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
     await conn.query(`
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -662,6 +676,7 @@ async function initSchema() {
         show_totals TINYINT(1) DEFAULT 1,
         show_footer TINYINT(1) DEFAULT 1,
         show_powered_by TINYINT(1) DEFAULT 1,
+        show_vat_number TINYINT(1) DEFAULT 1,
         eod_show_cash_summary TINYINT(1) DEFAULT 1,
         eod_show_payment_type TINYINT(1) DEFAULT 1,
         eod_show_total_cash TINYINT(1) DEFAULT 1,
@@ -678,6 +693,12 @@ async function initSchema() {
     try {
       await conn.query("ALTER TABLE thermal_printer_settings ADD COLUMN show_powered_by TINYINT(1) DEFAULT 1 AFTER show_footer");
       console.log("[MySQL] Migration: added show_powered_by to thermal_printer_settings");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE thermal_printer_settings ADD COLUMN show_vat_number TINYINT(1) DEFAULT 1 AFTER show_powered_by");
+      console.log("[MySQL] Migration: added show_vat_number to thermal_printer_settings");
     } catch (e) {
       if (!e.message?.includes("Duplicate column")) throw e;
     }
@@ -1629,10 +1650,11 @@ async function sendTestEmail(toEmail) {
   </div>`;
   await sendMail(toEmail, "EPOS SMTP Test Email", html);
 }
-async function sendInvoiceEmail(to, subject, invoice, company, customNote, branch) {
+async function sendInvoiceEmail(to, subject, invoice, company, customNote, branch, thermalSettings) {
   const branchName = branch?.name || invoice?.branch_name || "";
   const branchAddress = branch?.address || invoice?.branch_address || company?.address || "";
   const branchPhone = branch?.phone || invoice?.branch_phone || company?.phone || "";
+  const vatNumber = branch?.vat_number || invoice?.branch_vat_number || company?.vat_number || "";
   const isDevEmail = (emailStr) => {
     if (!emailStr) return true;
     const lower = emailStr.toLowerCase().trim();
@@ -1654,6 +1676,7 @@ async function sendInvoiceEmail(to, subject, invoice, company, customNote, branc
   const dueAmount = Math.max(0, Number(invoice.due_amount) || grandTotal - paidAmount);
   const changeDue = Math.max(0, paidAmount - grandTotal);
   const isPaid = invoice.status === "paid" || dueAmount <= 5e-3;
+  const footerText = thermalSettings && (thermalSettings.show_footer === 0 || thermalSettings.show_footer === false) ? "" : thermalSettings?.footer_text && thermalSettings.footer_text.trim() || "Thank you for your business!";
   const itemsHtml = (invoice.items || []).map((item, idx) => `
     <tr style="border-bottom: 1px solid #f1f5f9; background: ${idx % 2 === 0 ? "#ffffff" : "#fafafa"};">
       <td style="padding: 12px 10px; font-size: 13px; color: #111827; vertical-align: top;">
@@ -1750,6 +1773,7 @@ async function sendInvoiceEmail(to, subject, invoice, company, customNote, branc
                 ${branchPhone ? `<span style="color: #6b7280;">Tel: ${branchPhone}</span>` : ""}
                 ${branchPhone && storeEmail ? ` <span style="color: #d1d5db;">\u2022</span> ` : ""}
                 ${storeEmail ? `<span style="color: #4b5563; font-weight: 500;">${storeEmail}</span>` : ""}
+                ${vatNumber ? `${branchPhone || storeEmail ? ` <span style="color: #d1d5db;">\u2022</span> ` : ""}<span style="color: #4b5563; font-weight: 500;">VAT No: ${vatNumber}</span>` : ""}
               </div>
             </div>
           </div>
@@ -1879,9 +1903,11 @@ async function sendInvoiceEmail(to, subject, invoice, company, customNote, branc
 
           <!-- 6. Footer (Clean Light Footer) -->
           <div style="background: #f9fafb; border-top: 1px solid #e5e7eb; padding: 18px 24px; text-align: center; font-size: 12px; color: #6b7280; line-height: 1.5;">
-            <div style="font-weight: 600; color: #111827; margin-bottom: 2px;">
-              Thank you for your business!
-            </div>
+            ${footerText ? `
+              <div style="font-weight: 600; color: #111827; margin-bottom: 4px; font-size: 12.5px; white-space: pre-line;">
+                ${footerText.replace(/\r?\n/g, "<br/>")}
+              </div>
+            ` : ""}
             ${branchName ? `<div>${company?.name || "EPOS"} \u2014 ${branchName}</div>` : ""}
             ${storeEmail ? `
               <div style="margin-top: 4px; color: #6b7280;">
@@ -4967,6 +4993,13 @@ var init_invoices = __esm({
       SELECT * FROM payments WHERE invoice_id=?
     `, [req.params.id]);
         const company = await queryOne("SELECT * FROM businesses WHERE id=? LIMIT 1", [req.user.business_id]);
+        let thermalSettings = null;
+        if (invoice.branch_id) {
+          thermalSettings = await queryOne("SELECT * FROM thermal_printer_settings WHERE business_id=? AND branch_id=?", [req.user.business_id, invoice.branch_id]);
+        }
+        if (!thermalSettings) {
+          thermalSettings = await queryOne("SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0)", [req.user.business_id]);
+        }
         invoice.items = items;
         invoice.payments = payments;
         invoice.customer = {
@@ -4978,10 +5011,11 @@ var init_invoices = __esm({
           name: invoice.branch_name,
           address: invoice.branch_address,
           phone: invoice.branch_phone,
-          email: invoice.branch_email
+          email: invoice.branch_email,
+          vat_number: invoice.branch_vat_number || company?.vat_number || ""
         };
         const emailSubject = subject || `Invoice ${invoice.invoice_number} from ${invoice.branch_name || company?.name || "PhoneLab"}`;
-        sendInvoiceEmail(email.trim(), emailSubject, invoice, company, message, branch).then(async () => {
+        sendInvoiceEmail(email.trim(), emailSubject, invoice, company, message, branch, thermalSettings).then(async () => {
           await execute(
             "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
             [invoice.id, req.userId, "Invoice Emailed", `Invoice emailed to ${email.trim()}`]
@@ -6016,8 +6050,12 @@ var init_settings = __esm({
       try {
         const branchId = req.user?.branch_id;
         if (branchId) {
-          const branch = await queryOne("SELECT name, address, phone, email FROM branches WHERE id=? AND business_id=?", [branchId, req.user.business_id]);
+          const branch = await queryOne("SELECT name, address, phone, email, vat_number FROM branches WHERE id=? AND business_id=?", [branchId, req.user.business_id]);
           if (branch) {
+            if (!branch.vat_number) {
+              const bus = await queryOne("SELECT vat_number FROM businesses WHERE id=?", [req.user.business_id]);
+              if (bus?.vat_number) branch.vat_number = bus.vat_number;
+            }
             return res.json(branch);
           }
         }
@@ -6036,22 +6074,23 @@ var init_settings = __esm({
       city: z6.string().optional(),
       state: z6.string().optional(),
       zip_code: z6.string().optional(),
-      country: z6.string().optional()
+      country: z6.string().optional(),
+      vat_number: z6.string().optional()
     });
     router7.post("/company", async (req, res, next) => {
       const data = companySchema.parse(req.body);
-      const { name, email, phone, subdomain, address, city, state, zip_code, country } = data;
+      const { name, email, phone, subdomain, address, city, state, zip_code, country, vat_number } = data;
       try {
         const branchId = req.user?.branch_id;
         if (branchId) {
           await execute(
-            "UPDATE branches SET name=COALESCE(?, name), email=?, phone=?, address=? WHERE id=? AND business_id=?",
-            [name, email, phone, address, branchId, req.user.business_id]
+            "UPDATE branches SET name=COALESCE(?, name), email=?, phone=?, address=?, vat_number=? WHERE id=? AND business_id=?",
+            [name, email, phone, address, vat_number, branchId, req.user.business_id]
           );
         }
         await execute(
-          "UPDATE businesses SET name=?,email=?,phone=?,subdomain=?,address=?,city=?,state=?,zip_code=?,country=? WHERE id=?",
-          [name, email, phone, subdomain, address, city, state, zip_code, country, req.user.business_id]
+          "UPDATE businesses SET name=?,email=?,phone=?,subdomain=?,address=?,city=?,state=?,zip_code=?,country=?,vat_number=? WHERE id=?",
+          [name, email, phone, subdomain, address, city, state, zip_code, country, vat_number, req.user.business_id]
         );
         res.json({ success: true });
       } catch (e) {
@@ -6205,6 +6244,7 @@ var init_settings = __esm({
       show_totals: z6.boolean().optional(),
       show_footer: z6.boolean().optional(),
       show_powered_by: z6.boolean().optional(),
+      show_vat_number: z6.boolean().optional(),
       eod_show_cash_summary: z6.boolean().optional(),
       eod_show_payment_type: z6.boolean().optional(),
       eod_show_total_cash: z6.boolean().optional(),
@@ -6223,11 +6263,11 @@ var init_settings = __esm({
       INSERT INTO thermal_printer_settings
         (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
          show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
-         show_items_table,show_totals,show_footer,show_powered_by,
+         show_items_table,show_totals,show_footer,show_powered_by,show_vat_number,
          eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
          eod_footer_type,eod_footer_custom_text,
          footer_text)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON DUPLICATE KEY UPDATE
         branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
         show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
@@ -6235,7 +6275,7 @@ var init_settings = __esm({
         show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
         show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
         show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
-        show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),
+        show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),show_vat_number=VALUES(show_vat_number),
         eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
         eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
         eod_show_total=VALUES(eod_show_total),
@@ -6258,6 +6298,7 @@ var init_settings = __esm({
             m.show_totals ? 1 : 0,
             m.show_footer ? 1 : 0,
             m.show_powered_by ? 1 : 0,
+            m.show_vat_number !== false ? 1 : 0,
             m.eod_show_cash_summary ? 1 : 0,
             m.eod_show_payment_type ? 1 : 0,
             m.eod_show_total_cash ? 1 : 0,

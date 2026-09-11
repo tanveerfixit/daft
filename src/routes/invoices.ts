@@ -1042,6 +1042,15 @@ router.post('/:id/send-email', async (req: any, res, next) => {
     // Fetch company / business info
     const company = await queryOne('SELECT * FROM businesses WHERE id=? LIMIT 1', [req.user.business_id]) as any;
 
+    // Fetch thermal printer settings for footer text and formatting
+    let thermalSettings = null;
+    if (invoice.branch_id) {
+      thermalSettings = await queryOne('SELECT * FROM thermal_printer_settings WHERE business_id=? AND branch_id=?', [req.user.business_id, invoice.branch_id]);
+    }
+    if (!thermalSettings) {
+      thermalSettings = await queryOne('SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0)', [req.user.business_id]);
+    }
+
     invoice.items = items;
     invoice.payments = payments;
     invoice.customer = {
@@ -1054,13 +1063,14 @@ router.post('/:id/send-email', async (req: any, res, next) => {
       name: invoice.branch_name,
       address: invoice.branch_address,
       phone: invoice.branch_phone,
-      email: invoice.branch_email
+      email: invoice.branch_email,
+      vat_number: invoice.branch_vat_number || company?.vat_number || ''
     };
 
     const emailSubject = subject || `Invoice ${invoice.invoice_number} from ${invoice.branch_name || company?.name || 'PhoneLab'}`;
 
     // Dispatch email asynchronously so UI modal returns instantly
-    sendInvoiceEmail(email.trim(), emailSubject, invoice, company, message, branch)
+    sendInvoiceEmail(email.trim(), emailSubject, invoice, company, message, branch, thermalSettings)
       .then(async () => {
         await execute(
           'INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)',

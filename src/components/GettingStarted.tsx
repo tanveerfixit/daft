@@ -34,6 +34,7 @@ interface CompanyData {
   state: string;
   zip_code: string;
   country: string;
+  vat_number: string;
 }
 
 interface PaymentMethod {
@@ -68,6 +69,7 @@ interface ThermalPrinterSettingsData {
   show_totals: boolean;
   show_footer: boolean;
   show_powered_by: boolean;
+  show_vat_number: boolean;
   eod_show_cash_summary: boolean;
   eod_show_payment_type: boolean;
   eod_show_total_cash: boolean;
@@ -106,7 +108,8 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
     city: '',
     state: '',
     zip_code: '',
-    country: 'Ireland'
+    country: 'Ireland',
+    vat_number: ''
   });
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [printerSettings, setPrinterSettings] = useState<PrinterSettingsData>({
@@ -135,6 +138,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
     show_totals: true,
     show_footer: true,
     show_powered_by: true,
+    show_vat_number: true,
     eod_show_cash_summary: true,
     eod_show_payment_type: true,
     eod_show_total_cash: true,
@@ -909,7 +913,8 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
             city: data.city || '',
             state: data.state || '',
             zip_code: data.zip_code || '',
-            country: data.country || 'Ireland'
+            country: data.country || 'Ireland',
+            vat_number: data.vat_number || ''
           });
         })
         .catch(err => console.error('Error fetching company:', err));
@@ -967,6 +972,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
               show_totals: !!data.show_totals,
               show_footer: !!data.show_footer,
               show_powered_by: !!data.show_powered_by,
+              show_vat_number: data.show_vat_number !== undefined ? !!data.show_vat_number : true,
               eod_show_cash_summary: data.eod_show_cash_summary !== undefined ? !!data.eod_show_cash_summary : true,
               eod_show_payment_type: data.eod_show_payment_type !== undefined ? !!data.eod_show_payment_type : true,
               eod_show_total_cash: data.eod_show_total_cash !== undefined ? !!data.eod_show_total_cash : true,
@@ -993,7 +999,8 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                 city: data.city || '',
                 state: data.state || '',
                 zip_code: data.zip_code || '',
-                country: data.country || 'Ireland'
+                country: data.country || 'Ireland',
+                vat_number: data.vat_number || ''
               });
             }
           })
@@ -1163,6 +1170,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
         show_totals: true,
         show_footer: true,
         show_powered_by: true,
+        show_vat_number: true,
         eod_show_cash_summary: true,
         eod_show_payment_type: true,
         eod_show_total_cash: true,
@@ -1235,6 +1243,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                 ${thermalSettings.show_business_phone && thermalSettings.show_business_email && company.email ? ' · ' : ''}
                 ${thermalSettings.show_business_email && company.email ? `<span>${company.email}</span>` : ''}
               </div>
+              ${thermalSettings.show_vat_number && company.vat_number ? `<div style="font-size: 0.92em; font-weight: 500; margin-top: 2px;">VAT Reg No: ${company.vat_number}</div>` : ''}
             </div>
 
             <div class="border-t my-2"></div>
@@ -2098,6 +2107,22 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-3 items-center gap-4">
+                  <div>
+                    <label className="text-sm font-bold text-slate-700 block">VAT / Tax Reg No.</label>
+                    <span className="text-[11px] text-slate-500">Printed on receipts and invoice emails</span>
+                  </div>
+                  <div className="md:col-span-2">
+                    <input
+                      type="text"
+                      value={company.vat_number || ''}
+                      onChange={(e) => setCompany({ ...company, vat_number: e.target.value })}
+                      className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                      placeholder="e.g. IE 1234567T / GB 987654321"
+                    />
+                  </div>
+                </div>
+
                 <div className="flex justify-end pt-4">
                   <button
                     onClick={handleSaveCompany}
@@ -2525,6 +2550,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                           { key: 'show_business_address', label: 'Business Address' },
                           { key: 'show_business_phone', label: 'Business Phone' },
                           { key: 'show_business_email', label: 'Business Email' },
+                          { key: 'show_vat_number', label: 'VAT Number' },
                           { key: 'show_customer_info', label: 'Customer Info' },
                           { key: 'show_invoice_number', label: 'Invoice Number' },
                           { key: 'show_date', label: 'Date & Time' },

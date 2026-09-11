@@ -38,6 +38,7 @@ const defaultThermalSettings: ThermalPrinterSettings = {
   show_totals: true,
   show_footer: true,
   show_powered_by: true,
+  show_vat_number: true,
   eod_show_cash_summary: true,
   eod_show_payment_type: true,
   eod_show_total_cash: true,

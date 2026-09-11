@@ -10,6 +10,7 @@ db.exec(`
     name TEXT NOT NULL,
     email TEXT,
     phone TEXT,
+    vat_number TEXT,
     status TEXT DEFAULT 'active', -- 'active', 'suspended'
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME,
@@ -22,6 +23,7 @@ db.exec(`
     name TEXT NOT NULL,
     address TEXT,
     phone TEXT,
+    vat_number TEXT,
     status TEXT DEFAULT 'active', -- 'active', 'inactive'
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME,
@@ -345,6 +347,7 @@ db.exec(`
     show_totals INTEGER DEFAULT 1,
     show_footer INTEGER DEFAULT 1,
     show_powered_by INTEGER DEFAULT 1,
+    show_vat_number INTEGER DEFAULT 1,
     footer_text TEXT DEFAULT 'Thank you for your business!',
     FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
   );
@@ -594,6 +597,9 @@ isolatedTables.forEach(table => {
 
 // Auth columns on users
 addColumnIfNotExists("thermal_printer_settings", "show_powered_by", "INTEGER DEFAULT 1");
+addColumnIfNotExists("thermal_printer_settings", "show_vat_number", "INTEGER DEFAULT 1");
+addColumnIfNotExists("businesses", "vat_number", "TEXT");
+addColumnIfNotExists("branches", "vat_number", "TEXT");
 addColumnIfNotExists("users", "role", "TEXT DEFAULT 'staff'");
 addColumnIfNotExists("users", "status", "TEXT DEFAULT 'approved'");
 addColumnIfNotExists("users", "password_hash", "TEXT");

@@ -30,6 +30,7 @@ export default function ThermalReceipt({ invoice, settings, company }: Props) {
   const businessAddress = company?.address || invAny?.branch_address || "32 O'Connell Street, Clonroad Beg, Ennis";
   const businessPhone = company?.phone || invAny?.branch_phone || '(065) 672 4192';
   const businessEmail = company?.email || invAny?.branch_email || '';
+  const vatNumber = company?.vat_number || invAny?.branch_vat_number || invAny?.vat_number || '';
 
   const addressParts = (businessAddress || '').split(',').map(s => s.trim());
   const addressLine1 = addressParts.slice(0, 3).join(', ');
@@ -47,7 +48,7 @@ export default function ThermalReceipt({ invoice, settings, company }: Props) {
   const changeDue = Math.max(0, totalPaid - (Number(invoice.grand_total) || 0));
   const dueAmount = Number(invoice.due_amount) || 0;
 
-  const showHeaderInfo = settings.show_logo || settings.show_business_name || settings.show_business_address || settings.show_business_phone || settings.show_business_email;
+  const showHeaderInfo = settings.show_logo || settings.show_business_name || settings.show_business_address || settings.show_business_phone || settings.show_business_email || (settings.show_vat_number !== false && !!vatNumber);
   const showMetaInfo = settings.show_invoice_number !== false || settings.show_date !== false || settings.show_customer_info;
 
   return (
@@ -119,6 +120,12 @@ export default function ThermalReceipt({ invoice, settings, company }: Props) {
               {settings.show_business_phone && businessPhone && <span>Tel: {businessPhone}</span>}
               {settings.show_business_phone && businessPhone && settings.show_business_email && businessEmail && <span> · </span>}
               {settings.show_business_email && businessEmail && <span>{businessEmail}</span>}
+            </div>
+          )}
+
+          {settings.show_vat_number !== false && vatNumber && (
+            <div style={{ fontSize: '0.92em', color: '#111', marginTop: '2px', fontWeight: '500' }}>
+              VAT Reg No: {vatNumber}
             </div>
           )}
         </div>

@@ -152,10 +152,11 @@ export async function sendTestEmail(toEmail: string) {
   await sendMail(toEmail, 'EPOS SMTP Test Email', html);
 }
 
-export async function sendInvoiceEmail(to: string, subject: string, invoice: any, company: any, customNote?: string, branch?: any) {
+export async function sendInvoiceEmail(to: string, subject: string, invoice: any, company: any, customNote?: string, branch?: any, thermalSettings?: any) {
   const branchName = branch?.name || invoice?.branch_name || '';
   const branchAddress = branch?.address || invoice?.branch_address || company?.address || '';
   const branchPhone = branch?.phone || invoice?.branch_phone || company?.phone || '';
+  const vatNumber = branch?.vat_number || invoice?.branch_vat_number || company?.vat_number || '';
 
   // Filter out developer/system email so customer receipts only show the branch/store email
   const isDevEmail = (emailStr?: string) => {
@@ -183,6 +184,10 @@ export async function sendInvoiceEmail(to: string, subject: string, invoice: any
   const dueAmount = Math.max(0, Number(invoice.due_amount) || (grandTotal - paidAmount));
   const changeDue = Math.max(0, paidAmount - grandTotal);
   const isPaid = (invoice.status === 'paid' || dueAmount <= 0.005);
+
+  const footerText = (thermalSettings && (thermalSettings.show_footer === 0 || thermalSettings.show_footer === false))
+    ? ''
+    : ((thermalSettings?.footer_text && thermalSettings.footer_text.trim()) || 'Thank you for your business!');
 
   const itemsHtml = (invoice.items || []).map((item: any, idx: number) => `
     <tr style="border-bottom: 1px solid #f1f5f9; background: ${idx % 2 === 0 ? '#ffffff' : '#fafafa'};">
@@ -281,6 +286,7 @@ export async function sendInvoiceEmail(to: string, subject: string, invoice: any
                 ${branchPhone ? `<span style="color: #6b7280;">Tel: ${branchPhone}</span>` : ''}
                 ${branchPhone && storeEmail ? ` <span style="color: #d1d5db;">•</span> ` : ''}
                 ${storeEmail ? `<span style="color: #4b5563; font-weight: 500;">${storeEmail}</span>` : ''}
+                ${vatNumber ? `${(branchPhone || storeEmail) ? ` <span style="color: #d1d5db;">•</span> ` : ''}<span style="color: #4b5563; font-weight: 500;">VAT No: ${vatNumber}</span>` : ''}
               </div>
             </div>
           </div>
@@ -410,9 +416,11 @@ export async function sendInvoiceEmail(to: string, subject: string, invoice: any
 
           <!-- 6. Footer (Clean Light Footer) -->
           <div style="background: #f9fafb; border-top: 1px solid #e5e7eb; padding: 18px 24px; text-align: center; font-size: 12px; color: #6b7280; line-height: 1.5;">
-            <div style="font-weight: 600; color: #111827; margin-bottom: 2px;">
-              Thank you for your business!
-            </div>
+            ${footerText ? `
+              <div style="font-weight: 600; color: #111827; margin-bottom: 4px; font-size: 12.5px; white-space: pre-line;">
+                ${footerText.replace(/\r?\n/g, '<br/>')}
+              </div>
+            ` : ''}
             ${branchName ? `<div>${company?.name || 'EPOS'} — ${branchName}</div>` : ''}
             ${storeEmail ? `
               <div style="margin-top: 4px; color: #6b7280;">

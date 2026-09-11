@@ -139,8 +139,12 @@ router.get('/company', async (req: any, res, next) => {
   try {
     const branchId = req.user?.branch_id;
     if (branchId) {
-      const branch = await queryOne('SELECT name, address, phone, email FROM branches WHERE id=? AND business_id=?', [branchId, req.user.business_id]);
+      const branch: any = await queryOne('SELECT name, address, phone, email, vat_number FROM branches WHERE id=? AND business_id=?', [branchId, req.user.business_id]);
       if (branch) {
+        if (!branch.vat_number) {
+          const bus: any = await queryOne('SELECT vat_number FROM businesses WHERE id=?', [req.user.business_id]);
+          if (bus?.vat_number) branch.vat_number = bus.vat_number;
+        }
         return res.json(branch);
       }
     }
@@ -159,20 +163,21 @@ const companySchema = z.object({
   city: z.string().optional(),
   state: z.string().optional(),
   zip_code: z.string().optional(),
-  country: z.string().optional()
+  country: z.string().optional(),
+  vat_number: z.string().optional()
 });
 
 router.post('/company', async (req: any, res, next) => {
   const data = companySchema.parse(req.body);
-  const { name, email, phone, subdomain, address, city, state, zip_code, country } = data;
+  const { name, email, phone, subdomain, address, city, state, zip_code, country, vat_number } = data;
   try {
     const branchId = req.user?.branch_id;
     if (branchId) {
-      await execute('UPDATE branches SET name=COALESCE(?, name), email=?, phone=?, address=? WHERE id=? AND business_id=?',
-        [name, email, phone, address, branchId, req.user.business_id]);
+      await execute('UPDATE branches SET name=COALESCE(?, name), email=?, phone=?, address=?, vat_number=? WHERE id=? AND business_id=?',
+        [name, email, phone, address, vat_number, branchId, req.user.business_id]);
     }
-    await execute('UPDATE businesses SET name=?,email=?,phone=?,subdomain=?,address=?,city=?,state=?,zip_code=?,country=? WHERE id=?',
-      [name, email, phone, subdomain, address, city, state, zip_code, country, req.user.business_id]);
+    await execute('UPDATE businesses SET name=?,email=?,phone=?,subdomain=?,address=?,city=?,state=?,zip_code=?,country=?,vat_number=? WHERE id=?',
+      [name, email, phone, subdomain, address, city, state, zip_code, country, vat_number, req.user.business_id]);
     res.json({ success: true });
   } catch (e: any) { next(e); }
 });
@@ -324,6 +329,7 @@ const thermalPrinterSettingsSchema = z.object({
   show_totals: z.boolean().optional(),
   show_footer: z.boolean().optional(),
   show_powered_by: z.boolean().optional(),
+  show_vat_number: z.boolean().optional(),
   eod_show_cash_summary: z.boolean().optional(),
   eod_show_payment_type: z.boolean().optional(),
   eod_show_total_cash: z.boolean().optional(),
@@ -343,11 +349,11 @@ router.post('/thermal-printer-settings', async (req: any, res, next) => {
       INSERT INTO thermal_printer_settings
         (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
          show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
-         show_items_table,show_totals,show_footer,show_powered_by,
+         show_items_table,show_totals,show_footer,show_powered_by,show_vat_number,
          eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
          eod_footer_type,eod_footer_custom_text,
          footer_text)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON DUPLICATE KEY UPDATE
         branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
         show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
@@ -355,7 +361,7 @@ router.post('/thermal-printer-settings', async (req: any, res, next) => {
         show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
         show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
         show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
-        show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),
+        show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),show_vat_number=VALUES(show_vat_number),
         eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
         eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
         eod_show_total=VALUES(eod_show_total),
@@ -365,7 +371,7 @@ router.post('/thermal-printer-settings', async (req: any, res, next) => {
        m.show_business_name?1:0, m.show_business_address?1:0, m.show_business_phone?1:0,
        m.show_business_email?1:0, m.show_customer_info?1:0, m.show_invoice_number?1:0,
        m.show_date?1:0, m.show_items_table?1:0, m.show_totals?1:0, m.show_footer?1:0,
-       m.show_powered_by?1:0,
+       m.show_powered_by?1:0, m.show_vat_number !== false ? 1 : 0,
        m.eod_show_cash_summary?1:0, m.eod_show_payment_type?1:0, m.eod_show_total_cash?1:0,
        m.eod_show_total_card_sale?1:0, m.eod_show_total?1:0,
        m.eod_footer_type||'branch', m.eod_footer_custom_text||'',

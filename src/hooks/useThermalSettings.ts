@@ -15,6 +15,7 @@ export interface ThermalPrinterSettings {
   show_totals: boolean;
   show_footer: boolean;
   show_powered_by: boolean;
+  show_vat_number: boolean;
   eod_show_cash_summary: boolean;
   eod_show_payment_type: boolean;
   eod_show_total_cash: boolean;
@@ -31,6 +32,7 @@ export interface CompanyInfo {
   city: string;
   phone: string;
   email: string;
+  vat_number?: string;
 }
 
 export function useThermalSettings() {
@@ -55,6 +57,7 @@ export function useThermalSettings() {
         show_totals: !!settingsData.show_totals,
         show_footer: !!settingsData.show_footer,
         show_powered_by: !!settingsData.show_powered_by,
+        show_vat_number: settingsData.show_vat_number !== undefined ? !!settingsData.show_vat_number : true,
         eod_show_cash_summary: settingsData.eod_show_cash_summary !== undefined ? !!settingsData.eod_show_cash_summary : true,
         eod_show_payment_type: settingsData.eod_show_payment_type !== undefined ? !!settingsData.eod_show_payment_type : true,
         eod_show_total_cash: settingsData.eod_show_total_cash !== undefined ? !!settingsData.eod_show_total_cash : true,
@@ -87,7 +90,8 @@ export function useThermalSettings() {
           address: companyData.address || '',
           city: companyData.city || '',
           phone: companyData.phone || '',
-          email: companyData.email || ''
+          email: companyData.email || '',
+          vat_number: companyData.vat_number || ''
         });
       }
     } catch (error) {

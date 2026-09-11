@@ -232,6 +232,7 @@ export async function initSchema() {
         state VARCHAR(100),
         zip_code VARCHAR(50),
         country VARCHAR(100),
+        vat_number VARCHAR(100),
         status VARCHAR(50) DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
@@ -247,6 +248,14 @@ export async function initSchema() {
       if (!e.message?.includes('Duplicate column')) throw e;
     }
 
+    // Migration: add vat_number to businesses if missing
+    try {
+      await conn.query('ALTER TABLE businesses ADD COLUMN vat_number VARCHAR(100) AFTER zip_code');
+      console.log('[MySQL] Migration: added vat_number to businesses');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
+
     await conn.query(`
       CREATE TABLE IF NOT EXISTS branches (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -254,12 +263,21 @@ export async function initSchema() {
         name VARCHAR(255) NOT NULL,
         address TEXT,
         phone VARCHAR(100),
+        vat_number VARCHAR(100),
         status VARCHAR(50) DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         deleted_at TIMESTAMP NULL,
         FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
       )
     `);
+
+    // Migration: add vat_number to branches if missing
+    try {
+      await conn.query('ALTER TABLE branches ADD COLUMN vat_number VARCHAR(100) AFTER address');
+      console.log('[MySQL] Migration: added vat_number to branches');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
 
     await conn.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -685,6 +703,7 @@ export async function initSchema() {
         show_totals TINYINT(1) DEFAULT 1,
         show_footer TINYINT(1) DEFAULT 1,
         show_powered_by TINYINT(1) DEFAULT 1,
+        show_vat_number TINYINT(1) DEFAULT 1,
         eod_show_cash_summary TINYINT(1) DEFAULT 1,
         eod_show_payment_type TINYINT(1) DEFAULT 1,
         eod_show_total_cash TINYINT(1) DEFAULT 1,
@@ -703,6 +722,14 @@ export async function initSchema() {
     try {
       await conn.query('ALTER TABLE thermal_printer_settings ADD COLUMN show_powered_by TINYINT(1) DEFAULT 1 AFTER show_footer');
       console.log('[MySQL] Migration: added show_powered_by to thermal_printer_settings');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
+
+    // Migration: add show_vat_number to thermal_printer_settings if missing
+    try {
+      await conn.query('ALTER TABLE thermal_printer_settings ADD COLUMN show_vat_number TINYINT(1) DEFAULT 1 AFTER show_powered_by');
+      console.log('[MySQL] Migration: added show_vat_number to thermal_printer_settings');
     } catch (e: any) {
       if (!e.message?.includes('Duplicate column')) throw e;
     }
