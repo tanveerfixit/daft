@@ -583,10 +583,19 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       }
     }
 
+    const effectiveSkuId = Number((product as any).sku_id || product.id);
+    const normalizedProduct = {
+      ...product,
+      id: effectiveSkuId,
+      sku_id: effectiveSkuId,
+      selling_price: Number(product.selling_price ?? 0),
+      quantity: 1
+    };
+
     setCart(prevCart => {
       // For serialized products, we match by product id AND device_id/imei
       const existingItemIndex = prevCart.findIndex(item => 
-        item.id === product.id && 
+        (item.sku_id || item.id) === effectiveSkuId && 
         (!isSerialized || item.device_id === product.device_id)
       );
 
@@ -595,11 +604,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
         newCart[existingItemIndex].quantity += 1;
         return newCart;
       } else {
-        return [...prevCart, { 
-          ...product, 
-          selling_price: Number(product.selling_price ?? 0),
-          quantity: 1 
-        }];
+        return [...prevCart, normalizedProduct];
       }
     });
 
@@ -840,8 +845,9 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
             itemTotal = itemTotal - d;
           }
         }
+        const effectiveSkuId = Number((item as any).sku_id || item.id);
         return {
-          sku_id: item.id,
+          sku_id: effectiveSkuId,
           device_id: item.device_id,
           imei: item.imei,
           quantity: itemQty,

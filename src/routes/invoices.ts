@@ -610,7 +610,7 @@ router.post('/', async (req: any, res, next) => {
     await conn.beginTransaction();
     
     // 1. Batch fetch product info
-    const skuIds = items.map((i: any) => i.id || i.sku_id).filter(Boolean);
+    const skuIds = items.map((i: any) => i.sku_id || i.id).filter(Boolean);
     let productInfoMap = new Map();
     if (skuIds.length > 0) {
       const [allProductInfo] = await conn.query(`
@@ -685,7 +685,7 @@ router.post('/', async (req: any, res, next) => {
     const invoiceId = (invR as any).insertId;
 
     for (const item of items) {
-      let skuId = item.id || item.sku_id;
+      let skuId = item.sku_id || item.id;
       if ((!skuId || skuId === 0) && item.is_repair_payment) {
         const [existing] = await conn.execute(
           `SELECT s.id FROM product_skus s 
