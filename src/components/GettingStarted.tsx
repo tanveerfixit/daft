@@ -1892,22 +1892,37 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                       onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}
                       className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
                     >
-                      <option value="Europe/Dublin">UTC/GMT +01:00 - Europe/Dublin (Ireland)</option>
-                      <option value="Europe/London">UTC/GMT +00:00 - Europe/London (UK)</option>
-                      <option value="Europe/Paris">UTC/GMT +01:00 - Europe/Paris (CET / CEST)</option>
+                      <option value="Europe/Dublin">Europe/Dublin (Ireland)</option>
+                      <option value="Europe/London">Europe/London (UK)</option>
+                      <option value="Europe/Paris">Europe/Paris (CET / CEST)</option>
+                      <option value="America/New_York">America/New_York (US Eastern Time)</option>
+                      <option value="America/Chicago">America/Chicago (US Central Time)</option>
+                      <option value="America/Los_Angeles">America/Los_Angeles (US Pacific Time)</option>
+                      <option value="Asia/Karachi">Asia/Karachi (Pakistan Time)</option>
+                      <option value="Asia/Dubai">Asia/Dubai (Gulf Standard Time)</option>
+                      <option value="Asia/Kolkata">Asia/Kolkata (India Standard Time)</option>
+                      <option value="UTC">UTC (Coordinated Universal Time)</option>
                       <option value="UTC/GMT +01:00 - Europe/Dublin">UTC/GMT +01:00 - Europe/Dublin (Legacy)</option>
                       <option value="UTC/GMT +00:00 - Europe/London">UTC/GMT +00:00 - Europe/London (Legacy)</option>
-                      <option value="UTC/GMT +01:00 - Europe/Paris">UTC/GMT +01:00 - Europe/Paris (Legacy)</option>
-                      <option value="UTC">UTC (Coordinated Universal Time)</option>
-                      <option value="America/New_York">America/New_York (US Eastern Time)</option>
                     </select>
                     <div className="mt-1.5 flex flex-wrap items-center justify-between text-xs text-slate-500 font-mono gap-1">
-                      <span>⚡ Automatically syncs MySQL Database session clock</span>
+                      <span>⚡ Automatically syncs server and receipt timestamps</span>
                       <span className="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
                         {(() => {
                           try {
                             const raw = settings.timezone || 'Europe/Dublin';
-                            const iana = raw.includes('Dublin') ? 'Europe/Dublin' : (raw.includes('London') ? 'Europe/London' : (raw.includes('Paris') ? 'Europe/Paris' : (raw.includes('New_York') ? 'America/New_York' : 'Europe/Dublin')));
+                            let iana = 'Europe/Dublin';
+                            if (raw.includes('Dublin') || raw.toLowerCase().includes('ireland')) iana = 'Europe/Dublin';
+                            else if (raw.includes('London')) iana = 'Europe/London';
+                            else if (raw.includes('Paris')) iana = 'Europe/Paris';
+                            else if (raw.includes('New_York')) iana = 'America/New_York';
+                            else if (raw.includes('Chicago')) iana = 'America/Chicago';
+                            else if (raw.includes('Los_Angeles')) iana = 'America/Los_Angeles';
+                            else if (raw.includes('Karachi')) iana = 'Asia/Karachi';
+                            else if (raw.includes('Dubai')) iana = 'Asia/Dubai';
+                            else if (raw.includes('Kolkata')) iana = 'Asia/Kolkata';
+                            else if (raw === 'UTC') iana = 'UTC';
+                            else iana = raw;
                             return `Live: ${new Date().toLocaleTimeString('en-GB', { timeZone: iana, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
                           } catch {
                             return `Live: ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;

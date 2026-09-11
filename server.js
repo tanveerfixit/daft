@@ -133,13 +133,6 @@ async function syncBusinessTimezone(businessId, tzInput) {
   if (!targetTz && businessId) {
     const cached = businessTzCache.get(businessId);
     if (cached) {
-      if (currentSessionOffset !== cached.offset) {
-        currentSessionOffset = cached.offset;
-        try {
-          await pool.query("SET time_zone = ?", [cached.offset]);
-        } catch {
-        }
-      }
       return cached;
     }
     try {
@@ -152,14 +145,8 @@ async function syncBusinessTimezone(businessId, tzInput) {
     }
   }
   const { ianaTz, offset } = resolveTimezoneOffset(targetTz);
-  currentSessionOffset = offset;
   if (businessId) {
     businessTzCache.set(businessId, { ianaTz, offset, raw: targetTz || ianaTz });
-  }
-  try {
-    await pool.query("SET time_zone = ?", [offset]);
-  } catch (err) {
-    console.warn("[MySQL] Failed to execute SET time_zone =", offset, err?.message);
   }
   return { ianaTz, offset };
 }
@@ -1495,7 +1482,7 @@ async function logActivity({
     console.error("[ActivityLog] Failed to record activity:", err.message);
   }
 }
-var currentSessionOffset, businessTzCache, pool, CURRENT_SCHEMA_VERSION;
+var businessTzCache, pool, CURRENT_SCHEMA_VERSION;
 var init_mysql = __esm({
   "src/mysql.ts"() {
     init_crypto();
@@ -1503,7 +1490,6 @@ var init_mysql = __esm({
     if (process.env.DB_PASS === void 0) {
       throw new Error("[SECURITY FATAL] DB_PASS is not set in the .env file. Refusing to start with insecure credentials.");
     }
-    currentSessionOffset = resolveTimezoneOffset(process.env.APP_TIMEZONE || "Europe/Dublin").offset;
     businessTzCache = /* @__PURE__ */ new Map();
     pool = mysql.createPool({
       host: process.env.DB_HOST || "127.0.0.1",
@@ -1526,7 +1512,7 @@ var init_mysql = __esm({
     pool.on("connection", (conn) => {
       try {
         if (typeof conn.query === "function") {
-          conn.query("SET time_zone = ?", [currentSessionOffset], (err) => {
+          conn.query('SET time_zone = "+00:00"', (err) => {
             if (err) {
               console.warn("[MySQL] Failed to set session time_zone on new connection:", err?.message);
             }

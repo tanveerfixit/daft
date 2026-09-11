@@ -58,7 +58,7 @@ export function resolveTimezoneOffset(tzInput?: string): { ianaTz: string; offse
 }
 
 // Active session timezone cache
-let currentSessionOffset = resolveTimezoneOffset(process.env.APP_TIMEZONE || 'Europe/Dublin').offset;
+let currentSessionOffset = '+00:00';
 const businessTzCache = new Map<number, { ianaTz: string; offset: string; raw: string }>();
 
 export const pool = mysql.createPool({
@@ -80,11 +80,11 @@ export const pool = mysql.createPool({
   charset: 'utf8mb4_unicode_ci'
 });
 
-// Set session timezone on every new underlying connection
+// Set session timezone to UTC on every new underlying connection
 pool.on('connection', (conn: any) => {
   try {
     if (typeof conn.query === 'function') {
-      conn.query('SET time_zone = ?', [currentSessionOffset], (err: any) => {
+      conn.query('SET time_zone = "+00:00"', (err: any) => {
         if (err) {
           console.warn('[MySQL] Failed to set session time_zone on new connection:', err?.message);
         }
@@ -94,7 +94,7 @@ pool.on('connection', (conn: any) => {
 });
 
 /**
- * Synchronizes the MySQL connection session timezone to match the business's Account Setup setting.
+ * Synchronizes and resolves the business timezone for client/reporting purposes without double-shifting server UTC timestamps.
  */
 export async function syncBusinessTimezone(businessId?: number, tzInput?: string): Promise<{ ianaTz: string; offset: string }> {
   let targetTz = tzInput;
@@ -102,10 +102,6 @@ export async function syncBusinessTimezone(businessId?: number, tzInput?: string
   if (!targetTz && businessId) {
     const cached = businessTzCache.get(businessId);
     if (cached) {
-      if (currentSessionOffset !== cached.offset) {
-        currentSessionOffset = cached.offset;
-        try { await pool.query('SET time_zone = ?', [cached.offset]); } catch {}
-      }
       return cached;
     }
 
@@ -120,15 +116,8 @@ export async function syncBusinessTimezone(businessId?: number, tzInput?: string
   }
 
   const { ianaTz, offset } = resolveTimezoneOffset(targetTz);
-  currentSessionOffset = offset;
   if (businessId) {
     businessTzCache.set(businessId, { ianaTz, offset, raw: targetTz || ianaTz });
-  }
-
-  try {
-    await pool.query('SET time_zone = ?', [offset]);
-  } catch (err: any) {
-    console.warn('[MySQL] Failed to execute SET time_zone =', offset, err?.message);
   }
 
   return { ianaTz, offset };
