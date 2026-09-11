@@ -66,20 +66,23 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
       return;
     }
 
+    const displayName = item.custom_label || item.product_name;
     const productPayload = {
-      id: item.product_id,
+      id: item.sku_id,
       product_id: item.product_id,
       sku_id: item.sku_id,
-      name: item.product_name,
-      product_name: item.product_name,
-      selling_price: item.selling_price,
-      cost_price: item.cost_price,
+      name: displayName,
+      product_name: displayName,
+      selling_price: Number(item.selling_price) || 0,
+      cost_price: Number(item.cost_price) || 0,
       sku_code: item.sku_code,
       product_type: item.product_type || 'stock',
       allow_overselling: (item as any).allow_overselling ?? 1,
       alert_message: (item as any).alert_message,
+      total_stock: item.stock_quantity ?? 0,
       current_inventory: item.stock_quantity ?? 0,
-      quantity: item.stock_quantity ?? 0,
+      quantity: 1,
+      notes: item.custom_label && item.custom_label !== item.product_name ? item.custom_label : undefined,
     };
     onAddProduct(productPayload);
   };
@@ -99,19 +102,20 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
     if (!deviceModalItem) return;
 
     const devicePayload = {
-      id: deviceModalItem.product_id,
+      id: deviceModalItem.sku_id,
       product_id: deviceModalItem.product_id,
       sku_id: deviceModalItem.sku_id,
       name: deviceModel.trim(),
       product_name: deviceModel.trim(),
       imei: deviceImei.trim(),
-      device_id: (Date.now() % 1000000) + Math.floor(Math.random() * 1000),
       selling_price: parseFloat(devicePrice) || Number(deviceModalItem.selling_price) || 0,
-      cost_price: deviceModalItem.cost_price || 0,
+      cost_price: Number(deviceModalItem.cost_price) || 0,
       sku_code: deviceModalItem.sku_code || 'DEV-SKU',
       product_type: 'serialized',
       allow_overselling: 1,
-      quantity: 1
+      total_stock: 1,
+      quantity: 1,
+      notes: `IMEI: ${deviceImei.trim()}`
     };
 
     onAddProduct(devicePayload);
