@@ -715,10 +715,17 @@ router.post('/', async (req: any, res, next) => {
       const productInfo = productInfoMap.get(skuId);
       const itemCost = productInfo?.cost_price || item.cost || 0;
       const itemNote = item.notes || (item.is_repair_payment && item.repair_job_id ? `Repair Job #${item.repair_job_id}` : null);
-      await conn.execute(
-        'INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,cost,discount,total,notes) VALUES (?,?,?,?,?,?,?,?,?)',
-        [invoiceId, skuId, item.device_id || null, item.quantity, item.price, itemCost, item.discount || 0, item.total, itemNote]
-      );
+      try {
+        await conn.execute(
+          'INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,cost,discount,total,notes) VALUES (?,?,?,?,?,?,?,?,?)',
+          [invoiceId, skuId, item.device_id || null, item.quantity, item.price, itemCost, item.discount || 0, item.total, itemNote]
+        );
+      } catch (err: any) {
+        await conn.execute(
+          'INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,cost,discount,total) VALUES (?,?,?,?,?,?,?,?)',
+          [invoiceId, skuId, item.device_id || null, item.quantity, item.price, itemCost, item.discount || 0, item.total]
+        );
+      }
       
       if (productInfo?.product_type === 'stock') {
         await conn.execute(`
@@ -731,14 +738,18 @@ router.post('/', async (req: any, res, next) => {
           `UPDATE devices SET status='sold' WHERE id=? AND business_id=? AND branch_id=? ${!isSuper ? 'AND user_id=?' : ''}`,
           !isSuper ? [item.device_id, req.user.business_id, req.user.branch_id, req.userId] : [item.device_id, req.user.business_id, req.user.branch_id]
         );
-        await conn.execute(
-          'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-          [item.device_id, req.userId, 'Device Sold', `Sold on Invoice: ${invoiceNumber}`]
-        );
-        await conn.execute(
-          'INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          [req.user.business_id, req.user.branch_id, item.device_id, req.userId, req.user?.name || null, 'Device Sold', 'Product delivered to customer', invoiceNumber]
-        );
+        try {
+          await conn.execute(
+            'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+            [item.device_id, req.userId, 'Device Sold', `Sold on Invoice: ${invoiceNumber}`]
+          );
+        } catch (e: any) {}
+        try {
+          await conn.execute(
+            'INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [req.user.business_id, req.user.branch_id, item.device_id, req.userId, req.user?.name || null, 'Device Sold', 'Product delivered to customer', invoiceNumber]
+          );
+        } catch (e: any) {}
         await conn.execute(`
           INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,-1)
           ON DUPLICATE KEY UPDATE quantity=quantity-1

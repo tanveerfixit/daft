@@ -3637,28 +3637,28 @@ var init_products = __esm({
     router3.get("/:skuId/devices", async (req, res, next) => {
       try {
         const isSuper = req.user.role === "superadmin";
-        const branchId = req.query.branch_id;
+        const branchId = req.query.branch_id || req.user.branch_id;
         let filterClause = "";
-        const params = [req.params.skuId, req.params.skuId, req.params.skuId, req.user.business_id];
-        if (!isSuper) {
-          filterClause = "AND d.branch_id = ? AND d.user_id = ?";
-          params.push(req.user.branch_id, req.userId);
+        const params = [req.params.skuId, req.params.skuId, req.user.business_id];
+        if (!isSuper && branchId) {
+          filterClause = "AND d.branch_id = ?";
+          params.push(Number(branchId));
         } else if (branchId && branchId !== "all") {
           filterClause = "AND d.branch_id = ?";
           params.push(Number(branchId));
         }
         const devices = await query(`
-      SELECT d.id, d.business_id, d.branch_id, d.user_id, d.imei, d.imei_serial, d.color, d.gb, d.ram,
+      SELECT d.id, d.business_id, d.branch_id, d.user_id, d.imei, d.color, d.gb, d.ram,
              d.\`condition\`, d.status, d.cost_price, d.selling_price, d.created_at, inv.invoice_number,
              b.name as branch_name, u.name as user_name, p.name as product_name, s.sku_code
       FROM devices d
       LEFT JOIN product_skus s ON d.sku_id = s.id
-      LEFT JOIN products p ON (d.product_id = p.id OR s.product_id = p.id)
+      LEFT JOIN products p ON s.product_id = p.id
       LEFT JOIN branches b ON d.branch_id = b.id
       LEFT JOIN users u ON d.user_id = u.id
       LEFT JOIN invoice_items ii ON d.id = ii.device_id
       LEFT JOIN invoices inv ON ii.invoice_id = inv.id
-      WHERE (d.sku_id = ? OR d.product_id = ? OR s.product_id = ?)
+      WHERE (d.sku_id = ? OR s.product_id = ?)
         AND d.business_id = ?
         ${filterClause}
       ORDER BY d.created_at DESC
@@ -3671,24 +3671,24 @@ var init_products = __esm({
     router3.get("/:skuId/available-devices", async (req, res, next) => {
       try {
         const isSuper = req.user.role === "superadmin";
-        const branchId = req.query.branch_id;
+        const branchId = req.query.branch_id || req.user.branch_id;
         let filterClause = "";
-        const params = [req.params.skuId, req.params.skuId, req.params.skuId, req.user.business_id];
-        if (!isSuper) {
-          filterClause = "AND d.branch_id = ? AND d.user_id = ?";
-          params.push(req.user.branch_id, req.userId);
+        const params = [req.params.skuId, req.params.skuId, req.user.business_id];
+        if (!isSuper && branchId) {
+          filterClause = "AND d.branch_id = ?";
+          params.push(Number(branchId));
         } else if (branchId && branchId !== "all") {
           filterClause = "AND d.branch_id = ?";
           params.push(Number(branchId));
         }
         const devices = await query(`
-      SELECT d.id, d.business_id, d.branch_id, d.user_id, d.imei, d.imei_serial, d.cost_price, d.selling_price, d.status, d.created_at,
+      SELECT d.id, d.business_id, d.branch_id, d.user_id, d.imei, d.cost_price, d.selling_price, d.status, d.created_at,
              b.name as branch_name, u.name as user_name
       FROM devices d
       LEFT JOIN product_skus s ON d.sku_id = s.id
       LEFT JOIN branches b ON d.branch_id = b.id
       LEFT JOIN users u ON d.user_id = u.id
-      WHERE (d.sku_id = ? OR d.product_id = ? OR s.product_id = ?)
+      WHERE (d.sku_id = ? OR s.product_id = ?)
         AND d.status = 'in_stock'
         AND d.business_id = ?
         ${filterClause}
@@ -4698,10 +4698,17 @@ var init_invoices = __esm({
           const productInfo = productInfoMap.get(skuId);
           const itemCost = productInfo?.cost_price || item.cost || 0;
           const itemNote = item.notes || (item.is_repair_payment && item.repair_job_id ? `Repair Job #${item.repair_job_id}` : null);
-          await conn.execute(
-            "INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,cost,discount,total,notes) VALUES (?,?,?,?,?,?,?,?,?)",
-            [invoiceId, skuId, item.device_id || null, item.quantity, item.price, itemCost, item.discount || 0, item.total, itemNote]
-          );
+          try {
+            await conn.execute(
+              "INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,cost,discount,total,notes) VALUES (?,?,?,?,?,?,?,?,?)",
+              [invoiceId, skuId, item.device_id || null, item.quantity, item.price, itemCost, item.discount || 0, item.total, itemNote]
+            );
+          } catch (err) {
+            await conn.execute(
+              "INSERT INTO invoice_items (invoice_id,sku_id,device_id,quantity,price,cost,discount,total) VALUES (?,?,?,?,?,?,?,?)",
+              [invoiceId, skuId, item.device_id || null, item.quantity, item.price, itemCost, item.discount || 0, item.total]
+            );
+          }
           if (productInfo?.product_type === "stock") {
             await conn.execute(`
           INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,-?)
@@ -4713,14 +4720,20 @@ var init_invoices = __esm({
               `UPDATE devices SET status='sold' WHERE id=? AND business_id=? AND branch_id=? ${!isSuper ? "AND user_id=?" : ""}`,
               !isSuper ? [item.device_id, req.user.business_id, req.user.branch_id, req.userId] : [item.device_id, req.user.business_id, req.user.branch_id]
             );
-            await conn.execute(
-              "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-              [item.device_id, req.userId, "Device Sold", `Sold on Invoice: ${invoiceNumber}`]
-            );
-            await conn.execute(
-              "INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-              [req.user.business_id, req.user.branch_id, item.device_id, req.userId, req.user?.name || null, "Device Sold", "Product delivered to customer", invoiceNumber]
-            );
+            try {
+              await conn.execute(
+                "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+                [item.device_id, req.userId, "Device Sold", `Sold on Invoice: ${invoiceNumber}`]
+              );
+            } catch (e) {
+            }
+            try {
+              await conn.execute(
+                "INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [req.user.business_id, req.user.branch_id, item.device_id, req.userId, req.user?.name || null, "Device Sold", "Product delivered to customer", invoiceNumber]
+              );
+            } catch (e) {
+            }
             await conn.execute(`
           INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,-1)
           ON DUPLICATE KEY UPDATE quantity=quantity-1

@@ -961,30 +961,30 @@ router.get('/:id/activity', async (req: any, res, next) => {
 router.get('/:skuId/devices', async (req: any, res, next) => {
   try {
     const isSuper = req.user.role === 'superadmin';
-    const branchId = req.query.branch_id;
+    const branchId = req.query.branch_id || req.user.branch_id;
     let filterClause = '';
-    const params: any[] = [req.params.skuId, req.params.skuId, req.params.skuId, req.user.business_id];
+    const params: any[] = [req.params.skuId, req.params.skuId, req.user.business_id];
 
-    if (!isSuper) {
-      filterClause = 'AND d.branch_id = ? AND d.user_id = ?';
-      params.push(req.user.branch_id, req.userId);
+    if (!isSuper && branchId) {
+      filterClause = 'AND d.branch_id = ?';
+      params.push(Number(branchId));
     } else if (branchId && branchId !== 'all') {
       filterClause = 'AND d.branch_id = ?';
       params.push(Number(branchId));
     }
 
     const devices = await query(`
-      SELECT d.id, d.business_id, d.branch_id, d.user_id, d.imei, d.imei_serial, d.color, d.gb, d.ram,
+      SELECT d.id, d.business_id, d.branch_id, d.user_id, d.imei, d.color, d.gb, d.ram,
              d.\`condition\`, d.status, d.cost_price, d.selling_price, d.created_at, inv.invoice_number,
              b.name as branch_name, u.name as user_name, p.name as product_name, s.sku_code
       FROM devices d
       LEFT JOIN product_skus s ON d.sku_id = s.id
-      LEFT JOIN products p ON (d.product_id = p.id OR s.product_id = p.id)
+      LEFT JOIN products p ON s.product_id = p.id
       LEFT JOIN branches b ON d.branch_id = b.id
       LEFT JOIN users u ON d.user_id = u.id
       LEFT JOIN invoice_items ii ON d.id = ii.device_id
       LEFT JOIN invoices inv ON ii.invoice_id = inv.id
-      WHERE (d.sku_id = ? OR d.product_id = ? OR s.product_id = ?)
+      WHERE (d.sku_id = ? OR s.product_id = ?)
         AND d.business_id = ?
         ${filterClause}
       ORDER BY d.created_at DESC
@@ -997,26 +997,26 @@ router.get('/:skuId/devices', async (req: any, res, next) => {
 router.get('/:skuId/available-devices', async (req: any, res, next) => {
   try {
     const isSuper = req.user.role === 'superadmin';
-    const branchId = req.query.branch_id;
+    const branchId = req.query.branch_id || req.user.branch_id;
     let filterClause = '';
-    const params: any[] = [req.params.skuId, req.params.skuId, req.params.skuId, req.user.business_id];
+    const params: any[] = [req.params.skuId, req.params.skuId, req.user.business_id];
 
-    if (!isSuper) {
-      filterClause = 'AND d.branch_id = ? AND d.user_id = ?';
-      params.push(req.user.branch_id, req.userId);
+    if (!isSuper && branchId) {
+      filterClause = 'AND d.branch_id = ?';
+      params.push(Number(branchId));
     } else if (branchId && branchId !== 'all') {
       filterClause = 'AND d.branch_id = ?';
       params.push(Number(branchId));
     }
 
     const devices = await query(`
-      SELECT d.id, d.business_id, d.branch_id, d.user_id, d.imei, d.imei_serial, d.cost_price, d.selling_price, d.status, d.created_at,
+      SELECT d.id, d.business_id, d.branch_id, d.user_id, d.imei, d.cost_price, d.selling_price, d.status, d.created_at,
              b.name as branch_name, u.name as user_name
       FROM devices d
       LEFT JOIN product_skus s ON d.sku_id = s.id
       LEFT JOIN branches b ON d.branch_id = b.id
       LEFT JOIN users u ON d.user_id = u.id
-      WHERE (d.sku_id = ? OR d.product_id = ? OR s.product_id = ?)
+      WHERE (d.sku_id = ? OR s.product_id = ?)
         AND d.status = 'in_stock'
         AND d.business_id = ?
         ${filterClause}
