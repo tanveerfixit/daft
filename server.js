@@ -1535,7 +1535,7 @@ var init_mysql = __esm({
       } catch {
       }
     });
-    CURRENT_SCHEMA_VERSION = "2026_09_PERF_AND_AUTH_V2";
+    CURRENT_SCHEMA_VERSION = "2026_09_VAT_AND_FOOTER_V1";
   }
 });
 
@@ -6048,19 +6048,29 @@ var init_settings = __esm({
     });
     router7.get("/company", async (req, res, next) => {
       try {
+        const business = await queryOne("SELECT * FROM businesses WHERE id=?", [req.user.business_id]);
         const branchId = req.user?.branch_id;
+        let branch = null;
         if (branchId) {
-          const branch = await queryOne("SELECT name, address, phone, email, vat_number FROM branches WHERE id=? AND business_id=?", [branchId, req.user.business_id]);
-          if (branch) {
-            if (!branch.vat_number) {
-              const bus = await queryOne("SELECT vat_number FROM businesses WHERE id=?", [req.user.business_id]);
-              if (bus?.vat_number) branch.vat_number = bus.vat_number;
-            }
-            return res.json(branch);
+          try {
+            branch = await queryOne("SELECT * FROM branches WHERE id=? AND business_id=?", [branchId, req.user.business_id]);
+          } catch (err) {
+            console.warn("[GET /company] branch query fallback:", err);
           }
         }
-        const c = await queryOne("SELECT * FROM businesses WHERE id=?", [req.user.business_id]);
-        res.json(c || {});
+        const merged = {
+          name: branch?.name || business?.name || "",
+          email: branch?.email || business?.email || "",
+          phone: branch?.phone || business?.phone || "",
+          subdomain: business?.subdomain || "",
+          address: branch?.address || business?.address || "",
+          city: business?.city || "",
+          state: business?.state || "",
+          zip_code: business?.zip_code || "",
+          country: business?.country || "Ireland",
+          vat_number: branch?.vat_number || business?.vat_number || ""
+        };
+        res.json(merged);
       } catch (e) {
         next(e);
       }
@@ -6083,17 +6093,32 @@ var init_settings = __esm({
       try {
         const branchId = req.user?.branch_id;
         if (branchId) {
+          try {
+            await execute(
+              "UPDATE branches SET name=COALESCE(?, name), email=?, phone=?, address=?, vat_number=? WHERE id=? AND business_id=?",
+              [name, email, phone, address, vat_number || null, branchId, req.user.business_id]
+            );
+          } catch (branchErr) {
+            await execute(
+              "UPDATE branches SET name=COALESCE(?, name), email=?, phone=?, address=? WHERE id=? AND business_id=?",
+              [name, email, phone, address, branchId, req.user.business_id]
+            );
+          }
+        }
+        try {
           await execute(
-            "UPDATE branches SET name=COALESCE(?, name), email=?, phone=?, address=?, vat_number=? WHERE id=? AND business_id=?",
-            [name, email, phone, address, vat_number, branchId, req.user.business_id]
+            "UPDATE businesses SET name=?,email=?,phone=?,subdomain=?,address=?,city=?,state=?,zip_code=?,country=?,vat_number=? WHERE id=?",
+            [name, email, phone, subdomain, address, city, state, zip_code, country, vat_number || null, req.user.business_id]
+          );
+        } catch (busErr) {
+          await execute(
+            "UPDATE businesses SET name=?,email=?,phone=?,subdomain=?,address=?,city=?,state=?,zip_code=?,country=? WHERE id=?",
+            [name, email, phone, subdomain, address, city, state, zip_code, country, req.user.business_id]
           );
         }
-        await execute(
-          "UPDATE businesses SET name=?,email=?,phone=?,subdomain=?,address=?,city=?,state=?,zip_code=?,country=?,vat_number=? WHERE id=?",
-          [name, email, phone, subdomain, address, city, state, zip_code, country, vat_number, req.user.business_id]
-        );
         res.json({ success: true });
       } catch (e) {
+        console.error("[POST /company] error:", e);
         next(e);
       }
     });
@@ -6258,57 +6283,110 @@ var init_settings = __esm({
       const branchId = req.user?.branch_id ?? null;
       const m = thermalPrinterSettingsSchema.parse(req.body);
       try {
-        await execute(
-          `
-      INSERT INTO thermal_printer_settings
-        (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
-         show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
-         show_items_table,show_totals,show_footer,show_powered_by,show_vat_number,
-         eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
-         eod_footer_type,eod_footer_custom_text,
-         footer_text)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-      ON DUPLICATE KEY UPDATE
-        branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
-        show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
-        show_business_address=VALUES(show_business_address),show_business_phone=VALUES(show_business_phone),
-        show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
-        show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
-        show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
-        show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),show_vat_number=VALUES(show_vat_number),
-        eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
-        eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
-        eod_show_total=VALUES(eod_show_total),
-        eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
-        footer_text=VALUES(footer_text)`,
-          [
-            req.user.business_id,
-            branchId,
-            m.font_family || "Arial",
-            m.font_size || "14px",
-            m.show_logo ? 1 : 0,
-            m.show_business_name ? 1 : 0,
-            m.show_business_address ? 1 : 0,
-            m.show_business_phone ? 1 : 0,
-            m.show_business_email ? 1 : 0,
-            m.show_customer_info ? 1 : 0,
-            m.show_invoice_number ? 1 : 0,
-            m.show_date ? 1 : 0,
-            m.show_items_table ? 1 : 0,
-            m.show_totals ? 1 : 0,
-            m.show_footer ? 1 : 0,
-            m.show_powered_by ? 1 : 0,
-            m.show_vat_number !== false ? 1 : 0,
-            m.eod_show_cash_summary ? 1 : 0,
-            m.eod_show_payment_type ? 1 : 0,
-            m.eod_show_total_cash ? 1 : 0,
-            m.eod_show_total_card_sale ? 1 : 0,
-            m.eod_show_total ? 1 : 0,
-            m.eod_footer_type || "branch",
-            m.eod_footer_custom_text || "",
-            m.footer_text || "Thank you for your business!"
-          ]
-        );
+        try {
+          await execute(
+            `
+        INSERT INTO thermal_printer_settings
+          (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
+           show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
+           show_items_table,show_totals,show_footer,show_powered_by,show_vat_number,
+           eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
+           eod_footer_type,eod_footer_custom_text,
+           footer_text)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE
+          branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
+          show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
+          show_business_address=VALUES(show_business_address),show_business_phone=VALUES(show_business_phone),
+          show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
+          show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
+          show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
+          show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),show_vat_number=VALUES(show_vat_number),
+          eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
+          eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
+          eod_show_total=VALUES(eod_show_total),
+          eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
+          footer_text=VALUES(footer_text)`,
+            [
+              req.user.business_id,
+              branchId,
+              m.font_family || "Arial",
+              m.font_size || "14px",
+              m.show_logo ? 1 : 0,
+              m.show_business_name ? 1 : 0,
+              m.show_business_address ? 1 : 0,
+              m.show_business_phone ? 1 : 0,
+              m.show_business_email ? 1 : 0,
+              m.show_customer_info ? 1 : 0,
+              m.show_invoice_number ? 1 : 0,
+              m.show_date ? 1 : 0,
+              m.show_items_table ? 1 : 0,
+              m.show_totals ? 1 : 0,
+              m.show_footer ? 1 : 0,
+              m.show_powered_by ? 1 : 0,
+              m.show_vat_number !== false ? 1 : 0,
+              m.eod_show_cash_summary ? 1 : 0,
+              m.eod_show_payment_type ? 1 : 0,
+              m.eod_show_total_cash ? 1 : 0,
+              m.eod_show_total_card_sale ? 1 : 0,
+              m.eod_show_total ? 1 : 0,
+              m.eod_footer_type || "branch",
+              m.eod_footer_custom_text || "",
+              m.footer_text || "Thank you for your business!"
+            ]
+          );
+        } catch (upsertErr) {
+          await execute(
+            `
+        INSERT INTO thermal_printer_settings
+          (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
+           show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
+           show_items_table,show_totals,show_footer,show_powered_by,
+           eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
+           eod_footer_type,eod_footer_custom_text,
+           footer_text)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE
+          branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
+          show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
+          show_business_address=VALUES(show_business_address),show_business_phone=VALUES(show_business_phone),
+          show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
+          show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
+          show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
+          show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),
+          eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
+          eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
+          eod_show_total=VALUES(eod_show_total),
+          eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
+          footer_text=VALUES(footer_text)`,
+            [
+              req.user.business_id,
+              branchId,
+              m.font_family || "Arial",
+              m.font_size || "14px",
+              m.show_logo ? 1 : 0,
+              m.show_business_name ? 1 : 0,
+              m.show_business_address ? 1 : 0,
+              m.show_business_phone ? 1 : 0,
+              m.show_business_email ? 1 : 0,
+              m.show_customer_info ? 1 : 0,
+              m.show_invoice_number ? 1 : 0,
+              m.show_date ? 1 : 0,
+              m.show_items_table ? 1 : 0,
+              m.show_totals ? 1 : 0,
+              m.show_footer ? 1 : 0,
+              m.show_powered_by ? 1 : 0,
+              m.eod_show_cash_summary ? 1 : 0,
+              m.eod_show_payment_type ? 1 : 0,
+              m.eod_show_total_cash ? 1 : 0,
+              m.eod_show_total_card_sale ? 1 : 0,
+              m.eod_show_total ? 1 : 0,
+              m.eod_footer_type || "branch",
+              m.eod_footer_custom_text || "",
+              m.footer_text || "Thank you for your business!"
+            ]
+          );
+        }
         res.json({ success: true });
       } catch (e) {
         next(e);

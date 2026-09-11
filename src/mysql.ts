@@ -178,7 +178,7 @@ export async function getBranchPrefix(branchId?: number | null, fallback = 'SKU'
 
 // ─── Schema Initialisation ───────────────────────────────────────────────────
 
-export const CURRENT_SCHEMA_VERSION = '2026_09_PERF_AND_AUTH_V2';
+export const CURRENT_SCHEMA_VERSION = '2026_09_VAT_AND_FOOTER_V1';
 
 async function ensureIndex(conn: any, tableName: string, indexName: string, columns: string) {
   try {
