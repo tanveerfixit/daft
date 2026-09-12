@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ChevronDown, ChevronUp, Plus, List, AlertTriangle, ArrowRight } from 'lucide-react';
-import { Product, Category, Manufacturer } from '../types';
+import { Product, Category, Manufacturer, Supplier } from '../types';
 import { ProductTypeKey } from './ProductTypeModal';
 
 interface CreateProductProps {
@@ -24,6 +24,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [existingProducts, setExistingProducts] = useState<Product[]>([]);
   const [isAdditionalDetailsOpen, setIsAdditionalDetailsOpen] = useState(
     Boolean(cloneProduct?.min_sales_price || cloneProduct?.additional_description || cloneProduct?.alert_message)
@@ -36,6 +37,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
     name: cloneProduct?.name || '',
     manufacturer_id: cloneProduct?.manufacturer_id ? String(cloneProduct.manufacturer_id) : '',
     category_id: cloneProduct?.category_id ? String(cloneProduct.category_id) : '',
+    supplier_id: cloneProduct?.supplier_id ? String(cloneProduct.supplier_id) : '',
     selling_price: cloneProduct?.selling_price !== undefined ? String(cloneProduct.selling_price) : '',
     cost_price: cloneProduct?.cost_price !== undefined ? String(cloneProduct.cost_price) : '',
     sku_code: '',
@@ -99,7 +101,8 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
       })
       .catch(console.error);
 
-    fetch('/api/manufacturers').then(res => res.json()).then(setManufacturers);
+    fetch('/api/manufacturers').then(res => res.json()).then(data => setManufacturers(Array.isArray(data) ? data : [])).catch(console.error);
+    fetch('/api/suppliers').then(res => res.json()).then(data => setSuppliers(Array.isArray(data) ? data : [])).catch(console.error);
     fetch('/api/products?limit=1000')
       .then(res => res.json())
       .then(data => {
@@ -120,6 +123,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
 
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
   const [showNewManufacturerModal, setShowNewManufacturerModal] = useState(false);
+  const [showNewSupplierModal, setShowNewSupplierModal] = useState(false);
   const [newItemName, setNewItemName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -155,6 +159,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
       name: prodName,
       category_id: matched.category_id ? String(matched.category_id) : prev.category_id,
       manufacturer_id: matched.manufacturer_id ? String(matched.manufacturer_id) : prev.manufacturer_id,
+      supplier_id: (matched as any).supplier_id ? String((matched as any).supplier_id) : prev.supplier_id,
       selling_price: matched.selling_price !== undefined ? String(matched.selling_price) : prev.selling_price,
       cost_price: matched.cost_price !== undefined ? String(matched.cost_price) : prev.cost_price,
       sku_code: matched.sku_code || prev.sku_code
@@ -177,6 +182,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
         name: val,
         category_id: matched.category_id ? String(matched.category_id) : prev.category_id,
         manufacturer_id: matched.manufacturer_id ? String(matched.manufacturer_id) : prev.manufacturer_id,
+        supplier_id: (matched as any).supplier_id ? String((matched as any).supplier_id) : prev.supplier_id,
         selling_price: matched.selling_price !== undefined ? String(matched.selling_price) : prev.selling_price,
         cost_price: matched.cost_price !== undefined ? String(matched.cost_price) : prev.cost_price
       }));
@@ -192,12 +198,12 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
       const res = await fetch('/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newItemName })
+        body: JSON.stringify({ name: newItemName.trim() })
       });
       if (res.ok) {
         const newCat = await res.json();
         setCategories([...categories, newCat]);
-        setFormData({ ...formData, category_id: newCat.id });
+        setFormData({ ...formData, category_id: String(newCat.id) });
         setShowNewCategoryModal(false);
         setNewItemName('');
       }
@@ -212,17 +218,37 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
       const res = await fetch('/api/manufacturers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newItemName })
+        body: JSON.stringify({ name: newItemName.trim() })
       });
       if (res.ok) {
         const newMan = await res.json();
         setManufacturers([...manufacturers, newMan]);
-        setFormData({ ...formData, manufacturer_id: newMan.id });
+        setFormData({ ...formData, manufacturer_id: String(newMan.id) });
         setShowNewManufacturerModal(false);
         setNewItemName('');
       }
     } catch (error) {
       console.error('Error adding manufacturer:', error);
+    }
+  };
+
+  const handleQuickAddSupplier = async () => {
+    if (!newItemName.trim()) return;
+    try {
+      const res = await fetch('/api/suppliers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newItemName.trim(), contact_person: newItemName.trim() })
+      });
+      if (res.ok) {
+        const newSup = await res.json();
+        setSuppliers([...suppliers, newSup]);
+        setFormData({ ...formData, supplier_id: String(newSup.id) });
+        setShowNewSupplierModal(false);
+        setNewItemName('');
+      }
+    } catch (error) {
+      console.error('Error adding supplier:', error);
     }
   };
 
@@ -250,6 +276,11 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
       return false;
     }
 
+    if (!formData.supplier_id) {
+      alert('Please select a supplier. Supplier is required.');
+      return false;
+    }
+
     setIsSaving(true);
     
     let allowOverselling = formData.allow_overselling;
@@ -263,6 +294,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
       name: formData.name.trim(),
       category_id: formData.category_id ? Number(formData.category_id) : null,
       manufacturer_id: formData.manufacturer_id ? Number(formData.manufacturer_id) : null,
+      supplier_id: formData.supplier_id ? Number(formData.supplier_id) : null,
       selling_price: Number(formData.selling_price) || 0,
       cost_price: Number(formData.cost_price) || 0,
       product_type: activeType,
@@ -315,6 +347,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
         sku_code: '',
         category_id: formData.category_id,
         manufacturer_id: formData.manufacturer_id,
+        supplier_id: formData.supplier_id,
         selling_price: '',
         cost_price: '',
         is_taxable: true,
@@ -508,7 +541,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider block">
                 Category <span className="text-red-500">*</span>
@@ -528,6 +561,31 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
                   onClick={() => setShowNewCategoryModal(true)}
                   className="px-3 bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-800 rounded-none text-xs transition-colors cursor-pointer flex items-center justify-center"
                   title="Add New Category"
+                >
+                  <Plus size={15} />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-neutral-700 dark:text-neutral-300 uppercase tracking-wider block">
+                Supplier <span className="text-red-500">*</span>
+              </label>
+              <div className="flex gap-1.5">
+                <select
+                  required
+                  className="flex-1 px-3 py-1.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-sm text-neutral-900 dark:text-neutral-100 font-mono outline-none focus:border-neutral-500 cursor-pointer h-9 font-bold"
+                  value={formData.supplier_id}
+                  onChange={e => setFormData({ ...formData, supplier_id: e.target.value })}
+                >
+                  <option value="">Select Supplier *</option>
+                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <button 
+                  type="button" 
+                  onClick={() => setShowNewSupplierModal(true)}
+                  className="px-3 bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-800 rounded-none text-xs transition-colors cursor-pointer flex items-center justify-center"
+                  title="Add New Supplier"
                 >
                   <Plus size={15} />
                 </button>
@@ -780,17 +838,18 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
       </form>
 
       {/* Quick Add Modals */}
-      {(showNewCategoryModal || showNewManufacturerModal) && (
+      {(showNewCategoryModal || showNewManufacturerModal || showNewSupplierModal) && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 font-mono select-none" style={{ fontSize: '16px' }}>
           <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-[450px] overflow-hidden flex flex-col">
             <div className="px-4 py-2.5 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900 flex justify-between items-center">
               <h3 className="text-xs font-bold text-black dark:text-white uppercase tracking-wider">
-                {showNewCategoryModal ? 'Add New Category' : 'Add New Manufacturer'}
+                {showNewCategoryModal ? 'Add New Category' : showNewSupplierModal ? 'Add New Supplier' : 'Add New Manufacturer'}
               </h3>
               <button 
                 onClick={() => {
                   setShowNewCategoryModal(false);
                   setShowNewManufacturerModal(false);
+                  setShowNewSupplierModal(false);
                   setNewItemName('');
                 }}
                 className="text-neutral-500 hover:text-black dark:hover:text-white text-xs font-bold cursor-pointer"
@@ -806,7 +865,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
                 <input
                   type="text"
                   className="w-full px-3 py-1.5 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none text-sm text-neutral-900 dark:text-white focus:border-neutral-500 font-mono outline-none"
-                  placeholder="Enter name..."
+                  placeholder={showNewSupplierModal ? "Enter supplier name..." : "Enter name..."}
                   value={newItemName}
                   onChange={(e) => setNewItemName(e.target.value)}
                   autoFocus
@@ -818,6 +877,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
                 onClick={() => {
                   setShowNewCategoryModal(false);
                   setShowNewManufacturerModal(false);
+                  setShowNewSupplierModal(false);
                   setNewItemName('');
                 }}
                 className="px-3 py-1 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 text-xs font-bold uppercase tracking-wider cursor-pointer"
@@ -825,7 +885,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
                 Cancel
               </button>
               <button
-                onClick={showNewCategoryModal ? handleQuickAddCategory : handleQuickAddManufacturer}
+                onClick={showNewCategoryModal ? handleQuickAddCategory : showNewSupplierModal ? handleQuickAddSupplier : handleQuickAddManufacturer}
                 className="px-4 py-1 bg-neutral-900 dark:bg-white text-white dark:text-black hover:bg-neutral-800 dark:hover:bg-neutral-200 text-xs font-bold uppercase tracking-wider cursor-pointer"
               >
                 Add Now

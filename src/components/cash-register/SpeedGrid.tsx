@@ -9,8 +9,9 @@ interface SpeedGridProps {
 
 export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
   const [categories, setCategories] = useState<SpeedGridCategory[]>([]);
-  const [activeCategoryIndex, setActiveCategoryIndex] = useState(0);
+  const [activeCategoryIndex, setActiveCategoryIndex] = useState<number | null>(0);
   const [isLoading, setIsLoading] = useState(true);
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Device Input Modal State (Model & IMEI Required)
   const [deviceModalItem, setDeviceModalItem] = useState<SpeedGridItem | null>(null);
@@ -19,6 +20,37 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
   const [devicePrice, setDevicePrice] = useState('');
   const [deviceError, setDeviceError] = useState('');
   const imeiInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset 30s Idle Timer for Products list auto-close (Categories bar remains)
+  const resetIdleTimer = () => {
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+    if (activeCategoryIndex !== null) {
+      idleTimerRef.current = setTimeout(() => {
+        setActiveCategoryIndex(null); // Auto-close products list after 30s idle
+      }, 30000); // 30 seconds
+    }
+  };
+
+  useEffect(() => {
+    resetIdleTimer();
+
+    const handleUserActivity = () => {
+      resetIdleTimer();
+    };
+
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(ev => window.addEventListener(ev, handleUserActivity, { passive: true }));
+
+    return () => {
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+      }
+      events.forEach(ev => window.removeEventListener(ev, handleUserActivity));
+    };
+  }, [activeCategoryIndex]);
 
   const fetchSpeedGrid = async () => {
     try {
@@ -126,7 +158,9 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
     setDeviceError('');
   };
 
-  const activeCategory = categories[activeCategoryIndex];
+  const activeCategory = activeCategoryIndex !== null && categories[activeCategoryIndex] 
+    ? categories[activeCategoryIndex] 
+    : null;
   const items = activeCategory?.items || [];
 
   if (isLoading) {
@@ -147,7 +181,7 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
       className="bg-white border-y sm:border border-[#d8d8d8] rounded-none sm:rounded p-2.5 space-y-2.5 transition-all"
       style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
     >
-      {/* 8 Categories Bar - Clean Text Buttons */}
+      {/* 8 Categories Bar - Clean Text Buttons (Always visible) */}
       <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
         {categories.slice(0, 8).map((cat, idx) => {
           const isActive = activeCategoryIndex === idx;
@@ -155,7 +189,10 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
             <button
               key={cat.id || idx}
               type="button"
-              onClick={() => setActiveCategoryIndex(idx)}
+              onClick={() => {
+                setActiveCategoryIndex(prev => prev === idx ? null : idx);
+                resetIdleTimer();
+              }}
               className={`px-3 py-1.5 rounded text-xs font-semibold whitespace-nowrap transition-all border cursor-pointer select-none ${
                 isActive
                   ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
@@ -168,38 +205,43 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
         })}
       </div>
 
-      {/* Product Items - Clean Compact Text-Only Buttons */}
-      {items.length === 0 ? (
-        <div className="py-4 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded">
-          No products assigned to "{activeCategory?.name || 'this category'}".
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5">
-          {items.map((item, idx) => {
-            const displayName = item.custom_label || item.product_name;
-            return (
-              <button
-                key={item.id || idx}
-                type="button"
-                onClick={() => handleTileClick(item)}
-                className="bg-slate-50 hover:bg-blue-50 active:bg-blue-100 border border-slate-200 hover:border-blue-400 px-2.5 py-2 rounded text-left transition-colors cursor-pointer select-none flex items-center justify-between gap-1.5 min-h-[38px] group"
-              >
-                <span className="text-xs font-medium text-slate-800 group-hover:text-blue-950 truncate">
-                  {displayName}
-                </span>
-                {Number(item.selling_price || 0) > 0 ? (
-                  <span className="text-xs font-bold text-emerald-700 shrink-0">
-                    €{Number(item.selling_price).toFixed(2)}
+      {/* Product Items - Clean Compact Text-Only Buttons (Auto-closes after 30s idle) */}
+      {activeCategory && (
+        items.length === 0 ? (
+          <div className="py-4 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded">
+            No products assigned to "{activeCategory.name}".
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5">
+            {items.map((item, idx) => {
+              const displayName = item.custom_label || item.product_name;
+              return (
+                <button
+                  key={item.id || idx}
+                  type="button"
+                  onClick={() => {
+                    handleTileClick(item);
+                    resetIdleTimer();
+                  }}
+                  className="bg-slate-50 hover:bg-blue-50 active:bg-blue-100 border border-slate-200 hover:border-blue-400 px-2.5 py-2 rounded text-left transition-colors cursor-pointer select-none flex items-center justify-between gap-1.5 min-h-[38px] group"
+                >
+                  <span className="text-xs font-medium text-slate-800 group-hover:text-blue-950 truncate">
+                    {displayName}
                   </span>
-                ) : (
-                  <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 group-hover:bg-blue-100 px-1.5 py-0.5 rounded shrink-0">
-                    + IMEI
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+                  {Number(item.selling_price || 0) > 0 ? (
+                    <span className="text-xs font-bold text-emerald-700 shrink-0">
+                      €{Number(item.selling_price).toFixed(2)}
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 group-hover:bg-blue-100 px-1.5 py-0.5 rounded shrink-0">
+                      + IMEI
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )
       )}
 
       {/* Required Device Input Modal (Model & IMEI) */}

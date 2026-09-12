@@ -74,12 +74,13 @@ router.get('/', async (req: any, res, next) => {
     const productsSql = `
       SELECT s.id, p.name as product_name, s.sku_code, s.barcode,
              COALESCE(s.selling_price, p.base_unit_price, 0) as selling_price, s.cost_price, p.product_type,
-             c.name as category_name, m.name as manufacturer_name,
-             p.id as product_id
+             c.name as category_name, m.name as manufacturer_name, sup.name as supplier_name,
+             p.id as product_id, p.category_id, p.manufacturer_id, p.supplier_id
       FROM product_skus s
       JOIN products p ON s.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+      LEFT JOIN suppliers sup ON p.supplier_id = sup.id
       ${whereClause}
       ORDER BY p.created_at DESC
       LIMIT ? OFFSET ?
@@ -746,6 +747,7 @@ const createProductSchema = z.object({
   name: z.string().min(1, "Product name is required"),
   category_id: z.number().nullable().optional(),
   manufacturer_id: z.number().nullable().optional(),
+  supplier_id: z.number().or(z.string().transform(Number)).nullable().optional(),
   selling_price: z.number().or(z.string().transform(Number)).optional(),
   cost_price: z.number().or(z.string().transform(Number)).optional(),
   product_type: z.string().optional(),
@@ -764,7 +766,7 @@ const createProductSchema = z.object({
 router.post('/', async (req: any, res, next) => {
   const data = createProductSchema.parse(req.body);
   const { 
-    name, category_id, manufacturer_id, selling_price, cost_price, product_type, sku_code, barcode, allow_overselling,
+    name, category_id, manufacturer_id, supplier_id, selling_price, cost_price, product_type, sku_code, barcode, allow_overselling,
     min_stock_level, is_taxable, require_note, min_sales_price, additional_description, alert_message 
   } = data;
   const businessId = req.user.business_id;
@@ -785,9 +787,9 @@ router.post('/', async (req: any, res, next) => {
     }
 
     const [pr] = await conn.execute(
-      'INSERT INTO products (business_id,name,category_id,manufacturer_id,product_type,allow_overselling,min_stock_level,is_taxable,require_note,min_sales_price,additional_description,alert_message) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO products (business_id,name,category_id,manufacturer_id,supplier_id,product_type,allow_overselling,min_stock_level,is_taxable,require_note,min_sales_price,additional_description,alert_message) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
       [
-        businessId, name, category_id, manufacturer_id, product_type, allow_overselling === false ? 0 : 1,
+        businessId, name, category_id, manufacturer_id, supplier_id || null, product_type, allow_overselling === false ? 0 : 1,
         min_stock_level ?? null, is_taxable ? 1 : 0, require_note ? 1 : 0, min_sales_price ?? null, additional_description ?? null, alert_message ?? null
       ]
     );
@@ -818,6 +820,7 @@ const quickAddSchema = z.object({
   name: z.string().min(1, "Product name is required"),
   category_id: z.number().nullable().optional(),
   manufacturer_id: z.number().nullable().optional(),
+  supplier_id: z.number().or(z.string().transform(Number)).nullable().optional(),
   selling_price: z.number().or(z.string().transform(Number)).optional(),
   cost_price: z.number().or(z.string().transform(Number)).optional(),
   sku_code: z.string().optional(),
@@ -829,7 +832,7 @@ const quickAddSchema = z.object({
 // POST /api/products/quick-add
 router.post('/quick-add', async (req: any, res, next) => {
   const data = quickAddSchema.parse(req.body);
-  const { name, category_id, manufacturer_id, selling_price, cost_price, sku_code, barcode, branch_id, quantity } = data;
+  const { name, category_id, manufacturer_id, supplier_id, selling_price, cost_price, sku_code, barcode, branch_id, quantity } = data;
   const businessId = req.user.business_id;
   const activeBranchId = branch_id || req.user.branch_id;
   const stockQty = parseInt(String(quantity)) || 0;
@@ -852,8 +855,8 @@ router.post('/quick-add', async (req: any, res, next) => {
 
     // 1. Create Product
     const [pr] = await conn.execute(
-      'INSERT INTO products (business_id,name,category_id,manufacturer_id,product_type,allow_overselling) VALUES (?,?,?,?,?,?)',
-      [businessId, name, category_id || null, manufacturer_id || null, 'stock', 1]
+      'INSERT INTO products (business_id,name,category_id,manufacturer_id,supplier_id,product_type,allow_overselling) VALUES (?,?,?,?,?,?,?)',
+      [businessId, name, category_id || null, manufacturer_id || null, supplier_id || null, 'stock', 1]
     );
     const productId = (pr as any).insertId;
 

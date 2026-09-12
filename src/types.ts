@@ -1,6 +1,9 @@
 export interface Product {
   id: number; // This is the SKU ID in the new schema
+  sku_id?: number;
   product_id: number;
+  supplier_id?: number | null;
+  supplier_name?: string;
   category_id: number | null;
   manufacturer_id: number | null;
   name: string;

@@ -118,6 +118,7 @@ export default function BatchDeviceIntake({
 
   // Success & Label Printing State
   const [savedBatch, setSavedBatch] = useState<{ po_number: string; devices: SavedDevice[] } | null>(null);
+  const [newlyCreatedProductForLabel, setNewlyCreatedProductForLabel] = useState<SerializedProductOption | null>(null);
 
   // Active product selector dropdown index
   const [activeProductDropdown, setActiveProductDropdown] = useState<number | null>(null);
@@ -458,6 +459,7 @@ export default function BatchDeviceIntake({
         body: JSON.stringify({
           name: cleanName,
           product_type: 'serialized',
+          supplier_id: supplierId ? parseInt(supplierId) : null,
           cost_price: 0,
           selling_price: 0
         })
@@ -481,6 +483,7 @@ export default function BatchDeviceIntake({
 
       setProductOptions(prev => [createdItem, ...prev.filter(p => p.sku_id !== createdItem.sku_id)]);
       handleSelectProduct(index, createdItem);
+      setNewlyCreatedProductForLabel(createdItem);
     } catch (e: any) {
       console.error('Quick create error:', e);
       setTargetRowIndexForNewProduct(index);
@@ -493,7 +496,7 @@ export default function BatchDeviceIntake({
   };
 
   // Quick Create Serialized Product Modal Submit
-  const handleCreateNewProduct = async () => {
+  const handleCreateNewProduct = async (andPrint = false) => {
     if (!newProdName.trim()) return;
     setCreateProdLoading(true);
     try {
@@ -503,6 +506,7 @@ export default function BatchDeviceIntake({
         body: JSON.stringify({
           name: newProdName.trim(),
           product_type: 'serialized',
+          supplier_id: supplierId ? parseInt(supplierId) : null,
           cost_price: parseFloat(newProdCost) || 0,
           selling_price: parseFloat(newProdPrice) || 0
         })
@@ -516,8 +520,14 @@ export default function BatchDeviceIntake({
       const updatedList = await loadSerializedModels();
       const createdItem = updatedList.find(p => p.product_name.toLowerCase() === newProdName.trim().toLowerCase());
       
-      if (createdItem && targetRowIndexForNewProduct !== null) {
-        handleSelectProduct(targetRowIndexForNewProduct, createdItem);
+      if (createdItem) {
+        if (targetRowIndexForNewProduct !== null) {
+          handleSelectProduct(targetRowIndexForNewProduct, createdItem);
+        }
+        setNewlyCreatedProductForLabel(createdItem);
+        if (andPrint) {
+          triggerProductBarcodePrint([createdItem]);
+        }
       }
 
       setNewProdName('');
@@ -533,6 +543,11 @@ export default function BatchDeviceIntake({
   };
 
   const handleSaveBatch = async () => {
+    if (!supplierId) {
+      alert('Please select a supplier before saving batch. Supplier is required.');
+      return;
+    }
+
     const validRows = rows.filter(r => r.sku_id && r.imei.trim().length > 0);
     if (validRows.length === 0) {
       alert('Please enter at least one device with an IMEI/Serial number.');
@@ -550,7 +565,7 @@ export default function BatchDeviceIntake({
     try {
       const payload = {
         branch_id: branchId ? parseInt(branchId) : undefined,
-        supplier_id: supplierId ? parseInt(supplierId) : null,
+        supplier_id: parseInt(supplierId),
         po_number: poNumber.trim() || undefined,
         items: validRows.map(r => ({
           sku_id: r.sku_id!,
@@ -623,6 +638,145 @@ export default function BatchDeviceIntake({
   const totalCost = rows.reduce((sum, r) => sum + ((parseFloat(r.cost_price) || 0) * (r.imei.trim() ? 1 : 0)), 0);
   const totalRetail = rows.reduce((sum, r) => sum + ((parseFloat(r.selling_price) || 0) * (r.imei.trim() ? 1 : 0)), 0);
   const estMargin = totalRetail > 0 ? (((totalRetail - totalCost) / totalRetail) * 100).toFixed(1) : '0.0';
+
+  // Print Single / Multi Product Barcode Label
+  const triggerProductBarcodePrint = (productsToPrint: { product_name: string; sku_code?: string; barcode?: string; selling_price?: number; manufacturer_name?: string }[]) => {
+    if (!productsToPrint || productsToPrint.length === 0) {
+      alert('Please select a product label to print.');
+      return;
+    }
+
+    const printWin = window.open('', '_blank', 'width=600,height=600');
+    if (!printWin) {
+      alert('Please allow popups to print barcode labels.');
+      return;
+    }
+
+    const labelSize = printerSettings?.label_size || '2.25" (57mm) x 1.25" (32mm) Dymo 11354 / 30334';
+    const isSmallDymo = labelSize.includes('11354') || labelSize.includes('30334') || labelSize.includes('57mm');
+
+    const labelsHtml = productsToPrint.map((prod, idx) => {
+      const code = prod.barcode || prod.sku_code || 'PROD';
+      return `
+      <div class="label-page">
+        <div class="label-header">
+          <div class="prod-title">${prod.product_name}</div>
+          ${prod.manufacturer_name ? `<div class="prod-specs">${prod.manufacturer_name}</div>` : ''}
+        </div>
+        <div class="barcode-box">
+          <svg id="prod-barcode-${idx}"></svg>
+        </div>
+        <div class="label-footer">
+          <span class="imei-num">${code}</span>
+          <span class="price-tag">€${(Number(prod.selling_price) || 0).toFixed(2)}</span>
+        </div>
+      </div>
+    `;
+    }).join('');
+
+    const scripts = productsToPrint.map((prod, idx) => {
+      const code = prod.barcode || prod.sku_code || 'PROD';
+      return `
+      JsBarcode("#prod-barcode-${idx}", "${code}", {
+        format: "CODE128",
+        width: 1.3,
+        height: 32,
+        displayValue: false,
+        margin: 0
+      });
+    `;
+    }).join('\n');
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Product Barcode Labels</title>
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+          <style>
+            @page {
+              size: ${isSmallDymo ? '57mm 32mm' : 'auto'};
+              margin: 0;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+              background: #fff;
+              color: #000;
+            }
+            .label-page {
+              width: ${isSmallDymo ? '57mm' : '70mm'};
+              height: ${isSmallDymo ? '32mm' : '40mm'};
+              box-sizing: border-box;
+              padding: 1.5mm 2.5mm;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              page-break-after: always;
+              overflow: hidden;
+            }
+            .label-header {
+              text-align: center;
+              line-height: 1.1;
+            }
+            .prod-title {
+              font-size: 11px;
+              font-weight: 800;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+            .prod-specs {
+              font-size: 9px;
+              color: #333;
+              font-weight: 600;
+              margin-top: 1px;
+            }
+            .barcode-box {
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              margin: 1px 0;
+            }
+            .barcode-box svg {
+              max-width: 100%;
+              height: 28px;
+            }
+            .label-footer {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              font-size: 10px;
+              font-weight: 700;
+              border-top: 0.5px dashed #aaa;
+              padding-top: 1px;
+            }
+            .imei-num {
+              font-family: monospace;
+              letter-spacing: 0.5px;
+            }
+            .price-tag {
+              font-size: 11px;
+              font-weight: 800;
+            }
+          </style>
+        </head>
+        <body>
+          ${labelsHtml}
+          <script>
+            window.onload = function() {
+              ${scripts}
+              setTimeout(function() {
+                window.print();
+              }, 250);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
+  };
 
   // Direct Label Print Trigger
   const triggerBatchPrint = (devicesToPrint: SavedDevice[]) => {
@@ -774,6 +928,17 @@ export default function BatchDeviceIntake({
 
   // Success Screen
   if (savedBatch) {
+    const uniqueProducts = Array.from(new Set(savedBatch.devices.map(d => d.sku_id)))
+      .map(skuId => {
+        const dev = savedBatch.devices.find(d => d.sku_id === skuId)!;
+        return {
+          product_name: dev.product_name,
+          sku_code: dev.sku_code,
+          barcode: dev.barcode || dev.sku_code,
+          selling_price: dev.selling_price
+        };
+      });
+
     return (
       <div className="w-full min-h-screen px-4 sm:px-8 py-6 space-y-6">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-6 shadow-sm">
@@ -792,9 +957,19 @@ export default function BatchDeviceIntake({
                 type="button"
                 onClick={() => triggerBatchPrint(savedBatch.devices)}
                 className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-sm flex items-center gap-2 shadow cursor-pointer transition-all"
+                title="Print barcode labels with IMEI for each serialized unit"
               >
                 <Printer size={18} />
-                Print All Labels ({savedBatch.devices.length})
+                Print Device Labels ({savedBatch.devices.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => triggerProductBarcodePrint(uniqueProducts)}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-sm flex items-center gap-2 shadow cursor-pointer transition-all"
+                title="Print product SKU barcode labels"
+              >
+                <Printer size={18} />
+                Print Product Barcodes ({uniqueProducts.length})
               </button>
               <button
                 type="button"
@@ -842,14 +1017,31 @@ export default function BatchDeviceIntake({
                       <td className="py-3 px-4 text-right font-mono text-slate-600 dark:text-slate-300">€{(dev.cost_price || 0).toFixed(2)}</td>
                       <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">€{(dev.selling_price || 0).toFixed(2)}</td>
                       <td className="py-3 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => triggerBatchPrint([{ ...dev, selected: true }])}
-                          className="px-3 py-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded cursor-pointer transition-colors"
-                          title="Print single label"
-                        >
-                          <Printer size={16} />
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => triggerBatchPrint([{ ...dev, selected: true }])}
+                            className="px-2.5 py-1 text-slate-600 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded cursor-pointer transition-colors text-xs font-semibold flex items-center gap-1"
+                            title="Print Device IMEI Label"
+                          >
+                            <Printer size={14} />
+                            <span>IMEI</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => triggerProductBarcodePrint([{
+                              product_name: dev.product_name,
+                              sku_code: dev.sku_code,
+                              barcode: dev.barcode || dev.sku_code,
+                              selling_price: dev.selling_price
+                            }])}
+                            className="px-2.5 py-1 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded cursor-pointer transition-colors text-xs font-semibold flex items-center gap-1"
+                            title="Print Product Barcode Label"
+                          >
+                            <Printer size={14} />
+                            <span>Product</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -931,7 +1123,9 @@ export default function BatchDeviceIntake({
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Supplier (Optional)</label>
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+              Supplier <span className="text-red-500">*</span>
+            </label>
             <button 
               type="button" 
               onClick={() => setShowSupplierModal(true)}
@@ -941,11 +1135,14 @@ export default function BatchDeviceIntake({
             </button>
           </div>
           <select 
+            required
             value={supplierId} 
             onChange={e => setSupplierId(e.target.value)}
-            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-3 py-2 text-sm font-semibold text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            className={`w-full bg-slate-50 dark:bg-slate-800 border rounded px-3 py-2 text-sm font-semibold text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer ${
+              !supplierId ? 'border-amber-400 dark:border-amber-600' : 'border-slate-200 dark:border-slate-700'
+            }`}
           >
-            <option value="">-- Direct Intake / No Supplier --</option>
+            <option value="">-- Select Supplier (Required) * --</option>
             {suppliers.map(s => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
@@ -983,6 +1180,40 @@ export default function BatchDeviceIntake({
           <div className="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-600 dark:text-emerald-400 mt-1">{estMargin}%</div>
         </div>
       </div>
+
+      {/* Newly Created Product Barcode Print Alert */}
+      {newlyCreatedProductForLabel && (
+        <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3 text-sm text-emerald-900 dark:text-emerald-200">
+            <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
+              <CheckCircle2 size={18} />
+            </div>
+            <div>
+              <span className="font-bold text-slate-900 dark:text-white">{newlyCreatedProductForLabel.product_name}</span> has been created! 
+              <span className="text-slate-500 dark:text-slate-400 text-xs ml-1 font-mono">({newlyCreatedProductForLabel.sku_code || 'Auto-SKU'})</span>
+              <p className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">You can now print product barcode labels for shelf/package.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={() => triggerProductBarcodePrint([newlyCreatedProductForLabel])}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+            >
+              <Printer size={14} />
+              Print Barcode Label
+            </button>
+            <button
+              type="button"
+              onClick={() => setNewlyCreatedProductForLabel(null)}
+              className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded cursor-pointer"
+              title="Dismiss"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Quick Fill Utility Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-1 text-sm text-slate-600 dark:text-slate-300">
@@ -1275,16 +1506,33 @@ export default function BatchDeviceIntake({
                       />
                     </td>
 
-                    {/* Remove */}
+                    {/* Actions */}
                     <td className="py-2.5 px-2 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveRow(idx)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded cursor-pointer transition-colors"
-                        title="Delete Row"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        {row.sku_id ? (
+                          <button
+                            type="button"
+                            onClick={() => triggerProductBarcodePrint([{
+                              product_name: row.product_name,
+                              sku_code: row.sku_code,
+                              barcode: row.sku_code,
+                              selling_price: parseFloat(row.selling_price) || 0
+                            }])}
+                            className="p-1.5 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded cursor-pointer transition-colors"
+                            title="Print Product Barcode Label"
+                          >
+                            <Printer size={15} />
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveRow(idx)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded cursor-pointer transition-colors"
+                          title="Delete Row"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -1369,9 +1617,19 @@ export default function BatchDeviceIntake({
               </button>
               <button
                 type="button"
-                onClick={handleCreateNewProduct}
+                onClick={() => handleCreateNewProduct(true)}
                 disabled={!newProdName.trim() || createProdLoading}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-xs"
+                title="Create product and immediately open barcode label print preview"
+              >
+                <Printer size={15} />
+                Create & Print Label
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCreateNewProduct(false)}
+                disabled={!newProdName.trim() || createProdLoading}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-xs"
               >
                 {createProdLoading ? 'Creating...' : 'Create & Select'}
               </button>

@@ -294,6 +294,7 @@ export default function AddInventory({
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!branchId) return alert('Please select a branch');
+    if (!supplierId) return alert('Please select a supplier. Supplier is required.');
 
     let validSerializedItems: typeof items = [];
     if (product?.product_type === 'serialized') {
@@ -883,20 +884,21 @@ export default function AddInventory({
                 {/* Supplier */}
                 <tr className="bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
                   <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
-                    Supplier
+                    Select Supplier *
                   </td>
                   <td className="py-2 px-3">
                     <div className="flex items-center gap-3">
                       <select 
+                        required
                         value={supplierId}
                         onChange={(e) => setSupplierId(e.target.value)}
-                        className="w-full max-w-md bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded px-2.5 py-1 text-sm font-normal text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-blue-500 cursor-pointer h-8"
+                        className="w-full max-w-md bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded px-2.5 py-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-blue-500 cursor-pointer h-8"
                       >
-                        <option value="">Choose Supplier</option>
+                        <option value="">Select Supplier *</option>
                         {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
                       <button 
-                        type="button"
+                        type="button" 
                         onClick={() => setShowNewSupplierModal(true)}
                         className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-medium flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer whitespace-nowrap"
                       >

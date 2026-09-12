@@ -356,6 +356,7 @@ async function initSchema() {
         business_id INT NOT NULL,
         category_id INT NULL,
         manufacturer_id INT NULL,
+        supplier_id INT NULL,
         tax_class_id INT NULL,
         name VARCHAR(255) NOT NULL,
         product_type VARCHAR(50) DEFAULT 'stock',
@@ -992,7 +993,8 @@ async function initSchema() {
       "ALTER TABLE products ADD COLUMN require_note TINYINT(1) DEFAULT 0 AFTER is_taxable",
       "ALTER TABLE products ADD COLUMN min_sales_price DECIMAL(10,2) DEFAULT 0 AFTER require_note",
       "ALTER TABLE products ADD COLUMN additional_description TEXT NULL AFTER min_sales_price",
-      "ALTER TABLE products ADD COLUMN alert_message TEXT NULL AFTER additional_description"
+      "ALTER TABLE products ADD COLUMN alert_message TEXT NULL AFTER additional_description",
+      "ALTER TABLE products ADD COLUMN supplier_id INT NULL AFTER manufacturer_id"
     ];
     for (const sql of productAlterQueries) {
       try {
@@ -2814,12 +2816,13 @@ var init_products = __esm({
         const productsSql = `
       SELECT s.id, p.name as product_name, s.sku_code, s.barcode,
              COALESCE(s.selling_price, p.base_unit_price, 0) as selling_price, s.cost_price, p.product_type,
-             c.name as category_name, m.name as manufacturer_name,
-             p.id as product_id
+             c.name as category_name, m.name as manufacturer_name, sup.name as supplier_name,
+             p.id as product_id, p.category_id, p.manufacturer_id, p.supplier_id
       FROM product_skus s
       JOIN products p ON s.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+      LEFT JOIN suppliers sup ON p.supplier_id = sup.id
       ${whereClause}
       ORDER BY p.created_at DESC
       LIMIT ? OFFSET ?
@@ -3407,6 +3410,7 @@ var init_products = __esm({
       name: z2.string().min(1, "Product name is required"),
       category_id: z2.number().nullable().optional(),
       manufacturer_id: z2.number().nullable().optional(),
+      supplier_id: z2.number().or(z2.string().transform(Number)).nullable().optional(),
       selling_price: z2.number().or(z2.string().transform(Number)).optional(),
       cost_price: z2.number().or(z2.string().transform(Number)).optional(),
       product_type: z2.string().optional(),
@@ -3426,6 +3430,7 @@ var init_products = __esm({
         name,
         category_id,
         manufacturer_id,
+        supplier_id,
         selling_price,
         cost_price,
         product_type,
@@ -3454,12 +3459,13 @@ var init_products = __esm({
           });
         }
         const [pr] = await conn.execute(
-          "INSERT INTO products (business_id,name,category_id,manufacturer_id,product_type,allow_overselling,min_stock_level,is_taxable,require_note,min_sales_price,additional_description,alert_message) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO products (business_id,name,category_id,manufacturer_id,supplier_id,product_type,allow_overselling,min_stock_level,is_taxable,require_note,min_sales_price,additional_description,alert_message) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
           [
             businessId,
             name,
             category_id,
             manufacturer_id,
+            supplier_id || null,
             product_type,
             allow_overselling === false ? 0 : 1,
             min_stock_level ?? null,
@@ -3502,6 +3508,7 @@ var init_products = __esm({
       name: z2.string().min(1, "Product name is required"),
       category_id: z2.number().nullable().optional(),
       manufacturer_id: z2.number().nullable().optional(),
+      supplier_id: z2.number().or(z2.string().transform(Number)).nullable().optional(),
       selling_price: z2.number().or(z2.string().transform(Number)).optional(),
       cost_price: z2.number().or(z2.string().transform(Number)).optional(),
       sku_code: z2.string().optional(),
@@ -3511,7 +3518,7 @@ var init_products = __esm({
     });
     router3.post("/quick-add", async (req, res, next) => {
       const data = quickAddSchema.parse(req.body);
-      const { name, category_id, manufacturer_id, selling_price, cost_price, sku_code, barcode, branch_id, quantity } = data;
+      const { name, category_id, manufacturer_id, supplier_id, selling_price, cost_price, sku_code, barcode, branch_id, quantity } = data;
       const businessId = req.user.business_id;
       const activeBranchId = branch_id || req.user.branch_id;
       const stockQty = parseInt(String(quantity)) || 0;
@@ -3529,8 +3536,8 @@ var init_products = __esm({
           });
         }
         const [pr] = await conn.execute(
-          "INSERT INTO products (business_id,name,category_id,manufacturer_id,product_type,allow_overselling) VALUES (?,?,?,?,?,?)",
-          [businessId, name, category_id || null, manufacturer_id || null, "stock", 1]
+          "INSERT INTO products (business_id,name,category_id,manufacturer_id,supplier_id,product_type,allow_overselling) VALUES (?,?,?,?,?,?,?)",
+          [businessId, name, category_id || null, manufacturer_id || null, supplier_id || null, "stock", 1]
         );
         const productId = pr.insertId;
         const branchPrefix = await getBranchPrefix(activeBranchId);
@@ -6692,7 +6699,7 @@ var init_inventory = __esm({
       quantity: z7.number().or(z7.string().transform(Number)).optional(),
       cost_price: z7.number().or(z7.string().transform(Number)).optional(),
       selling_price: z7.number().or(z7.string().transform(Number)).optional(),
-      supplier_id: z7.number().or(z7.string().transform(Number)).nullable().optional(),
+      supplier_id: z7.number().or(z7.string().transform(Number)),
       po_number: z7.string().optional(),
       items: z7.array(z7.object({
         imei: z7.string().optional(),
@@ -6704,6 +6711,9 @@ var init_inventory = __esm({
     router8.post("/add", async (req, res, next) => {
       const data = addInventorySchema.parse(req.body);
       const { sku_id, branch_id, quantity, cost_price, selling_price, supplier_id, po_number, items } = data;
+      if (!supplier_id) {
+        return res.status(400).json({ error: "Supplier is required when adding inventory." });
+      }
       const activeBranchId = branch_id || req.user.branch_id;
       const conn = await pool.getConnection();
       try {
@@ -6828,7 +6838,7 @@ var init_inventory = __esm({
     });
     batchAddDevicesSchema = z7.object({
       branch_id: z7.number().or(z7.string().transform(Number)).optional(),
-      supplier_id: z7.number().or(z7.string().transform(Number)).nullable().optional(),
+      supplier_id: z7.number().or(z7.string().transform(Number)),
       po_number: z7.string().optional(),
       items: z7.array(z7.object({
         sku_id: z7.number().or(z7.string().transform(Number)),
@@ -6843,6 +6853,9 @@ var init_inventory = __esm({
     router8.post("/batch-add-devices", async (req, res, next) => {
       const data = batchAddDevicesSchema.parse(req.body);
       const { branch_id, supplier_id, po_number, items } = data;
+      if (!supplier_id) {
+        return res.status(400).json({ error: "Supplier is required when adding batch inventory." });
+      }
       const activeBranchId = branch_id || req.user.branch_id;
       const conn = await pool.getConnection();
       try {

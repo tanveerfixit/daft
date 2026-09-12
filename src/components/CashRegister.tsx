@@ -9,7 +9,7 @@ import {
   X
 } from 'lucide-react';
 import ThermalReceipt from './ThermalReceipt';
-import { Product, Customer, Invoice } from '../types';
+import { Product, Customer, Invoice, Supplier } from '../types';
 import { safeCustomerName } from '../utils/customerName';
 
 // Import refactored components
@@ -58,12 +58,17 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const [quickCost, setQuickCost] = useState('');
   const [quickSelling, setQuickSelling] = useState('');
   const [quickCategoryId, setQuickCategoryId] = useState('');
+  const [quickSupplierId, setQuickSupplierId] = useState('');
   const [quickStock, setQuickStock] = useState('0');
   const [quickAddLoading, setQuickAddLoading] = useState(false);
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [showNewSupplierModal, setShowNewSupplierModal] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState('');
+  const [isSavingSupplier, setIsSavingSupplier] = useState(false);
   const [categories, setCategories] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>(() => {
     return getScopedSessionStorage<CartItem[]>('cart', currentUser, []) || [];
@@ -183,6 +188,15 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
         }
       })
       .catch(err => console.error('Error fetching categories:', err));
+
+    fetch('/api/suppliers')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setSuppliers(data);
+        }
+      })
+      .catch(err => console.error('Error fetching suppliers:', err));
   }, [currentUser?.business_id]);
 
   useEffect(() => {
@@ -358,12 +372,14 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     setQuickSelling('');
     setQuickStock('0');
     setQuickCategoryId('');
+    setQuickSupplierId(suppliers.length > 0 ? String(suppliers[0].id) : '');
     setShowQuickAdd(true);
   };
 
   const handleQuickAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickName.trim()) return alert('Please enter a product name');
+    if (!quickSupplierId) return alert('Please select a supplier. Supplier is required.');
     if (!quickCategoryId) return alert('Please select a category');
     
     // Safely parse European number formats (e.g. 10,50 -> 10.50)
@@ -379,6 +395,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     try {
       const payload = {
         name: quickName.trim(),
+        supplier_id: Number(quickSupplierId),
         category_id: quickCategoryId ? Number(quickCategoryId) : null,
         manufacturer_id: null,
         selling_price: parsedSelling,
@@ -444,6 +461,33 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       alert(error.message || 'Error adding category');
     } finally {
       setIsSavingCategory(false);
+    }
+  };
+
+  const handleQuickAddSupplier = async () => {
+    if (!newSupplierName.trim()) return;
+    try {
+      setIsSavingSupplier(true);
+      const res = await fetch('/api/suppliers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newSupplierName.trim(), contact_person: newSupplierName.trim() })
+      });
+      if (res.ok) {
+        const newSup = await res.json();
+        setSuppliers(prev => [...prev, newSup]);
+        setQuickSupplierId(String(newSup.id));
+        setShowNewSupplierModal(false);
+        setNewSupplierName('');
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Failed to add supplier');
+      }
+    } catch (error: any) {
+      console.error('Error adding supplier:', error);
+      alert(error.message || 'Error adding supplier');
+    } finally {
+      setIsSavingSupplier(false);
     }
   };
 
@@ -1300,15 +1344,41 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="block text-[13px] font-semibold text-neutral-900 dark:text-neutral-100">SKU / Barcode</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. SKU12345"
-                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
-                    value={quickBarcode}
-                    onChange={(e) => setQuickBarcode(e.target.value)}
-                  />
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[13px] font-semibold text-neutral-900 dark:text-neutral-100">Supplier *</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewSupplierModal(true)}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5 font-bold cursor-pointer"
+                    >
+                      <Plus size={12} /> Add New
+                    </button>
+                  </div>
+                  <div className="flex gap-1">
+                    <select
+                      required
+                      className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none bg-transparent font-sans"
+                      value={quickSupplierId}
+                      onChange={(e) => setQuickSupplierId(e.target.value)}
+                    >
+                      <option value="" className="bg-white dark:bg-black">Choose Supplier *</option>
+                      {suppliers.map((s) => (
+                        <option key={s.id} value={s.id} className="bg-white dark:bg-black">
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button 
+                      type="button" 
+                      onClick={() => setShowNewSupplierModal(true)}
+                      className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 px-2.5 py-1.5 rounded transition-colors text-neutral-800 dark:text-neutral-200 shrink-0 cursor-pointer"
+                      title="Add New Supplier"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
                 </div>
+
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <label className="block text-[13px] font-semibold text-neutral-900 dark:text-neutral-100">Category *</label>
@@ -1344,6 +1414,17 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                     </button>
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[13px] font-semibold text-neutral-900 dark:text-neutral-100">SKU / Barcode</label>
+                <input
+                  type="text"
+                  placeholder="e.g. SKU12345"
+                  className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded px-3 py-1.5 text-base text-neutral-900 dark:text-neutral-100 focus:outline-none font-mono"
+                  value={quickBarcode}
+                  onChange={(e) => setQuickBarcode(e.target.value)}
+                />
               </div>
 
               <div className="grid grid-cols-3 gap-4">
@@ -1463,6 +1544,65 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1 px-4 rounded text-base transition-colors cursor-pointer disabled:opacity-50"
                 >
                   {isSavingCategory ? 'Adding...' : 'Add Category'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Supplier Modal */}
+      {showNewSupplierModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[120] p-4">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-lg shadow-2xl w-full max-w-md overflow-hidden font-mono text-base">
+            <div className="px-4 py-2.5 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900 flex justify-between items-center">
+              <h3 className="text-base font-semibold text-black dark:text-white">
+                Add New Supplier
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNewSupplierModal(false);
+                  setNewSupplierName('');
+                }}
+                className="text-neutral-500 hover:text-neutral-750 dark:hover:text-neutral-350 transition-colors border-0 bg-transparent p-0 cursor-pointer"
+              >
+                <XCircle size={18} />
+              </button>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); handleQuickAddSupplier(); }}>
+              <div className="p-4 space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[13px] font-semibold text-neutral-900 dark:text-neutral-100 block">Supplier Name *</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full p-2 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded text-base focus:outline-none text-neutral-900 dark:text-neutral-100 font-sans"
+                    placeholder="e.g. Apex Wholesale, Global Parts..."
+                    value={newSupplierName}
+                    onChange={(e) => setNewSupplierName(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div className="px-4 py-2.5 bg-neutral-100 dark:bg-neutral-950 border-t border-neutral-300 dark:border-neutral-800 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNewSupplierModal(false);
+                    setNewSupplierName('');
+                  }}
+                  className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1 px-3 rounded text-base transition-colors cursor-pointer"
+                  disabled={isSavingSupplier}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingSupplier || !newSupplierName.trim()}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1 px-4 rounded text-base transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingSupplier ? 'Adding...' : 'Add Supplier'}
                 </button>
               </div>
             </form>

@@ -542,6 +542,8 @@ addColumnIfNotExists("devices", "color", "TEXT");
 addColumnIfNotExists("devices", "gb", "TEXT");
 addColumnIfNotExists("devices", "condition", "TEXT");
 
+addColumnIfNotExists("products", "supplier_id", "INTEGER");
+
 addColumnIfNotExists("purchase_order_items", "description", "TEXT");
 addColumnIfNotExists("purchase_order_items", "ordered_qty", "INTEGER DEFAULT 0");
 addColumnIfNotExists("purchase_order_items", "received_qty", "INTEGER DEFAULT 0");

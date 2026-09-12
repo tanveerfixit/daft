@@ -10,7 +10,7 @@ const addInventorySchema = z.object({
   quantity: z.number().or(z.string().transform(Number)).optional(),
   cost_price: z.number().or(z.string().transform(Number)).optional(),
   selling_price: z.number().or(z.string().transform(Number)).optional(),
-  supplier_id: z.number().or(z.string().transform(Number)).nullable().optional(),
+  supplier_id: z.number().or(z.string().transform(Number)),
   po_number: z.string().optional(),
   items: z.array(z.object({
     imei: z.string().optional(),
@@ -24,6 +24,9 @@ const addInventorySchema = z.object({
 router.post('/add', async (req: any, res, next) => {
   const data = addInventorySchema.parse(req.body);
   const { sku_id, branch_id, quantity, cost_price, selling_price, supplier_id, po_number, items } = data;
+  if (!supplier_id) {
+    return res.status(400).json({ error: 'Supplier is required when adding inventory.' });
+  }
   const activeBranchId = branch_id || req.user.branch_id;
   const conn = await pool.getConnection();
   try {
@@ -144,7 +147,7 @@ router.post('/add', async (req: any, res, next) => {
 
 const batchAddDevicesSchema = z.object({
   branch_id: z.number().or(z.string().transform(Number)).optional(),
-  supplier_id: z.number().or(z.string().transform(Number)).nullable().optional(),
+  supplier_id: z.number().or(z.string().transform(Number)),
   po_number: z.string().optional(),
   items: z.array(z.object({
     sku_id: z.number().or(z.string().transform(Number)),
@@ -161,6 +164,9 @@ const batchAddDevicesSchema = z.object({
 router.post('/batch-add-devices', async (req: any, res, next) => {
   const data = batchAddDevicesSchema.parse(req.body);
   const { branch_id, supplier_id, po_number, items } = data;
+  if (!supplier_id) {
+    return res.status(400).json({ error: 'Supplier is required when adding batch inventory.' });
+  }
   const activeBranchId = branch_id || req.user.branch_id;
   const conn = await pool.getConnection();
   try {

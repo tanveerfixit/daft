@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
-import { Product, Category, Manufacturer } from '../types';
+import { Product, Category, Manufacturer, Supplier } from '../types';
 
 interface ProductFormModalProps {
   isOpen?: boolean;
@@ -9,6 +9,7 @@ interface ProductFormModalProps {
   initialData?: Partial<Product>;
   categories?: Category[];
   manufacturers?: Manufacturer[];
+  suppliers?: Supplier[];
 }
 
 export default function ProductFormModal({
@@ -17,21 +18,24 @@ export default function ProductFormModal({
   onSave,
   initialData,
   categories: initialCategories,
-  manufacturers: initialManufacturers
+  manufacturers: initialManufacturers,
+  suppliers: initialSuppliers
 }: ProductFormModalProps) {
   const [categories, setCategories] = useState<Category[]>(initialCategories || []);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>(initialManufacturers || []);
+  const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers || []);
 
-  const [formData, setFormData] = useState<Partial<Product>>({
+  const [formData, setFormData] = useState<Partial<Product> & { supplier_id?: number }>({
     product_name: '',
     category_id: undefined,
     manufacturer_id: undefined,
+    supplier_id: undefined,
     sku_code: '',
     barcode: '',
     selling_price: 0,
     cost_price: 0,
     product_type: 'stock',
-    ...initialData
+    ...(initialData as any)
   });
 
   const [existingProducts, setExistingProducts] = useState<any[]>([]);
@@ -42,12 +46,13 @@ export default function ProductFormModal({
         product_name: '',
         category_id: undefined,
         manufacturer_id: undefined,
+        supplier_id: undefined,
         sku_code: '',
         barcode: '',
         selling_price: 0,
         cost_price: 0,
         product_type: 'stock',
-        ...initialData
+        ...(initialData as any)
       });
     }
   }, [initialData]);
@@ -97,17 +102,27 @@ export default function ProductFormModal({
           .then(data => setManufacturers(Array.isArray(data) ? data : []))
           .catch(console.error);
       }
+      if (!initialSuppliers) {
+        fetch('/api/suppliers')
+          .then(res => res.json())
+          .then(data => setSuppliers(Array.isArray(data) ? data : []))
+          .catch(console.error);
+      }
       fetch('/api/products')
         .then(res => res.json())
         .then(data => setExistingProducts(Array.isArray(data) ? data : []))
         .catch(err => console.error('Failed to fetch existing products:', err));
     }
-  }, [isOpen, initialCategories, initialManufacturers]);
+  }, [isOpen, initialCategories, initialManufacturers, initialSuppliers]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.supplier_id) {
+      alert('Please select a supplier. Supplier is required.');
+      return;
+    }
     onSave(formData);
   };
 
@@ -121,6 +136,7 @@ export default function ProductFormModal({
         product_name: matched.product_name || matched.name,
         category_id: matched.category_id ?? prev.category_id,
         manufacturer_id: matched.manufacturer_id ?? prev.manufacturer_id,
+        supplier_id: matched.supplier_id ?? prev.supplier_id,
         cost_price: matched.cost_price ? Number(matched.cost_price) : prev.cost_price,
         selling_price: matched.selling_price ? Number(matched.selling_price) : prev.selling_price,
         product_type: matched.product_type ?? prev.product_type
@@ -186,12 +202,27 @@ export default function ProductFormModal({
               </label>
               <select
                 required
-                className="sm:w-2/3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 rounded-none px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-blue-500 cursor-pointer"
+                className="sm:w-2/3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 rounded-none px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-blue-500 cursor-pointer font-bold"
                 value={formData.category_id || ''}
                 onChange={e => setFormData({ ...formData, category_id: e.target.value ? parseInt(e.target.value) || 0 : undefined })}
               >
                 <option value="">Select Category *</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+              <label className="sm:w-1/3 text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider">
+                Supplier<span className="text-red-500">*</span>
+              </label>
+              <select
+                required
+                className="sm:w-2/3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 rounded-none px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 outline-none focus:border-blue-500 cursor-pointer font-bold"
+                value={formData.supplier_id || ''}
+                onChange={e => setFormData({ ...formData, supplier_id: e.target.value ? parseInt(e.target.value) || 0 : undefined })}
+              >
+                <option value="">Select Supplier *</option>
+                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
 

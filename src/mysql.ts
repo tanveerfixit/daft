@@ -366,6 +366,7 @@ export async function initSchema() {
         business_id INT NOT NULL,
         category_id INT NULL,
         manufacturer_id INT NULL,
+        supplier_id INT NULL,
         tax_class_id INT NULL,
         name VARCHAR(255) NOT NULL,
         product_type VARCHAR(50) DEFAULT 'stock',
@@ -1054,7 +1055,8 @@ export async function initSchema() {
       'ALTER TABLE products ADD COLUMN require_note TINYINT(1) DEFAULT 0 AFTER is_taxable',
       'ALTER TABLE products ADD COLUMN min_sales_price DECIMAL(10,2) DEFAULT 0 AFTER require_note',
       'ALTER TABLE products ADD COLUMN additional_description TEXT NULL AFTER min_sales_price',
-      'ALTER TABLE products ADD COLUMN alert_message TEXT NULL AFTER additional_description'
+      'ALTER TABLE products ADD COLUMN alert_message TEXT NULL AFTER additional_description',
+      'ALTER TABLE products ADD COLUMN supplier_id INT NULL AFTER manufacturer_id'
     ];
     for (const sql of productAlterQueries) {
       try {
