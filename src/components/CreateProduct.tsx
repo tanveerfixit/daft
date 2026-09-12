@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, useParams, useLocation } from 'react-rout
 import { ChevronDown, ChevronUp, Plus, List, AlertTriangle, ArrowRight } from 'lucide-react';
 import { Product, Category, Manufacturer, Supplier } from '../types';
 import { ProductTypeKey } from './ProductTypeModal';
+import { invalidateCache } from '../utils/cache';
 
 interface CreateProductProps {
   onCancel: () => void;
@@ -317,6 +318,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
       });
 
       if (response.ok) {
+        invalidateCache('products_');
         return true;
       } else {
         const errorData = await response.json();

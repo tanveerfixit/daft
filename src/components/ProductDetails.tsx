@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Product, ProductActivity } from '../types';
 import ProductFormModal from './ProductFormModal';
+import { invalidateCache } from '../utils/cache';
 
 interface ProductWithStock extends Product {
   stock: {
@@ -93,6 +94,7 @@ export default function ProductDetails({
         body: JSON.stringify(formData)
       });
       if (res.ok) {
+        invalidateCache('products_');
         setIsEditing(false);
         fetchProductData();
       }
@@ -109,6 +111,7 @@ export default function ProductDetails({
         method: 'DELETE'
       });
       if (response.ok) {
+        invalidateCache('products_');
         onBack();
       }
     } catch (error) {

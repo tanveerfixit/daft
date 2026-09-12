@@ -3,6 +3,8 @@ import { Plus, Search, Sparkles, X } from 'lucide-react';
 import { Product, Category, Manufacturer } from '../types';
 import ProductTypeModal, { ProductTypeKey } from './ProductTypeModal';
 import initialAnnouncements from '../data/announcements.json';
+import { useAuth } from '../context/AuthContext';
+import { getCachedData, setCachedData } from '../utils/cache';
 
 export default function ProductList({ 
   onCreateProduct,
@@ -13,10 +15,14 @@ export default function ProductList({
   onSelectProduct: (id: number) => void;
   isActive?: boolean;
 }) {
+  const { currentUser } = useAuth();
+  const branchId = currentUser?.branch_id;
+
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRevalidating, setIsRevalidating] = useState(false);
   const [fetchError, setFetchError] = useState('');
   const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
   
@@ -87,8 +93,7 @@ export default function ProductList({
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  const fetchProducts = () => {
-    setIsLoading(true);
+  const fetchProducts = (forceFresh = false) => {
     setFetchError('');
     let url = `/api/products?page=${currentPage}&limit=${itemsPerPage}`;
     if (searchQuery.trim() !== '') {
@@ -107,27 +112,51 @@ export default function ProductList({
       url += `&stock_status=${selectedStockStatus}`;
     }
 
+    const cacheKey = `products_${currentPage}_${itemsPerPage}_${searchQuery}_${selectedCategory}_${selectedManufacturer}_${selectedType}_${selectedStockStatus}`;
+    
+    // Check in-memory cache first
+    const cached = !forceFresh ? getCachedData<{ products: Product[]; total: number }>(cacheKey, branchId) : null;
+    if (cached) {
+      setProducts(cached.products);
+      setTotalItems(cached.total);
+      setIsLoading(false);
+      setIsRevalidating(true);
+    } else {
+      // Only show full loading spinner if there are no existing products rendered
+      if (products.length === 0) {
+        setIsLoading(true);
+      } else {
+        setIsRevalidating(true);
+      }
+    }
+
     fetch(url)
       .then(res => res.json())
       .then(data => {
+        let loadedProducts: Product[] = [];
+        let loadedTotal = 0;
         if (data && data.products && Array.isArray(data.products)) {
-          setProducts(data.products);
-          setTotalItems(data.total || 0);
+          loadedProducts = data.products;
+          loadedTotal = data.total || 0;
         } else if (Array.isArray(data)) {
-          setProducts(data);
-          setTotalItems(data.length);
-        } else {
-          setProducts([]);
-          setTotalItems(0);
+          loadedProducts = data;
+          loadedTotal = data.length;
         }
+        setProducts(loadedProducts);
+        setTotalItems(loadedTotal);
+        setCachedData(cacheKey, { products: loadedProducts, total: loadedTotal }, branchId, 60000);
         setIsLoading(false);
+        setIsRevalidating(false);
       })
       .catch(err => {
         console.error('Error fetching products:', err);
-        setProducts([]);
-        setTotalItems(0);
-        setFetchError('Failed to load products');
+        if (products.length === 0) {
+          setProducts([]);
+          setTotalItems(0);
+          setFetchError('Failed to load products');
+        }
         setIsLoading(false);
+        setIsRevalidating(false);
       });
   };
 
@@ -150,9 +179,30 @@ export default function ProductList({
   }, [isActive, currentPage, itemsPerPage, searchQuery, selectedCategory, selectedManufacturer, selectedType, selectedStockStatus]);
 
   useEffect(() => {
-    fetch('/api/categories').then(res => res.json()).then(setCategories);
-    fetch('/api/manufacturers').then(res => res.json()).then(setManufacturers);
-  }, []);
+    const cachedCats = getCachedData<Category[]>('categories_list', currentUser?.business_id);
+    if (cachedCats) setCategories(cachedCats);
+    fetch('/api/categories')
+      .then(res => res.json())
+      .then(d => {
+        if (Array.isArray(d)) {
+          setCategories(d);
+          setCachedData('categories_list', d, currentUser?.business_id, 120000);
+        }
+      })
+      .catch(() => {});
+
+    const cachedMans = getCachedData<Manufacturer[]>('manufacturers_list', currentUser?.business_id);
+    if (cachedMans) setManufacturers(cachedMans);
+    fetch('/api/manufacturers')
+      .then(res => res.json())
+      .then(d => {
+        if (Array.isArray(d)) {
+          setManufacturers(d);
+          setCachedData('manufacturers_list', d, currentUser?.business_id, 120000);
+        }
+      })
+      .catch(() => {});
+  }, [currentUser?.business_id]);
 
   useEffect(() => {
     if (searchInputRef.current) {
@@ -381,7 +431,13 @@ export default function ProductList({
       </div>
 
       {/* Table Content */}
-      <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
+      <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850 relative">
+        {/* Ambient Top Sync Bar (Non-destructive, prevents screen blink) */}
+        {isRevalidating && !isLoading && (
+          <div className="sticky top-0 left-0 right-0 h-0.5 w-full bg-blue-100 dark:bg-blue-950 overflow-hidden z-20">
+            <div className="w-full h-full bg-blue-600 dark:bg-blue-400 animate-pulse" />
+          </div>
+        )}
         <table className="w-full text-left border-collapse bg-white dark:bg-black text-[16px]">
           <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
             <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[15px] font-semibold text-black dark:text-white text-center">

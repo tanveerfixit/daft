@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Search, X, Layers, Plus } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { getCachedData, setCachedData } from '../utils/cache';
 
 interface Device {
   id: number;
@@ -28,8 +30,12 @@ interface Props {
 export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectDevice, isActive = true }: Props) {
   const navigate = useNavigate();
   const { branchSlug } = useParams<{ branchSlug?: string }>();
+  const { currentUser } = useAuth();
+  const branchId = currentUser?.branch_id;
+
   const [devices, setDevices] = useState<Device[]>([]);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('in_stock');
+  const [isRevalidating, setIsRevalidating] = useState(false);
   
   // Filtering & Pagination State
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,16 +46,29 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  const fetchDevices = () => {
+  const fetchDevices = (forceFresh = false) => {
+    const cacheKey = `devices_list_${statusFilter}`;
+    const cached = !forceFresh ? getCachedData<Device[]>(cacheKey, branchId) : null;
+    
+    if (cached) {
+      setDevices(cached);
+      setIsRevalidating(true);
+    } else {
+      setIsRevalidating(true);
+    }
+
     fetch(`/api/devices?status=${statusFilter}`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
           setDevices(data);
+          setCachedData(cacheKey, data, branchId, 60000);
         }
+        setIsRevalidating(false);
       })
       .catch(err => {
         console.error('Error fetching devices:', err);
+        setIsRevalidating(false);
       });
   };
 
@@ -149,13 +168,13 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
           <button
             type="button"
             onClick={() => navigate(`/${branchSlug || 'default'}/batch-device-intake`)}
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors"
+            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer shadow-xs"
           >
-            <Layers size={14} />
-            + Batch Device Intake
+            <Layers size={16} />
+            <span>Batch Device Intake</span>
           </button>
-          <span className="text-xs font-medium px-2.5 py-1 rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300">
-            {totalFiltered} Serialized Units
+          <span className="bg-neutral-100 dark:bg-neutral-850 border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 font-medium py-1.5 px-3.5 rounded text-sm flex items-center gap-1.5">
+            <span>{totalFiltered} Serialized Units</span>
           </span>
         </div>
       </div>
@@ -167,10 +186,10 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
           onChange={(e) => setStatusFilter(e.target.value)}
           className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 font-normal text-sm cursor-pointer w-48"
         >
-          <option value="all">All Devices</option>
-          <option value="sold">Sold</option>
           <option value="in_stock">In Inventory</option>
+          <option value="sold">Sold</option>
           <option value="repair">In Repair</option>
+          <option value="all">All Devices</option>
         </select>
         
         <select 
@@ -200,10 +219,10 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
           {uniqueConditions.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         
-        {(statusFilter !== 'all' || selectedModel !== 'all' || selectedColor !== 'all' || selectedCondition !== 'all' || searchQuery) && (
+        {(statusFilter !== 'in_stock' || selectedModel !== 'all' || selectedColor !== 'all' || selectedCondition !== 'all' || searchQuery) && (
           <button
             onClick={() => {
-              setStatusFilter('all');
+              setStatusFilter('in_stock');
               setSelectedModel('all');
               setSelectedColor('all');
               setSelectedCondition('all');
@@ -257,7 +276,13 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
       </div>
 
       {/* Table Content */}
-      <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
+      <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850 relative">
+        {/* Ambient Top Sync Bar (Non-destructive, prevents screen blink) */}
+        {isRevalidating && devices.length > 0 && (
+          <div className="sticky top-0 left-0 right-0 h-0.5 w-full bg-blue-100 dark:bg-blue-950 overflow-hidden z-20">
+            <div className="w-full h-full bg-blue-600 dark:bg-blue-400 animate-pulse" />
+          </div>
+        )}
         <table className="w-full text-left border-collapse bg-white dark:bg-black text-[15px]">
           <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
             <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">

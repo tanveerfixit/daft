@@ -5,10 +5,9 @@ import {
   Settings as SettingsIcon, 
   Info, 
   CheckCheck, 
-  ChevronRight, 
-  ExternalLink 
+  ChevronRight,
+  Megaphone
 } from 'lucide-react';
-import initialAnnouncements from '../data/announcements.json';
 
 export interface Announcement {
   id: string;
@@ -22,10 +21,9 @@ export interface Announcement {
 }
 
 import { useAuth } from '../context/AuthContext';
-import { getScopedLocalStorage, setScopedLocalStorage, getScopedKey } from '../utils/storage';
 
 export default function NotificationBell() {
-  const { currentUser } = useAuth();
+  const { currentUser, token } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [readIds, setReadIds] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -34,47 +32,104 @@ export default function NotificationBell() {
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Load announcements & read state from namespaced localStorage and API
+  // Storage key helper for reliable per-user read persistence
+  const getUserReadStorageKey = (u?: any) => {
+    if (u?.id) return `epos_read_announcements_u_${u.id}`;
+    if (u?.email) return `epos_read_announcements_u_${encodeURIComponent(u.email)}`;
+    return 'epos_read_announcements_global';
+  };
+
+  // Helper to load read IDs from local storage (merging user-specific & legacy keys)
+  const getStoredReadIds = (): string[] => {
+    try {
+      const idsSet = new Set<string>();
+      const userKey = getUserReadStorageKey(currentUser);
+      
+      const rawUser = localStorage.getItem(userKey);
+      if (rawUser) {
+        try {
+          const parsed = JSON.parse(rawUser);
+          if (Array.isArray(parsed)) parsed.forEach(id => idsSet.add(String(id)));
+        } catch {}
+      }
+
+      const rawGlobal = localStorage.getItem('epos_read_announcements');
+      if (rawGlobal) {
+        try {
+          const parsed = JSON.parse(rawGlobal);
+          if (Array.isArray(parsed)) parsed.forEach(id => idsSet.add(String(id)));
+        } catch {}
+      }
+
+      return Array.from(idsSet);
+    } catch {
+      return [];
+    }
+  };
+
+  // Helper to save read IDs locally
+  const saveStoredReadIds = (ids: string[]) => {
+    try {
+      const userKey = getUserReadStorageKey(currentUser);
+      const serialized = JSON.stringify(ids);
+      localStorage.setItem(userKey, serialized);
+      localStorage.setItem('epos_read_announcements', serialized);
+    } catch (e) {
+      console.error('Failed to save read announcements to localStorage', e);
+    }
+  };
+
+  // Load announcements & read state from localStorage, API, and DB
   useEffect(() => {
-    const loadReadState = () => {
-      try {
-        const stored = getScopedLocalStorage<string[]>('read_announcements', currentUser, []);
-        if (Array.isArray(stored)) {
-          setReadIds(stored.map(String));
-        }
-      } catch (e) {
-        console.error('Failed to parse read announcements from localStorage', e);
-      }
-    };
+    const localReadIds = getStoredReadIds();
+    setReadIds(localReadIds);
 
-    loadReadState();
+    const authToken = token || sessionStorage.getItem('epos_token');
+    const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (authToken) {
+      authHeaders['Authorization'] = `Bearer ${authToken}`;
+    }
 
-    const currentKey = getScopedKey('read_announcements', currentUser);
-
-    // Listen to storage updates from other tabs for this user
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === currentKey || e.key === 'epos_read_announcements') {
-        loadReadState();
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    
-    // Fetch latest announcements from API with fallback to bundled data
+    // 1. Fetch latest announcements from API
     fetch('/api/public/announcements')
       .then(res => res.json())
       .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setAnnouncements(data);
         } else {
-          setAnnouncements(initialAnnouncements as Announcement[]);
+          setAnnouncements([]);
         }
       })
       .catch(() => {
-        setAnnouncements(initialAnnouncements as Announcement[]);
+        setAnnouncements([]);
       });
 
+    // 2. Fetch server-side read IDs if authenticated and merge
+    if (authToken) {
+      fetch('/api/public/announcements/read-ids', { headers: authHeaders })
+        .then(res => res.json())
+        .then(data => {
+          if (data && Array.isArray(data.readIds) && data.readIds.length > 0) {
+            setReadIds(prev => {
+              const merged = Array.from(new Set([...prev, ...data.readIds.map(String)]));
+              saveStoredReadIds(merged);
+              return merged;
+            });
+          }
+        })
+        .catch(() => {});
+    }
+
+    // Listen to storage updates from other tabs
+    const handleStorage = (e: StorageEvent) => {
+      const userKey = getUserReadStorageKey(currentUser);
+      if (e.key === userKey || e.key === 'epos_read_announcements') {
+        setReadIds(getStoredReadIds());
+      }
+    };
+    window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
-  }, [currentUser]);
+  }, [currentUser?.id, token]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -92,11 +147,21 @@ export default function NotificationBell() {
   const markAllAsRead = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const allIds = announcements.map(a => String(a.id));
-    setReadIds(allIds);
-    try {
-      setScopedLocalStorage('read_announcements', allIds, currentUser);
-    } catch (e) {
-      console.error('Failed to save read announcements to localStorage', e);
+    const merged = Array.from(new Set([...readIds, ...allIds]));
+    setReadIds(merged);
+    saveStoredReadIds(merged);
+
+    // Sync with server DB if authenticated
+    const authToken = token || sessionStorage.getItem('epos_token');
+    if (authToken && allIds.length > 0) {
+      fetch('/api/public/announcements/mark-all-read', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ ids: allIds })
+      }).catch(() => {});
     }
   };
 
@@ -105,10 +170,19 @@ export default function NotificationBell() {
     if (!readIds.includes(strId)) {
       const updated = [...readIds, strId];
       setReadIds(updated);
-      try {
-        setScopedLocalStorage('read_announcements', updated, currentUser);
-      } catch (e) {
-        console.error('Failed to save read announcements to localStorage', e);
+      saveStoredReadIds(updated);
+
+      // Sync with server DB if authenticated
+      const authToken = token || sessionStorage.getItem('epos_token');
+      if (authToken) {
+        fetch('/api/public/announcements/mark-read', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ ids: [strId] })
+        }).catch(() => {});
       }
     }
   };
@@ -156,7 +230,7 @@ export default function NotificationBell() {
       >
         <Bell size={22} />
         {unreadCount > 0 && (
-          <span className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-600 rounded-full shadow-xs ring-2 ring-white dark:ring-neutral-900">
+          <span className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-600 rounded-full shadow-xs ring-2 ring-white dark:ring-neutral-900 animate-in fade-in zoom-in-75 duration-200">
             {unreadCount}
           </span>
         )}
@@ -190,42 +264,50 @@ export default function NotificationBell() {
           </div>
 
           {/* Category Filter Chips */}
-          <div className="px-3 py-2 bg-neutral-50 dark:bg-neutral-850 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-1.5 overflow-x-auto text-xs">
-            <button
-              onClick={() => setSelectedCategory('all')}
-              className={`px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer ${
-                selectedCategory === 'all'
-                  ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900'
-                  : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100'
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setSelectedCategory('feature')}
-              className={`px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer ${
-                selectedCategory === 'feature'
-                  ? 'bg-red-600 text-white'
-                  : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100'
-              }`}
-            >
-              Features
-            </button>
-            <button
-              onClick={() => setSelectedCategory('setting')}
-              className={`px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer ${
-                selectedCategory === 'setting'
-                  ? 'bg-amber-600 text-white'
-                  : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100'
-              }`}
-            >
-              Settings
-            </button>
-          </div>
+          {announcements.length > 0 && (
+            <div className="px-3 py-2 bg-neutral-50 dark:bg-neutral-850 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-1.5 overflow-x-auto text-xs">
+              <button
+                onClick={() => setSelectedCategory('all')}
+                className={`px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer ${
+                  selectedCategory === 'all'
+                    ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900'
+                    : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setSelectedCategory('feature')}
+                className={`px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer ${
+                  selectedCategory === 'feature'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100'
+                }`}
+              >
+                Features
+              </button>
+              <button
+                onClick={() => setSelectedCategory('setting')}
+                className={`px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer ${
+                  selectedCategory === 'setting'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100'
+                }`}
+              >
+                Settings
+              </button>
+            </div>
+          )}
 
           {/* Announcements List */}
           <div className="max-h-80 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800">
-            {filteredAnnouncements.length === 0 ? (
+            {announcements.length === 0 ? (
+              <div className="p-8 text-center text-xs text-neutral-500 flex flex-col items-center justify-center gap-2">
+                <Megaphone size={24} className="text-neutral-400 opacity-50" />
+                <p className="font-medium text-neutral-600 dark:text-neutral-300">No new updates or announcements</p>
+                <p className="text-[11px] text-neutral-400">You're all caught up with the latest system features.</p>
+              </div>
+            ) : filteredAnnouncements.length === 0 ? (
               <div className="p-6 text-center text-xs text-neutral-500 italic">
                 No updates in this category
               </div>

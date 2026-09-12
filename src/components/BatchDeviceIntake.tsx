@@ -21,6 +21,7 @@ import {
   X
 } from 'lucide-react';
 import { Branch, Supplier } from '../types';
+import { invalidateCache } from '../utils/cache';
 
 interface SerializedProductOption {
   product_id: number;
@@ -590,6 +591,8 @@ export default function BatchDeviceIntake({
       }
 
       const result = await res.json();
+      invalidateCache('devices_');
+      invalidateCache('products_');
       const devicesWithSelected: SavedDevice[] = (result.devices || []).map((d: any) => ({
         ...d,
         selected: true

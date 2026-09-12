@@ -42,7 +42,7 @@ export const ActivityReport: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const limit = 50;
+  const [limit, setLimit] = useState(50);
 
   // Date Range calculation matching InvoiceList
   const getLocalDateString = (date = new Date()) => {
@@ -63,7 +63,7 @@ export const ActivityReport: React.FC = () => {
   const [users, setUsers] = useState<UserOption[]>([]);
   const [activityTypes, setActivityTypes] = useState<string[]>([]);
 
-  const fetchLogs = async (targetPage = page) => {
+  const fetchLogs = async (targetPage = page, targetLimit = limit) => {
     setLoading(true);
     try {
       let start = '';
@@ -99,7 +99,7 @@ export const ActivityReport: React.FC = () => {
 
       const params = new URLSearchParams();
       params.append('page', String(targetPage));
-      params.append('limit', String(limit));
+      params.append('limit', String(targetLimit));
 
       if (start) params.append('start_date', start);
       if (end) params.append('end_date', end);
@@ -126,14 +126,14 @@ export const ActivityReport: React.FC = () => {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchLogs(1);
+      fetchLogs(1, limit);
       setPage(1);
     }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
   useEffect(() => {
-    fetchLogs(1);
+    fetchLogs(1, limit);
     setPage(1);
   }, [dateRange, customStart, customEnd, selectedActivity, selectedUser]);
 
@@ -464,17 +464,35 @@ export const ActivityReport: React.FC = () => {
         </table>
       </div>
 
-      {/* Footer Pagination matching InvoiceList */}
+      {/* Footer Pagination matching InvoiceList & ProductList */}
       <div className="p-2 bg-white dark:bg-black border-t border-neutral-200 dark:border-neutral-850 flex justify-between items-center text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
-        <div className="flex items-center gap-4">
-          <span className="font-normal">
-            {logs.length > 0 ? (page - 1) * limit + 1 : 0}-{Math.min(page * limit, total)} of {total} records
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-neutral-500">Show:</span>
+            <select
+              value={limit}
+              onChange={(e) => {
+                const newLimit = Number(e.target.value);
+                setLimit(newLimit);
+                setPage(1);
+                fetchLogs(1, newLimit);
+              }}
+              className="bg-white text-neutral-900 border border-neutral-300 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-700 rounded-none px-2 py-0.5 outline-none text-xs cursor-pointer h-7 font-normal"
+              title="Select records per page"
+            >
+              <option value={50}>50 records</option>
+              <option value={100}>100 records</option>
+              <option value={200}>200 records</option>
+            </select>
+          </div>
+          <span className="font-normal text-xs text-neutral-600 dark:text-neutral-400">
+            {logs.length > 0 ? `${(page - 1) * limit + 1}-${Math.min(page * limit, total)} of ${total} records` : '0 of 0 records'}
           </span>
         </div>
         
         <div className="flex items-center gap-1">
           <button 
-            onClick={() => { if (page > 1) { setPage(page - 1); fetchLogs(page - 1); } }}
+            onClick={() => { if (page > 1) { setPage(page - 1); fetchLogs(page - 1, limit); } }}
             disabled={page <= 1 || loading}
             className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 rounded-none bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-850 text-neutral-850 dark:text-neutral-200 disabled:opacity-40 cursor-pointer"
           >
@@ -484,7 +502,7 @@ export const ActivityReport: React.FC = () => {
             {page} / {totalPages}
           </span>
           <button 
-            onClick={() => { if (page < totalPages) { setPage(page + 1); fetchLogs(page + 1); } }}
+            onClick={() => { if (page < totalPages) { setPage(page + 1); fetchLogs(page + 1, limit); } }}
             disabled={page >= totalPages || loading}
             className="px-2 py-0.5 border border-neutral-200 dark:border-neutral-800 rounded-none bg-neutral-200 dark:bg-neutral-900 hover:bg-neutral-300 dark:hover:bg-neutral-850 text-neutral-850 dark:text-neutral-200 disabled:opacity-40 cursor-pointer"
           >

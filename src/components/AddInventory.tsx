@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Plus, Trash2, Save, Smartphone, AlertTriangle, Check, Printer, CheckCircle2, RotateCcw, CheckSquare, Square, PackageCheck, Layers } from 'lucide-react';
 import { Product, Branch, Supplier } from '../types';
+import { invalidateCache } from '../utils/cache';
 
 interface SerializedItem {
   imei: string;
@@ -343,6 +344,8 @@ export default function AddInventory({
         body: JSON.stringify(payload)
       });
       if (res.ok) {
+        invalidateCache('products_');
+        invalidateCache('devices_');
         const data = await res.json();
         if (product?.product_type === 'serialized' && data.devices && data.devices.length > 0) {
           setSavedBatch(data.devices.map((d: any) => ({ ...d, selected: true })));

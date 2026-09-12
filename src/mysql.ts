@@ -167,7 +167,7 @@ export async function getBranchPrefix(branchId?: number | null, fallback = 'SKU'
 
 // ─── Schema Initialisation ───────────────────────────────────────────────────
 
-export const CURRENT_SCHEMA_VERSION = '2026_09_VAT_AND_FOOTER_V1';
+export const CURRENT_SCHEMA_VERSION = '2026_09_NOTIF_AND_LOGS_V1';
 
 async function ensureIndex(conn: any, tableName: string, indexName: string, columns: string) {
   try {
@@ -952,6 +952,17 @@ export async function initSchema() {
         counted DECIMAL(10,2) DEFAULT 0,
         difference DECIMAL(10,2) DEFAULT 0,
         FOREIGN KEY (report_id) REFERENCES closing_reports(id) ON DELETE CASCADE
+      )
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS user_read_announcements (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        announcement_id VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_user_announcement (user_id, announcement_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
 

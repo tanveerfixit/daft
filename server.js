@@ -904,6 +904,16 @@ async function initSchema() {
         FOREIGN KEY (report_id) REFERENCES closing_reports(id) ON DELETE CASCADE
       )
     `);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS user_read_announcements (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        announcement_id VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_user_announcement (user_id, announcement_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
     try {
       await conn.query("ALTER TABLE jobs ADD COLUMN total_quote DECIMAL(10,2) DEFAULT 0 AFTER status");
       await conn.query("ALTER TABLE jobs ADD COLUMN deposit_paid DECIMAL(10,2) DEFAULT 0 AFTER total_quote");
@@ -1523,7 +1533,7 @@ var init_mysql = __esm({
       } catch {
       }
     });
-    CURRENT_SCHEMA_VERSION = "2026_09_VAT_AND_FOOTER_V1";
+    CURRENT_SCHEMA_VERSION = "2026_09_NOTIF_AND_LOGS_V1";
   }
 });
 
@@ -2704,11 +2714,23 @@ __export(public_exports, {
   default: () => public_default
 });
 import { Router as Router2 } from "express";
-var router2, public_default;
+import jwt2 from "jsonwebtoken";
+function getUserIdFromReq(req) {
+  const token = req.headers["authorization"]?.replace("Bearer ", "");
+  if (!token) return null;
+  try {
+    const decoded = jwt2.verify(token, JWT_SECRET2);
+    return decoded.userId || decoded.id || null;
+  } catch {
+    return null;
+  }
+}
+var router2, JWT_SECRET2, public_default;
 var init_public = __esm({
   "src/routes/public.ts"() {
     init_mysql();
     router2 = Router2();
+    JWT_SECRET2 = process.env.JWT_SECRET || "EPOS_SUPER_SECRET_FALLBACK_KEY_2026";
     router2.get("/business/:slug", async (req, res, next) => {
       const { slug } = req.params;
       try {
@@ -2736,9 +2758,69 @@ var init_public = __esm({
         const filePath = path.resolve(process.cwd(), "src", "data", "announcements.json");
         if (fs2.existsSync(filePath)) {
           const data = fs2.readFileSync(filePath, "utf-8");
-          return res.json(JSON.parse(data));
+          try {
+            return res.json(JSON.parse(data));
+          } catch {
+            return res.json([]);
+          }
         }
         res.json([]);
+      } catch (e) {
+        next(e);
+      }
+    });
+    router2.get("/announcements/read-ids", async (req, res) => {
+      try {
+        const userId = getUserIdFromReq(req);
+        if (!userId) {
+          return res.json({ readIds: [] });
+        }
+        const rows = await query("SELECT announcement_id FROM user_read_announcements WHERE user_id = ?", [userId]);
+        const readIds = (rows || []).map((r) => String(r.announcement_id));
+        res.json({ readIds });
+      } catch (e) {
+        res.json({ readIds: [] });
+      }
+    });
+    router2.post("/announcements/mark-read", async (req, res, next) => {
+      try {
+        const userId = getUserIdFromReq(req);
+        const { ids, id } = req.body;
+        const targetIds = Array.isArray(ids) ? ids.map(String) : id ? [String(id)] : [];
+        if (userId && targetIds.length > 0) {
+          for (const annId of targetIds) {
+            if (annId) {
+              await execute("INSERT IGNORE INTO user_read_announcements (user_id, announcement_id) VALUES (?, ?)", [userId, annId]);
+            }
+          }
+        }
+        res.json({ success: true, markedIds: targetIds });
+      } catch (e) {
+        next(e);
+      }
+    });
+    router2.post("/announcements/mark-all-read", async (req, res, next) => {
+      try {
+        const userId = getUserIdFromReq(req);
+        const fs2 = await import("fs");
+        const path = await import("path");
+        const filePath = path.resolve(process.cwd(), "src", "data", "announcements.json");
+        let targetIds = [];
+        if (fs2.existsSync(filePath)) {
+          try {
+            const data = JSON.parse(fs2.readFileSync(filePath, "utf-8"));
+            if (Array.isArray(data)) {
+              targetIds = data.map((a) => String(a.id));
+            }
+          } catch {
+          }
+        }
+        if (userId && targetIds.length > 0) {
+          for (const annId of targetIds) {
+            await execute("INSERT IGNORE INTO user_read_announcements (user_id, announcement_id) VALUES (?, ?)", [userId, annId]);
+          }
+        }
+        res.json({ success: true, markedIds: targetIds });
       } catch (e) {
         next(e);
       }

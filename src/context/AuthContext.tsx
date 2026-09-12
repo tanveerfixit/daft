@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { Clock, ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
 import { getScopedKey, clearUserBranchStorage } from '../utils/storage';
+import { clearAppCache } from '../utils/cache';
 
 interface User {
   id: number;
@@ -33,6 +34,7 @@ const WARNING_BEFORE_LOGOUT_MS = 2 * 60 * 1000;   // 2 minutes warning countdown
 
 export function clearAllBusinessStorage(user?: User | null) {
   clearUserBranchStorage(user);
+  clearAppCache();
 
   const keysToRemove = [
     'epos_token',

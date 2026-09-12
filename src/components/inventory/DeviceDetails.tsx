@@ -13,6 +13,7 @@ import {
   Camera,
   X
 } from 'lucide-react';
+import { invalidateCache } from '../../utils/cache';
 
 interface DeviceDetailsProps {
   deviceId: number;
@@ -297,6 +298,8 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
         body: JSON.stringify(editForm)
       });
       if (res.ok) {
+        invalidateCache('devices_');
+        invalidateCache('products_');
         setShowEditModal(false);
         fetchDevice();
         fetchActivity();
@@ -373,7 +376,11 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
     if (!window.confirm('Are you sure you want to remove this device from inventory?')) return;
     try {
       const res = await fetch(`/api/devices/${deviceId}`, { method: 'DELETE' });
-      if (res.ok) onBack();
+      if (res.ok) {
+        invalidateCache('devices_');
+        invalidateCache('products_');
+        onBack();
+      }
     } catch (err) {
       console.error('Error deleting device:', err);
     }
