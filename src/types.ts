@@ -166,6 +166,8 @@ export interface Repair {
   id: number;
   customer_id: number | null;
   customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
   phone?: string;
   device_model: string;
   issue: string;

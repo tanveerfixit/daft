@@ -29,12 +29,17 @@ const QUICK_REASONS = [
 ];
 
 export default function RepairUpdateModal({ repair, onClose, onSaved }: RepairUpdateModalProps) {
-  const [activeTab, setActiveTab] = useState<'status' | 'quote' | 'notes'>('status');
+  const [activeTab, setActiveTab] = useState<'status' | 'details' | 'quote' | 'notes'>('status');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   const [status, setStatus] = useState(repair.status || 'new');
+  const [customerName, setCustomerName] = useState(repair.customer_name || '');
+  const [customerPhone, setCustomerPhone] = useState(repair.customer_phone || '');
+  const [customerEmail, setCustomerEmail] = useState(repair.customer_email || '');
+  const [deviceModel, setDeviceModel] = useState(repair.device_model || '');
+  const [issue, setIssue] = useState(repair.issue || '');
   const [notes, setNotes] = useState('');
   const [quotePrice, setQuotePrice] = useState(repair.total_quote ? String(repair.total_quote) : '');
 
@@ -44,6 +49,10 @@ export default function RepairUpdateModal({ repair, onClose, onSaved }: RepairUp
   const remaining = Number(repair.remaining_balance || 0);
 
   const handleSave = async () => {
+    if (!deviceModel.trim()) {
+      setError('Device name cannot be empty.');
+      return;
+    }
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -55,6 +64,11 @@ export default function RepairUpdateModal({ repair, onClose, onSaved }: RepairUp
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status,
+          customer_name: customerName.trim() || 'Walk-in Customer',
+          customer_phone: customerPhone.trim(),
+          customer_email: customerEmail.trim() || null,
+          device_model: deviceModel.trim(),
+          issue: issue.trim(),
           notes: notes.trim() || undefined,
           total_quote: parsedQuote
         }),
@@ -125,23 +139,82 @@ export default function RepairUpdateModal({ repair, onClose, onSaved }: RepairUp
 
         {/* Tabs */}
         <div className="flex border-b border-[var(--border-base)] bg-[var(--bg-card)] shrink-0">
-          {(['status', 'quote', 'notes'] as const).map(tab => (
+          {(['status', 'details', 'quote', 'notes'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-5 py-2.5 text-sm font-bold capitalize transition-colors border-b-2 ${
+              className={`px-4 py-2.5 text-sm font-bold capitalize transition-colors border-b-2 cursor-pointer ${
                 activeTab === tab
                   ? 'border-[var(--brand-primary)] text-[var(--brand-primary)]'
                   : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-main)]'
               }`}
             >
-              {tab === 'status' ? '📋 Status' : tab === 'quote' ? '💶 Quote Price' : '📝 Notes'}
+              {tab === 'status' ? '📋 Status' : tab === 'details' ? '👤 Profile & Device' : tab === 'quote' ? '💶 Quote Price' : '📝 Notes'}
             </button>
           ))}
         </div>
 
         {/* Tab Content */}
         <div className="flex-1 overflow-auto p-6">
+
+          {/* DETAILS TAB */}
+          {activeTab === 'details' && (
+            <div className="space-y-3.5">
+              <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">Customer & Device Information</p>
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-main)] mb-1">Customer Name</label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={e => setCustomerName(e.target.value)}
+                  placeholder="Customer full name"
+                  className="w-full border border-[var(--border-input)] rounded px-3 py-2 text-sm focus:border-[var(--brand-primary)] focus:outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-[var(--text-main)] mb-1">Customer Phone</label>
+                  <input
+                    type="text"
+                    value={customerPhone}
+                    onChange={e => setCustomerPhone(e.target.value)}
+                    placeholder="Phone number"
+                    className="w-full border border-[var(--border-input)] rounded px-3 py-2 text-sm focus:border-[var(--brand-primary)] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[var(--text-main)] mb-1">Customer Email</label>
+                  <input
+                    type="email"
+                    value={customerEmail}
+                    onChange={e => setCustomerEmail(e.target.value)}
+                    placeholder="Optional email"
+                    className="w-full border border-[var(--border-input)] rounded px-3 py-2 text-sm focus:border-[var(--brand-primary)] focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-main)] mb-1">Device Name / Model *</label>
+                <input
+                  type="text"
+                  value={deviceModel}
+                  onChange={e => setDeviceModel(e.target.value)}
+                  placeholder="e.g. iPhone 14 Pro Max"
+                  className="w-full border border-[var(--border-input)] rounded px-3 py-2 text-sm font-bold focus:border-[var(--brand-primary)] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-main)] mb-1">Fault / Problem Description</label>
+                <textarea
+                  rows={3}
+                  value={issue}
+                  onChange={e => setIssue(e.target.value)}
+                  placeholder="Describe the fault or repair needed..."
+                  className="w-full border border-[var(--border-input)] rounded px-3 py-2 text-sm focus:border-[var(--brand-primary)] focus:outline-none resize-none"
+                />
+              </div>
+            </div>
+          )}
 
           {/* STATUS TAB */}
           {activeTab === 'status' && (

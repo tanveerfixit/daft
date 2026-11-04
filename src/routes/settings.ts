@@ -181,23 +181,24 @@ const companySchema = z.object({
 router.post('/company', async (req: any, res, next) => {
   const data = companySchema.parse(req.body);
   const { name, email, phone, subdomain, address, city, state, zip_code, country, vat_number } = data;
+  const safeName = name && name.trim() ? name.trim() : null;
   try {
     const branchId = req.user?.branch_id;
     if (branchId) {
       try {
-        await execute('UPDATE branches SET name=COALESCE(?, name), email=?, phone=?, address=?, vat_number=? WHERE id=? AND business_id=?',
-          [name, email, phone, address, vat_number || null, branchId, req.user.business_id]);
+        await execute('UPDATE branches SET name=COALESCE(?, name), email=COALESCE(NULLIF(?, \'\'), email), phone=COALESCE(NULLIF(?, \'\'), phone), address=COALESCE(NULLIF(?, \'\'), address), vat_number=COALESCE(?, vat_number) WHERE id=? AND business_id=?',
+          [safeName, email ?? '', phone ?? '', address ?? '', vat_number || null, branchId, req.user.business_id]);
       } catch (branchErr: any) {
-        await execute('UPDATE branches SET name=COALESCE(?, name), email=?, phone=?, address=? WHERE id=? AND business_id=?',
-          [name, email, phone, address, branchId, req.user.business_id]);
+        await execute('UPDATE branches SET name=COALESCE(?, name), email=COALESCE(NULLIF(?, \'\'), email), phone=COALESCE(NULLIF(?, \'\'), phone), address=COALESCE(NULLIF(?, \'\'), address) WHERE id=? AND business_id=?',
+          [safeName, email ?? '', phone ?? '', address ?? '', branchId, req.user.business_id]);
       }
     }
     try {
-      await execute('UPDATE businesses SET name=?,email=?,phone=?,subdomain=?,address=?,city=?,state=?,zip_code=?,country=?,vat_number=? WHERE id=?',
-        [name, email, phone, subdomain, address, city, state, zip_code, country, vat_number || null, req.user.business_id]);
+      await execute('UPDATE businesses SET name=COALESCE(?, name), email=COALESCE(NULLIF(?, \'\'), email), phone=COALESCE(NULLIF(?, \'\'), phone), subdomain=COALESCE(NULLIF(?, \'\'), subdomain), address=COALESCE(NULLIF(?, \'\'), address), city=COALESCE(NULLIF(?, \'\'), city), state=COALESCE(NULLIF(?, \'\'), state), zip_code=COALESCE(NULLIF(?, \'\'), zip_code), country=COALESCE(NULLIF(?, \'\'), country), vat_number=COALESCE(?, vat_number) WHERE id=?',
+        [safeName, email ?? '', phone ?? '', subdomain ?? '', address ?? '', city ?? '', state ?? '', zip_code ?? '', country ?? '', vat_number || null, req.user.business_id]);
     } catch (busErr: any) {
-      await execute('UPDATE businesses SET name=?,email=?,phone=?,subdomain=?,address=?,city=?,state=?,zip_code=?,country=? WHERE id=?',
-        [name, email, phone, subdomain, address, city, state, zip_code, country, req.user.business_id]);
+      await execute('UPDATE businesses SET name=COALESCE(?, name), email=COALESCE(NULLIF(?, \'\'), email), phone=COALESCE(NULLIF(?, \'\'), phone), subdomain=COALESCE(NULLIF(?, \'\'), subdomain), address=COALESCE(NULLIF(?, \'\'), address), city=COALESCE(NULLIF(?, \'\'), city), state=COALESCE(NULLIF(?, \'\'), state), zip_code=COALESCE(NULLIF(?, \'\'), zip_code), country=COALESCE(NULLIF(?, \'\'), country) WHERE id=?',
+        [safeName, email ?? '', phone ?? '', subdomain ?? '', address ?? '', city ?? '', state ?? '', zip_code ?? '', country ?? '', req.user.business_id]);
     }
     res.json({ success: true });
   } catch (e: any) {

@@ -1,28 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import { X, ChevronDown, ChevronUp, Save, Smartphone, Phone, Mail, User, CreditCard, Wrench } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, ChevronDown, ChevronUp, Save, Smartphone, Phone, Mail, User, CreditCard, Wrench, UserCheck } from 'lucide-react';
 import { Customer } from '../types';
+
+export interface InitialRepairCustomer {
+  id?: number | null;
+  name?: string;
+  phone?: string;
+  email?: string;
+}
 
 interface RepairIntakeFormProps {
   onClose: () => void;
   onSuccess: (jobId: number, takeDepositAmount?: number, jobDetails?: any) => void;
   initialCustomerId?: number | null;
+  initialCustomer?: InitialRepairCustomer | null;
 }
 
-export default function RepairIntakeForm({ onClose, onSuccess, initialCustomerId }: RepairIntakeFormProps) {
+export default function RepairIntakeForm({
+  onClose,
+  onSuccess,
+  initialCustomerId,
+  initialCustomer
+}: RepairIntakeFormProps) {
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [searchPhone, setSearchPhone] = useState('');
+  const [searchPhone, setSearchPhone] = useState(initialCustomer?.phone || '');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const deviceInputRef = useRef<HTMLInputElement>(null);
   
   // Two-way view state: Short by default, extended on "More info"
   const [showMoreInfo, setShowMoreInfo] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
-    customer_id: initialCustomerId || null,
-    full_name: '',
-    phone: '',
-    email: '',
+    customer_id: initialCustomer?.id || initialCustomerId || null,
+    full_name: initialCustomer?.name || '',
+    phone: initialCustomer?.phone || '',
+    email: initialCustomer?.email || '',
     country_code: '+353',
     device_model: '',
     issue: '',
@@ -30,47 +45,119 @@ export default function RepairIntakeForm({ onClose, onSuccess, initialCustomerId
     deposit_amount: '' as string | number
   });
 
+  // Pre-fill when initialCustomer is passed directly
+  useEffect(() => {
+    if (initialCustomer && (initialCustomer.name || initialCustomer.phone || initialCustomer.id)) {
+      const rawPhone = initialCustomer.phone || '';
+      setSearchPhone(rawPhone);
+      setFormData(prev => ({
+        ...prev,
+        customer_id: initialCustomer.id || prev.customer_id || null,
+        full_name: initialCustomer.name || prev.full_name,
+        phone: rawPhone,
+        email: initialCustomer.email || prev.email
+      }));
+      setTimeout(() => deviceInputRef.current?.focus(), 100);
+    }
+  }, [initialCustomer]);
+
   // Fetch customer directory for phone lookup
   useEffect(() => {
     fetch('/api/customers')
       .then(res => res.json())
       .then(data => {
-        setCustomers(Array.isArray(data) ? data : []);
+        const list: Customer[] = Array.isArray(data) ? data : [];
+        setCustomers(list);
+
+        const targetId = initialCustomer?.id || initialCustomerId;
+        if (targetId) {
+          const found = list.find(c => Number(c.id) === Number(targetId));
+          if (found) {
+            const name = found.name || `${found.first_name || ''} ${found.last_name || ''}`.trim();
+            setSelectedCustomer(found);
+            setSearchPhone(found.phone || initialCustomer?.phone || '');
+            setFormData(prev => ({
+              ...prev,
+              customer_id: found.id,
+              full_name: name || prev.full_name,
+              email: found.email || prev.email,
+              phone: found.phone || prev.phone
+            }));
+            setTimeout(() => deviceInputRef.current?.focus(), 100);
+          }
+        }
       })
       .catch(err => console.error('Failed to fetch customers:', err));
-  }, []);
+  }, [initialCustomerId, initialCustomer]);
 
   // Handle phone search and auto-fill
-  useEffect(() => {
-    const cleanSearch = searchPhone.replace(/[\s\-\(\)]/g, '');
+  const handlePhoneChange = (val: string) => {
+    setSearchPhone(val);
+    setShowSuggestions(true);
+    const cleanSearch = val.replace(/[\s\-\(\)]/g, '');
     const targetLength = cleanSearch.startsWith('0') ? 10 : 9;
-    
+
     if (cleanSearch.length >= targetLength) {
       const match = customers.find(c => {
         const cleanPhone = (c.phone || '').replace(/[\s\-\(\)]/g, '');
         if (!cleanPhone) return false;
         return cleanPhone === cleanSearch || cleanPhone.endsWith(cleanSearch) || cleanSearch.endsWith(cleanPhone);
       });
-      
+
       if (match) {
         setSelectedCustomer(match);
         const name = match.name || `${match.first_name || ''} ${match.last_name || ''}`.trim();
-        setFormData(prev => ({ 
-          ...prev, 
-          customer_id: match.id, 
+        setFormData(prev => ({
+          ...prev,
+          customer_id: match.id,
           full_name: name || prev.full_name,
           email: match.email || prev.email,
-          phone: match.phone 
+          phone: match.phone
         }));
-      } else {
-        setSelectedCustomer(null);
-        setFormData(prev => ({ ...prev, customer_id: null, phone: searchPhone }));
+        return;
       }
-    } else {
-      setSelectedCustomer(null);
-      setFormData(prev => ({ ...prev, customer_id: null, phone: searchPhone }));
     }
-  }, [searchPhone, customers]);
+
+    if (selectedCustomer && val !== selectedCustomer.phone) {
+      setSelectedCustomer(null);
+      setFormData(prev => ({ ...prev, customer_id: null, phone: val }));
+    } else {
+      setFormData(prev => ({ ...prev, phone: val }));
+    }
+  };
+
+  const selectExistingCustomer = (cust: Customer) => {
+    const name = cust.name || `${cust.first_name || ''} ${cust.last_name || ''}`.trim();
+    setSelectedCustomer(cust);
+    setSearchPhone(cust.phone || '');
+    setFormData(prev => ({
+      ...prev,
+      customer_id: cust.id,
+      full_name: name,
+      phone: cust.phone || '',
+      email: cust.email || ''
+    }));
+    setShowSuggestions(false);
+    setTimeout(() => deviceInputRef.current?.focus(), 80);
+  };
+
+  // Matching customers for dropdown autocomplete (by phone or name)
+  const matchingCustomers = React.useMemo(() => {
+    if (selectedCustomer) return [];
+    const qPhone = searchPhone.trim().toLowerCase();
+    const qName = formData.full_name.trim().toLowerCase();
+    if (qPhone.length < 2 && qName.length < 2) return [];
+
+    return customers
+      .filter(c => {
+        const cName = (c.name || `${c.first_name || ''} ${c.last_name || ''}`).toLowerCase();
+        const cPhone = (c.phone || '').toLowerCase();
+        if (qPhone.length >= 2 && cPhone.includes(qPhone)) return true;
+        if (qName.length >= 2 && cName.includes(qName)) return true;
+        return false;
+      })
+      .slice(0, 5);
+  }, [customers, searchPhone, formData.full_name, selectedCustomer]);
 
   const quickIssues = [
     'Screen Replacement',
@@ -108,13 +195,20 @@ export default function RepairIntakeForm({ onClose, onSuccess, initialCustomerId
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
 
+      const rawPhone = (formData.phone || searchPhone || '').trim();
+      const formattedPhone = !rawPhone
+        ? ''
+        : rawPhone.startsWith('+')
+          ? rawPhone
+          : `${formData.country_code}${rawPhone}`;
+
       const payload = {
         customer_id: formData.customer_id,
         customer_name: formData.full_name.trim(),
         first_name: firstName,
         last_name: lastName,
         email: formData.email.trim() || null,
-        phone: formData.phone.startsWith('+') ? formData.phone : `${formData.country_code}${formData.phone}`,
+        phone: formattedPhone,
         device_model: formData.device_model.trim(),
         issue: formData.issue.trim() || 'General Inspection / Repair',
         total_quote: parsedQuote,
@@ -196,9 +290,9 @@ export default function RepairIntakeForm({ onClose, onSuccess, initialCustomerId
                 <Phone size={16} className="text-blue-600 dark:text-blue-400" />
                 Phone Number <span className="text-red-500">*</span>
               </span>
-              {selectedCustomer && (
+              {(selectedCustomer || formData.customer_id) && (
                 <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                  ✓ Returning Customer
+                  ✓ Returning Customer Linked
                 </span>
               )}
             </label>
@@ -214,13 +308,49 @@ export default function RepairIntakeForm({ onClose, onSuccess, initialCustomerId
               </select>
               <input
                 type="tel"
-                required
+                required={!formData.customer_id}
                 className="flex-1 h-12 border-2 border-neutral-300 dark:border-neutral-700 rounded px-3.5 sm:px-4 text-base sm:text-lg font-mono text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 bg-white dark:bg-neutral-900 focus:border-blue-600 focus:ring-4 focus:ring-blue-500/15 outline-none transition-all"
                 placeholder="e.g. 087 123 4567"
                 value={searchPhone}
-                onChange={e => setSearchPhone(e.target.value)}
+                onChange={e => handlePhoneChange(e.target.value)}
+                onFocus={() => setShowSuggestions(true)}
               />
             </div>
+
+            {/* Returning Customer Autocomplete Suggestions */}
+            {showSuggestions && matchingCustomers.length > 0 && (
+              <div className="mt-1.5 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded shadow-lg overflow-hidden z-30">
+                <div className="px-3 py-1 bg-neutral-100 dark:bg-neutral-800 text-xs font-bold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <UserCheck size={13} />
+                    Select Existing Customer:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSuggestions(false)}
+                    className="text-neutral-500 hover:text-neutral-800 text-xs cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="divide-y divide-neutral-200 dark:divide-neutral-800 max-h-36 overflow-y-auto">
+                  {matchingCustomers.map(cust => {
+                    const cName = cust.name || `${cust.first_name || ''} ${cust.last_name || ''}`.trim();
+                    return (
+                      <button
+                        key={cust.id}
+                        type="button"
+                        onClick={() => selectExistingCustomer(cust)}
+                        className="w-full px-3 py-2 text-left hover:bg-blue-50 dark:hover:bg-blue-950/40 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{cName}</span>
+                        <span className="text-xs font-mono text-blue-600 dark:text-blue-400">{cust.phone || '—'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 2. Full Name */}
@@ -235,7 +365,10 @@ export default function RepairIntakeForm({ onClose, onSuccess, initialCustomerId
               placeholder="e.g. John Murphy"
               className="w-full h-12 border-2 border-neutral-300 dark:border-neutral-700 rounded px-3.5 sm:px-4 text-base sm:text-lg font-medium text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 bg-white dark:bg-neutral-900 focus:border-blue-600 focus:ring-4 focus:ring-blue-500/15 outline-none transition-all"
               value={formData.full_name}
-              onChange={e => setFormData({ ...formData, full_name: e.target.value })}
+              onChange={e => {
+                setFormData({ ...formData, full_name: e.target.value });
+                setShowSuggestions(true);
+              }}
             />
           </div>
 
@@ -261,6 +394,7 @@ export default function RepairIntakeForm({ onClose, onSuccess, initialCustomerId
               Device Name / Model <span className="text-red-500">*</span>
             </label>
             <input
+              ref={deviceInputRef}
               type="text"
               required
               placeholder="e.g. iPhone 13 Pro, Samsung S22, iPad 9th Gen"

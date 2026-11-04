@@ -705,6 +705,158 @@ router.get('/:id', async (req: any, res, next) => {
   } catch (e: any) { next(e); }
 });
 
+// Helper: Automatically sync newly created product to all other active businesses with 0 stock
+async function syncNewProductToOtherBusinesses(
+  conn: any,
+  sourceBusinessId: number,
+  params: {
+    name: string;
+    category_id?: number | null;
+    manufacturer_id?: number | null;
+    product_type?: string;
+    allow_overselling?: boolean | number;
+    min_stock_level?: number | null;
+    is_taxable?: boolean | number;
+    require_note?: boolean | number;
+    min_sales_price?: number | null;
+    additional_description?: string | null;
+    alert_message?: string | null;
+    cost_price?: number | null;
+    selling_price?: number | null;
+    barcode?: string | null;
+  }
+) {
+  try {
+    const cleanName = params.name.trim();
+    if (!cleanName) return;
+
+    // Resolve source category name & manufacturer name if IDs were passed
+    let sourceCategoryName: string | null = null;
+    if (params.category_id) {
+      const [catRows] = await conn.execute('SELECT name FROM categories WHERE id = ? LIMIT 1', [params.category_id]);
+      sourceCategoryName = (catRows as any[])[0]?.name || null;
+    }
+
+    let sourceManufacturerName: string | null = null;
+    if (params.manufacturer_id) {
+      const [mfgRows] = await conn.execute('SELECT name FROM manufacturers WHERE id = ? LIMIT 1', [params.manufacturer_id]);
+      sourceManufacturerName = (mfgRows as any[])[0]?.name || null;
+    }
+
+    // Fetch all other active businesses
+    const [targetBusinesses] = await conn.execute(
+      'SELECT id FROM businesses WHERE id != ? AND deleted_at IS NULL',
+      [sourceBusinessId]
+    );
+
+    for (const biz of targetBusinesses as any[]) {
+      const targetBizId = biz.id;
+
+      // Check if product name already exists in target business
+      const [existing] = await conn.execute(
+        'SELECT id FROM products WHERE business_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND deleted_at IS NULL LIMIT 1',
+        [targetBizId, cleanName]
+      );
+      if ((existing as any[]).length > 0) continue;
+
+      // Fetch target branches
+      const [branchRows] = await conn.execute(
+        'SELECT id FROM branches WHERE business_id = ? AND deleted_at IS NULL ORDER BY id ASC',
+        [targetBizId]
+      );
+      const branchIds = (branchRows as any[]).map(b => b.id);
+      const defaultBranchId = branchIds[0] || null;
+
+      // Resolve or create category in target business
+      let targetCategoryId: number | null = null;
+      if (sourceCategoryName) {
+        const [tCat] = await conn.execute(
+          'SELECT id FROM categories WHERE business_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1',
+          [targetBizId, sourceCategoryName]
+        );
+        if ((tCat as any[]).length > 0) {
+          targetCategoryId = (tCat as any[])[0].id;
+        } else {
+          const [insCat] = await conn.execute(
+            'INSERT INTO categories (business_id, branch_id, name) VALUES (?, ?, ?)',
+            [targetBizId, defaultBranchId, sourceCategoryName]
+          );
+          targetCategoryId = (insCat as any).insertId;
+        }
+      }
+
+      // Resolve or create manufacturer in target business
+      let targetManufacturerId: number | null = null;
+      if (sourceManufacturerName) {
+        const [tMfg] = await conn.execute(
+          'SELECT id FROM manufacturers WHERE business_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1',
+          [targetBizId, sourceManufacturerName]
+        );
+        if ((tMfg as any[]).length > 0) {
+          targetManufacturerId = (tMfg as any[])[0].id;
+        } else {
+          const [insMfg] = await conn.execute(
+            'INSERT INTO manufacturers (business_id, name) VALUES (?, ?)',
+            [targetBizId, sourceManufacturerName]
+          );
+          targetManufacturerId = (insMfg as any).insertId;
+        }
+      }
+
+      // Insert product into target business
+      const [insProd] = await conn.execute(
+        `INSERT INTO products 
+         (business_id, name, category_id, manufacturer_id, product_type, allow_overselling, min_stock_level, is_taxable, require_note, min_sales_price, additional_description, alert_message)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          targetBizId,
+          cleanName,
+          targetCategoryId,
+          targetManufacturerId,
+          params.product_type || 'stock',
+          params.allow_overselling === false || params.allow_overselling === 0 ? 0 : 1,
+          params.min_stock_level ?? null,
+          params.is_taxable === false || params.is_taxable === 0 ? 0 : 1,
+          params.require_note ? 1 : 0,
+          params.min_sales_price ?? null,
+          params.additional_description ?? null,
+          params.alert_message ?? null
+        ]
+      );
+      const targetProdId = (insProd as any).insertId;
+
+      const branchPrefix = await getBranchPrefix(defaultBranchId);
+      let targetSkuCode = `${branchPrefix}-${String(targetProdId).padStart(5, '0')}`;
+      const [dupCheck] = await conn.execute('SELECT id FROM product_skus WHERE sku_code = ? LIMIT 1', [targetSkuCode]);
+      if ((dupCheck as any[]).length > 0) {
+        targetSkuCode = `${targetSkuCode}-B${targetBizId}`;
+      }
+
+      const [insSku] = await conn.execute(
+        'INSERT INTO product_skus (product_id, sku_code, barcode, cost_price, selling_price) VALUES (?, ?, ?, ?, ?)',
+        [
+          targetProdId,
+          targetSkuCode,
+          params.barcode || targetSkuCode,
+          params.cost_price || 0,
+          params.selling_price || 0
+        ]
+      );
+      const targetSkuId = (insSku as any).insertId;
+
+      // Initialize branch_stock with quantity = 0 for every branch in target business
+      for (const bId of branchIds) {
+        await conn.execute(
+          'INSERT IGNORE INTO branch_stock (sku_id, branch_id, quantity) VALUES (?, ?, 0)',
+          [targetSkuId, bId]
+        );
+      }
+    }
+  } catch (syncErr: any) {
+    console.warn('[AutoSyncProduct] Non-fatal warning syncing product across businesses:', syncErr?.message);
+  }
+}
+
 // PUT /api/products/:id
 router.put('/:id', async (req: any, res, next) => {
   const { product_name, category_id, manufacturer_id, sku_code, barcode, selling_price, cost_price, product_type } = req.body;
@@ -713,16 +865,42 @@ router.put('/:id', async (req: any, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const [skuRows] = await conn.execute('SELECT s.*, p.business_id FROM product_skus s JOIN products p ON s.product_id = p.id WHERE s.id = ? AND p.business_id = ?', [skuId, businessId]);
+    const [skuRows] = await conn.execute(
+      'SELECT s.*, p.business_id, p.name as product_name FROM product_skus s JOIN products p ON s.product_id = p.id WHERE s.id = ? AND p.business_id = ?',
+      [skuId, businessId]
+    );
     const sku = (skuRows as any[])[0];
     if (!sku) throw new Error('Product not found in your business catalog');
+
+    const cleanNewName = String(product_name || sku.product_name).trim().replace(/\s+/g, ' ');
+
     await conn.execute('UPDATE product_skus SET sku_code=?,barcode=?,selling_price=?,cost_price=? WHERE id=?',
       [sku_code, barcode, selling_price, cost_price, skuId]);
     await conn.execute('UPDATE products SET name=?,category_id=?,manufacturer_id=?,product_type=? WHERE id=?',
-      [product_name, category_id, manufacturer_id, product_type, sku.product_id]);
+      [cleanNewName, category_id, manufacturer_id, product_type, sku.product_id]);
+
+    // If product name was updated, propagate the rename across other businesses that had the exact old name
+    if (sku.product_name && cleanNewName && sku.product_name.trim().toLowerCase() !== cleanNewName.toLowerCase()) {
+      const [otherBiz] = await conn.execute(
+        'SELECT id FROM businesses WHERE id != ? AND deleted_at IS NULL',
+        [businessId]
+      );
+      for (const b of otherBiz as any[]) {
+        const [conflict] = await conn.execute(
+          'SELECT id FROM products WHERE business_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND deleted_at IS NULL LIMIT 1',
+          [b.id, cleanNewName]
+        );
+        if ((conflict as any[]).length === 0) {
+          await conn.execute(
+            'UPDATE products SET name = ? WHERE business_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND deleted_at IS NULL',
+            [cleanNewName, b.id, sku.product_name]
+          );
+        }
+      }
+    }
     
     const changes: string[] = [];
-    if (product_name !== sku.product_name) changes.push(`Name: ${sku.product_name} -> ${product_name}`);
+    if (cleanNewName !== sku.product_name) changes.push(`Name: ${sku.product_name} -> ${cleanNewName}`);
     if (selling_price != sku.selling_price) changes.push(`Price: ${sku.selling_price} -> ${selling_price}`);
     if (cost_price != sku.cost_price) changes.push(`Cost: ${sku.cost_price} -> ${cost_price}`);
     if (sku_code !== sku.sku_code) changes.push(`SKU: ${sku.sku_code} -> ${sku_code}`);
@@ -766,9 +944,10 @@ const createProductSchema = z.object({
 router.post('/', async (req: any, res, next) => {
   const data = createProductSchema.parse(req.body);
   const { 
-    name, category_id, manufacturer_id, supplier_id, selling_price, cost_price, product_type, sku_code, barcode, allow_overselling,
+    name: rawName, category_id, manufacturer_id, supplier_id, selling_price, cost_price, product_type, sku_code, barcode, allow_overselling,
     min_stock_level, is_taxable, require_note, min_sales_price, additional_description, alert_message 
   } = data;
+  const name = rawName.trim().replace(/\s+/g, ' ');
   const businessId = req.user.business_id;
   const conn = await pool.getConnection();
   try {
@@ -805,6 +984,25 @@ router.post('/', async (req: any, res, next) => {
       [skuId, req.userId, 'Product Created', `Product "${name}" created with SKU ${finalSku}`]);
     await conn.execute('INSERT INTO activity_logs (business_id, branch_id, product_id, user_id, user_name, activity_type, description) VALUES (?,?,?,?,?,?,?)',
       [businessId, req.user.branch_id, productId, req.userId, req.user?.name || null, 'Product Created', `Product "${name}" created with SKU ${finalSku}`]);
+
+    // Auto-sync this new product name to all other businesses with 0 stock
+    await syncNewProductToOtherBusinesses(conn, businessId, {
+      name,
+      category_id,
+      manufacturer_id,
+      product_type,
+      allow_overselling,
+      min_stock_level,
+      is_taxable,
+      require_note,
+      min_sales_price,
+      additional_description,
+      alert_message,
+      cost_price,
+      selling_price,
+      barcode: barcode || null
+    });
+
     await conn.commit();
     res.json({ id: skuId });
   } catch (e: any) {
@@ -832,7 +1030,8 @@ const quickAddSchema = z.object({
 // POST /api/products/quick-add
 router.post('/quick-add', async (req: any, res, next) => {
   const data = quickAddSchema.parse(req.body);
-  const { name, category_id, manufacturer_id, supplier_id, selling_price, cost_price, sku_code, barcode, branch_id, quantity } = data;
+  const { name: rawName, category_id, manufacturer_id, supplier_id, selling_price, cost_price, sku_code, barcode, branch_id, quantity } = data;
+  const name = rawName.trim().replace(/\s+/g, ' ');
   const businessId = req.user.business_id;
   const activeBranchId = branch_id || req.user.branch_id;
   const stockQty = parseInt(String(quantity)) || 0;
@@ -885,6 +1084,18 @@ router.post('/quick-add', async (req: any, res, next) => {
         [businessId, activeBranchId, skuId, 'adjustment', stockQty, cost_price || 0, 'quick_add', skuId]
       );
     }
+
+    // Auto-sync this quick-added product to all other businesses with 0 stock
+    await syncNewProductToOtherBusinesses(conn, businessId, {
+      name,
+      category_id,
+      manufacturer_id,
+      product_type: 'stock',
+      allow_overselling: true,
+      cost_price: cost_price || 0,
+      selling_price: selling_price || 0,
+      barcode: barcode || null
+    });
 
     // 4. Fetch the full product to return to the cart
     const [prodRows] = await conn.execute(`
@@ -1039,6 +1250,62 @@ router.get('/categories/all', async (req: any, res, next) => {
 router.get('/manufacturers/all', async (req: any, res, next) => {
   try { res.json(await query('SELECT * FROM manufacturers WHERE business_id=?', [req.user.business_id])); }
   catch (e: any) { next(e); }
+});
+
+// POST /api/products/sync-catalog — Synchronize missing product names across all active businesses with 0 stock
+router.post('/sync-catalog', async (req: any, res, next) => {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Fetch all unique products across all active businesses (ordered by earliest created)
+    const [allProds] = await conn.execute(`
+      SELECT p.id, p.business_id, p.name, p.category_id, p.manufacturer_id, p.product_type,
+             p.allow_overselling, p.min_stock_level, p.is_taxable, p.require_note,
+             p.min_sales_price, p.additional_description, p.alert_message,
+             s.cost_price, s.selling_price, s.barcode
+      FROM products p
+      LEFT JOIN product_skus s ON s.product_id = p.id
+      JOIN businesses b ON p.business_id = b.id
+      WHERE p.deleted_at IS NULL AND b.deleted_at IS NULL
+      ORDER BY p.id ASC
+    `);
+
+    const seenNames = new Set<string>();
+    let syncedCount = 0;
+
+    for (const prod of allProds as any[]) {
+      const cleanKey = String(prod.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      if (!cleanKey || seenNames.has(cleanKey)) continue;
+      seenNames.add(cleanKey);
+
+      await syncNewProductToOtherBusinesses(conn, prod.business_id, {
+        name: String(prod.name).trim().replace(/\s+/g, ' '),
+        category_id: prod.category_id,
+        manufacturer_id: prod.manufacturer_id,
+        product_type: prod.product_type,
+        allow_overselling: prod.allow_overselling,
+        min_stock_level: prod.min_stock_level,
+        is_taxable: prod.is_taxable,
+        require_note: prod.require_note,
+        min_sales_price: prod.min_sales_price,
+        additional_description: prod.additional_description,
+        alert_message: prod.alert_message,
+        cost_price: prod.cost_price,
+        selling_price: prod.selling_price,
+        barcode: prod.barcode
+      });
+      syncedCount++;
+    }
+
+    await conn.commit();
+    res.json({ success: true, uniqueCatalogProductsChecked: syncedCount });
+  } catch (e: any) {
+    await conn.rollback();
+    next(e);
+  } finally {
+    conn.release();
+  }
 });
 
 export default router;

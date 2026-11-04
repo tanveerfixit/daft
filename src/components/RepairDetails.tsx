@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Printer, Tag, Phone, Mail, Wrench, Pencil, Save, Loader2, CreditCard, AlertTriangle, XCircle, RotateCcw, CheckCircle2 } from 'lucide-react';
+import { Printer, Tag, Phone, Mail, Pencil, Save, Loader2, CreditCard, AlertTriangle, XCircle, RotateCcw, CheckCircle2, UserPlus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import RepairIntakeForm from './RepairIntakeForm';
 import { printRepairDeviceLabel, printRepairCustomerReceipt } from '../utils/repairPrint';
+
+const slugify = (str: string) => str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
 interface RepairDetailsProps {
   repairId: number;
@@ -38,6 +43,10 @@ const QUICK_REASONS = [
 ];
 
 export default function RepairDetails({ repairId, onBack, onPayAtRegister, onViewInvoice }: RepairDetailsProps) {
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const branchSlug = slugify(currentUser?.branch_name || 'branch');
+
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('new');
@@ -47,9 +56,17 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
   const [isEditingFault, setIsEditingFault] = useState(false);
   const [faultText, setFaultText] = useState('');
   const [savingFault, setSavingFault] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editCustomerName, setEditCustomerName] = useState('');
+  const [editCustomerPhone, setEditCustomerPhone] = useState('');
+  const [editCustomerEmail, setEditCustomerEmail] = useState('');
+  const [editDeviceModel, setEditDeviceModel] = useState('');
+  const [editIssue, setEditIssue] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
   const [isEditingQuote, setIsEditingQuote] = useState(false);
   const [quoteInput, setQuoteInput] = useState('');
   const [savingQuote, setSavingQuote] = useState(false);
+  const [isNewJobModalOpen, setIsNewJobModalOpen] = useState(false);
 
   const fetchJob = async () => {
     try {
@@ -58,11 +75,47 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
       setJob(data);
       setStatus(data.status || 'new');
       setFaultText(data.issue || '');
+      setEditCustomerName(data.customer_name || '');
+      setEditCustomerPhone(data.customer_phone || '');
+      setEditCustomerEmail(data.customer_email || '');
+      setEditDeviceModel(data.device_model || '');
+      setEditIssue(data.issue || '');
       setQuoteInput(Number(data.total_quote || 0) > 0 ? String(data.total_quote) : '');
     } catch (err) {
       console.error('Failed to fetch repair:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editDeviceModel.trim()) {
+      alert('Device name cannot be empty.');
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      const res = await fetch(`/api/repairs/${repairId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_name: editCustomerName.trim() || 'Walk-in Customer',
+          customer_phone: editCustomerPhone.trim(),
+          customer_email: editCustomerEmail.trim() || null,
+          device_model: editDeviceModel.trim(),
+          issue: editIssue.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to update customer & device details');
+      }
+      await fetchJob();
+      setIsEditingProfile(false);
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -132,10 +185,6 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full min-h-[400px]">
@@ -184,6 +233,15 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => setIsNewJobModalOpen(true)}
+              className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+              title={`Create another repair job for ${customerName}`}
+            >
+              <UserPlus size={14} className="text-emerald-600" />
+              <span>+ New Repair for Customer</span>
+            </button>
+            <button
+              type="button"
               onClick={() => printRepairDeviceLabel(job)}
               className="px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-300 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
               title="Print Dymo Device Sticker (Attach to device)"
@@ -213,89 +271,225 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
             
             {/* Customer Profile Card */}
             <div className="bg-white border border-[#e5e7eb] rounded shadow-sm overflow-hidden">
-              <div className="p-5 border-b border-[#e5e7eb] bg-white text-center flex flex-col items-center">
-                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-3 text-2xl font-bold">
-                  {initial}
-                </div>
-                <h2 className="text-xl font-bold text-gray-900">{customerName}</h2>
-                {job.customer_phone ? (
-                  <p className="text-gray-500 text-sm mt-1 flex items-center gap-1">
-                    <Phone size={14} />
-                    <span>{job.customer_phone}</span>
-                  </p>
-                ) : (
-                  <p className="text-gray-400 text-xs mt-1">No phone number</p>
-                )}
-                {job.customer_email && (
-                  <p className="text-gray-500 text-xs mt-0.5 flex items-center gap-1">
-                    <Mail size={12} />
-                    <span>{job.customer_email}</span>
-                  </p>
+              <div className="bg-[#f8f9fa] px-4 py-2.5 border-b border-[#e5e7eb] flex justify-between items-center">
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Customer & Device Profile</span>
+                {!isEditingProfile && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditCustomerName(job.customer_name || '');
+                      setEditCustomerPhone(job.customer_phone || '');
+                      setEditCustomerEmail(job.customer_email || '');
+                      setEditDeviceModel(job.device_model || '');
+                      setEditIssue(job.issue || '');
+                      setIsEditingProfile(true);
+                    }}
+                    className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 rounded text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    title="Edit Customer Name, Device Name, or Fault"
+                  >
+                    <Pencil size={12} />
+                    <span>Edit Profile</span>
+                  </button>
                 )}
               </div>
-              <div className="p-0">
-                <table className="w-full text-sm text-left">
-                  <tbody className="divide-y divide-[#e5e7eb]">
-                    <tr className="bg-[#f8f9fa]">
-                      <td className="py-3 px-4 font-medium text-gray-500 w-1/3">Device</td>
-                      <td className="py-3 px-4 font-bold text-gray-900">{job.device_model}</td>
-                    </tr>
-                    <tr className="bg-white">
-                      <td className="py-3 px-4 font-medium text-gray-500 align-top">Fault</td>
-                      <td className="py-3 px-4 text-gray-700">
-                        {isEditingFault ? (
-                          <div className="flex flex-col gap-2">
-                            <textarea
-                              rows={2}
-                              value={faultText}
-                              onChange={(e) => setFaultText(e.target.value)}
-                              placeholder="Enter problem description..."
-                              className="w-full border border-gray-300 rounded p-2 text-xs text-gray-800 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                            <div className="flex items-center gap-2">
+
+              {isEditingProfile ? (
+                <div className="p-4 space-y-3 bg-white">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Customer Name</label>
+                    <input
+                      type="text"
+                      value={editCustomerName}
+                      onChange={(e) => setEditCustomerName(e.target.value)}
+                      placeholder="Customer full name"
+                      className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Phone Number</label>
+                      <input
+                        type="text"
+                        value={editCustomerPhone}
+                        onChange={(e) => setEditCustomerPhone(e.target.value)}
+                        placeholder="Phone number"
+                        className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Email (Optional)</label>
+                      <input
+                        type="email"
+                        value={editCustomerEmail}
+                        onChange={(e) => setEditCustomerEmail(e.target.value)}
+                        placeholder="Email address"
+                        className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Device Name / Model *</label>
+                    <input
+                      type="text"
+                      value={editDeviceModel}
+                      onChange={(e) => setEditDeviceModel(e.target.value)}
+                      placeholder="e.g. iPhone 14 Pro Max"
+                      className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm font-bold text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 uppercase mb-1">Fault / Problem Description</label>
+                    <textarea
+                      rows={3}
+                      value={editIssue}
+                      onChange={(e) => setEditIssue(e.target.value)}
+                      placeholder="Describe the fault or repair needed..."
+                      className="w-full border border-gray-300 rounded p-2 text-xs text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      disabled={savingProfile}
+                      onClick={handleSaveProfile}
+                      className="flex-1 py-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {savingProfile ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                      <span>Save Changes</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={savingProfile}
+                      onClick={() => setIsEditingProfile(false)}
+                      className="py-1.5 px-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded text-xs font-semibold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="p-5 border-b border-[#e5e7eb] bg-white text-center flex flex-col items-center">
+                    <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-3 text-2xl font-bold">
+                      {initial}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <h2 className="text-xl font-bold text-gray-900">{customerName}</h2>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditCustomerName(job.customer_name || '');
+                          setEditCustomerPhone(job.customer_phone || '');
+                          setEditCustomerEmail(job.customer_email || '');
+                          setEditDeviceModel(job.device_model || '');
+                          setEditIssue(job.issue || '');
+                          setIsEditingProfile(true);
+                        }}
+                        className="text-gray-400 hover:text-blue-600 transition-colors p-0.5 cursor-pointer"
+                        title="Edit Customer Profile"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    </div>
+                    {job.customer_phone ? (
+                      <p className="text-gray-500 text-sm mt-1 flex items-center gap-1">
+                        <Phone size={14} />
+                        <span>{job.customer_phone}</span>
+                      </p>
+                    ) : (
+                      <p className="text-gray-400 text-xs mt-1">No phone number</p>
+                    )}
+                    {job.customer_email && (
+                      <p className="text-gray-500 text-xs mt-0.5 flex items-center gap-1">
+                        <Mail size={12} />
+                        <span>{job.customer_email}</span>
+                      </p>
+                    )}
+                  </div>
+                  <div className="p-0">
+                    <table className="w-full text-sm text-left">
+                      <tbody className="divide-y divide-[#e5e7eb]">
+                        <tr className="bg-[#f8f9fa]">
+                          <td className="py-3 px-4 font-medium text-gray-500 w-1/3">Device</td>
+                          <td className="py-3 px-4 font-bold text-gray-900">
+                            <div className="flex items-center justify-between gap-2">
+                              <span>{job.device_model}</span>
                               <button
                                 type="button"
-                                disabled={savingFault}
-                                onClick={handleSaveFault}
-                                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                                onClick={() => {
+                                  setEditCustomerName(job.customer_name || '');
+                                  setEditCustomerPhone(job.customer_phone || '');
+                                  setEditCustomerEmail(job.customer_email || '');
+                                  setEditDeviceModel(job.device_model || '');
+                                  setEditIssue(job.issue || '');
+                                  setIsEditingProfile(true);
+                                }}
+                                className="text-gray-400 hover:text-blue-600 transition-colors p-0.5 cursor-pointer shrink-0"
+                                title="Edit Device Name"
                               >
-                                {savingFault ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                                <span>Save</span>
-                              </button>
-                              <button
-                                type="button"
-                                disabled={savingFault}
-                                onClick={() => { setIsEditingFault(false); setFaultText(job.issue || ''); }}
-                                className="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded text-xs font-semibold cursor-pointer"
-                              >
-                                Cancel
+                                <Pencil size={13} />
                               </button>
                             </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="whitespace-pre-wrap">{job.issue || 'General Inspection / Repair'}</span>
-                            <button
-                              type="button"
-                              onClick={() => setIsEditingFault(true)}
-                              className="text-gray-400 hover:text-blue-600 transition-colors p-0.5 cursor-pointer shrink-0"
-                              title="Edit Problem Description"
-                            >
-                              <Pencil size={13} />
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                    <tr className="bg-[#f8f9fa]">
-                      <td className="py-3 px-4 font-medium text-gray-500">Intake</td>
-                      <td className="py-3 px-4 text-gray-700 text-xs">
-                        {formatDate(job.created_at)} {formatTime(job.created_at)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                          </td>
+                        </tr>
+                        <tr className="bg-white">
+                          <td className="py-3 px-4 font-medium text-gray-500 align-top">Fault</td>
+                          <td className="py-3 px-4 text-gray-700">
+                            {isEditingFault ? (
+                              <div className="flex flex-col gap-2">
+                                <textarea
+                                  rows={2}
+                                  value={faultText}
+                                  onChange={(e) => setFaultText(e.target.value)}
+                                  placeholder="Enter problem description..."
+                                  className="w-full border border-gray-300 rounded p-2 text-xs text-gray-800 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={savingFault}
+                                    onClick={handleSaveFault}
+                                    className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                                  >
+                                    {savingFault ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                    <span>Save</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={savingFault}
+                                    onClick={() => { setIsEditingFault(false); setFaultText(job.issue || ''); }}
+                                    className="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded text-xs font-semibold cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="whitespace-pre-wrap">{job.issue || 'General Inspection / Repair'}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsEditingFault(true)}
+                                  className="text-gray-400 hover:text-blue-600 transition-colors p-0.5 cursor-pointer shrink-0"
+                                  title="Edit Problem Description"
+                                >
+                                  <Pencil size={13} />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                        <tr className="bg-[#f8f9fa]">
+                          <td className="py-3 px-4 font-medium text-gray-500">Intake</td>
+                          <td className="py-3 px-4 text-gray-700 text-xs">
+                            {formatDate(job.created_at)} {formatTime(job.created_at)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Financial Card */}
@@ -665,6 +859,34 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
           </div>
         </div>
       </main>
+
+      {/* New Repair Job Modal Pre-linked to Current Customer */}
+      {isNewJobModalOpen && (
+        <RepairIntakeForm
+          onClose={() => setIsNewJobModalOpen(false)}
+          initialCustomer={{
+            id: job.customer_id,
+            name: job.customer_name && job.customer_name !== 'Walk-in Customer' ? job.customer_name : '',
+            phone: job.customer_phone || '',
+            email: job.customer_email || ''
+          }}
+          initialCustomerId={job.customer_id}
+          onSuccess={(newJobId, takeDepositAmount, jobDetails) => {
+            setIsNewJobModalOpen(false);
+            if (takeDepositAmount && takeDepositAmount > 0 && jobDetails) {
+              onPayAtRegister({
+                jobId: newJobId,
+                customerId: jobDetails.customer_id,
+                amount: takeDepositAmount,
+                deviceModel: jobDetails.device_model,
+                label: `Repair Deposit #${newJobId} — ${jobDetails.device_model}`
+              });
+            } else {
+              navigate(`/${branchSlug}/repairs/${newJobId}`);
+            }
+          }}
+        />
+      )}
 
       {/* Hidden Print Container for Short Repair Ticket */}
       <div id="repair-thermal-receipt" className="hidden print:block fixed inset-0 bg-white z-[9999] p-4 text-black font-mono w-[72mm] leading-tight">

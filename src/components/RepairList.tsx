@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Printer, Tag, ExternalLink, X } from 'lucide-react';
+import { Plus, Search, Printer, Tag, X, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Repair } from '../types';
 import { useAuth } from '../context/AuthContext';
-import RepairIntakeForm from './RepairIntakeForm';
+import RepairIntakeForm, { InitialRepairCustomer } from './RepairIntakeForm';
 import { printRepairDeviceLabel, printRepairCustomerReceipt } from '../utils/repairPrint';
 
 const slugify = (str: string) => str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -20,6 +20,7 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [intakeCustomer, setIntakeCustomer] = useState<InitialRepairCustomer | null>(null);
   const [statusFilter, setStatusFilter] = useState('active');
 
   const fetchRepairs = async () => {
@@ -35,6 +36,7 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
   useEffect(() => {
     fetchRepairs();
     if (preSelectedCustomerId) {
+      setIntakeCustomer({ id: preSelectedCustomerId });
       setIsModalOpen(true);
       window.history.replaceState({}, document.title);
     }
@@ -97,13 +99,26 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
     }
   };
 
+  const handleOpenNewForCustomer = (repair: Repair) => {
+    setIntakeCustomer({
+      id: repair.customer_id,
+      name: repair.customer_name && repair.customer_name !== 'Walk-in Customer' ? repair.customer_name : '',
+      phone: (repair as any).customer_phone || repair.phone || '',
+      email: (repair as any).customer_email || ''
+    });
+    setIsModalOpen(true);
+  };
+
   return (
     <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-base px-2 pb-2 pt-0 select-none w-full" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
         <h2 className="font-medium text-black dark:text-white" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '24px' }}>Repair Jobs</h2>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setIntakeCustomer(null);
+            setIsModalOpen(true);
+          }}
           className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
         >
           <Plus size={16} />
@@ -189,7 +204,7 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
               <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 text-center">Device & Fault</th>
               <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-36 text-center">Phone</th>
               <th className="px-1.5 py-1 border-r border-neutral-300 dark:border-neutral-700 w-32 text-center">Status</th>
-              <th className="px-1.5 py-1 text-center w-20">Actions</th>
+              <th className="px-1.5 py-1 text-center w-28">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">
@@ -228,6 +243,14 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
                 </td>
                 <td className="px-1.5 py-0.5 text-center" onClick={e => e.stopPropagation()}>
                   <div className="flex items-center justify-center gap-1">
+                    <button
+                      type="button"
+                      title={`New Repair Job for ${repair.customer_name || 'this customer'}`}
+                      onClick={() => handleOpenNewForCustomer(repair)}
+                      className="p-1 text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-200 cursor-pointer transition-colors inline-flex items-center justify-center"
+                    >
+                      <UserPlus size={16} />
+                    </button>
                     <button
                       type="button"
                       title="Print Dymo Device Sticker (Attach to device)"
@@ -277,9 +300,15 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
 
       {isModalOpen && (
         <RepairIntakeForm
-          onClose={() => setIsModalOpen(false)}
+          onClose={() => {
+            setIsModalOpen(false);
+            setIntakeCustomer(null);
+          }}
+          initialCustomer={intakeCustomer}
+          initialCustomerId={intakeCustomer?.id || preSelectedCustomerId}
           onSuccess={(newJobId, takeDepositAmount, jobDetails) => {
             setIsModalOpen(false);
+            setIntakeCustomer(null);
             fetchRepairs();
             if (takeDepositAmount && takeDepositAmount > 0 && jobDetails) {
               navigate(`/${branchSlug}/register`, {
@@ -298,7 +327,6 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
               navigate(`/${branchSlug}/repairs/${newJobId}`);
             }
           }}
-          initialCustomerId={preSelectedCustomerId}
         />
       )}
     </div>

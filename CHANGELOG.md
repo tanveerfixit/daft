@@ -2,6 +2,33 @@
 
 This document tracks all features, architectural enhancements, bug fixes, and UX improvements made to the EPOS application.
 
+## [2026-11-04] - Bulk & Multi-Product B2B / Branch Transfers, Multi-Business Catalog Auto-Sync & Repeat Customer Repair Intake
+
+### 🚀 New Features & Enhancements
+* **1-Click Repeat Customer Repair Intake (`RepairList.tsx`, `RepairDetails.tsx`, `RepairIntakeForm.tsx`)**:
+  * Preserved the original layout and design of `RepairList.tsx`, `RepairDetails.tsx`, and `RepairIntakeForm.tsx`.
+  * Added a **`+ New Repair for Customer`** button in `RepairDetails.tsx` and a **`UserPlus`** action icon on each row of `RepairList.tsx` to open `RepairIntakeForm` pre-linked and pre-filled with that customer's ID, Name, Phone, and Email.
+  * Added returning customer autocomplete suggestions in `RepairIntakeForm.tsx` when typing a customer's phone number or name.
+* **Editable Customer Profile & Device Details in Repairs (`RepairDetails.tsx`, `RepairUpdateModal.tsx`, `inventory.ts`)**:
+  * Unlocked the Customer & Device Profile card in `RepairDetails.tsx` with an **Edit Profile** button and inline edit icons so staff can edit **Customer Name**, **Phone Number**, **Email**, **Device Name (`device_model`)**, and **Fault (`issue`)** at any time.
+  * Added a **👤 Profile & Device** tab in `RepairUpdateModal.tsx` so customer details, device model, and fault description can also be edited directly from the Repairs list update modal.
+  * Extended `PUT /api/repairs/:id` in `src/routes/inventory.ts` to update `device_model`, `issue`, and the linked `customers` record (or automatically create and link a `customers` record if the repair was originally created without one).
+* **Multi-Business Product Catalog Auto-Sync (`products.ts`, `inventory.ts`)**:
+  * Implemented automatic catalog synchronization (`syncNewProductToOtherBusinesses`) in `POST /api/products` and `POST /api/products/quick-add` so any newly created product name is automatically added to all other active businesses with `quantity = 0`.
+  * Added automatic product rename propagation in `PUT /api/products/:id` across all businesses when a product name typo is corrected.
+  * Fixed cross-business SKU resolution in `PUT /api/transfers/:id/complete` and added normalized product name matching so incoming B2B transfers link directly to the destination business's existing product & SKU instead of creating duplicate product names.
+  * Added `POST /api/products/sync-catalog` and synchronized all missing existing catalog products across all active businesses with `0` stock and zero changes to existing stock, prices, or invoices.
+* **Multi-Product & Multi-IMEI Transfer Queue (`BranchTransfer.tsx`, `inventory.ts`)**:
+  * Upgraded B2B & Branch Transfers from single-item selection to a full **Transfer Queue (Cart)** supporting multiple serialized IMEI devices and standard stock products in a single dispatch.
+  * Added unified search endpoint (`GET /api/transfers/search-items`) querying both in-stock serialized devices (`devices`) and standard stock SKUs (`products` + `product_skus` with `branch_stock` quantities).
+  * Added **Keyboard & Barcode Scanner Flow**: Up/Down arrow navigation and `Enter` key instant queue addition for continuous barcode/IMEI scanning, plus an **"Add All"** button in search results.
+  * Added **Bulk Paste IMEIs / SKUs** panel (`POST /api/transfers/resolve-bulk`) to paste or scan multiple IMEIs, serial numbers, or SKU codes at once and resolve them into the transfer queue.
+  * Added interactive quantity steppers (`-` / `+` / numeric input) for standard stock SKUs while locking serialized IMEI devices to `Qty: 1` with duplicate prevention.
+  * Upgraded `POST /api/transfers` to process both single items and bulk `items: [...]` arrays inside a single MySQL ACID transaction with zero schema changes and 100% backward compatibility.
+  * Added **Multi-Select Bulk Actions** in Transfer History (`Select All`, `Receive & Accept Selected`, `Cancel Selected`, and `Print Combined Slip`) and multi-row printable **B2B Goods Transfer Manifest** with total unit counts.
+
+---
+
 ## [2026-09-09] - Mobile Responsiveness, Collapsible Panels & Clean Typography
 
 ### 📱 Mobile & Responsive UI Enhancements
