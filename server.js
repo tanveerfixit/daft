@@ -9065,9 +9065,8 @@ async function startServer() {
     await seedData();
     await ensureSuperAdmin();
   } catch (err) {
-    console.error("[MySQL] Failed to initialise:", err.message);
-    logError("MySQL init failed", err);
-    process.exit(1);
+    console.error("[MySQL] Failed to initialise on startup:", err.message);
+    logError("MySQL init failed on startup", err);
   }
   const app = express();
   const PORT = Number(process.env.PORT) || 3e3;
@@ -9167,21 +9166,31 @@ async function startServer() {
       conn.release();
     }
   });
-  if (process.env.NODE_ENV !== "production") {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa"
-    });
-    app.use(vite.middlewares);
-  } else {
-    const path = await import("path");
-    const { fileURLToPath } = await import("url");
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    app.use(express.static(path.join(__dirname, "dist")));
+  const path = await import("path");
+  const { fileURLToPath } = await import("url");
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const distDir = path.join(__dirname, "dist");
+  const distIndex = path.join(distDir, "index.html");
+  if (fs.existsSync(distIndex) || process.env.NODE_ENV === "production") {
+    app.use(express.static(distDir));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
+      res.sendFile(distIndex);
     });
+  } else {
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa"
+      });
+      app.use(vite.middlewares);
+    } catch (viteErr) {
+      console.warn("[Vite] Dev middleware not available, falling back to static files:", viteErr?.message);
+      app.use(express.static(distDir));
+      app.get("*", (req, res) => {
+        res.sendFile(distIndex);
+      });
+    }
   }
   app.use((err, req, res, next) => {
     if (err instanceof ZodError) {
@@ -9198,5 +9207,18 @@ async function startServer() {
 startServer().catch((err) => {
   logError("Server startup failed", err);
   console.error("Fatal startup error:", err);
-  process.exit(1);
+  try {
+    const fallbackApp = express();
+    const fallbackPort = Number(process.env.PORT) || 3e3;
+    fallbackApp.get("*", (_req, res) => {
+      res.status(503).json({
+        error: "Application starting or database unavailable",
+        details: err?.message || String(err)
+      });
+    });
+    fallbackApp.listen(fallbackPort, "0.0.0.0", () => {
+      console.log(`Fallback server active on port ${fallbackPort}`);
+    });
+  } catch {
+  }
 });

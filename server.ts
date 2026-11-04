@@ -19,9 +19,9 @@ async function startServer() {
     await seedData();
     await ensureSuperAdmin();
   } catch (err: any) {
-    console.error('[MySQL] Failed to initialise:', err.message);
-    logError('MySQL init failed', err);
-    process.exit(1);
+    console.error('[MySQL] Failed to initialise on startup:', err.message);
+    logError('MySQL init failed on startup', err);
+    // Keep server running so LiteSpeed / Hostinger does not drop with a 503 error
   }
 
   const app = express();
@@ -126,26 +126,35 @@ async function startServer() {
     } finally { conn.release(); }
   });
 
-  // ─── Vite Dev Middleware / Production Static Files ────────────────────────
-  if (process.env.NODE_ENV !== 'production') {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    // Serve static files from 'dist' in production
-    const path = await import('path');
-    const { fileURLToPath } = await import('url');
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    
-    app.use(express.static(path.join(__dirname, 'dist')));
-    
-    // Catch-all route for SPA
+  // ─── Production Static Files / Vite Dev Middleware ────────────────────────
+  const path = await import('path');
+  const { fileURLToPath } = await import('url');
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const distDir = path.join(__dirname, 'dist');
+  const distIndex = path.join(distDir, 'index.html');
+
+  if (fs.existsSync(distIndex) || process.env.NODE_ENV === 'production') {
+    // Serve pre-built static assets from 'dist' (always used on Hostinger)
+    app.use(express.static(distDir));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+      res.sendFile(distIndex);
     });
+  } else {
+    // Development mode fallback with Vite
+    try {
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } catch (viteErr: any) {
+      console.warn('[Vite] Dev middleware not available, falling back to static files:', viteErr?.message);
+      app.use(express.static(distDir));
+      app.get('*', (req, res) => {
+        res.sendFile(distIndex);
+      });
+    }
   }
 
   // ─── Global Error Handler ─────────────────────────────────────────────────
@@ -167,5 +176,19 @@ async function startServer() {
 startServer().catch((err) => {
   logError('Server startup failed', err);
   console.error('Fatal startup error:', err);
-  process.exit(1);
+  
+  // Emergency fallback server to avoid LiteSpeed 503
+  try {
+    const fallbackApp = express();
+    const fallbackPort = Number(process.env.PORT) || 3000;
+    fallbackApp.get('*', (_req, res) => {
+      res.status(503).json({
+        error: 'Application starting or database unavailable',
+        details: err?.message || String(err)
+      });
+    });
+    fallbackApp.listen(fallbackPort, '0.0.0.0', () => {
+      console.log(`Fallback server active on port ${fallbackPort}`);
+    });
+  } catch {}
 });
