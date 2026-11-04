@@ -2836,6 +2836,117 @@ __export(products_exports, {
 });
 import { Router as Router3 } from "express";
 import { z as z2 } from "zod";
+async function syncNewProductToOtherBusinesses(conn, sourceBusinessId, params) {
+  try {
+    const cleanName = params.name.trim();
+    if (!cleanName) return;
+    let sourceCategoryName = null;
+    if (params.category_id) {
+      const [catRows] = await conn.execute("SELECT name FROM categories WHERE id = ? LIMIT 1", [params.category_id]);
+      sourceCategoryName = catRows[0]?.name || null;
+    }
+    let sourceManufacturerName = null;
+    if (params.manufacturer_id) {
+      const [mfgRows] = await conn.execute("SELECT name FROM manufacturers WHERE id = ? LIMIT 1", [params.manufacturer_id]);
+      sourceManufacturerName = mfgRows[0]?.name || null;
+    }
+    const [targetBusinesses] = await conn.execute(
+      "SELECT id FROM businesses WHERE id != ? AND deleted_at IS NULL",
+      [sourceBusinessId]
+    );
+    for (const biz of targetBusinesses) {
+      const targetBizId = biz.id;
+      const [existing] = await conn.execute(
+        "SELECT id FROM products WHERE business_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND deleted_at IS NULL LIMIT 1",
+        [targetBizId, cleanName]
+      );
+      if (existing.length > 0) continue;
+      const [branchRows] = await conn.execute(
+        "SELECT id FROM branches WHERE business_id = ? AND deleted_at IS NULL ORDER BY id ASC",
+        [targetBizId]
+      );
+      const branchIds = branchRows.map((b) => b.id);
+      const defaultBranchId = branchIds[0] || null;
+      let targetCategoryId = null;
+      if (sourceCategoryName) {
+        const [tCat] = await conn.execute(
+          "SELECT id FROM categories WHERE business_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1",
+          [targetBizId, sourceCategoryName]
+        );
+        if (tCat.length > 0) {
+          targetCategoryId = tCat[0].id;
+        } else {
+          const [insCat] = await conn.execute(
+            "INSERT INTO categories (business_id, branch_id, name) VALUES (?, ?, ?)",
+            [targetBizId, defaultBranchId, sourceCategoryName]
+          );
+          targetCategoryId = insCat.insertId;
+        }
+      }
+      let targetManufacturerId = null;
+      if (sourceManufacturerName) {
+        const [tMfg] = await conn.execute(
+          "SELECT id FROM manufacturers WHERE business_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1",
+          [targetBizId, sourceManufacturerName]
+        );
+        if (tMfg.length > 0) {
+          targetManufacturerId = tMfg[0].id;
+        } else {
+          const [insMfg] = await conn.execute(
+            "INSERT INTO manufacturers (business_id, name) VALUES (?, ?)",
+            [targetBizId, sourceManufacturerName]
+          );
+          targetManufacturerId = insMfg.insertId;
+        }
+      }
+      const [insProd] = await conn.execute(
+        `INSERT INTO products 
+         (business_id, name, category_id, manufacturer_id, product_type, allow_overselling, min_stock_level, is_taxable, require_note, min_sales_price, additional_description, alert_message)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          targetBizId,
+          cleanName,
+          targetCategoryId,
+          targetManufacturerId,
+          params.product_type || "stock",
+          params.allow_overselling === false || params.allow_overselling === 0 ? 0 : 1,
+          params.min_stock_level ?? null,
+          params.is_taxable === false || params.is_taxable === 0 ? 0 : 1,
+          params.require_note ? 1 : 0,
+          params.min_sales_price ?? null,
+          params.additional_description ?? null,
+          params.alert_message ?? null
+        ]
+      );
+      const targetProdId = insProd.insertId;
+      const branchPrefix = await getBranchPrefix(defaultBranchId);
+      let targetSkuCode = `${branchPrefix}-${String(targetProdId).padStart(5, "0")}`;
+      const [dupCheck] = await conn.execute("SELECT id FROM product_skus WHERE sku_code = ? LIMIT 1", [targetSkuCode]);
+      if (dupCheck.length > 0) {
+        targetSkuCode = `${targetSkuCode}-B${targetBizId}`;
+      }
+      const [insSku] = await conn.execute(
+        "INSERT INTO product_skus (product_id, sku_code, barcode, cost_price, selling_price) VALUES (?, ?, ?, ?, ?)",
+        [
+          targetProdId,
+          targetSkuCode,
+          params.barcode || targetSkuCode,
+          params.cost_price || 0,
+          params.selling_price || 0
+        ]
+      );
+      const targetSkuId = insSku.insertId;
+      for (const bId of branchIds) {
+        await conn.execute(
+          "INSERT IGNORE INTO branch_stock (sku_id, branch_id, quantity) VALUES (?, ?, 0)",
+          [targetSkuId, bId]
+        );
+      }
+    }
+  } catch (syncErr) {
+    console.warn("[AutoSyncProduct] Non-fatal warning syncing product across businesses:", syncErr?.message);
+  }
+}
 var router3, createProductSchema, quickAddSchema, products_default;
 var init_products = __esm({
   "src/routes/products.ts"() {
@@ -3454,19 +3565,41 @@ var init_products = __esm({
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
-        const [skuRows] = await conn.execute("SELECT s.*, p.business_id FROM product_skus s JOIN products p ON s.product_id = p.id WHERE s.id = ? AND p.business_id = ?", [skuId, businessId]);
+        const [skuRows] = await conn.execute(
+          "SELECT s.*, p.business_id, p.name as product_name FROM product_skus s JOIN products p ON s.product_id = p.id WHERE s.id = ? AND p.business_id = ?",
+          [skuId, businessId]
+        );
         const sku = skuRows[0];
         if (!sku) throw new Error("Product not found in your business catalog");
+        const cleanNewName = String(product_name || sku.product_name).trim().replace(/\s+/g, " ");
         await conn.execute(
           "UPDATE product_skus SET sku_code=?,barcode=?,selling_price=?,cost_price=? WHERE id=?",
           [sku_code, barcode, selling_price, cost_price, skuId]
         );
         await conn.execute(
           "UPDATE products SET name=?,category_id=?,manufacturer_id=?,product_type=? WHERE id=?",
-          [product_name, category_id, manufacturer_id, product_type, sku.product_id]
+          [cleanNewName, category_id, manufacturer_id, product_type, sku.product_id]
         );
+        if (sku.product_name && cleanNewName && sku.product_name.trim().toLowerCase() !== cleanNewName.toLowerCase()) {
+          const [otherBiz] = await conn.execute(
+            "SELECT id FROM businesses WHERE id != ? AND deleted_at IS NULL",
+            [businessId]
+          );
+          for (const b of otherBiz) {
+            const [conflict] = await conn.execute(
+              "SELECT id FROM products WHERE business_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND deleted_at IS NULL LIMIT 1",
+              [b.id, cleanNewName]
+            );
+            if (conflict.length === 0) {
+              await conn.execute(
+                "UPDATE products SET name = ? WHERE business_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND deleted_at IS NULL",
+                [cleanNewName, b.id, sku.product_name]
+              );
+            }
+          }
+        }
         const changes = [];
-        if (product_name !== sku.product_name) changes.push(`Name: ${sku.product_name} -> ${product_name}`);
+        if (cleanNewName !== sku.product_name) changes.push(`Name: ${sku.product_name} -> ${cleanNewName}`);
         if (selling_price != sku.selling_price) changes.push(`Price: ${sku.selling_price} -> ${selling_price}`);
         if (cost_price != sku.cost_price) changes.push(`Cost: ${sku.cost_price} -> ${cost_price}`);
         if (sku_code !== sku.sku_code) changes.push(`SKU: ${sku.sku_code} -> ${sku_code}`);
@@ -3509,7 +3642,7 @@ var init_products = __esm({
     router3.post("/", async (req, res, next) => {
       const data = createProductSchema.parse(req.body);
       const {
-        name,
+        name: rawName,
         category_id,
         manufacturer_id,
         supplier_id,
@@ -3526,6 +3659,7 @@ var init_products = __esm({
         additional_description,
         alert_message
       } = data;
+      const name = rawName.trim().replace(/\s+/g, " ");
       const businessId = req.user.business_id;
       const conn = await pool.getConnection();
       try {
@@ -3574,6 +3708,22 @@ var init_products = __esm({
           "INSERT INTO activity_logs (business_id, branch_id, product_id, user_id, user_name, activity_type, description) VALUES (?,?,?,?,?,?,?)",
           [businessId, req.user.branch_id, productId, req.userId, req.user?.name || null, "Product Created", `Product "${name}" created with SKU ${finalSku}`]
         );
+        await syncNewProductToOtherBusinesses(conn, businessId, {
+          name,
+          category_id,
+          manufacturer_id,
+          product_type,
+          allow_overselling,
+          min_stock_level,
+          is_taxable,
+          require_note,
+          min_sales_price,
+          additional_description,
+          alert_message,
+          cost_price,
+          selling_price,
+          barcode: barcode || null
+        });
         await conn.commit();
         res.json({ id: skuId });
       } catch (e) {
@@ -3600,7 +3750,8 @@ var init_products = __esm({
     });
     router3.post("/quick-add", async (req, res, next) => {
       const data = quickAddSchema.parse(req.body);
-      const { name, category_id, manufacturer_id, supplier_id, selling_price, cost_price, sku_code, barcode, branch_id, quantity } = data;
+      const { name: rawName, category_id, manufacturer_id, supplier_id, selling_price, cost_price, sku_code, barcode, branch_id, quantity } = data;
+      const name = rawName.trim().replace(/\s+/g, " ");
       const businessId = req.user.business_id;
       const activeBranchId = branch_id || req.user.branch_id;
       const stockQty = parseInt(String(quantity)) || 0;
@@ -3647,6 +3798,16 @@ var init_products = __esm({
             [businessId, activeBranchId, skuId, "adjustment", stockQty, cost_price || 0, "quick_add", skuId]
           );
         }
+        await syncNewProductToOtherBusinesses(conn, businessId, {
+          name,
+          category_id,
+          manufacturer_id,
+          product_type: "stock",
+          allow_overselling: true,
+          cost_price: cost_price || 0,
+          selling_price: selling_price || 0,
+          barcode: barcode || null
+        });
         const [prodRows] = await conn.execute(`
       SELECT s.id, p.name as product_name, s.sku_code, s.barcode,
              s.selling_price, s.cost_price, p.product_type, p.allow_overselling,
@@ -3800,6 +3961,54 @@ var init_products = __esm({
         res.json(await query("SELECT * FROM manufacturers WHERE business_id=?", [req.user.business_id]));
       } catch (e) {
         next(e);
+      }
+    });
+    router3.post("/sync-catalog", async (req, res, next) => {
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const [allProds] = await conn.execute(`
+      SELECT p.id, p.business_id, p.name, p.category_id, p.manufacturer_id, p.product_type,
+             p.allow_overselling, p.min_stock_level, p.is_taxable, p.require_note,
+             p.min_sales_price, p.additional_description, p.alert_message,
+             s.cost_price, s.selling_price, s.barcode
+      FROM products p
+      LEFT JOIN product_skus s ON s.product_id = p.id
+      JOIN businesses b ON p.business_id = b.id
+      WHERE p.deleted_at IS NULL AND b.deleted_at IS NULL
+      ORDER BY p.id ASC
+    `);
+        const seenNames = /* @__PURE__ */ new Set();
+        let syncedCount = 0;
+        for (const prod of allProds) {
+          const cleanKey = String(prod.name || "").trim().toLowerCase().replace(/\s+/g, " ");
+          if (!cleanKey || seenNames.has(cleanKey)) continue;
+          seenNames.add(cleanKey);
+          await syncNewProductToOtherBusinesses(conn, prod.business_id, {
+            name: String(prod.name).trim().replace(/\s+/g, " "),
+            category_id: prod.category_id,
+            manufacturer_id: prod.manufacturer_id,
+            product_type: prod.product_type,
+            allow_overselling: prod.allow_overselling,
+            min_stock_level: prod.min_stock_level,
+            is_taxable: prod.is_taxable,
+            require_note: prod.require_note,
+            min_sales_price: prod.min_sales_price,
+            additional_description: prod.additional_description,
+            alert_message: prod.alert_message,
+            cost_price: prod.cost_price,
+            selling_price: prod.selling_price,
+            barcode: prod.barcode
+          });
+          syncedCount++;
+        }
+        await conn.commit();
+        res.json({ success: true, uniqueCatalogProductsChecked: syncedCount });
+      } catch (e) {
+        await conn.rollback();
+        next(e);
+      } finally {
+        conn.release();
       }
     });
     products_default = router3;
@@ -6178,30 +6387,31 @@ var init_settings = __esm({
     router7.post("/company", async (req, res, next) => {
       const data = companySchema.parse(req.body);
       const { name, email, phone, subdomain, address, city, state, zip_code, country, vat_number } = data;
+      const safeName = name && name.trim() ? name.trim() : null;
       try {
         const branchId = req.user?.branch_id;
         if (branchId) {
           try {
             await execute(
-              "UPDATE branches SET name=COALESCE(?, name), email=?, phone=?, address=?, vat_number=? WHERE id=? AND business_id=?",
-              [name, email, phone, address, vat_number || null, branchId, req.user.business_id]
+              "UPDATE branches SET name=COALESCE(?, name), email=COALESCE(NULLIF(?, ''), email), phone=COALESCE(NULLIF(?, ''), phone), address=COALESCE(NULLIF(?, ''), address), vat_number=COALESCE(?, vat_number) WHERE id=? AND business_id=?",
+              [safeName, email ?? "", phone ?? "", address ?? "", vat_number || null, branchId, req.user.business_id]
             );
           } catch (branchErr) {
             await execute(
-              "UPDATE branches SET name=COALESCE(?, name), email=?, phone=?, address=? WHERE id=? AND business_id=?",
-              [name, email, phone, address, branchId, req.user.business_id]
+              "UPDATE branches SET name=COALESCE(?, name), email=COALESCE(NULLIF(?, ''), email), phone=COALESCE(NULLIF(?, ''), phone), address=COALESCE(NULLIF(?, ''), address) WHERE id=? AND business_id=?",
+              [safeName, email ?? "", phone ?? "", address ?? "", branchId, req.user.business_id]
             );
           }
         }
         try {
           await execute(
-            "UPDATE businesses SET name=?,email=?,phone=?,subdomain=?,address=?,city=?,state=?,zip_code=?,country=?,vat_number=? WHERE id=?",
-            [name, email, phone, subdomain, address, city, state, zip_code, country, vat_number || null, req.user.business_id]
+            "UPDATE businesses SET name=COALESCE(?, name), email=COALESCE(NULLIF(?, ''), email), phone=COALESCE(NULLIF(?, ''), phone), subdomain=COALESCE(NULLIF(?, ''), subdomain), address=COALESCE(NULLIF(?, ''), address), city=COALESCE(NULLIF(?, ''), city), state=COALESCE(NULLIF(?, ''), state), zip_code=COALESCE(NULLIF(?, ''), zip_code), country=COALESCE(NULLIF(?, ''), country), vat_number=COALESCE(?, vat_number) WHERE id=?",
+            [safeName, email ?? "", phone ?? "", subdomain ?? "", address ?? "", city ?? "", state ?? "", zip_code ?? "", country ?? "", vat_number || null, req.user.business_id]
           );
         } catch (busErr) {
           await execute(
-            "UPDATE businesses SET name=?,email=?,phone=?,subdomain=?,address=?,city=?,state=?,zip_code=?,country=? WHERE id=?",
-            [name, email, phone, subdomain, address, city, state, zip_code, country, req.user.business_id]
+            "UPDATE businesses SET name=COALESCE(?, name), email=COALESCE(NULLIF(?, ''), email), phone=COALESCE(NULLIF(?, ''), phone), subdomain=COALESCE(NULLIF(?, ''), subdomain), address=COALESCE(NULLIF(?, ''), address), city=COALESCE(NULLIF(?, ''), city), state=COALESCE(NULLIF(?, ''), state), zip_code=COALESCE(NULLIF(?, ''), zip_code), country=COALESCE(NULLIF(?, ''), country) WHERE id=?",
+            [safeName, email ?? "", phone ?? "", subdomain ?? "", address ?? "", city ?? "", state ?? "", zip_code ?? "", country ?? "", req.user.business_id]
           );
         }
         res.json({ success: true });
@@ -6770,7 +6980,171 @@ __export(inventory_exports, {
 });
 import { Router as Router8 } from "express";
 import { z as z7 } from "zod";
-var router8, addInventorySchema, batchAddDevicesSchema, updateDeviceSchema, deviceActivitySchema, transferSchema, createRepairSchema, updateRepairSchema, inventory_default;
+async function dispatchSingleTransferItem(conn, item, sourceBusinessId, sourceBranchId, toBranchId, userId, defaultNotes) {
+  const {
+    device_id: rawDeviceId,
+    sku_id: rawSkuId,
+    product_name,
+    sku_code,
+    imei,
+    serial_number,
+    quantity: rawQty,
+    cost_price,
+    selling_price,
+    color,
+    gb,
+    condition,
+    notes: itemNotes
+  } = item;
+  const quantity = Math.max(1, Number(rawQty) || 1);
+  const effectiveNotes = itemNotes?.trim() || defaultNotes?.trim() || null;
+  let finalSkuId = rawSkuId;
+  let finalDeviceId = rawDeviceId;
+  let isSerialized = !!(imei?.trim() || serial_number?.trim() || rawDeviceId);
+  const cleanImei = imei?.trim() || null;
+  const cleanSerial = serial_number?.trim() || null;
+  let cleanProductName = product_name?.trim();
+  let cleanSkuCode = sku_code?.trim();
+  if (finalDeviceId) {
+    const [dr] = await conn.execute(
+      `SELECT d.*, s.sku_code, p.name as product_name, p.id as product_id 
+       FROM devices d 
+       JOIN product_skus s ON d.sku_id=s.id 
+       JOIN products p ON s.product_id=p.id 
+       WHERE d.id=? AND d.business_id=?`,
+      [finalDeviceId, sourceBusinessId]
+    );
+    const dev = dr[0];
+    if (!dev) throw new Error(`Selected device (#${finalDeviceId}) not found`);
+    if (dev.status !== "in_stock" && dev.status !== "available") {
+      throw new Error(`Device (${dev.imei || dev.id}) is not available (current status: ${dev.status})`);
+    }
+    finalSkuId = dev.sku_id;
+    cleanProductName = cleanProductName || dev.product_name;
+    cleanSkuCode = cleanSkuCode || dev.sku_code;
+    isSerialized = true;
+    await conn.execute("UPDATE devices SET status='transfer' WHERE id=?", [finalDeviceId]);
+  } else if (cleanImei) {
+    const [existDev] = await conn.execute(
+      `SELECT d.*, s.sku_code, p.name as product_name, p.id as product_id 
+       FROM devices d 
+       JOIN product_skus s ON d.sku_id=s.id 
+       JOIN products p ON s.product_id=p.id 
+       WHERE (d.imei=? OR d.imei_serial=?) AND d.business_id=?`,
+      [cleanImei, cleanImei, sourceBusinessId]
+    );
+    if (existDev.length > 0) {
+      const dev = existDev[0];
+      if (dev.status !== "in_stock" && dev.status !== "available") {
+        throw new Error(`Device (${dev.imei}) is not available (current status: ${dev.status})`);
+      }
+      finalDeviceId = dev.id;
+      finalSkuId = dev.sku_id;
+      cleanProductName = cleanProductName || dev.product_name;
+      cleanSkuCode = cleanSkuCode || dev.sku_code;
+      isSerialized = true;
+      await conn.execute("UPDATE devices SET status='transfer' WHERE id=?", [finalDeviceId]);
+    }
+  }
+  if (!finalDeviceId && cleanProductName) {
+    if (!cleanSkuCode) {
+      cleanSkuCode = cleanProductName.replace(/[^a-zA-Z0-9]/g, "-").toUpperCase().substring(0, 30);
+    }
+    let sourceProductId = null;
+    const [prodRows] = await conn.execute(
+      "SELECT id, product_type FROM products WHERE business_id=? AND LOWER(TRIM(name))=LOWER(TRIM(?))",
+      [sourceBusinessId, cleanProductName]
+    );
+    if (prodRows.length > 0) {
+      sourceProductId = prodRows[0].id;
+      if (prodRows[0].product_type === "serialized" && (cleanImei || cleanSerial)) {
+        isSerialized = true;
+      }
+    } else {
+      const [prodIns] = await conn.execute(
+        "INSERT INTO products (business_id, name, product_type, allow_overselling) VALUES (?, ?, ?, 1)",
+        [sourceBusinessId, cleanProductName, isSerialized ? "serialized" : "stock"]
+      );
+      sourceProductId = prodIns.insertId;
+    }
+    if (!finalSkuId) {
+      const [skuRows] = await conn.execute(
+        "SELECT id FROM product_skus WHERE product_id=? AND (sku_code=? OR ? IS NULL)",
+        [sourceProductId, cleanSkuCode, cleanSkuCode]
+      );
+      if (skuRows.length > 0) {
+        finalSkuId = skuRows[0].id;
+      } else {
+        const [skuIns] = await conn.execute(
+          "INSERT INTO product_skus (product_id, sku_code, cost_price, selling_price) VALUES (?, ?, ?, ?)",
+          [sourceProductId, cleanSkuCode, cost_price || 0, selling_price || 0]
+        );
+        finalSkuId = skuIns.insertId;
+      }
+    }
+  }
+  if (isSerialized) {
+    if (!finalDeviceId && finalSkuId) {
+      const [newDev] = await conn.execute(
+        "INSERT INTO devices (business_id, branch_id, sku_id, imei, imei_serial, color, gb, `condition`, cost_price, selling_price, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'transfer')",
+        [
+          sourceBusinessId,
+          sourceBranchId,
+          finalSkuId,
+          cleanImei,
+          cleanSerial || cleanImei,
+          color || null,
+          gb || null,
+          condition || "Grade A",
+          cost_price || 0,
+          selling_price || 0
+        ]
+      );
+      finalDeviceId = newDev.insertId;
+    }
+    if (finalSkuId) {
+      await conn.execute(
+        "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE quantity=GREATEST(0, quantity - 1)",
+        [sourceBranchId, finalSkuId]
+      );
+    }
+  } else {
+    if (finalSkuId) {
+      await conn.execute(
+        "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE quantity=GREATEST(0, quantity - ?)",
+        [sourceBranchId, finalSkuId, quantity]
+      );
+    }
+  }
+  const [tr] = await conn.execute(
+    `INSERT INTO device_transfers 
+     (business_id, from_branch_id, to_branch_id, device_id, sku_id, quantity, status, initiated_by, notes, product_name, sku_code) 
+     VALUES (?, ?, ?, ?, ?, ?, 'in_transit', ?, ?, ?, ?)`,
+    [
+      sourceBusinessId,
+      sourceBranchId,
+      toBranchId,
+      finalDeviceId || null,
+      finalSkuId || null,
+      isSerialized ? 1 : quantity,
+      userId,
+      effectiveNotes,
+      cleanProductName || product_name || null,
+      cleanSkuCode || sku_code || null
+    ]
+  );
+  const transferId = tr.insertId;
+  if (finalSkuId) {
+    await conn.execute(
+      `INSERT INTO inventory_movements 
+       (business_id, branch_id, sku_id, movement_type, quantity, unit_cost, reference_type, reference_id) 
+       VALUES (?, ?, ?, 'transfer_out', ?, ?, 'device_transfers', ?)`,
+      [sourceBusinessId, sourceBranchId, finalSkuId, isSerialized ? 1 : quantity, cost_price || 0, transferId]
+    );
+  }
+  return transferId;
+}
+var router8, addInventorySchema, batchAddDevicesSchema, updateDeviceSchema, deviceActivitySchema, transferItemSchema, transferSchema, createRepairSchema, updateRepairSchema, inventory_default;
 var init_inventory = __esm({
   "src/routes/inventory.ts"() {
     init_mysql();
@@ -7782,7 +8156,8 @@ var init_inventory = __esm({
       FROM branches b
       JOIN businesses bz ON b.business_id = bz.id
       WHERE b.deleted_at IS NULL AND bz.deleted_at IS NULL
-      ORDER BY bz.name ASC, b.name ASC
+        AND TRIM(COALESCE(b.name, bz.name, '')) != ''
+      ORDER BY COALESCE(NULLIF(TRIM(b.name), ''), TRIM(bz.name)) ASC
     `;
         const rows = await query(sql);
         res.json(rows);
@@ -7790,8 +8165,7 @@ var init_inventory = __esm({
         next(e);
       }
     });
-    transferSchema = z7.object({
-      to_branch_id: z7.number().or(z7.string().transform(Number)),
+    transferItemSchema = z7.object({
       device_id: z7.number().or(z7.string().transform(Number)).optional().nullable(),
       sku_id: z7.number().or(z7.string().transform(Number)).optional().nullable(),
       product_name: z7.string().optional().nullable(),
@@ -7806,31 +8180,169 @@ var init_inventory = __esm({
       condition: z7.string().optional().nullable(),
       notes: z7.string().optional().nullable()
     });
+    transferSchema = transferItemSchema.extend({
+      to_branch_id: z7.number().or(z7.string().transform(Number)),
+      items: z7.array(transferItemSchema).optional()
+    });
+    router8.get("/transfers/search-items", async (req, res, next) => {
+      const q = String(req.query.q || "").trim();
+      if (q.length < 1) return res.json([]);
+      try {
+        const businessId = req.user.business_id;
+        const branchId = req.user.branch_id;
+        const term = `%${q}%`;
+        const deviceParams = [businessId];
+        let branchFilter = "";
+        if (branchId) {
+          branchFilter = " AND d.branch_id = ?";
+          deviceParams.push(branchId);
+        }
+        deviceParams.push(term, term, term, term, term);
+        const devicesSql = `
+      SELECT 
+        d.id,
+        d.id as device_id,
+        d.sku_id,
+        d.imei,
+        d.imei_serial,
+        d.color,
+        d.gb,
+        d.\`condition\`,
+        d.status,
+        COALESCE(d.cost_price, s.cost_price, 0) as cost_price,
+        COALESCE(d.selling_price, s.selling_price, 0) as selling_price,
+        COALESCE(p.name, 'Standard Mobile Device') as product_name,
+        s.sku_code,
+        s.barcode,
+        'device' as item_type,
+        1 as stock_quantity
+      FROM devices d
+      LEFT JOIN product_skus s ON d.sku_id = s.id
+      LEFT JOIN products p ON (d.product_id = p.id OR s.product_id = p.id)
+      WHERE d.business_id = ?
+        AND d.status IN ('in_stock', 'available')
+        ${branchFilter}
+        AND (d.imei LIKE ? OR d.imei_serial LIKE ? OR p.name LIKE ? OR s.sku_code LIKE ? OR s.barcode LIKE ?)
+      ORDER BY d.id DESC
+      LIMIT 35
+    `;
+        const stockParams = [branchId || 0, businessId, term, term, term];
+        const stockSql = `
+      SELECT 
+        NULL as id,
+        NULL as device_id,
+        s.id as sku_id,
+        p.id as product_id,
+        NULL as imei,
+        NULL as imei_serial,
+        NULL as color,
+        NULL as gb,
+        NULL as \`condition\`,
+        'in_stock' as status,
+        COALESCE(s.cost_price, 0) as cost_price,
+        COALESCE(s.selling_price, p.base_unit_price, 0) as selling_price,
+        p.name as product_name,
+        s.sku_code,
+        s.barcode,
+        p.product_type,
+        'stock' as item_type,
+        COALESCE(bs.quantity, 0) as stock_quantity
+      FROM product_skus s
+      JOIN products p ON s.product_id = p.id
+      LEFT JOIN branch_stock bs ON (bs.sku_id = s.id AND bs.branch_id = ?)
+      WHERE p.business_id = ?
+        AND p.deleted_at IS NULL
+        AND COALESCE(p.product_type, 'stock') != 'serialized'
+        AND (p.name LIKE ? OR s.sku_code LIKE ? OR s.barcode LIKE ?)
+      ORDER BY COALESCE(bs.quantity, 0) DESC, p.name ASC
+      LIMIT 25
+    `;
+        const [deviceRows, stockRows] = await Promise.all([
+          query(devicesSql, deviceParams),
+          query(stockSql, stockParams)
+        ]);
+        res.json([...deviceRows, ...stockRows]);
+      } catch (e) {
+        console.error("[GET /api/transfers/search-items] Error:", e.message);
+        next(e);
+      }
+    });
+    router8.post("/transfers/resolve-bulk", async (req, res, next) => {
+      try {
+        const rawCodes = Array.isArray(req.body?.codes) ? req.body.codes : [];
+        const codes = Array.from(new Set(rawCodes.map((c) => String(c || "").trim()).filter(Boolean)));
+        if (codes.length === 0) {
+          return res.json({ matched: [], notFound: [] });
+        }
+        const businessId = req.user.business_id;
+        const branchId = req.user.branch_id;
+        const matched = [];
+        const notFound = [];
+        for (const code of codes) {
+          const devParams = [businessId, code, code];
+          let branchClause = "";
+          if (branchId) {
+            branchClause = " AND d.branch_id = ?";
+            devParams.push(branchId);
+          }
+          const dev = await queryOne(
+            `SELECT d.id, d.id as device_id, d.sku_id, d.imei, d.imei_serial, d.color, d.gb, d.\`condition\`, d.status,
+                COALESCE(d.cost_price, s.cost_price, 0) as cost_price,
+                COALESCE(d.selling_price, s.selling_price, 0) as selling_price,
+                COALESCE(p.name, 'Standard Mobile Device') as product_name,
+                s.sku_code, s.barcode
+         FROM devices d
+         LEFT JOIN product_skus s ON d.sku_id = s.id
+         LEFT JOIN products p ON (d.product_id = p.id OR s.product_id = p.id)
+         WHERE d.business_id = ? AND (d.imei = ? OR d.imei_serial = ?)${branchClause}
+         ORDER BY FIELD(d.status, 'in_stock', 'available') DESC, d.id DESC
+         LIMIT 1`,
+            devParams
+          );
+          if (dev) {
+            if (dev.status === "in_stock" || dev.status === "available") {
+              matched.push({ ...dev, item_type: "device", stock_quantity: 1, quantity: 1 });
+            } else {
+              notFound.push(`${code} (Status: ${dev.status})`);
+            }
+            continue;
+          }
+          const sku = await queryOne(
+            `SELECT NULL as id, NULL as device_id, s.id as sku_id, p.id as product_id,
+                COALESCE(s.cost_price, 0) as cost_price,
+                COALESCE(s.selling_price, p.base_unit_price, 0) as selling_price,
+                p.name as product_name, s.sku_code, s.barcode, p.product_type,
+                COALESCE(bs.quantity, 0) as stock_quantity
+         FROM product_skus s
+         JOIN products p ON s.product_id = p.id
+         LEFT JOIN branch_stock bs ON (bs.sku_id = s.id AND bs.branch_id = ?)
+         WHERE p.business_id = ? AND p.deleted_at IS NULL
+           AND COALESCE(p.product_type, 'stock') != 'serialized'
+           AND (s.sku_code = ? OR s.barcode = ?)
+         LIMIT 1`,
+            [branchId || 0, businessId, code, code]
+          );
+          if (sku) {
+            matched.push({ ...sku, item_type: "stock", quantity: 1 });
+          } else {
+            notFound.push(code);
+          }
+        }
+        res.json({ matched, notFound });
+      } catch (e) {
+        next(e);
+      }
+    });
     router8.post("/transfers", async (req, res, next) => {
       const data = transferSchema.parse(req.body);
-      const {
-        to_branch_id,
-        device_id: rawDeviceId,
-        sku_id: rawSkuId,
-        product_name,
-        sku_code,
-        imei,
-        serial_number,
-        quantity: rawQty,
-        cost_price,
-        selling_price,
-        color,
-        gb,
-        condition,
-        notes
-      } = data;
-      const quantity = rawQty || 1;
+      const { to_branch_id, notes, items } = data;
       const sourceBranchId = req.user.branch_id;
       const sourceBusinessId = req.user.business_id;
       if (!to_branch_id) return res.status(400).json({ error: "Destination branch is required" });
       if (Number(to_branch_id) === Number(sourceBranchId)) {
         return res.status(400).json({ error: "Source and destination branches must be different" });
       }
+      const transferItems = Array.isArray(items) && items.length > 0 ? items : [data];
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
@@ -7840,179 +8352,26 @@ var init_inventory = __esm({
         );
         const destBranch = destBranchRows[0];
         if (!destBranch) throw new Error("Destination branch does not exist");
-        let finalSkuId = rawSkuId;
-        let finalDeviceId = rawDeviceId;
-        let isSerialized = !!(imei?.trim() || serial_number?.trim() || rawDeviceId);
-        const cleanImei = imei?.trim() || null;
-        const cleanSerial = serial_number?.trim() || null;
-        let cleanProductName = product_name?.trim();
-        let cleanSkuCode = sku_code?.trim();
-        if (finalDeviceId) {
-          const [dr] = await conn.execute(
-            `SELECT d.*, s.sku_code, p.name as product_name, p.id as product_id 
-         FROM devices d 
-         JOIN product_skus s ON d.sku_id=s.id 
-         JOIN products p ON s.product_id=p.id 
-         WHERE d.id=? AND d.business_id=?`,
-            [finalDeviceId, sourceBusinessId]
+        const createdIds = [];
+        for (const item of transferItems) {
+          const id = await dispatchSingleTransferItem(
+            conn,
+            item,
+            sourceBusinessId,
+            sourceBranchId,
+            Number(to_branch_id),
+            req.userId,
+            notes
           );
-          const dev = dr[0];
-          if (!dev) throw new Error("Selected device not found");
-          if (dev.status !== "in_stock" && dev.status !== "available") {
-            throw new Error(`Device (${dev.imei || dev.id}) is not available (current status: ${dev.status})`);
-          }
-          finalSkuId = dev.sku_id;
-          cleanProductName = cleanProductName || dev.product_name;
-          cleanSkuCode = cleanSkuCode || dev.sku_code;
-          isSerialized = true;
-          await conn.execute("UPDATE devices SET status='transfer' WHERE id=?", [finalDeviceId]);
-        } else if (cleanImei) {
-          const [existDev] = await conn.execute(
-            `SELECT d.*, s.sku_code, p.name as product_name, p.id as product_id 
-         FROM devices d 
-         JOIN product_skus s ON d.sku_id=s.id 
-         JOIN products p ON s.product_id=p.id 
-         WHERE (d.imei=? OR d.imei_serial=?) AND d.business_id=?`,
-            [cleanImei, cleanImei, sourceBusinessId]
-          );
-          if (existDev.length > 0) {
-            const dev = existDev[0];
-            if (dev.status !== "in_stock" && dev.status !== "available") {
-              throw new Error(`Device (${dev.imei}) is not available (current status: ${dev.status})`);
-            }
-            finalDeviceId = dev.id;
-            finalSkuId = dev.sku_id;
-            cleanProductName = cleanProductName || dev.product_name;
-            cleanSkuCode = cleanSkuCode || dev.sku_code;
-            isSerialized = true;
-            await conn.execute("UPDATE devices SET status='transfer' WHERE id=?", [finalDeviceId]);
-          }
-        }
-        if (!finalDeviceId && cleanProductName) {
-          if (!cleanSkuCode) {
-            cleanSkuCode = cleanProductName.replace(/[^a-zA-Z0-9]/g, "-").toUpperCase().substring(0, 30);
-          }
-          let sourceProductId = null;
-          const [prodRows] = await conn.execute(
-            "SELECT id, product_type FROM products WHERE business_id=? AND LOWER(TRIM(name))=LOWER(TRIM(?))",
-            [sourceBusinessId, cleanProductName]
-          );
-          if (prodRows.length > 0) {
-            sourceProductId = prodRows[0].id;
-            if (prodRows[0].product_type === "serialized") isSerialized = true;
-          } else {
-            const [prodIns] = await conn.execute(
-              "INSERT INTO products (business_id, name, product_type, allow_overselling) VALUES (?, ?, ?, 1)",
-              [sourceBusinessId, cleanProductName, isSerialized ? "serialized" : "stock"]
-            );
-            sourceProductId = prodIns.insertId;
-          }
-          if (!finalSkuId) {
-            const [skuRows] = await conn.execute(
-              "SELECT id FROM product_skus WHERE product_id=? AND (sku_code=? OR ? IS NULL)",
-              [sourceProductId, cleanSkuCode, cleanSkuCode]
-            );
-            if (skuRows.length > 0) {
-              finalSkuId = skuRows[0].id;
-            } else {
-              const [skuIns] = await conn.execute(
-                "INSERT INTO product_skus (product_id, sku_code, cost_price, selling_price) VALUES (?, ?, ?, ?)",
-                [sourceProductId, cleanSkuCode, cost_price || 0, selling_price || 0]
-              );
-              finalSkuId = skuIns.insertId;
-            }
-          }
-        }
-        if (isSerialized) {
-          if (!finalDeviceId && finalSkuId) {
-            const [newDev] = await conn.execute(
-              "INSERT INTO devices (business_id, branch_id, sku_id, imei, imei_serial, color, gb, `condition`, cost_price, selling_price, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'transfer')",
-              [
-                sourceBusinessId,
-                sourceBranchId,
-                finalSkuId,
-                cleanImei,
-                cleanSerial || cleanImei,
-                color || null,
-                gb || null,
-                condition || "Grade A",
-                cost_price || 0,
-                selling_price || 0
-              ]
-            );
-            finalDeviceId = newDev.insertId;
-          }
-          if (finalSkuId) {
-            await conn.execute(
-              "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE quantity=GREATEST(0, quantity - 1)",
-              [sourceBranchId, finalSkuId]
-            );
-          }
-        } else {
-          if (finalSkuId) {
-            await conn.execute(
-              "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE quantity=GREATEST(0, quantity - ?)",
-              [sourceBranchId, finalSkuId, quantity]
-            );
-          }
-        }
-        let tr;
-        try {
-          [tr] = await conn.execute(
-            `INSERT INTO device_transfers 
-         (business_id, from_branch_id, to_branch_id, device_id, sku_id, quantity, status, initiated_by, notes, product_name, sku_code) 
-         VALUES (?, ?, ?, ?, ?, ?, 'in_transit', ?, ?, ?, ?)`,
-            [
-              sourceBusinessId,
-              sourceBranchId,
-              to_branch_id,
-              finalDeviceId || null,
-              finalSkuId || null,
-              quantity,
-              req.userId,
-              notes || null,
-              cleanProductName || product_name || null,
-              cleanSkuCode || sku_code || null
-            ]
-          );
-        } catch (insertErr) {
-          if (insertErr.message?.includes("Unknown column")) {
-            try {
-              await conn.query("ALTER TABLE device_transfers ADD COLUMN product_name VARCHAR(255) NULL AFTER notes");
-              await conn.query("ALTER TABLE device_transfers ADD COLUMN sku_code VARCHAR(255) NULL AFTER product_name");
-            } catch (mErr) {
-            }
-            [tr] = await conn.execute(
-              `INSERT INTO device_transfers 
-           (business_id, from_branch_id, to_branch_id, device_id, sku_id, quantity, status, initiated_by, notes, product_name, sku_code) 
-           VALUES (?, ?, ?, ?, ?, ?, 'in_transit', ?, ?, ?, ?)`,
-              [
-                sourceBusinessId,
-                sourceBranchId,
-                to_branch_id,
-                finalDeviceId || null,
-                finalSkuId || null,
-                quantity,
-                req.userId,
-                notes || null,
-                cleanProductName || product_name || null,
-                cleanSkuCode || sku_code || null
-              ]
-            );
-          } else {
-            throw insertErr;
-          }
-        }
-        if (finalSkuId) {
-          await conn.execute(
-            `INSERT INTO inventory_movements 
-         (business_id, branch_id, sku_id, movement_type, quantity, unit_cost, reference_type, reference_id) 
-         VALUES (?, ?, ?, 'transfer_out', ?, ?, 'device_transfers', ?)`,
-            [sourceBusinessId, sourceBranchId, finalSkuId, quantity, cost_price || 0, tr.insertId]
-          );
+          createdIds.push(id);
         }
         await conn.commit();
-        res.json({ success: true, id: tr.insertId });
+        res.json({
+          success: true,
+          id: createdIds[0],
+          ids: createdIds,
+          count: createdIds.length
+        });
       } catch (e) {
         await conn.rollback();
         console.error("[POST /api/transfers] Error:", e.message);
@@ -8030,7 +8389,7 @@ var init_inventory = __esm({
              fbz.name as from_business_name,
              tb.name as to_branch_name, tb.business_id as to_business_id,
              tbz.name as to_business_name,
-             d.imei, d.imei_serial, d.color, d.gb, d.\`condition\`, d.cost_price, d.selling_price,
+             d.imei, d.imei_serial, d.color, d.gb, d.\`condition\`, COALESCE(d.cost_price, s.cost_price, 0) as cost_price, COALESCE(d.selling_price, s.selling_price, 0) as selling_price,
              COALESCE(t.product_name, p.name, 'Stock Item') as product_name,
              COALESCE(t.sku_code, s.sku_code, '') as sku_code,
              u.name as initiated_by_name
@@ -8060,7 +8419,7 @@ var init_inventory = __esm({
                  fbz.name as from_business_name,
                  tb.name as to_branch_name, tb.business_id as to_business_id,
                  tbz.name as to_business_name,
-                 d.imei, d.imei_serial, d.color, d.gb, d.\`condition\`, d.cost_price, d.selling_price,
+                 d.imei, d.imei_serial, d.color, d.gb, d.\`condition\`, COALESCE(d.cost_price, s.cost_price, 0) as cost_price, COALESCE(d.selling_price, s.selling_price, 0) as selling_price,
                  COALESCE(p.name, 'Stock Item') as product_name,
                  COALESCE(s.sku_code, '') as sku_code,
                  u.name as initiated_by_name
@@ -8093,7 +8452,7 @@ var init_inventory = __esm({
         await conn.beginTransaction();
         const [tr] = await conn.execute(
           `SELECT t.*, fb.business_id as from_business_id, tb.business_id as to_business_id,
-              d.imei, d.imei_serial, d.color, d.gb, d.\`condition\`, d.cost_price, d.selling_price,
+              d.imei, d.imei_serial, d.color, d.gb, d.\`condition\`, COALESCE(d.cost_price, s.cost_price, 0) as cost_price, COALESCE(d.selling_price, s.selling_price, 0) as selling_price,
               p.name as joined_product_name, s.sku_code as joined_sku_code,
               p.category_id as source_category_id, p.manufacturer_id as source_manufacturer_id,
               p.product_type as source_product_type
@@ -8119,7 +8478,7 @@ var init_inventory = __esm({
         const isCrossBusiness = Number(transfer.from_business_id) !== Number(destBusinessId);
         const resolvedProductName = transfer.product_name || transfer.joined_product_name || (transfer.device_id ? `Transferred Device #${transfer.device_id}` : "Transferred Item");
         const resolvedSkuCode = transfer.sku_code || transfer.joined_sku_code || resolvedProductName.replace(/[^a-zA-Z0-9]/g, "-").toUpperCase().substring(0, 30);
-        let destSkuId = transfer.sku_id;
+        let destSkuId = isCrossBusiness ? null : transfer.sku_id;
         let destProductId = null;
         if (isCrossBusiness) {
           const [existingSkuRows] = await conn.execute(
@@ -8136,12 +8495,28 @@ var init_inventory = __esm({
             destProductId = existingSkuRows[0].product_id;
           }
           if (!destProductId && resolvedProductName) {
+            const cleanTargetName = resolvedProductName.trim().replace(/\s+/g, " ");
             const [destProdRows] = await conn.execute(
               "SELECT id, product_type FROM products WHERE business_id=? AND deleted_at IS NULL AND LOWER(TRIM(name))=LOWER(TRIM(?)) LIMIT 1",
-              [destBusinessId, resolvedProductName]
+              [destBusinessId, cleanTargetName]
             );
             if (destProdRows.length > 0) {
               destProductId = destProdRows[0].id;
+            } else {
+              const normalizeProdName = (str) => str.toLowerCase().replace(/^(apple|samsung)\s+/i, "").replace(/[^a-z0-9]/g, "");
+              const targetNorm = normalizeProdName(cleanTargetName);
+              if (targetNorm.length >= 3) {
+                const [allDestProds] = await conn.execute(
+                  "SELECT id, name FROM products WHERE business_id=? AND deleted_at IS NULL",
+                  [destBusinessId]
+                );
+                const fuzzyMatch = allDestProds.find(
+                  (p) => normalizeProdName(String(p.name || "")) === targetNorm
+                );
+                if (fuzzyMatch) {
+                  destProductId = fuzzyMatch.id;
+                }
+              }
             }
           }
           if (destProductId && !destSkuId) {
@@ -8153,10 +8528,10 @@ var init_inventory = __esm({
               destSkuId = prodSkus[0].id;
             } else {
               const [allProdSkus] = await conn.execute(
-                "SELECT id, sku_code FROM product_skus WHERE product_id=?",
+                "SELECT id, sku_code FROM product_skus WHERE product_id=? ORDER BY id ASC",
                 [destProductId]
               );
-              if (allProdSkus.length === 1 && transfer.device_id) {
+              if (allProdSkus.length > 0) {
                 destSkuId = allProdSkus[0].id;
               } else {
                 try {
@@ -8449,21 +8824,21 @@ var init_inventory = __esm({
         } = data;
         await conn.beginTransaction();
         let finalCustomerId = customer_id;
-        if (!finalCustomerId && phone) {
-          const [existing] = await conn.execute(
+        if (!finalCustomerId && (phone || customer_name || first_name)) {
+          const existingRows = phone ? (await conn.execute(
             "SELECT id, email FROM customers WHERE phone = ? AND business_id = ? AND deleted_at IS NULL LIMIT 1",
             [phone, req.user.business_id]
-          );
-          if (existing.length > 0) {
-            finalCustomerId = existing[0].id;
-            if (email && !existing[0].email) {
+          ))[0] : [];
+          if (existingRows.length > 0) {
+            finalCustomerId = existingRows[0].id;
+            if (email && !existingRows[0].email) {
               await conn.execute("UPDATE customers SET email = ? WHERE id = ?", [email, finalCustomerId]);
             }
           } else {
-            const combinedName = customer_name?.trim() || `${first_name || ""} ${last_name || ""}`.trim() || `Customer (${phone})`;
+            const combinedName = customer_name?.trim() || `${first_name || ""} ${last_name || ""}`.trim() || (phone ? `Customer (${phone})` : "Walk-in Customer");
             const [newCust] = await conn.execute(
               "INSERT INTO customers (business_id, branch_id, name, first_name, last_name, phone, email) VALUES (?, ?, ?, ?, ?, ?, ?)",
-              [req.user.business_id, req.user.branch_id, combinedName, first_name || combinedName, last_name || "", phone, email || null]
+              [req.user.business_id, req.user.branch_id, combinedName, first_name || combinedName, last_name || "", phone || "", email || null]
             );
             finalCustomerId = newCust.insertId;
           }
@@ -8505,13 +8880,17 @@ var init_inventory = __esm({
     });
     updateRepairSchema = z7.object({
       status: z7.string().optional(),
+      device_model: z7.string().optional(),
       issue: z7.string().optional(),
       notes: z7.string().optional(),
-      total_quote: z7.number().optional()
+      total_quote: z7.number().or(z7.string().transform(Number)).optional(),
+      customer_name: z7.string().optional(),
+      customer_phone: z7.string().optional().nullable(),
+      customer_email: z7.string().optional().nullable()
     });
     router8.put("/repairs/:id", async (req, res, next) => {
       const data = updateRepairSchema.parse(req.body);
-      const { status, issue, notes, total_quote } = data;
+      const { status, device_model, issue, notes, total_quote, customer_name, customer_phone, customer_email } = data;
       const jobId = req.params.id;
       const conn = await pool.getConnection();
       try {
@@ -8528,9 +8907,56 @@ var init_inventory = __esm({
           updates.push("status = ?");
           values.push(status);
         }
+        if (device_model !== void 0 && device_model.trim()) {
+          updates.push("device_model = ?");
+          values.push(device_model.trim());
+        }
         if (issue !== void 0) {
           updates.push("issue = ?");
           values.push(issue.trim());
+        }
+        if (customer_name !== void 0 || customer_phone !== void 0 || customer_email !== void 0) {
+          if (job.customer_id) {
+            const custUpdates = [];
+            const custValues = [];
+            if (customer_name !== void 0) {
+              const trimmedName = customer_name.trim() || "Walk-in Customer";
+              const parts = trimmedName.split(/\s+/);
+              const firstName = parts[0] || trimmedName;
+              const lastName = parts.slice(1).join(" ");
+              custUpdates.push("name = ?", "first_name = ?", "last_name = ?");
+              custValues.push(trimmedName, firstName, lastName);
+            }
+            if (customer_phone !== void 0) {
+              custUpdates.push("phone = ?");
+              custValues.push((customer_phone || "").trim());
+            }
+            if (customer_email !== void 0) {
+              custUpdates.push("email = ?");
+              custValues.push((customer_email || "").trim() || null);
+            }
+            if (custUpdates.length > 0) {
+              custValues.push(job.customer_id, req.user.business_id);
+              await conn.execute(
+                `UPDATE customers SET ${custUpdates.join(", ")} WHERE id = ? AND business_id = ?`,
+                custValues
+              );
+            }
+          } else {
+            const trimmedName = (customer_name || "").trim() || "Walk-in Customer";
+            const parts = trimmedName.split(/\s+/);
+            const firstName = parts[0] || trimmedName;
+            const lastName = parts.slice(1).join(" ");
+            const phoneVal = (customer_phone || "").trim();
+            const emailVal = (customer_email || "").trim() || null;
+            const [newCust] = await conn.execute(
+              "INSERT INTO customers (business_id, branch_id, name, first_name, last_name, phone, email) VALUES (?, ?, ?, ?, ?, ?, ?)",
+              [req.user.business_id, job.branch_id || req.user.branch_id, trimmedName, firstName, lastName, phoneVal, emailVal]
+            );
+            const newCustomerId = newCust.insertId;
+            updates.push("customer_id = ?");
+            values.push(newCustomerId);
+          }
         }
         if (total_quote !== void 0) {
           const newQuote = Math.max(0, Number(total_quote) || 0);
