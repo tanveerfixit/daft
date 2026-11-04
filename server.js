@@ -9048,7 +9048,6 @@ var init_inventory = __esm({
 init_mysql();
 init_auth();
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import dotenv2 from "dotenv";
 import fs from "fs";
 import { ZodError } from "zod";
@@ -9169,6 +9168,7 @@ async function startServer() {
     }
   });
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa"
