@@ -4,8 +4,24 @@ This document tracks all features, architectural enhancements, bug fixes, and UX
 
 ## [2026-11-05] - Deployment Auth 500 Fix, DB Host Normalization & Production Health Diagnostics
 
+### 🚀 Features & UX Improvements
+* **End of Day Calendar Date Picker & Reports Modal (`EndOfDay.tsx`)**:
+  * Upgraded the **"End of Day List"** button to open an interactive modal with a full **Calendar Date Picker** as the primary view.
+  * Users can navigate months, click on any date (or use quick "Today" / "Yesterday" buttons), and click **"Load Day Details"** (or double-click the day) to instantly display sales, drawer cash, invoice payments, and transaction breakdowns for any chosen date.
+  * Added visual indicators: green dots mark dates that have saved closing reports, and rings mark "Today" and the currently selected date.
+  * Provided a **Saved Reports List** tab with real-time search filtering (by date or staff name) and 1-click "Load Day" actions.
+
 ### 🐛 Bug Fixes & Deployment Stability
-* **Auth Login & Reset Password Unhandled Exception Fix (`src/routes/auth.ts`)**:
+* **Searchable & Alphabetically Sorted Model Reassignment Dropdown (`DeviceDetails.tsx`)**:
+  * Upgraded the "Reassign IMEI to another model" selector in Edit Device Details modal from a static HTML `<select>` into a searchable, interactive combobox.
+  * Added instant real-time search filtering by model name, manufacturer brand, and SKU code with quick-clear and automatic focus.
+  * Sorted all available device models alphabetically (A–Z) using natural numeric sorting (e.g. iPhone 11 before iPhone 12).
+  * Included active "Current" badges and checkmark indicators for the currently assigned model.
+* **Streamlined Add Inventory Page (`AddInventory.tsx`, `inventory.ts`)**:
+  * Simplified the Serialized Items intake table by removing redundant Storage, Color, and Condition input columns. Intake is now focused purely on fast barcode/IMEI scanning.
+  * Preserved full barcode scanner navigation (scan IMEI -> press Enter to automatically create and focus the next line).
+  * Upgraded `POST /api/inventory/add` in `src/routes/inventory.ts` to automatically inherit storage capacity (GB) from the product/SKU name if present (e.g. "128GB", "256GB") and default condition to `'New'`, ensuring complete database records with zero manual input overhead.
+  * Simplified the batch success & label printing view with a clean 4-column layout (`#`, `IMEI`, `Price`, `Print`).
   * Moved `loginSchema.parse(req.body)` and `resetPasswordSchema.parse(req.body)` inside `try/catch` blocks. Previously, synchronous parse errors in async Express 4 route handlers returned uncaught rejected promises that triggered Node `unhandledRejection`, crashing the process under LiteSpeed / Passenger and returning 500/503.
   * Enhanced Zod error handling in the global error handler (`server.ts`) with dual validation (`err instanceof ZodError || err?.name === 'ZodError'`) to guarantee 400 Bad Request responses.
 * **Hostinger MySQL Dual-Host Auto-Fallback (`src/mysql.ts`)**:

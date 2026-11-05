@@ -11,7 +11,10 @@ import {
   ExternalLink,
   AlertCircle,
   Camera,
-  X
+  X,
+  Search,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import { invalidateCache } from '../../utils/cache';
 
@@ -31,6 +34,10 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
   const [printerSettings, setPrinterSettings] = useState<any>(null);
   const [businessInfo, setBusinessInfo] = useState<any>(null);
   const [availableProducts, setAvailableProducts] = useState<any[]>([]);
+  const [productSearch, setProductSearch] = useState('');
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
+  const productDropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [newNote, setNewNote] = useState('');
   const [editForm, setEditForm] = useState<any>({});
   const [isUpdating, setIsUpdating] = useState(false);
@@ -45,12 +52,38 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
     fetchAvailableProducts();
   }, [deviceId]);
 
-  const fetchAvailableProducts = async () => {
+  // Close product dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (productDropdownRef.current && !productDropdownRef.current.contains(e.target as Node)) {
+        setIsProductDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchAvailableProducts = async (currentDev?: any) => {
     try {
-      const res = await fetch('/api/products?product_type=serialized&limit=500');
+      const res = await fetch('/api/products?product_type=serialized&limit=2000');
       if (res.ok) {
         const data = await res.json();
-        setAvailableProducts(Array.isArray(data.products) ? data.products : (Array.isArray(data) ? data : []));
+        const rawList: any[] = Array.isArray(data.products) ? data.products : (Array.isArray(data) ? data : []);
+        const targetDev = currentDev || device;
+        if (targetDev?.sku_id && !rawList.some(p => p.id === targetDev.sku_id)) {
+          rawList.push({
+            id: targetDev.sku_id,
+            product_name: targetDev.product_name || 'Current Model',
+            sku_code: targetDev.sku_code || ''
+          });
+        }
+        // Sort models alphabetically (A-Z) with natural numeric ordering (e.g. iPhone 11 before iPhone 12)
+        rawList.sort((a, b) => {
+          const nameA = (a.product_name || a.name || '').trim();
+          const nameB = (b.product_name || b.name || '').trim();
+          return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+        });
+        setAvailableProducts(rawList);
       }
     } catch (err) {
       console.error('Error fetching serialized products:', err);
@@ -317,6 +350,8 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
 
   const handleEditClick = () => {
     setUpdateError(null);
+    setProductSearch('');
+    setIsProductDropdownOpen(false);
     setEditForm({
       sku_id: device.sku_id ?? '',
       color: device.color ?? '',
@@ -329,7 +364,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
       imei_status: device.imei_status ?? 'Clean',
       carrier: device.carrier ?? 'Unlocked'
     });
-    fetchAvailableProducts();
+    fetchAvailableProducts(device);
     setShowEditModal(true);
   };
 
@@ -711,27 +746,157 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
             )}
             
             <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">
-                  Product / Device Model Name <span className="text-blue-600 dark:text-blue-400 font-normal">(Reassign IMEI to another model)</span>
-                </label>
-                <select
-                  value={editForm.sku_id}
-                  onChange={e => setEditForm({ ...editForm, sku_id: e.target.value ? Number(e.target.value) : '' })}
-                  className="w-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-semibold cursor-pointer"
+              <div className="space-y-1.5 md:col-span-2 relative" ref={productDropdownRef}>
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">
+                    Product / Device Model Name <span className="text-blue-600 dark:text-blue-400 font-normal">(Reassign IMEI to another model)</span>
+                  </label>
+                  <span className="text-[11px] text-neutral-400">
+                    {availableProducts.length} models (A–Z)
+                  </span>
+                </div>
+
+                {/* Dropdown Trigger Button */}
+                <div 
+                  onClick={() => {
+                    const nextState = !isProductDropdownOpen;
+                    setIsProductDropdownOpen(nextState);
+                    if (nextState) {
+                      setTimeout(() => searchInputRef.current?.focus(), 60);
+                    }
+                  }}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm flex items-center justify-between cursor-pointer transition-all bg-white dark:bg-neutral-950 ${
+                    isProductDropdownOpen 
+                      ? 'border-blue-500 ring-2 ring-blue-500/20' 
+                      : 'border-neutral-300 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-600'
+                  }`}
                 >
-                  {/* Current product option if not yet in available list */}
-                  {device.sku_id && !availableProducts.some(p => p.id === device.sku_id) && (
-                    <option value={device.sku_id}>
-                      {device.product_name} (Current)
-                    </option>
-                  )}
-                  {availableProducts.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.product_name || p.name} {p.sku_code ? `(${p.sku_code})` : ''}
-                    </option>
-                  ))}
-                </select>
+                  <div className="flex items-center gap-2 truncate">
+                    {(() => {
+                      const selected = availableProducts.find(p => p.id === editForm.sku_id) || (device?.sku_id === editForm.sku_id ? {
+                        id: device.sku_id,
+                        product_name: device.product_name,
+                        sku_code: device.sku_code
+                      } : null);
+
+                      if (!selected) {
+                        return <span className="text-neutral-400 font-normal">Select a device model...</span>;
+                      }
+
+                      return (
+                        <>
+                          <span className="font-semibold text-neutral-900 dark:text-white truncate">
+                            {selected.product_name || selected.name}
+                          </span>
+                          {selected.sku_code && (
+                            <span className="text-xs font-mono text-neutral-400 shrink-0">
+                              ({selected.sku_code})
+                            </span>
+                          )}
+                          {selected.id === device?.sku_id && (
+                            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 shrink-0">
+                              Current
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                  <ChevronDown size={16} className={`text-neutral-400 transition-transform shrink-0 ml-2 ${isProductDropdownOpen ? 'rotate-180 text-blue-500' : ''}`} />
+                </div>
+
+                {/* Searchable Dropdown Menu */}
+                {isProductDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 z-[200] bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-2xl overflow-hidden flex flex-col">
+                    {/* Search Input Bar */}
+                    <div className="p-2 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 sticky top-0 z-10 flex items-center gap-2">
+                      <Search size={15} className="text-neutral-400 shrink-0 ml-1" />
+                      <input 
+                        ref={searchInputRef}
+                        type="text"
+                        value={productSearch}
+                        onChange={e => setProductSearch(e.target.value)}
+                        placeholder="Search model, brand or SKU..."
+                        className="w-full bg-transparent text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 outline-none h-7"
+                        onClick={e => e.stopPropagation()}
+                      />
+                      {productSearch && (
+                        <button 
+                          type="button"
+                          onClick={e => { e.stopPropagation(); setProductSearch(''); searchInputRef.current?.focus(); }}
+                          className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Results List */}
+                    <div className="max-h-60 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800/60">
+                      {(() => {
+                        const term = productSearch.toLowerCase().trim();
+                        const filtered = availableProducts.filter(p => {
+                          if (!term) return true;
+                          const name = (p.product_name || p.name || '').toLowerCase();
+                          const sku = (p.sku_code || '').toLowerCase();
+                          const mfr = (p.manufacturer_name || '').toLowerCase();
+                          return name.includes(term) || sku.includes(term) || mfr.includes(term);
+                        });
+
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="p-4 text-center text-sm text-neutral-400">
+                              No models found matching "{productSearch}"
+                            </div>
+                          );
+                        }
+
+                        return filtered.map(p => {
+                          const isSelected = p.id === editForm.sku_id;
+                          const isCurrent = p.id === device?.sku_id;
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => {
+                                setEditForm({ ...editForm, sku_id: p.id });
+                                setIsProductDropdownOpen(false);
+                                setProductSearch('');
+                              }}
+                              className={`px-3 py-2 text-sm flex items-center justify-between cursor-pointer transition-colors ${
+                                isSelected 
+                                  ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-semibold' 
+                                  : 'hover:bg-neutral-100 dark:hover:bg-neutral-800/60 text-neutral-800 dark:text-neutral-200'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <span className="truncate">{p.product_name || p.name}</span>
+                                {p.sku_code && (
+                                  <span className="text-xs font-mono text-neutral-400 shrink-0">
+                                    ({p.sku_code})
+                                  </span>
+                                )}
+                                {isCurrent && (
+                                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 shrink-0">
+                                    Current
+                                  </span>
+                                )}
+                              </div>
+                              {isSelected && (
+                                <Check size={16} className="text-blue-600 dark:text-blue-400 shrink-0 ml-2" />
+                              )}
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+
+                    {/* Footer counter */}
+                    <div className="px-3 py-1.5 bg-neutral-50 dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-800 text-[11px] text-neutral-400 flex justify-between items-center">
+                      <span>Alphabetically sorted (A–Z)</span>
+                      <span>{availableProducts.length} models</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5">

@@ -5,9 +5,9 @@ import { invalidateCache } from '../utils/cache';
 
 interface SerializedItem {
   imei: string;
-  color: string;
-  gb: string;
-  condition: string;
+  color?: string;
+  gb?: string;
+  condition?: string;
   duplicateError?: string | null;
   isChecking?: boolean;
 }
@@ -57,7 +57,7 @@ export default function AddInventory({
 
   // Serialized Items State
   const [items, setItems] = useState<SerializedItem[]>([
-    { imei: '', color: '', gb: '128', condition: 'New' }
+    { imei: '' }
   ]);
 
   // Input refs for barcode scanner navigation
@@ -202,9 +202,6 @@ export default function AddInventory({
   const handleAddItem = (defaultValues?: Partial<SerializedItem>) => {
     const newItem: SerializedItem = {
       imei: defaultValues?.imei || '',
-      color: defaultValues?.color || '',
-      gb: defaultValues?.gb || '128',
-      condition: defaultValues?.condition || 'New',
       duplicateError: null
     };
 
@@ -279,12 +276,8 @@ export default function AddInventory({
       checkImeiDuplicate(currentImei, idx, items);
 
       if (idx === items.length - 1) {
-        // We are on the last line: auto create next line and copy GB & Condition from current row
-        handleAddItem({
-          gb: currentItem?.gb || '128',
-          condition: currentItem?.condition || 'New',
-          color: currentItem?.color || ''
-        });
+        // We are on the last line: auto create next line for continuous scanning
+        handleAddItem();
       } else {
         // Focus the existing next line's IMEI field
         imeiInputRefs.current[idx + 1]?.focus();
@@ -329,10 +322,7 @@ export default function AddInventory({
       supplier_id: supplierId ? parseInt(supplierId) : null,
       po_number: poNumber,
       items: product?.product_type === 'serialized' ? validSerializedItems.map(it => ({
-        imei: it.imei.trim(),
-        color: it.color,
-        gb: it.gb,
-        condition: it.condition
+        imei: it.imei.trim()
       })) : []
     };
 
@@ -719,7 +709,7 @@ export default function AddInventory({
               <table className="w-full text-left border-collapse text-[15px]">
                 <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
                   <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
-                    <th className="py-1 px-1.5 w-10 text-center border-r border-neutral-300 dark:border-neutral-700">
+                    <th className="py-2 px-2 w-10 text-center border-r border-neutral-300 dark:border-neutral-700">
                       <input 
                         type="checkbox" 
                         checked={allSelected} 
@@ -727,13 +717,10 @@ export default function AddInventory({
                         className="cursor-pointer"
                       />
                     </th>
-                    <th className="py-1 px-1.5 w-12 text-center border-r border-neutral-300 dark:border-neutral-700">#</th>
-                    <th className="py-1 px-1.5 min-w-[240px] text-center border-r border-neutral-300 dark:border-neutral-700">IMEI / Serial Number</th>
-                    <th className="py-1 px-1.5 w-36 text-center border-r border-neutral-300 dark:border-neutral-700">Storage (GB)</th>
-                    <th className="py-1 px-1.5 w-36 text-center border-r border-neutral-300 dark:border-neutral-700">Color</th>
-                    <th className="py-1 px-1.5 w-32 text-center border-r border-neutral-300 dark:border-neutral-700">Condition</th>
-                    <th className="py-1 px-1.5 w-32 text-center border-r border-neutral-300 dark:border-neutral-700">Price</th>
-                    <th className="py-1 px-1.5 w-28 text-center">Action</th>
+                    <th className="py-2 px-2 w-12 text-center border-r border-neutral-300 dark:border-neutral-700">#</th>
+                    <th className="py-2 px-4 text-left border-r border-neutral-300 dark:border-neutral-700">IMEI / Serial Number</th>
+                    <th className="py-2 px-3 w-36 text-center border-r border-neutral-300 dark:border-neutral-700">Price</th>
+                    <th className="py-2 px-3 w-28 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
@@ -751,7 +738,7 @@ export default function AddInventory({
                             : 'opacity-50 bg-neutral-100 dark:bg-neutral-950'
                         }`}
                       >
-                        <td className="py-1 px-1.5 text-center align-middle border-r border-neutral-300 dark:border-neutral-800">
+                        <td className="py-2 px-2 text-center align-middle border-r border-neutral-300 dark:border-neutral-800">
                           <input 
                             type="checkbox" 
                             checked={isSelected}
@@ -759,25 +746,16 @@ export default function AddInventory({
                             className="cursor-pointer"
                           />
                         </td>
-                        <td className="py-1 px-1.5 text-center text-neutral-500 text-[15px] font-medium align-middle border-r border-neutral-300 dark:border-neutral-800">
+                        <td className="py-2 px-2 text-center text-neutral-500 text-[15px] font-medium align-middle border-r border-neutral-300 dark:border-neutral-800">
                           {idx + 1}
                         </td>
-                        <td className="py-1 px-2.5 align-middle border-r border-neutral-300 dark:border-neutral-800 font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                        <td className="py-2 px-4 align-middle border-r border-neutral-300 dark:border-neutral-800 font-mono font-bold text-neutral-900 dark:text-neutral-100">
                           {dev.imei}
                         </td>
-                        <td className="py-1 px-2 text-center align-middle border-r border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300">
-                          {dev.gb ? `${dev.gb.replace(/gb/i, '')}GB` : '-'}
-                        </td>
-                        <td className="py-1 px-2 text-center align-middle border-r border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300">
-                          {dev.color || '-'}
-                        </td>
-                        <td className="py-1 px-2 text-center align-middle border-r border-neutral-300 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300">
-                          {dev.condition || 'New'}
-                        </td>
-                        <td className="py-1 px-2 text-center align-middle border-r border-neutral-300 dark:border-neutral-800 font-semibold text-neutral-900 dark:text-neutral-100">
+                        <td className="py-2 px-3 text-center align-middle border-r border-neutral-300 dark:border-neutral-800 font-semibold text-neutral-900 dark:text-neutral-100">
                           €{Number(dev.selling_price || sellingPrice || product.selling_price || 0).toFixed(2)}
                         </td>
-                        <td className="py-1 px-2 text-center align-middle">
+                        <td className="py-2 px-3 text-center align-middle">
                           <button
                             type="button"
                             onClick={() => handleBatchPrintLabels([dev])}
@@ -802,19 +780,6 @@ export default function AddInventory({
 
   return (
     <div className="flex flex-col h-full bg-[#f2f2f2] text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-2 pb-2 pt-0 select-none w-full overflow-auto" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
-      {/* Reusable Datalist for Storage options */}
-      <datalist id="storage-presets">
-        <option value="128" />
-        <option value="256" />
-        <option value="64" />
-        <option value="512" />
-        <option value="1TB" />
-        <option value="128GB" />
-        <option value="256GB" />
-        <option value="64GB" />
-        <option value="512GB" />
-      </datalist>
-
       {/* Header bar */}
       <div className="sticky top-0 z-40 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded shrink-0 flex justify-between items-center px-4 py-3 mb-2">
         <div className="flex items-center gap-3">
@@ -1006,12 +971,10 @@ export default function AddInventory({
                 <table className="w-full text-left border-collapse text-[15px]">
                   <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
                     <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
-                      <th className="py-1 px-1.5 w-12 text-center border-r border-neutral-300 dark:border-neutral-700">#</th>
-                      <th className="py-1 px-1.5 min-w-[280px] text-center border-r border-neutral-300 dark:border-neutral-700">IMEI / Serial Number</th>
-                      <th className="py-1 px-1.5 w-48 text-center border-r border-neutral-300 dark:border-neutral-700">Storage (GB)</th>
-                      <th className="py-1 px-1.5 w-44 text-center border-r border-neutral-300 dark:border-neutral-700">Color</th>
-                      <th className="py-1 px-1.5 w-40 text-center border-r border-neutral-300 dark:border-neutral-700">Condition</th>
-                      <th className="py-1 px-1.5 w-12 text-center"></th>
+                      <th className="py-2 px-3 w-14 text-center border-r border-neutral-300 dark:border-neutral-700">#</th>
+                      <th className="py-2 px-4 text-left border-r border-neutral-300 dark:border-neutral-700">IMEI / Serial Number</th>
+                      <th className="py-2 px-3 w-48 text-center border-r border-neutral-300 dark:border-neutral-700">Status</th>
+                      <th className="py-2 px-2 w-14 text-center"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
@@ -1029,10 +992,10 @@ export default function AddInventory({
                                 : 'bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900'
                           }`}
                         >
-                          <td className="py-1 px-1.5 text-center text-neutral-500 text-[15px] font-medium align-top pt-2">
+                          <td className="py-2 px-3 text-center text-neutral-500 text-[15px] font-medium align-middle">
                             {idx + 1}
                           </td>
-                          <td className="py-1 px-1.5 align-top">
+                          <td className="py-2 px-4 align-middle">
                             <div className="relative">
                               <input 
                                 ref={el => { imeiInputRefs.current[idx] = el; }}
@@ -1043,99 +1006,48 @@ export default function AddInventory({
                                 onKeyDown={(e) => handleImeiKeyDown(e, idx)}
                                 onBlur={() => checkImeiDuplicate(item.imei, idx, items)}
                                 placeholder="Scan or type IMEI (Press Enter for next line)..."
-                                className={`w-full px-2.5 py-1 text-sm border rounded focus:outline-none transition-colors h-8 ${
+                                className={`w-full px-3 py-1.5 text-base font-mono border rounded focus:outline-none transition-colors h-9 ${
                                   hasError 
                                     ? 'border-rose-500 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 font-bold focus:ring-1 focus:ring-rose-500' 
                                     : 'border-neutral-300 dark:border-neutral-700 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 focus:border-blue-500'
                                 }`}
                               />
                               {item.isChecking && (
-                                <span className="absolute right-2 top-1.5 text-xs text-neutral-400 animate-pulse">
+                                <span className="absolute right-3 top-2 text-xs text-neutral-400 animate-pulse">
                                   checking...
                                 </span>
                               )}
                             </div>
                             {item.duplicateError && (
-                              <div className="flex items-start gap-1.5 text-xs text-rose-600 dark:text-rose-400 font-semibold mt-1 bg-rose-100/60 dark:bg-rose-950/80 p-1.5 rounded border border-rose-300 dark:border-rose-800">
+                              <div className="flex items-start gap-1.5 text-xs text-rose-600 dark:text-rose-400 font-semibold mt-1.5 bg-rose-100/60 dark:bg-rose-950/80 p-1.5 rounded border border-rose-300 dark:border-rose-800">
                                 <AlertTriangle size={14} className="shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
                                 <span>{item.duplicateError}</span>
                               </div>
                             )}
                           </td>
 
-                          {/* Storage with 128, 256 dropdown & manual entry */}
-                          <td className="py-1 px-1.5 align-top">
-                            <div className="flex items-center gap-1.5">
-                              <input 
-                                type="text"
-                                list="storage-presets"
-                                value={item.gb}
-                                onChange={(e) => handleItemChange(idx, 'gb', e.target.value)}
-                                placeholder="128, 256..."
-                                className="w-full px-2.5 py-1 text-sm border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 rounded focus:outline-none focus:border-blue-500 font-normal h-8"
-                              />
-                              <div className="flex gap-1 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => handleItemChange(idx, 'gb', '128')}
-                                  className={`px-2 py-0.5 text-xs font-normal border rounded transition-colors cursor-pointer h-8 ${
-                                    item.gb === '128' || item.gb === '128GB'
-                                      ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-black border-neutral-900 dark:border-neutral-100'
-                                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-200'
-                                  }`}
-                                  title="Quick select 128"
-                                >
-                                  128
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleItemChange(idx, 'gb', '256')}
-                                  className={`px-2 py-0.5 text-xs font-normal border rounded transition-colors cursor-pointer h-8 ${
-                                    item.gb === '256' || item.gb === '256GB'
-                                      ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-black border-neutral-900 dark:border-neutral-100'
-                                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-200'
-                                  }`}
-                                  title="Quick select 256"
-                                >
-                                  256
-                                </button>
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Color */}
-                          <td className="py-1 px-1.5 align-top">
-                            <input 
-                              type="text"
-                              value={item.color}
-                              onChange={(e) => handleItemChange(idx, 'color', e.target.value)}
-                              placeholder="e.g. Black, Blue"
-                              className="w-full px-2.5 py-1 text-sm border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 rounded focus:outline-none focus:border-blue-500 h-8 font-normal"
-                            />
-                          </td>
-
-                          {/* Condition */}
-                          <td className="py-1 px-1.5 align-top">
-                            <select 
-                              value={item.condition}
-                              onChange={(e) => handleItemChange(idx, 'condition', e.target.value)}
-                              className="w-full px-2.5 py-1 text-sm border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 rounded focus:outline-none focus:border-blue-500 cursor-pointer font-normal h-8"
-                            >
-                              <option value="New">New</option>
-                              <option value="A">Grade A</option>
-                              <option value="B">Grade B</option>
-                              <option value="C">Grade C</option>
-                              <option value="Faulty">Faulty</option>
-                            </select>
+                          {/* Verification Status Badge */}
+                          <td className="py-2 px-3 text-center align-middle border-l border-neutral-300 dark:border-neutral-700">
+                            {hasError ? (
+                              <span className="text-xs font-semibold px-2.5 py-1 rounded bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300">
+                                Duplicate / Invalid
+                              </span>
+                            ) : item.imei.trim() ? (
+                              <span className="text-xs font-semibold px-2.5 py-1 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1">
+                                <Check size={13} /> Ready
+                              </span>
+                            ) : (
+                              <span className="text-xs text-neutral-400 font-normal">Awaiting input</span>
+                            )}
                           </td>
 
                           {/* Remove button */}
-                          <td className="py-1 px-1.5 text-center align-top pt-2">
+                          <td className="py-2 px-2 text-center align-middle border-l border-neutral-300 dark:border-neutral-700">
                             {items.length > 1 && (
                               <button 
                                 type="button"
                                 onClick={() => handleRemoveItem(idx)}
-                                className="text-neutral-400 hover:text-rose-600 transition-colors cursor-pointer bg-transparent border-none p-0"
+                                className="text-neutral-400 hover:text-rose-600 transition-colors cursor-pointer bg-transparent border-none p-1.5"
                                 title="Remove row"
                               >
                                 <Trash2 size={16} />

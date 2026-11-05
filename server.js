@@ -7295,22 +7295,29 @@ var init_inventory = __esm({
           }
           for (const item of validItems) {
             const cleanImei = item.imei.trim();
+            let itemGb = item.gb || null;
+            if (!itemGb && productInfo.product_name) {
+              const gbMatch = productInfo.product_name.match(/\b(\d+\s*(?:GB|TB))\b/i);
+              if (gbMatch) itemGb = gbMatch[1].replace(/\s+/g, "").toUpperCase();
+            }
+            const itemCondition = item.condition || "New";
+            const itemColor = item.color || null;
             await conn.execute(
               "INSERT INTO devices (business_id,branch_id,user_id,sku_id,imei,cost_price,selling_price,color,gb,`condition`,po_number,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,'in_stock')",
-              [req.user.business_id, activeBranchId, req.userId, sku_id, cleanImei, cost_price, selling_price, item.color, item.gb, item.condition, finalPoNumber]
+              [req.user.business_id, activeBranchId, req.userId, sku_id, cleanImei, cost_price, selling_price, itemColor, itemGb, itemCondition, finalPoNumber]
             );
             const deviceIdRow = (await conn.execute("SELECT LAST_INSERT_ID() as id"))[0];
             const insertedDevId = deviceIdRow[0]?.id || deviceIdRow?.insertId;
             insertedDevices.push({
               id: insertedDevId,
               imei: cleanImei,
-              color: item.color || "",
-              gb: item.gb || "",
-              condition: item.condition || "New",
+              color: itemColor || "",
+              gb: itemGb || "",
+              condition: itemCondition,
               cost_price: Number(cost_price) || 0,
               selling_price: Number(selling_price) || 0
             });
-            const imeiLogDesc = `IMEI: ${cleanImei} (${item.gb || ""} ${item.color || ""} ${item.condition || ""}) added to inventory via PO: ${finalPoNumber}`;
+            const imeiLogDesc = `IMEI: ${cleanImei}${itemGb ? ` (${itemGb})` : ""} added to inventory via PO: ${finalPoNumber}`;
             await conn.execute(
               "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
               [insertedDevId, req.userId, "Device Created", imeiLogDesc]
