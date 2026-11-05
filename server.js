@@ -86,6 +86,7 @@ __export(mysql_exports, {
 });
 import mysql from "mysql2/promise";
 import dotenv from "dotenv";
+import path from "path";
 function resolveTimezoneOffset(tzInput) {
   let ianaTz = "Europe/Dublin";
   if (tzInput) {
@@ -1494,17 +1495,26 @@ async function logActivity({
     console.error("[ActivityLog] Failed to record activity:", err.message);
   }
 }
-var businessTzCache, pool, CURRENT_SCHEMA_VERSION;
+var resolveDbHost, businessTzCache, pool, CURRENT_SCHEMA_VERSION;
 var init_mysql = __esm({
   "src/mysql.ts"() {
     init_crypto();
     dotenv.config();
+    try {
+      dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+    } catch {
+    }
+    resolveDbHost = () => {
+      const host = process.env.DB_HOST?.trim();
+      if (!host || host.toLowerCase() === "localhost") return "127.0.0.1";
+      return host;
+    };
     if (process.env.DB_PASS === void 0) {
       throw new Error("[SECURITY FATAL] DB_PASS is not set in the .env file. Refusing to start with insecure credentials.");
     }
     businessTzCache = /* @__PURE__ */ new Map();
     pool = mysql.createPool({
-      host: process.env.DB_HOST || "127.0.0.1",
+      host: resolveDbHost(),
       port: Number(process.env.DB_PORT) || 3306,
       database: process.env.DB_NAME,
       user: process.env.DB_USER,
@@ -2129,9 +2139,9 @@ var init_auth = __esm({
       password: z.string().min(1, "Password is required")
     });
     router.post("/login", async (req, res, next) => {
-      const data = loginSchema.parse(req.body);
-      const { email, password } = data;
       try {
+        const data = loginSchema.parse(req.body);
+        const { email, password } = data;
         const user = await queryOne("SELECT * FROM users WHERE email=? AND deleted_at IS NULL", [email]);
         if (!user) return res.status(401).json({ error: "Invalid email or password" });
         if (user.role !== "developer") {
@@ -2288,9 +2298,9 @@ var init_auth = __esm({
       password: z.string().min(8, "Password must be at least 8 characters")
     });
     router.post("/reset-password", async (req, res, next) => {
-      const data = resetPasswordSchema.parse(req.body);
-      const { token, password } = data;
       try {
+        const data = resetPasswordSchema.parse(req.body);
+        const { token, password } = data;
         const user = await queryOne("SELECT * FROM users WHERE reset_token=?", [token]);
         if (!user) return res.status(400).json({ error: "Invalid or expired reset link" });
         if (new Date(user.reset_token_expires) < /* @__PURE__ */ new Date()) {
@@ -2614,8 +2624,8 @@ var init_auth = __esm({
       }
     });
     getAnnouncementsPath = async () => {
-      const path = await import("path");
-      return path.resolve(process.cwd(), "src", "data", "announcements.json");
+      const path2 = await import("path");
+      return path2.resolve(process.cwd(), "src", "data", "announcements.json");
     };
     readAnnouncementsFile = async () => {
       const fs2 = await import("fs");
@@ -2632,9 +2642,9 @@ var init_auth = __esm({
     };
     writeAnnouncementsFile = async (data) => {
       const fs2 = await import("fs");
-      const path = await import("path");
+      const path2 = await import("path");
       const filePath = await getAnnouncementsPath();
-      const dir = path.dirname(filePath);
+      const dir = path2.dirname(filePath);
       if (!fs2.existsSync(dir)) fs2.mkdirSync(dir, { recursive: true });
       fs2.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
     };
@@ -2754,8 +2764,8 @@ var init_public = __esm({
     router2.get("/announcements", async (_req, res, next) => {
       try {
         const fs2 = await import("fs");
-        const path = await import("path");
-        const filePath = path.resolve(process.cwd(), "src", "data", "announcements.json");
+        const path2 = await import("path");
+        const filePath = path2.resolve(process.cwd(), "src", "data", "announcements.json");
         if (fs2.existsSync(filePath)) {
           const data = fs2.readFileSync(filePath, "utf-8");
           try {
@@ -2803,8 +2813,8 @@ var init_public = __esm({
       try {
         const userId = getUserIdFromReq(req);
         const fs2 = await import("fs");
-        const path = await import("path");
-        const filePath = path.resolve(process.cwd(), "src", "data", "announcements.json");
+        const path2 = await import("path");
+        const filePath = path2.resolve(process.cwd(), "src", "data", "announcements.json");
         let targetIds = [];
         if (fs2.existsSync(filePath)) {
           try {
@@ -9053,12 +9063,23 @@ import fs from "fs";
 import { ZodError } from "zod";
 dotenv2.config();
 function logError(message, error) {
-  const entry = `[${(/* @__PURE__ */ new Date()).toISOString()}] ${message}: ${error?.message}
-${error?.stack}
+  const entry = `[${(/* @__PURE__ */ new Date()).toISOString()}] ${message}: ${error?.message || error}
+${error?.stack || ""}
 
 `;
-  fs.appendFileSync("server_errors.log", entry);
+  try {
+    fs.appendFileSync("server_errors.log", entry);
+  } catch {
+  }
 }
+process.on("unhandledRejection", (reason) => {
+  console.error("[Unhandled Rejection]", reason);
+  logError("Unhandled Promise Rejection", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[Uncaught Exception]", err);
+  logError("Uncaught Exception", err);
+});
 async function startServer() {
   try {
     await initSchema();
@@ -9079,6 +9100,25 @@ async function startServer() {
   const { default: reportsRouter } = await Promise.resolve().then(() => (init_reports(), reports_exports));
   const { default: settingsRouter } = await Promise.resolve().then(() => (init_settings(), settings_exports));
   const { default: inventoryRouter } = await Promise.resolve().then(() => (init_inventory(), inventory_exports));
+  app.get("/api/health", async (_req, res) => {
+    try {
+      const { pool: pool2 } = await Promise.resolve().then(() => (init_mysql(), mysql_exports));
+      await pool2.query("SELECT 1 as ok");
+      res.json({
+        status: "ok",
+        database: "connected",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    } catch (err) {
+      res.status(500).json({
+        status: "error",
+        database: "disconnected",
+        error: err?.message,
+        code: err?.code,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    }
+  });
   app.use("/api/auth", authRouter);
   app.use("/api/public", publicRouter);
   app.use("/api", requireAuthAsync);
@@ -9166,11 +9206,11 @@ async function startServer() {
       conn.release();
     }
   });
-  const path = await import("path");
+  const path2 = await import("path");
   const { fileURLToPath } = await import("url");
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const distDir = path.join(__dirname, "dist");
-  const distIndex = path.join(distDir, "index.html");
+  const __dirname = path2.dirname(fileURLToPath(import.meta.url));
+  const distDir = path2.join(__dirname, "dist");
+  const distIndex = path2.join(distDir, "index.html");
   if (fs.existsSync(distIndex) || process.env.NODE_ENV === "production") {
     app.use(express.static(distDir));
     app.get("*", (req, res) => {
@@ -9193,12 +9233,17 @@ async function startServer() {
     }
   }
   app.use((err, req, res, next) => {
-    if (err instanceof ZodError) {
+    if (err instanceof ZodError || err?.name === "ZodError") {
       return res.status(400).json({ error: "Validation Error", details: err.errors || err.issues });
     }
     logError("Unhandled API Error", err);
     console.error("[Global Error Handler]", err);
-    res.status(500).json({ error: "Internal Server Error" });
+    const isDbError = err?.code && (typeof err.code === "string" && (err.code.startsWith("ER_") || ["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "PROTOCOL_CONNECTION_LOST"].includes(err.code)));
+    res.status(500).json({
+      error: isDbError ? "Database Connection Error" : err?.message || "Internal Server Error",
+      details: err?.message,
+      code: err?.code
+    });
   });
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`\u2713 Server running on port ${PORT}`);

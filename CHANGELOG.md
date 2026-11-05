@@ -2,6 +2,24 @@
 
 This document tracks all features, architectural enhancements, bug fixes, and UX improvements made to the EPOS application.
 
+## [2026-11-05] - Deployment Auth 500 Fix, DB Host Normalization & Production Health Diagnostics
+
+### 🐛 Bug Fixes & Deployment Stability
+* **Auth Login & Reset Password Unhandled Exception Fix (`src/routes/auth.ts`)**:
+  * Moved `loginSchema.parse(req.body)` and `resetPasswordSchema.parse(req.body)` inside `try/catch` blocks. Previously, synchronous parse errors in async Express 4 route handlers returned uncaught rejected promises that triggered Node `unhandledRejection`, crashing the process under LiteSpeed / Passenger and returning 500/503.
+  * Enhanced Zod error handling in the global error handler (`server.ts`) with dual validation (`err instanceof ZodError || err?.name === 'ZodError'`) to guarantee 400 Bad Request responses.
+* **Hostinger MySQL Host Normalization (`src/mysql.ts`)**:
+  * Added `resolveDbHost()` to automatically map `localhost` to `127.0.0.1`. Under Linux on Hostinger, connecting to `localhost` forces `mysql2` to search for UNIX domain sockets (`/tmp/mysql.sock`), causing `connect ENOENT` failures. Resolving to `127.0.0.1` ensures reliable TCP port 3306 connections.
+  * Added fallback `.env` file resolution using `process.cwd()` to ensure environment variables load reliably under Passenger / LiteSpeed.
+* **Process Stability & Error Transparency (`server.ts`)**:
+  * Added `process.on('unhandledRejection')` and `process.on('uncaughtException')` logging listeners to prevent unexpected worker crashes.
+  * Added `/api/health` diagnostic endpoint testing live database connectivity.
+  * Enhanced global API error responses to return informative error details (`Database Connection Error`, exact error message and code) instead of blank 500 errors.
+* **Production Build (`server.js`, `dist`)**:
+  * Recompiled production bundle with Vite and esbuild.
+
+---
+
 ## [2026-11-04] - Bulk & Multi-Product B2B / Branch Transfers, Multi-Business Catalog Auto-Sync & Repeat Customer Repair Intake
 
 ### 🚀 New Features & Enhancements

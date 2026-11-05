@@ -1,7 +1,20 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import path from 'path';
 import { encryptSecret } from './utils/crypto.js';
+
 dotenv.config();
+try {
+  dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+} catch {}
+
+// Normalize DB host: in Linux/Hostinger, 'localhost' attempts UNIX socket at /tmp/mysql.sock which fails.
+// '127.0.0.1' forces TCP connection on port 3306.
+const resolveDbHost = () => {
+  const host = process.env.DB_HOST?.trim();
+  if (!host || host.toLowerCase() === 'localhost') return '127.0.0.1';
+  return host;
+};
 
 // SECURITY: Credentials must come from environment variables (FINDING-001)
 if (process.env.DB_PASS === undefined) {
@@ -62,7 +75,7 @@ let currentSessionOffset = '+00:00';
 const businessTzCache = new Map<number, { ianaTz: string; offset: string; raw: string }>();
 
 export const pool = mysql.createPool({
-  host: process.env.DB_HOST || '127.0.0.1',
+  host: resolveDbHost(),
   port: Number(process.env.DB_PORT) || 3306,
   database: process.env.DB_NAME,
   user: process.env.DB_USER,

@@ -8,9 +8,21 @@ import { requireAuthAsync } from './src/routes/auth.js';
 dotenv.config();
 
 function logError(message: string, error: any) {
-  const entry = `[${new Date().toISOString()}] ${message}: ${error?.message}\n${error?.stack}\n\n`;
-  fs.appendFileSync('server_errors.log', entry);
+  const entry = `[${new Date().toISOString()}] ${message}: ${error?.message || error}\n${error?.stack || ''}\n\n`;
+  try {
+    fs.appendFileSync('server_errors.log', entry);
+  } catch {}
 }
+
+process.on('unhandledRejection', (reason: any) => {
+  console.error('[Unhandled Rejection]', reason);
+  logError('Unhandled Promise Rejection', reason);
+});
+
+process.on('uncaughtException', (err: any) => {
+  console.error('[Uncaught Exception]', err);
+  logError('Uncaught Exception', err);
+});
 
 async function startServer() {
   // ─── Init MySQL ───────────────────────────────────────────────────────────
@@ -37,6 +49,27 @@ async function startServer() {
   const { default: reportsRouter } = await import('./src/routes/reports.js');
   const { default: settingsRouter } = await import('./src/routes/settings.js');
   const { default: inventoryRouter } = await import('./src/routes/inventory.js');
+
+  // ─── Health Check & Diagnostics ───────────────────────────────────────────
+  app.get('/api/health', async (_req, res) => {
+    try {
+      const { pool } = await import('./src/mysql.js');
+      await pool.query('SELECT 1 as ok');
+      res.json({
+        status: 'ok',
+        database: 'connected',
+        timestamp: new Date().toISOString()
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        status: 'error',
+        database: 'disconnected',
+        error: err?.message,
+        code: err?.code,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
 
   // ─── Public Auth Routes (no auth required) ────────────────────────────────
   app.use('/api/auth', authRouter);
@@ -159,13 +192,25 @@ async function startServer() {
 
   // ─── Global Error Handler ─────────────────────────────────────────────────
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (err instanceof ZodError) {
+    if (err instanceof ZodError || err?.name === 'ZodError') {
       return res.status(400).json({ error: 'Validation Error', details: (err as any).errors || (err as any).issues });
     }
     
     logError('Unhandled API Error', err);
     console.error('[Global Error Handler]', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+
+    const isDbError = err?.code && (
+      typeof err.code === 'string' && (
+        err.code.startsWith('ER_') ||
+        ['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'PROTOCOL_CONNECTION_LOST'].includes(err.code)
+      )
+    );
+
+    res.status(500).json({
+      error: isDbError ? 'Database Connection Error' : (err?.message || 'Internal Server Error'),
+      details: err?.message,
+      code: err?.code
+    });
   });
 
   app.listen(PORT, '0.0.0.0', () => {

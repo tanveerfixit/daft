@@ -232,9 +232,9 @@ const loginSchema = z.object({
 
 // POST /api/auth/login
 router.post('/login', async (req: any, res, next) => {
-  const data = loginSchema.parse(req.body);
-  const { email, password } = data;
   try {
+    const data = loginSchema.parse(req.body);
+    const { email, password } = data;
     const user = await queryOne('SELECT * FROM users WHERE email=? AND deleted_at IS NULL', [email]) as any;
     if (!user) return res.status(401).json({ error: 'Invalid email or password' });
 
@@ -397,9 +397,9 @@ const resetPasswordSchema = z.object({
 
 // POST /api/auth/reset-password
 router.post('/reset-password', async (req: any, res, next) => {
-  const data = resetPasswordSchema.parse(req.body);
-  const { token, password } = data;
   try {
+    const data = resetPasswordSchema.parse(req.body);
+    const { token, password } = data;
     const user = await queryOne('SELECT * FROM users WHERE reset_token=?', [token]) as any;
     if (!user) return res.status(400).json({ error: 'Invalid or expired reset link' });
     if (new Date(user.reset_token_expires) < new Date()) {
