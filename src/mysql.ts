@@ -74,37 +74,84 @@ export function resolveTimezoneOffset(tzInput?: string): { ianaTz: string; offse
 let currentSessionOffset = '+00:00';
 const businessTzCache = new Map<number, { ianaTz: string; offset: string; raw: string }>();
 
-export const pool = mysql.createPool({
-  host: resolveDbHost(),
-  port: Number(process.env.DB_PORT) || 3306,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  waitForConnections: true,
-  connectionLimit: Number(process.env.DB_CONNECTION_LIMIT) || 15,
-  maxIdle: Number(process.env.DB_MAX_IDLE) || 10,
-  idleTimeout: Number(process.env.DB_IDLE_TIMEOUT) || 60000,
-  queueLimit: Number(process.env.DB_QUEUE_LIMIT) || 0,
-  connectTimeout: 20000,
-  decimalNumbers: true,
-  timezone: 'Z',
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 10000,
-  charset: 'utf8mb4_unicode_ci'
+function createPoolWithHost(host: string) {
+  const p = mysql.createPool({
+    host,
+    port: Number(process.env.DB_PORT) || 3306,
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    waitForConnections: true,
+    connectionLimit: Number(process.env.DB_CONNECTION_LIMIT) || 15,
+    maxIdle: Number(process.env.DB_MAX_IDLE) || 10,
+    idleTimeout: Number(process.env.DB_IDLE_TIMEOUT) || 60000,
+    queueLimit: Number(process.env.DB_QUEUE_LIMIT) || 0,
+    connectTimeout: 20000,
+    decimalNumbers: true,
+    timezone: 'Z',
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
+    charset: 'utf8mb4'
+  });
+
+  p.on('connection', (conn: any) => {
+    try {
+      if (typeof conn.query === 'function') {
+        conn.query('SET time_zone = "+00:00"', (err: any) => {
+          if (err) {
+            console.warn('[MySQL] Failed to set session time_zone on new connection:', err?.message);
+          }
+        });
+      }
+    } catch {}
+  });
+
+  return p;
+}
+
+let currentHost = resolveDbHost();
+let activePool = createPoolWithHost(currentHost);
+
+export const pool = new Proxy({} as mysql.Pool, {
+  get(_target, prop) {
+    const val = (activePool as any)[prop];
+    return typeof val === 'function' ? val.bind(activePool) : val;
+  }
 });
 
-// Set session timezone to UTC on every new underlying connection
-pool.on('connection', (conn: any) => {
+let connectionChecked = false;
+export async function ensureConnectedPool(): Promise<void> {
+  if (connectionChecked) return;
   try {
-    if (typeof conn.query === 'function') {
-      conn.query('SET time_zone = "+00:00"', (err: any) => {
-        if (err) {
-          console.warn('[MySQL] Failed to set session time_zone on new connection:', err?.message);
-        }
-      });
+    const conn = await activePool.getConnection();
+    conn.release();
+    connectionChecked = true;
+    return;
+  } catch (err: any) {
+    console.warn(`[MySQL] Connection to ${currentHost} failed (${err?.code || err?.message}). Testing fallback host...`);
+    const fallbackHost = (currentHost === '127.0.0.1')
+      ? (process.env.DB_HOST && process.env.DB_HOST !== '127.0.0.1' ? process.env.DB_HOST : 'srv2113.hstgr.io')
+      : '127.0.0.1';
+
+    if (fallbackHost && fallbackHost !== currentHost) {
+      try {
+        const testPool = createPoolWithHost(fallbackHost);
+        const conn = await testPool.getConnection();
+        conn.release();
+        console.log(`[MySQL] Fallback connection to ${fallbackHost} succeeded! Switching active pool.`);
+        const oldPool = activePool;
+        activePool = testPool;
+        currentHost = fallbackHost;
+        connectionChecked = true;
+        try { oldPool.end(); } catch {}
+        return;
+      } catch (fallbackErr: any) {
+        console.error(`[MySQL] Fallback connection to ${fallbackHost} also failed:`, fallbackErr?.message);
+      }
     }
-  } catch {}
-});
+    throw err;
+  }
+}
 
 /**
  * Synchronizes and resolves the business timezone for client/reporting purposes without double-shifting server UTC timestamps.
@@ -198,6 +245,7 @@ async function ensureIndex(conn: any, tableName: string, indexName: string, colu
 }
 
 export async function initSchema() {
+  await ensureConnectedPool();
   const conn = await pool.getConnection();
   try {
     // Fast path: Check if schema is already up-to-date to avoid 65+ DDL queries on every server start

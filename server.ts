@@ -53,7 +53,8 @@ async function startServer() {
   // ─── Health Check & Diagnostics ───────────────────────────────────────────
   app.get('/api/health', async (_req, res) => {
     try {
-      const { pool } = await import('./src/mysql.js');
+      const { pool, ensureConnectedPool } = await import('./src/mysql.js');
+      await ensureConnectedPool();
       await pool.query('SELECT 1 as ok');
       res.json({
         status: 'ok',

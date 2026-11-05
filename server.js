@@ -70,6 +70,7 @@ var init_crypto = __esm({
 var mysql_exports = {};
 __export(mysql_exports, {
   CURRENT_SCHEMA_VERSION: () => CURRENT_SCHEMA_VERSION,
+  ensureConnectedPool: () => ensureConnectedPool,
   ensureSuperAdmin: () => ensureSuperAdmin,
   execute: () => execute,
   getBranchPrefix: () => getBranchPrefix,
@@ -127,6 +128,71 @@ function resolveTimezoneOffset(tzInput) {
     return { ianaTz, offset: `${sign}${hours}:${mins}` };
   } catch {
     return { ianaTz: "Europe/Dublin", offset: "+01:00" };
+  }
+}
+function createPoolWithHost(host) {
+  const p = mysql.createPool({
+    host,
+    port: Number(process.env.DB_PORT) || 3306,
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    waitForConnections: true,
+    connectionLimit: Number(process.env.DB_CONNECTION_LIMIT) || 15,
+    maxIdle: Number(process.env.DB_MAX_IDLE) || 10,
+    idleTimeout: Number(process.env.DB_IDLE_TIMEOUT) || 6e4,
+    queueLimit: Number(process.env.DB_QUEUE_LIMIT) || 0,
+    connectTimeout: 2e4,
+    decimalNumbers: true,
+    timezone: "Z",
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 1e4,
+    charset: "utf8mb4"
+  });
+  p.on("connection", (conn) => {
+    try {
+      if (typeof conn.query === "function") {
+        conn.query('SET time_zone = "+00:00"', (err) => {
+          if (err) {
+            console.warn("[MySQL] Failed to set session time_zone on new connection:", err?.message);
+          }
+        });
+      }
+    } catch {
+    }
+  });
+  return p;
+}
+async function ensureConnectedPool() {
+  if (connectionChecked) return;
+  try {
+    const conn = await activePool.getConnection();
+    conn.release();
+    connectionChecked = true;
+    return;
+  } catch (err) {
+    console.warn(`[MySQL] Connection to ${currentHost} failed (${err?.code || err?.message}). Testing fallback host...`);
+    const fallbackHost = currentHost === "127.0.0.1" ? process.env.DB_HOST && process.env.DB_HOST !== "127.0.0.1" ? process.env.DB_HOST : "srv2113.hstgr.io" : "127.0.0.1";
+    if (fallbackHost && fallbackHost !== currentHost) {
+      try {
+        const testPool = createPoolWithHost(fallbackHost);
+        const conn = await testPool.getConnection();
+        conn.release();
+        console.log(`[MySQL] Fallback connection to ${fallbackHost} succeeded! Switching active pool.`);
+        const oldPool = activePool;
+        activePool = testPool;
+        currentHost = fallbackHost;
+        connectionChecked = true;
+        try {
+          oldPool.end();
+        } catch {
+        }
+        return;
+      } catch (fallbackErr) {
+        console.error(`[MySQL] Fallback connection to ${fallbackHost} also failed:`, fallbackErr?.message);
+      }
+    }
+    throw err;
   }
 }
 async function syncBusinessTimezone(businessId, tzInput) {
@@ -198,6 +264,7 @@ async function ensureIndex(conn, tableName, indexName, columns) {
   }
 }
 async function initSchema() {
+  await ensureConnectedPool();
   const conn = await pool.getConnection();
   try {
     await conn.query(`
@@ -1495,7 +1562,7 @@ async function logActivity({
     console.error("[ActivityLog] Failed to record activity:", err.message);
   }
 }
-var resolveDbHost, businessTzCache, pool, CURRENT_SCHEMA_VERSION;
+var resolveDbHost, businessTzCache, currentHost, activePool, pool, connectionChecked, CURRENT_SCHEMA_VERSION;
 var init_mysql = __esm({
   "src/mysql.ts"() {
     init_crypto();
@@ -1513,36 +1580,15 @@ var init_mysql = __esm({
       throw new Error("[SECURITY FATAL] DB_PASS is not set in the .env file. Refusing to start with insecure credentials.");
     }
     businessTzCache = /* @__PURE__ */ new Map();
-    pool = mysql.createPool({
-      host: resolveDbHost(),
-      port: Number(process.env.DB_PORT) || 3306,
-      database: process.env.DB_NAME,
-      user: process.env.DB_USER,
-      password: process.env.DB_PASS,
-      waitForConnections: true,
-      connectionLimit: Number(process.env.DB_CONNECTION_LIMIT) || 15,
-      maxIdle: Number(process.env.DB_MAX_IDLE) || 10,
-      idleTimeout: Number(process.env.DB_IDLE_TIMEOUT) || 6e4,
-      queueLimit: Number(process.env.DB_QUEUE_LIMIT) || 0,
-      connectTimeout: 2e4,
-      decimalNumbers: true,
-      timezone: "Z",
-      enableKeepAlive: true,
-      keepAliveInitialDelay: 1e4,
-      charset: "utf8mb4_unicode_ci"
-    });
-    pool.on("connection", (conn) => {
-      try {
-        if (typeof conn.query === "function") {
-          conn.query('SET time_zone = "+00:00"', (err) => {
-            if (err) {
-              console.warn("[MySQL] Failed to set session time_zone on new connection:", err?.message);
-            }
-          });
-        }
-      } catch {
+    currentHost = resolveDbHost();
+    activePool = createPoolWithHost(currentHost);
+    pool = new Proxy({}, {
+      get(_target, prop) {
+        const val = activePool[prop];
+        return typeof val === "function" ? val.bind(activePool) : val;
       }
     });
+    connectionChecked = false;
     CURRENT_SCHEMA_VERSION = "2026_09_NOTIF_AND_LOGS_V1";
   }
 });
@@ -9102,7 +9148,8 @@ async function startServer() {
   const { default: inventoryRouter } = await Promise.resolve().then(() => (init_inventory(), inventory_exports));
   app.get("/api/health", async (_req, res) => {
     try {
-      const { pool: pool2 } = await Promise.resolve().then(() => (init_mysql(), mysql_exports));
+      const { pool: pool2, ensureConnectedPool: ensureConnectedPool2 } = await Promise.resolve().then(() => (init_mysql(), mysql_exports));
+      await ensureConnectedPool2();
       await pool2.query("SELECT 1 as ok");
       res.json({
         status: "ok",
