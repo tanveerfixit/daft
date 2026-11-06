@@ -21,6 +21,11 @@ This document tracks all features, architectural enhancements, bug fixes, and UX
   * Updated the Step 2 Refund Settlement Modal to default to **"Credit Note (Store Credit)"**, allow attaching a customer profile on the fly if the original invoice was for a Walk-in Customer, and accept an optional refund reason/note.
   * Added a **"Credit Notes Issued From This Invoice"** section on parent invoices with 1-click navigation and printing, and linked Credit Note documents back to their Original Invoice.
   * Updated Thermal (`80mm`) receipts, A4 print layouts, and HTML emails (`sendInvoiceEmail`) to display `CREDIT NOTE`, `Credit Note #CN-...`, `Orig. Invoice #`, `Credit Total`, and `Available Store Credit`.
+* **Cash Register Payment Panel Streamlined (Option 1 - Clean Two-Tier UX) (`PaymentPanel.tsx`)**:
+  * Cleaned up the saturated 4+ button grid into a clean, modern two-tier layout.
+  * **Primary Row**: Two large, high-visibility buttons (**`[ Cash ]`** in emerald green and **`[ Card ]`** in blue) dedicated to 95% of daily transactions with 1-click execution.
+  * **Secondary Row**: Compact split tenders with a purple **`[ 🎟 Store Credit / CN ]`** button (with live available balance badge) and an **`[ Other Methods ▾ ]`** flyout dropdown for alternative tenders (e.g. Bank Transfer, Cheque, Customer Wallet).
+  * Collapsible slide-down panel for Credit Notes and Customer Wallet redemption keeps the main checkout interface 100% clean and uncluttered.
 * **Cash Register Redemption, Invoice List Filter & Customer Ledger (`PaymentPanel.tsx`, `InvoiceList.tsx`, `CustomerDetails.tsx`)**:
   * Added a **Credit Note** payment option in `PaymentPanel.tsx` to scan/type any `CN-#` code or 1-click apply a selected customer's active Credit Notes.
   * Enabled the **All Types / Sales Invoices / Credit Notes (CN)** filter dropdown and `CN` badges in `InvoiceList.tsx`.
