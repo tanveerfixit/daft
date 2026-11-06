@@ -2,6 +2,32 @@
 
 This document tracks all features, architectural enhancements, bug fixes, and UX improvements made to the EPOS application.
 
+## [2026-11-06] - End-to-End Credit Note (`CN-#`) & Store Credit System
+
+### 🚀 Features & Architectural Enhancements
+* **Database Schema & Automatic Migration (`src/mysql.ts`)**:
+  * Bumped `CURRENT_SCHEMA_VERSION` to `'2026_11_CREDIT_NOTES_V1'`.
+  * Added `parent_invoice_id INT NULL` to the `invoices` table (`CREATE TABLE` and automatic `ALTER TABLE` migration) to link Credit Note documents directly to their parent sales invoice.
+  * Created the `credit_notes` table (`id`, `business_id`, `branch_id`, `credit_note_number`, `original_invoice_id`, `credit_note_invoice_id`, `customer_id`, `subtotal`, `tax_total`, `grand_total`, `remaining_amount`, `status`, `reason`, `created_by`, `created_at`) with composite indexes (`idx_cn_biz_number`, `idx_cn_orig_inv`, `idx_cn_customer`).
+* **Sequential Credit Note Generation on Refund (`src/routes/invoices.ts`)**:
+  * Upgraded `POST /api/invoices/:id/refund` so selecting **"Credit Note"** (or **"Customer Wallet"**) generates a sequential, branch-scoped Credit Note number (`CN-{BRANCH}-{YYMM}-{####}`, e.g., `CN-MAIN-2611-0001`).
+  * Automatically creates a standalone Credit Note document in `invoices` (`type = 'credit_note'`, `parent_invoice_id = invoice.id`) with returned `invoice_items` (including IMEI/serial numbers) and proportional tax breakdown.
+  * Records the Credit Note in `credit_notes` (`status = 'active'`, `remaining_amount = totalRefundAmount`) and automatically credits `customers.wallet_balance` when attached to a named customer (fixing the previous bug where Customer Wallet refunds did not update `wallet_balance`).
+* **Credit Note Redemption & Wallet Synchronization (`src/routes/invoices.ts`, `src/routes/customers.ts`)**:
+  * Added `GET /api/invoices/credit-note/:cnNumber` for instant lookup of active Credit Notes by code at the Cash Register.
+  * Added `GET /api/customers/:id/credit-notes` to retrieve all Credit Notes for a customer profile.
+  * Upgraded `POST /api/invoices` to support redeeming Credit Notes both by scanning/typing `CN-#` (Walk-in or named customer) and via Customer `Wallet` (FIFO-synchronizing `credit_notes.remaining_amount` and `customers.wallet_balance` to prevent double-spending).
+* **Invoice Details & Refund Modal (`src/components/InvoiceDetails.tsx`, `src/components/ThermalReceipt.tsx`, `src/services/mailer.ts`)**:
+  * Updated the Step 2 Refund Settlement Modal to default to **"Credit Note (Store Credit)"**, allow attaching a customer profile on the fly if the original invoice was for a Walk-in Customer, and accept an optional refund reason/note.
+  * Added a **"Credit Notes Issued From This Invoice"** section on parent invoices with 1-click navigation and printing, and linked Credit Note documents back to their Original Invoice.
+  * Updated Thermal (`80mm`) receipts, A4 print layouts, and HTML emails (`sendInvoiceEmail`) to display `CREDIT NOTE`, `Credit Note #CN-...`, `Orig. Invoice #`, `Credit Total`, and `Available Store Credit`.
+* **Cash Register Redemption, Invoice List Filter & Customer Ledger (`PaymentPanel.tsx`, `InvoiceList.tsx`, `CustomerDetails.tsx`)**:
+  * Added a **Credit Note** payment option in `PaymentPanel.tsx` to scan/type any `CN-#` code or 1-click apply a selected customer's active Credit Notes.
+  * Enabled the **All Types / Sales Invoices / Credit Notes (CN)** filter dropdown and `CN` badges in `InvoiceList.tsx`.
+  * Added a **Credit Notes** table to the customer's **Wallet & Ledger** tab in `CustomerDetails.tsx` and excluded `credit_note` documents from inflating gross sales KPIs in `src/routes/reports.ts`.
+
+---
+
 ## [2026-11-05] - Deployment Auth 500 Fix, DB Host Normalization & Production Health Diagnostics
 
 ### 🚀 Features & UX Improvements

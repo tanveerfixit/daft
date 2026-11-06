@@ -20,7 +20,7 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
     let salesSql = `
       SELECT COUNT(id) as count, COALESCE(SUM(grand_total), 0) as total 
       FROM invoices 
-      WHERE business_id=? AND created_at >= ? AND created_at <= ?
+      WHERE business_id=? AND (type IS NULL OR type != 'credit_note') AND created_at >= ? AND created_at <= ?
       ${(!isDeveloper && branchId) ? 'AND branch_id=?' : ''}
     `;
     const salesParams = (!isDeveloper && branchId) ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
@@ -397,6 +397,7 @@ router.get('/eod-data', async (req: any, res, next) => {
       LEFT JOIN users u ON i.user_id=u.id
       LEFT JOIN customers c ON p.customer_id=c.id
       WHERE p.paid_at >= ? AND p.paid_at <= ? AND i.business_id=? 
+        AND NOT (i.type = 'credit_note' AND p.type = 'credit_note_issued')
       ${(!isSuper && branchId) ? 'AND (i.branch_id=? OR i.branch_id IS NULL)' : ''}
       ORDER BY p.id ASC
     `, (!isSuper && branchId) ? [startDateTime, endDateTime, req.user.business_id, branchId] : [startDateTime, endDateTime, req.user.business_id]);
@@ -417,6 +418,7 @@ router.get('/eod-data', async (req: any, res, next) => {
       LEFT JOIN invoices i ON p.invoice_id=i.id
       LEFT JOIN customers c ON p.customer_id=c.id
       WHERE p.paid_at >= ? AND p.paid_at <= ? 
+        AND NOT (i.type = 'credit_note' AND p.type = 'credit_note_issued')
         AND ((p.invoice_id IS NOT NULL AND i.business_id=?) OR (p.invoice_id IS NULL AND c.business_id=?))
       ${(!isSuper && branchId) ? 'AND ((p.invoice_id IS NOT NULL AND (i.branch_id=? OR i.branch_id IS NULL)) OR (p.invoice_id IS NULL AND (c.branch_id=? OR c.branch_id IS NULL)))' : ''}
       GROUP BY p.method, p.type

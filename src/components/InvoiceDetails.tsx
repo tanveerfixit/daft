@@ -14,22 +14,26 @@ interface Props {
   invoiceId: number;
   onBack: () => void;
   onSelectCustomer?: (id: number) => void;
+  onSelectInvoice?: (id: number) => void;
 }
 
-export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: Props) {
+export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer, onSelectInvoice }: Props) {
   const { currentUser } = useAuth();
   const [invoice, setInvoice] = useState<(Invoice & { items: InvoiceItem[], customer?: Customer }) | null>(null);
+  const [printTargetInvoice, setPrintTargetInvoice] = useState<(Invoice & { items: InvoiceItem[], customer?: Customer }) | null>(null);
   
   // Refund 2-Step Flow States
   const [isRefundView, setIsRefundView] = useState(false);
   const [showSettlementModal, setShowSettlementModal] = useState(false);
-  const [refundMethod, setRefundMethod] = useState<'Debit Card' | 'Cash' | 'Customer Wallet' | 'Other'>('Debit Card');
+  const [refundMethod, setRefundMethod] = useState<'Credit Note' | 'Debit Card' | 'Cash' | 'Customer Wallet' | 'Other'>('Credit Note');
   const [printType, setPrintType] = useState<'thermal' | 'a4' | 'email' | 'none'>('thermal');
   const [selectedRefundItems, setSelectedRefundItems] = useState<Record<number, number>>({});
   const [selectedImeis, setSelectedImeis] = useState<Record<number, boolean>>({});
   const [restockReturned, setRestockReturned] = useState(true);
   const [refundNotes, setRefundNotes] = useState('');
   const [isSubmittingRefund, setIsSubmittingRefund] = useState(false);
+  const [customersList, setCustomersList] = useState<Customer[]>([]);
+  const [refundCustomerId, setRefundCustomerId] = useState<number | null>(null);
 
   // Printing & Email States
   const [showPrintMenu, setShowPrintMenu] = useState(false);
@@ -105,29 +109,39 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleThermalPrint = () => {
+  const handleThermalPrint = (overrideInv?: any) => {
     setShowPrintMenu(false);
+    setPrintTargetInvoice(overrideInv || null);
     setPrintMode('thermal');
     setTimeout(() => {
       window.print();
-      setTimeout(() => setPrintMode(null), 500);
+      setTimeout(() => {
+        setPrintMode(null);
+        setPrintTargetInvoice(null);
+      }, 500);
     }, 100);
   };
 
-  const handleA4Print = () => {
+  const handleA4Print = (overrideInv?: any) => {
     setShowPrintMenu(false);
+    setPrintTargetInvoice(overrideInv || null);
     setPrintMode('a4');
     setTimeout(() => {
       window.print();
-      setTimeout(() => setPrintMode(null), 500);
+      setTimeout(() => {
+        setPrintMode(null);
+        setPrintTargetInvoice(null);
+      }, 500);
     }, 100);
   };
 
-  const handleOpenEmailModal = () => {
-    if (!invoice) return;
-    setRecipientEmail(invoice.customer?.email || '');
-    const senderName = company?.name || invoice.branch_name || currentUser?.branch_name || invoice.user_name || currentUser?.name || 'Staff';
-    setEmailSubject(`Invoice ${invoice.invoice_number} from ${senderName}`);
+  const handleOpenEmailModal = (overrideInv?: any) => {
+    const target = overrideInv && overrideInv.invoice_number ? overrideInv : invoice;
+    if (!target) return;
+    setRecipientEmail(target.customer?.email || invoice?.customer?.email || '');
+    const senderName = company?.name || target.branch_name || currentUser?.branch_name || target.user_name || currentUser?.name || 'Staff';
+    const docLabel = target.type === 'credit_note' ? 'Credit Note' : 'Invoice';
+    setEmailSubject(`${docLabel} ${target.invoice_number} from ${senderName}`);
     setEmailCustomMessage('');
     setEmailStatus(null);
     setShowEmailModal(true);
@@ -199,9 +213,19 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
     setSelectedImeis(initialImeis);
     setRestockReturned(true);
     setRefundNotes('');
-    setRefundMethod('Debit Card');
+    setRefundMethod('Credit Note');
+    setRefundCustomerId(invoice.customer_id || null);
     setPrintType('thermal');
     setIsRefundView(true);
+
+    if (customersList.length === 0) {
+      fetch('/api/customers')
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data)) setCustomersList(data);
+        })
+        .catch(() => {});
+    }
   };
 
   // Open Step 2: Settlement Modal
@@ -236,7 +260,8 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
           method: refundMethod,
           restock: restockReturned,
           items: itemsPayload,
-          notes: refundNotes
+          notes: refundNotes,
+          customer_id: refundCustomerId || invoice.customer_id || null
         })
       });
       const data = await res.json();
@@ -245,13 +270,19 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
         setIsRefundView(false);
         fetchInvoice();
 
+        const docToPrint = data.creditNoteInvoice || invoice;
+
         // Handle auto print / email according to cashier selection
         if (printType === 'thermal') {
-          handleThermalPrint();
+          handleThermalPrint(docToPrint);
         } else if (printType === 'a4') {
-          handleA4Print();
+          handleA4Print(docToPrint);
         } else if (printType === 'email') {
-          handleOpenEmailModal();
+          if (data.creditNoteInvoice?.id && onSelectInvoice) {
+            onSelectInvoice(data.creditNoteInvoice.id);
+          } else {
+            handleOpenEmailModal(docToPrint);
+          }
         }
       } else {
         alert(data.error || 'Failed to process refund');
@@ -611,11 +642,53 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
                     onChange={(e) => setRefundMethod(e.target.value as any)}
                     className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 px-3 py-2 rounded-none text-sm text-neutral-900 dark:text-neutral-100 outline-none cursor-pointer"
                   >
+                    <option value="Credit Note">Credit Note / Store Credit (Generates CN-#)</option>
                     <option value="Debit Card">Debit Card</option>
                     <option value="Cash">Cash</option>
-                    <option value="Customer Wallet">Customer Wallet / Store Credit</option>
                     <option value="Other">Other</option>
                   </select>
+                </div>
+
+                {(refundMethod === 'Credit Note' || refundMethod === 'Customer Wallet') && (
+                  <div className="text-left space-y-3 max-w-md mx-auto bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900/60 p-3">
+                    <div className="text-xs font-semibold text-purple-900 dark:text-purple-200">
+                      ✓ Generates an official Credit Note (<span className="font-mono">CN-...</span>) for €{refundTotal.toFixed(2)}.
+                      Redeemable at the Cash Register by scanning/typing the Credit Note # or via Customer Wallet.
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 block">
+                        Attach to Customer Profile (optional for Walk-in):
+                      </label>
+                      <select
+                        value={refundCustomerId || ''}
+                        onChange={(e) => setRefundCustomerId(e.target.value ? Number(e.target.value) : null)}
+                        className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 px-2.5 py-1.5 rounded-none text-xs text-neutral-900 dark:text-neutral-100 outline-none cursor-pointer"
+                      >
+                        <option value="">Walk-in Customer (Redeem via CN-# code only)</option>
+                        {customersList
+                          .filter(c => c.name && c.name !== 'Walk-in Customer')
+                          .map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.name} {c.phone ? `(${c.phone})` : ''}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* Optional Refund / Credit Note Reason */}
+                <div className="text-left space-y-1 max-w-md mx-auto">
+                  <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 block">
+                    Reason / Notes (Optional):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Customer exchange, faulty item, size change..."
+                    value={refundNotes}
+                    onChange={(e) => setRefundNotes(e.target.value)}
+                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 px-3 py-1.5 rounded-none text-xs text-neutral-900 dark:text-neutral-100 outline-none"
+                  />
                 </div>
 
                 {/* Choose print type (Matching Image 2 Radio Group) */}
@@ -732,8 +805,13 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
       <div className="py-2.5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5 sticky top-0 z-10 mb-2.5 bg-neutral-100 dark:bg-neutral-950 border-b sm:border-b-0 border-neutral-200 dark:border-neutral-800">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="font-semibold text-neutral-900 dark:text-neutral-100 text-lg sm:text-[22px] tracking-tight">
-            View Invoice - <span className="font-mono text-blue-600 dark:text-blue-400">{invoice.invoice_number}</span>
+            {invoice.type === 'credit_note' ? 'View Credit Note' : 'View Invoice'} - <span className="font-mono text-blue-600 dark:text-blue-400">{invoice.invoice_number}</span>
           </h2>
+          {invoice.type === 'credit_note' && (
+            <span className="bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 px-2.5 py-0.5 rounded-none text-xs font-bold uppercase tracking-wider border border-purple-300 dark:border-purple-800">
+              Credit Note {invoice.credit_note ? `• Available: €${Number(invoice.credit_note.remaining_amount).toFixed(2)} / €${Number(invoice.credit_note.total_amount).toFixed(2)}` : ''}
+            </span>
+          )}
           {invoice.status === 'void' && (
             <span className="bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-none text-xs font-bold uppercase tracking-wider border border-red-200 dark:border-red-900/50">
               Void / Fully Refunded
@@ -756,7 +834,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
 
           {/* Email Button */}
           <button 
-            onClick={handleOpenEmailModal}
+            onClick={() => handleOpenEmailModal()}
             className="flex-1 sm:flex-initial justify-center bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-normal py-1.5 px-3 text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer"
             title="Send Invoice to Any Email Address"
           >
@@ -778,7 +856,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
             {showPrintMenu && (
               <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-black rounded-none shadow-none border border-neutral-300 dark:border-neutral-800 z-50 overflow-hidden text-sm">
                 <button
-                  onClick={handleThermalPrint}
+                  onClick={() => handleThermalPrint()}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-neutral-900 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-900 transition-colors rounded-none cursor-pointer"
                 >
                   <Printer size={14} className="text-neutral-500" />
@@ -786,7 +864,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
                 </button>
                 <div className="border-t border-neutral-300 dark:border-neutral-800" />
                 <button
-                  onClick={handleA4Print}
+                  onClick={() => handleA4Print()}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-neutral-900 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-900 transition-colors rounded-none cursor-pointer"
                 >
                   <FileText size={14} className="text-neutral-500" />
@@ -794,11 +872,11 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
                 </button>
                 <div className="border-t border-neutral-300 dark:border-neutral-800" />
                 <button
-                  onClick={handleOpenEmailModal}
+                  onClick={() => handleOpenEmailModal()}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-neutral-900 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-900 transition-colors rounded-none cursor-pointer"
                 >
                   <Mail size={14} className="text-neutral-500" />
-                  <span className="font-normal">Email Invoice</span>
+                  <span className="font-normal">Email {invoice.type === 'credit_note' ? 'Credit Note' : 'Invoice'}</span>
                 </button>
               </div>
             )}
@@ -852,9 +930,21 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
             </div>
             <div className="p-3 space-y-2 text-sm text-neutral-900 dark:text-neutral-100">
               <div className="flex border-b border-neutral-200 dark:border-neutral-800 pb-1.5">
-                <span className="w-32 font-bold text-neutral-800 dark:text-neutral-200">Invoice No.</span>
+                <span className="w-32 font-bold text-neutral-800 dark:text-neutral-200">{invoice.type === 'credit_note' ? 'Credit Note No.' : 'Invoice No.'}</span>
                 <span className="text-neutral-900 dark:text-neutral-100 font-mono font-bold">{invoice.invoice_number}</span>
               </div>
+              {invoice.parent_invoice_id && (
+                <div className="flex border-b border-neutral-200 dark:border-neutral-800 pb-1.5">
+                  <span className="w-32 font-bold text-neutral-800 dark:text-neutral-200">Orig. Invoice:</span>
+                  <button
+                    onClick={() => onSelectInvoice?.(invoice.parent_invoice_id!)}
+                    className="text-blue-600 dark:text-blue-400 font-mono font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>{invoice.parent_invoice_number || `#${invoice.parent_invoice_id}`}</span>
+                    <ExternalLink size={12} />
+                  </button>
+                </div>
+              )}
               <div className="flex border-b border-neutral-200 dark:border-neutral-800 pb-1.5">
                 <span className="w-32 font-bold text-neutral-800 dark:text-neutral-200">Sales Person:</span>
                 <span className="text-neutral-700 dark:text-neutral-300 truncate">{invoice.branch_name || currentUser?.branch_name || invoice.user_name || currentUser?.name || 'Main Branch'}</span>
@@ -1104,15 +1194,70 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
           </table>
         </div>
 
+        {/* Linked Credit Notes Issued on this Invoice */}
+        {invoice.credit_notes && invoice.credit_notes.length > 0 && (
+          <div className="bg-purple-50/70 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/60 p-3 space-y-2">
+            <div className="text-xs font-bold uppercase tracking-wider text-purple-900 dark:text-purple-300 flex items-center gap-2">
+              <FileText size={14} />
+              <span>Credit Notes Issued From This Invoice ({invoice.credit_notes.length})</span>
+            </div>
+            <div className="divide-y divide-purple-200/60 dark:divide-purple-900/40">
+              {invoice.credit_notes.map((cn) => (
+                <div key={cn.id} className="py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-3">
+                    {cn.refund_invoice_id && onSelectInvoice ? (
+                      <button
+                        onClick={() => onSelectInvoice(cn.refund_invoice_id!)}
+                        className="font-mono font-bold text-purple-700 dark:text-purple-300 hover:underline flex items-center gap-1 cursor-pointer text-sm"
+                      >
+                        <span>{cn.credit_note_number}</span>
+                        <ExternalLink size={12} />
+                      </button>
+                    ) : (
+                      <span className="font-mono font-bold text-purple-700 dark:text-purple-300 text-sm">{cn.credit_note_number}</span>
+                    )}
+                    <span className="text-neutral-500 font-mono">{formatDate(cn.created_at)}</span>
+                    <span className={`px-2 py-0.5 font-bold uppercase text-[10px] border ${
+                      cn.status === 'active'
+                        ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-300'
+                        : cn.status === 'partially_used'
+                        ? 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-300'
+                        : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-neutral-300'
+                    }`}>
+                      {cn.status.replace('_', ' ')}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 font-mono">
+                    <span>Issued: <strong>€{Number(cn.total_amount).toFixed(2)}</strong></span>
+                    <span className="text-purple-700 dark:text-purple-300">Available Credit: <strong>€{Number(cn.remaining_amount).toFixed(2)}</strong></span>
+                    {cn.refund_invoice_id && onSelectInvoice && (
+                      <button
+                        onClick={() => onSelectInvoice(cn.refund_invoice_id!)}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-sans font-bold px-2.5 py-1 text-xs cursor-pointer"
+                      >
+                        Open / Print CN
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-2 sm:gap-3">
-          {invoice.status !== 'void' ? (
+          {invoice.type === 'credit_note' ? (
+            <div className="text-sm font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/40 px-3 py-1.5 rounded-none border border-purple-300 dark:border-purple-900/50 text-center sm:text-left">
+              Credit Note Document • Available Credit Balance: €{Number(invoice.credit_note?.remaining_amount ?? invoice.grand_total ?? 0).toFixed(2)}
+            </div>
+          ) : invoice.status !== 'void' ? (
             <button 
               onClick={handleStartRefund}
               className="w-full sm:w-auto justify-center bg-amber-400 hover:bg-amber-500 text-neutral-900 font-bold py-2 sm:py-1.5 px-5 rounded-none text-sm shadow-none transition-all cursor-pointer flex items-center gap-2"
             >
               <RotateCcw size={15} />
-              <span>Create Refund</span>
+              <span>Create Refund / Credit Note</span>
               {invoice.status === 'partially_refunded' && (
                 <span className="text-xs font-normal opacity-85">(Partial Remaining)</span>
               )}
@@ -1431,111 +1576,125 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer }: 
       {/* Thermal Print Container */}
       {printMode === 'thermal' && (
         <div className="hidden print:block fixed inset-0 bg-white z-[9999]">
-          <ThermalReceipt invoice={invoice} settings={settings} company={company} />
+          <ThermalReceipt invoice={printTargetInvoice || invoice} settings={settings} company={company} />
         </div>
       )}
 
       {/* A4 Print Container */}
-      {printMode === 'a4' && (
-        <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-8">
-          <style dangerouslySetInnerHTML={{ __html: `
-            @media print {
-              @page { size: A4; margin: 15mm; }
-              body * { visibility: hidden; }
-              .a4-print-container, .a4-print-container * { visibility: visible; }
-              .a4-print-container { position: fixed; inset: 0; padding: 0; }
-            }
-          `}} />
-          <div className="a4-print-container max-w-2xl mx-auto font-sans">
-            <div className="flex justify-between items-start mb-8">
-              <div>
-                <h1 className="text-3xl font-bold text-slate-800">{company?.name}</h1>
-                <p className="text-slate-500">{company?.address}</p>
-                <p className="text-slate-500">{company?.phone}</p>
-                <p className="text-slate-500">{company?.email}</p>
+      {printMode === 'a4' && (() => {
+        const activeDoc = printTargetInvoice || invoice;
+        const isCnDoc = activeDoc.type === 'credit_note' || String(activeDoc.invoice_number || '').startsWith('CN-');
+        return (
+          <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-8">
+            <style dangerouslySetInnerHTML={{ __html: `
+              @media print {
+                @page { size: A4; margin: 15mm; }
+                body * { visibility: hidden; }
+                .a4-print-container, .a4-print-container * { visibility: visible; }
+                .a4-print-container { position: fixed; inset: 0; padding: 0; }
+              }
+            `}} />
+            <div className="a4-print-container max-w-2xl mx-auto font-sans">
+              <div className="flex justify-between items-start mb-8">
+                <div>
+                  <h1 className="text-3xl font-bold text-slate-800">{company?.name}</h1>
+                  <p className="text-slate-500">{company?.address}</p>
+                  <p className="text-slate-500">{company?.phone}</p>
+                  <p className="text-slate-500">{company?.email}</p>
+                </div>
+                <div className="text-right">
+                  <h2 className="text-2xl font-bold text-indigo-600">{isCnDoc ? 'CREDIT NOTE' : 'INVOICE'}</h2>
+                  <p className="text-slate-600 font-medium">{activeDoc.invoice_number}</p>
+                  {(activeDoc.parent_invoice_number || activeDoc.credit_note?.original_invoice_number) && (
+                    <p className="text-slate-500 text-xs">Orig. Invoice: {activeDoc.parent_invoice_number || activeDoc.credit_note?.original_invoice_number}</p>
+                  )}
+                  <p className="text-slate-500 text-sm">{formatDate(activeDoc.created_at)}</p>
+                </div>
               </div>
-              <div className="text-right">
-                <h2 className="text-2xl font-bold text-indigo-600">INVOICE</h2>
-                <p className="text-slate-600 font-medium">{invoice.invoice_number}</p>
-                <p className="text-slate-500 text-sm">{formatDate(invoice.created_at)}</p>
+
+              <div className="mb-6 p-4 bg-slate-50 rounded">
+                <p className="text-xs font-bold text-slate-500 uppercase mb-1">{isCnDoc ? 'Issued To' : 'Bill To'}</p>
+                <p className="font-bold text-slate-800">{activeDoc.customer?.name || 'Walk-in Customer'}</p>
+                {activeDoc.customer?.email && <p className="text-slate-600 text-sm">{activeDoc.customer.email}</p>}
+                {activeDoc.customer?.phone && <p className="text-slate-600 text-sm">{activeDoc.customer.phone}</p>}
               </div>
-            </div>
 
-            <div className="mb-6 p-4 bg-slate-50 rounded">
-              <p className="text-xs font-bold text-slate-500 uppercase mb-1">Bill To</p>
-              <p className="font-bold text-slate-800">{invoice.customer?.name || 'Walk-in Customer'}</p>
-              {invoice.customer?.email && <p className="text-slate-600 text-sm">{invoice.customer.email}</p>}
-              {invoice.customer?.phone && <p className="text-slate-600 text-sm">{invoice.customer.phone}</p>}
-            </div>
+              <table className="w-full mb-6 text-sm border-collapse">
+                <thead>
+                  <tr className="border-b-2 border-slate-300">
+                    <th className="text-left py-2 font-bold text-slate-700">Description</th>
+                    <th className="text-center py-2 font-bold text-slate-700 w-16">Qty</th>
+                    <th className="text-right py-2 font-bold text-slate-700 w-24">Unit Price</th>
+                    <th className="text-right py-2 font-bold text-slate-700 w-24">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(activeDoc.items || []).map((item, idx) => (
+                    <tr key={idx} className="border-b border-slate-100">
+                      <td className="py-2 text-slate-800">
+                        <div>{item.product_name}{item.imei ? ` (${item.imei})` : ''}</div>
+                        {item.notes && (
+                          <div className="text-xs text-slate-500 italic mt-0.5">
+                            Note: {item.notes}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 text-center text-slate-600">{item.quantity}</td>
+                      <td className="py-2 text-right text-slate-600">€{(Number(item.price) || 0).toFixed(2)}</td>
+                      <td className="py-2 text-right font-medium text-slate-800">€{(Number(item.total) || 0).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
-            <table className="w-full mb-6 text-sm border-collapse">
-              <thead>
-                <tr className="border-b-2 border-slate-300">
-                  <th className="text-left py-2 font-bold text-slate-700">Description</th>
-                  <th className="text-center py-2 font-bold text-slate-700 w-16">Qty</th>
-                  <th className="text-right py-2 font-bold text-slate-700 w-24">Unit Price</th>
-                  <th className="text-right py-2 font-bold text-slate-700 w-24">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoice.items.map((item, idx) => (
-                  <tr key={idx} className="border-b border-slate-100">
-                    <td className="py-2 text-slate-800">
-                      <div>{item.product_name}{item.imei ? ` (${item.imei})` : ''}</div>
-                      {item.notes && (
-                        <div className="text-xs text-slate-500 italic mt-0.5">
-                          Note: {item.notes}
+              <div className="flex justify-end">
+                {(() => {
+                  const taxDetails = getInvoiceTaxDetails(activeDoc);
+                  return (
+                    <div className="w-64 space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">{taxDetails.taxType === 'included' ? 'Net (Excl. VAT):' : 'Subtotal:'}</span>
+                        <span>€{taxDetails.netAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">{taxDetails.label}:</span>
+                        <span>€{taxDetails.taxAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-base border-t border-slate-300 pt-2 mt-2">
+                        <span>{isCnDoc ? 'Credit Note Total:' : 'Grand Total:'}</span>
+                        <span>€{taxDetails.grandTotal.toFixed(2)}</span>
+                      </div>
+                      {isCnDoc && (
+                        <div className="flex justify-between font-bold text-sm text-indigo-700 pt-1">
+                          <span>Available Credit:</span>
+                          <span>€{Number(activeDoc.credit_note?.remaining_amount ?? activeDoc.grand_total ?? 0).toFixed(2)}</span>
                         </div>
                       )}
-                    </td>
-                    <td className="py-2 text-center text-slate-600">{item.quantity}</td>
-                    <td className="py-2 text-right text-slate-600">€{(Number(item.price) || 0).toFixed(2)}</td>
-                    <td className="py-2 text-right font-medium text-slate-800">€{(Number(item.total) || 0).toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      {!isCnDoc && (() => {
+                        const totalPaid = (activeDoc.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                        const changeDue = Math.max(0, totalPaid - (Number(activeDoc.grand_total) || 0));
+                        if (changeDue > 0.005) {
+                          return (
+                            <div className="flex justify-between font-bold text-sm text-red-600 pt-1">
+                              <span>Change Due:</span>
+                              <span>€{changeDue.toFixed(2)}</span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+                  );
+                })()}
+              </div>
 
-            <div className="flex justify-end">
-              {(() => {
-                const taxDetails = getInvoiceTaxDetails(invoice);
-                return (
-                  <div className="w-56 space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">{taxDetails.taxType === 'included' ? 'Net (Excl. VAT):' : 'Subtotal:'}</span>
-                      <span>€{taxDetails.netAmount.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">{taxDetails.label}:</span>
-                      <span>€{taxDetails.taxAmount.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-base border-t border-slate-300 pt-2 mt-2">
-                      <span>Grand Total:</span><span>€{taxDetails.grandTotal.toFixed(2)}</span>
-                    </div>
-                    {(() => {
-                      const totalPaid = (invoice.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-                      const changeDue = Math.max(0, totalPaid - (Number(invoice.grand_total) || 0));
-                      if (changeDue > 0.005) {
-                        return (
-                          <div className="flex justify-between font-bold text-sm text-red-600 pt-1">
-                            <span>Change Due:</span>
-                            <span>€{changeDue.toFixed(2)}</span>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div className="mt-12 pt-6 border-t border-slate-200 text-center text-xs text-slate-400">
-              Thank you for your business!
+              <div className="mt-12 pt-6 border-t border-slate-200 text-center text-xs text-slate-400">
+                {isCnDoc ? `Present Credit Note ${activeDoc.invoice_number} on your next purchase.` : 'Thank you for your business!'}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

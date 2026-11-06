@@ -183,6 +183,7 @@ export async function sendInvoiceEmail(to: string, subject: string, invoice: any
     : grandTotal);
   const dueAmount = Math.max(0, Number(invoice.due_amount) || (grandTotal - paidAmount));
   const changeDue = Math.max(0, paidAmount - grandTotal);
+  const isCreditNote = invoice.type === 'credit_note' || String(invoice.invoice_number || '').startsWith('CN-');
   const isPaid = (invoice.status === 'paid' || dueAmount <= 0.005);
 
   const footerText = (thermalSettings && (thermalSettings.show_footer === 0 || thermalSettings.show_footer === false))
@@ -315,14 +316,19 @@ export async function sendInvoiceEmail(to: string, subject: string, invoice: any
                 </td>
                 <td class="mobile-stack mobile-right-align" style="vertical-align: top; width: 45%; text-align: right;">
                   <div style="font-size: 15px; font-weight: 800; color: #111827; letter-spacing: 0.2px;">
-                    Invoice #${invoice.invoice_number}
+                    ${isCreditNote ? 'Credit Note' : 'Invoice'} #${invoice.invoice_number}
                   </div>
+                  ${invoice.parent_invoice_number ? `
+                    <div style="font-size: 12px; color: #4b5563; margin-top: 2px;">
+                      Original Invoice: <strong>#${invoice.parent_invoice_number}</strong>
+                    </div>
+                  ` : ''}
                   <div style="font-size: 12.5px; color: #6b7280; margin-top: 2px;">
                     Date: ${new Date(invoice.created_at || Date.now()).toLocaleDateString('en-IE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                   </div>
                   <div style="margin-top: 6px;">
-                    <span style="display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; ${isPaid ? 'background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;' : 'background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;'}">
-                      ${isPaid ? 'PAID ✓' : 'BALANCE DUE'}
+                    <span style="display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; ${isCreditNote ? 'background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe;' : (isPaid ? 'background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;' : 'background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;')}">
+                      ${isCreditNote ? 'CREDIT NOTE ✓' : (isPaid ? 'PAID ✓' : 'BALANCE DUE')}
                     </span>
                   </div>
                 </td>
@@ -388,11 +394,11 @@ export async function sendInvoiceEmail(to: string, subject: string, invoice: any
                         </tr>
                       ` : ''}
                       <tr style="border-top: 1.5px solid #111827; font-size: 15px; font-weight: 800;">
-                        <td style="padding: 8px 0; color: #111827;">Grand Total:</td>
+                        <td style="padding: 8px 0; color: #111827;">${isCreditNote ? 'Credit Note Total:' : 'Grand Total:'}</td>
                         <td style="padding: 8px 0; text-align: right; color: #111827;">€${grandTotal.toFixed(2)}</td>
                       </tr>
                       <tr>
-                        <td style="padding: 4px 0; color: #6b7280;">Amount Paid:</td>
+                        <td style="padding: 4px 0; color: #6b7280;">${isCreditNote ? 'Store Credit Issued:' : 'Amount Paid:'}</td>
                         <td style="padding: 4px 0; text-align: right; font-weight: 600; color: #16a34a;">€${paidAmount.toFixed(2)}</td>
                       </tr>
                       ${changeDue > 0.005 ? `

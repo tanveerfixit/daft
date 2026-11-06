@@ -746,21 +746,29 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     }
   };
 
-  const handleAddPayment = (overrideMethod?: string, overrideAmount?: number) => {
+  const handleAddPayment = (overrideMethod?: string, overrideAmount?: number, extra?: { credit_note_id?: number; credit_note_number?: string }) => {
     const methodToUse = overrideMethod || paymentMethod;
     const amount = overrideAmount !== undefined ? overrideAmount : parseFloat(paymentAmount);
     if (isNaN(amount) || amount <= 0) return;
 
     if (methodToUse === 'Wallet') {
       const balance = selectedCustomer?.wallet_balance || 0;
-      if (amount > balance) {
-        alert(`Insufficient wallet balance. Available: €${balance.toFixed(2)}`);
+      const alreadyUsed = addedPayments
+        .filter(p => p.method === 'Wallet' || p.method === 'Customer Wallet')
+        .reduce((sum, p) => sum + Number(p.amount), 0);
+      if (amount + alreadyUsed > balance + 0.009) {
+        alert(`Insufficient wallet balance. Available: €${Math.max(0, balance - alreadyUsed).toFixed(2)}`);
         return;
       }
     }
 
     setPaymentMethod(methodToUse);
-    setAddedPayments(prev => [...prev, { method: methodToUse, amount }]);
+    setAddedPayments(prev => [...prev, {
+      method: methodToUse,
+      amount,
+      ...(extra?.credit_note_id ? { credit_note_id: extra.credit_note_id } : {}),
+      ...(extra?.credit_note_number ? { credit_note_number: extra.credit_note_number } : {})
+    }]);
     setPaymentAmount('');
     addActivity('Payment Added', `€${amount.toFixed(2)} via ${methodToUse}`, 'sale');
   };

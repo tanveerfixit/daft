@@ -94,9 +94,30 @@ export interface InvoiceActivity {
   created_at: string;
 }
 
+export interface CreditNote {
+  id: number;
+  business_id: number;
+  branch_id: number;
+  credit_note_number: string;
+  original_invoice_id: number;
+  original_invoice_number?: string;
+  refund_invoice_id?: number | null;
+  customer_id: number | null;
+  customer_name?: string;
+  total_amount: number;
+  remaining_amount: number;
+  reason?: string | null;
+  status: 'active' | 'partially_used' | 'redeemed' | 'void';
+  created_by?: number | null;
+  created_at: string;
+}
+
 export interface Invoice {
   id: number;
   invoice_number: string;
+  parent_invoice_id?: number | null;
+  parent_invoice_number?: string;
+  type?: 'sale' | 'refund' | 'credit_note' | 'deposit' | 'repair' | 'wallet' | string;
   customer_id: number | null;
   customer_name?: string;
   products_summary?: string;
@@ -119,13 +140,15 @@ export interface Invoice {
   items?: InvoiceItem[];
   activities?: InvoiceActivity[];
   payments?: Payment[];
+  credit_notes?: CreditNote[];
+  credit_note?: CreditNote | null;
 }
 
 export interface Payment {
   id: number;
   customer_id?: number | null;
   invoice_id?: number | null;
-  type: 'deposit' | 'sale_payment' | 'wallet_use';
+  type: 'deposit' | 'sale_payment' | 'wallet_use' | 'credit_note_issued' | 'credit_note_redeemed' | string;
   method: string;
   amount: number;
   paid_at: string;

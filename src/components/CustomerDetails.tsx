@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, User, Phone, Mail, MapPin, FileText, CreditCard, History, Save, ChevronDown, Trash2 } from 'lucide-react';
-import { Customer, Invoice, Payment } from '../types';
+import { Customer, Invoice, Payment, CreditNote } from '../types';
 import { safeCustomerName } from '../utils/customerName';
 
 interface CustomerDetailsProps {
@@ -34,6 +34,7 @@ export default function CustomerDetails({
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<(Payment & { invoice_number: string })[]>([]);
+  const [creditNotes, setCreditNotes] = useState<CreditNote[]>([]);
   const [activities, setActivities] = useState<CustomerActivity[]>([]);
   const [activeTab, setActiveTab] = useState<'info' | 'properties' | 'credits' | 'terms' | 'activity'>('info');
   const [isEditing, setIsEditing] = useState(false);
@@ -56,6 +57,13 @@ export default function CustomerDetails({
       .catch(err => {
         console.error('Error fetching payments:', err);
         setPayments([]);
+      });
+    fetch(`/api/customers/${customerId}/credit-notes`)
+      .then(res => res.json())
+      .then(data => setCreditNotes(Array.isArray(data) ? data : []))
+      .catch(err => {
+        console.error('Error fetching credit notes:', err);
+        setCreditNotes([]);
       });
     fetch(`/api/customers/${customerId}/activity`)
       .then(res => res.json())
@@ -337,11 +345,11 @@ export default function CustomerDetails({
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-neutral-250 dark:bg-neutral-900 p-4 rounded-none border border-neutral-300 dark:border-neutral-800">
                   <p className="text-[12px] font-bold text-black dark:text-white uppercase mb-1">Total Spent</p>
-                  <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">€{invoices.reduce((sum, inv) => sum + (Number(inv.grand_total) || 0), 0).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">€{invoices.filter(i => i.type !== 'credit_note' && !i.invoice_number?.startsWith('CN-')).reduce((sum, inv) => sum + (Number(inv.grand_total) || 0), 0).toFixed(2)}</p>
                 </div>
                 <div className="bg-neutral-250 dark:bg-neutral-900 p-4 rounded-none border border-neutral-300 dark:border-neutral-800">
                   <p className="text-[12px] font-bold text-black dark:text-white uppercase mb-1">Outstanding</p>
-                  <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">€{invoices.filter(i => i.status !== 'paid').reduce((sum, inv) => sum + (Number(inv.grand_total) || 0), 0).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">€{invoices.filter(i => i.type !== 'credit_note' && !i.invoice_number?.startsWith('CN-') && i.status !== 'paid').reduce((sum, inv) => sum + (Number(inv.grand_total) || 0), 0).toFixed(2)}</p>
                 </div>
                 <div className="bg-neutral-250 dark:bg-neutral-900 p-4 rounded-none border border-neutral-300 dark:border-neutral-800">
                   <p className="text-[12px] font-bold text-black dark:text-white uppercase mb-1">Wallet Balance</p>
@@ -485,6 +493,70 @@ export default function CustomerDetails({
                 </button>
               </div>
               
+              <h4 className="text-sm font-bold text-black dark:text-white uppercase mt-8 mb-4">Credit Notes</h4>
+              <div className="border border-neutral-300 dark:border-neutral-800 rounded-none overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-neutral-200 dark:bg-neutral-900">
+                    <tr className="text-[12px] font-bold text-black dark:text-white uppercase tracking-wider border-b border-neutral-300 dark:border-neutral-800">
+                      <th className="px-4 py-2">Credit Note #</th>
+                      <th className="px-4 py-2">Orig. Invoice</th>
+                      <th className="px-4 py-2">Date</th>
+                      <th className="px-4 py-2">Status</th>
+                      <th className="px-4 py-2 text-right">Total</th>
+                      <th className="px-4 py-2 text-right">Available</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800 font-normal">
+                    {creditNotes.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-neutral-400 dark:text-neutral-500 italic text-sm bg-white dark:bg-black">No credit notes issued for this customer.</td>
+                      </tr>
+                    ) : (
+                      creditNotes.map(cn => (
+                        <tr key={cn.id} className="hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors text-sm bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 font-normal">
+                          <td className="px-4 py-3 font-mono font-bold">
+                            {cn.refund_invoice_id ? (
+                              <button
+                                onClick={() => onSelectInvoice?.(cn.refund_invoice_id!)}
+                                className="text-purple-700 dark:text-purple-400 hover:underline cursor-pointer"
+                              >
+                                {cn.credit_note_number}
+                              </button>
+                            ) : (
+                              <span className="text-purple-700 dark:text-purple-400">{cn.credit_note_number}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 font-mono">
+                            {cn.original_invoice_id && cn.original_invoice_number ? (
+                              <button
+                                onClick={() => onSelectInvoice?.(cn.original_invoice_id)}
+                                className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                              >
+                                #{cn.original_invoice_number}
+                              </button>
+                            ) : (
+                              <span>-</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-neutral-600 dark:text-neutral-400 font-normal">{new Date(cn.created_at).toLocaleDateString()}</td>
+                          <td className="px-4 py-3 font-normal">
+                            <span className={`px-2 py-0.5 rounded-none text-[11px] font-bold uppercase ${
+                              cn.status === 'active' ? 'bg-purple-100 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300' :
+                              cn.status === 'redeemed' ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400' :
+                              'bg-red-100 dark:bg-red-950/40 text-red-700'
+                            }`}>
+                              {cn.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono font-normal">€{(Number(cn.total_amount) || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">€{(Number(cn.remaining_amount) || 0).toFixed(2)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
               <h4 className="text-sm font-bold text-black dark:text-white uppercase mt-8 mb-4">Payment Ledger</h4>
               <div className="border border-neutral-300 dark:border-neutral-800 rounded-none overflow-hidden">
                 <table className="w-full text-left border-collapse">

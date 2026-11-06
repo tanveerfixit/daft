@@ -161,6 +161,18 @@ router.get('/:id/invoices', async (req: any, res, next) => {
   } catch (e: any) { next(e); }
 });
 
+router.get('/:id/credit-notes', async (req: any, res, next) => {
+  try {
+    res.json(await query(`
+      SELECT cn.*, orig.invoice_number as original_invoice_number
+      FROM credit_notes cn
+      LEFT JOIN invoices orig ON cn.original_invoice_id = orig.id
+      WHERE cn.customer_id = ? AND cn.business_id = ?
+      ORDER BY cn.created_at DESC
+    `, [req.params.id, req.user.business_id]));
+  } catch (e: any) { next(e); }
+});
+
 router.get('/:id/payments', async (req: any, res, next) => {
   try {
     res.json(await query(`

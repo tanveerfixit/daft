@@ -16,6 +16,8 @@ export interface CartItem extends Product {
 export interface PaymentEntry {
   method: string;
   amount: number;
+  credit_note_id?: number;
+  credit_note_number?: string;
 }
 
 export interface Activity {

@@ -30,7 +30,7 @@ interface SidebarProps {
   setPaymentMethod: (method: string) => void;
   paymentAmount: string;
   setPaymentAmount: (amount: string) => void;
-  onAddPayment: (method?: string, amount?: number) => void;
+  onAddPayment: (method?: string, amount?: number, extra?: { credit_note_id?: number; credit_note_number?: string }) => void;
   onRemovePayment: (index: number) => void;
   remainingAmount: number;
   
@@ -80,6 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
         onRemovePayment={props.onRemovePayment}
         remainingAmount={props.remainingAmount}
         customerBalance={props.selectedCustomer?.wallet_balance || 0}
+        customerId={props.selectedCustomer?.id || null}
         availableMethods={props.availableMethods}
       />
 

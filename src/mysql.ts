@@ -227,7 +227,7 @@ export async function getBranchPrefix(branchId?: number | null, fallback = 'SKU'
 
 // ─── Schema Initialisation ───────────────────────────────────────────────────
 
-export const CURRENT_SCHEMA_VERSION = '2026_09_NOTIF_AND_LOGS_V1';
+export const CURRENT_SCHEMA_VERSION = '2026_11_CREDIT_NOTES_V1';
 
 async function ensureIndex(conn: any, tableName: string, indexName: string, columns: string) {
   try {
@@ -585,6 +585,7 @@ export async function initSchema() {
         user_id INT NULL,
         customer_id INT NULL,
         invoice_number VARCHAR(100),
+        parent_invoice_id INT NULL,
         type VARCHAR(50) DEFAULT 'sale',
         subtotal DECIMAL(10,2),
         tax_total DECIMAL(10,2),
@@ -602,6 +603,30 @@ export async function initSchema() {
         FOREIGN KEY (branch_id) REFERENCES branches(id),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
         FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
+      )
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS credit_notes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        business_id INT NOT NULL,
+        branch_id INT NOT NULL,
+        credit_note_number VARCHAR(100) NOT NULL,
+        original_invoice_id INT NOT NULL,
+        refund_invoice_id INT NULL,
+        customer_id INT NULL,
+        total_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        remaining_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        reason TEXT NULL,
+        status VARCHAR(50) DEFAULT 'active',
+        created_by INT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
+        FOREIGN KEY (original_invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+        INDEX idx_cn_biz_number (business_id, credit_note_number),
+        INDEX idx_cn_orig_inv (original_invoice_id),
+        INDEX idx_cn_customer (customer_id)
       )
     `);
 
@@ -1221,9 +1246,10 @@ export async function initSchema() {
       `);
     } catch (e: any) {}
 
-    // 8. Ensure invoices table has tax_rate and tax_type columns
+    // 8. Ensure invoices table has tax_rate, tax_type, and parent_invoice_id columns
     try { await conn.query('ALTER TABLE invoices ADD COLUMN tax_rate DECIMAL(5,2) DEFAULT 0 AFTER tax_total'); } catch (e: any) {}
     try { await conn.query("ALTER TABLE invoices ADD COLUMN tax_type VARCHAR(20) DEFAULT 'excluded' AFTER tax_rate"); } catch (e: any) {}
+    try { await conn.query('ALTER TABLE invoices ADD COLUMN parent_invoice_id INT NULL AFTER invoice_number'); } catch (e: any) {}
 
     // 9. Ensure settings table has popups and notification configuration columns (startup_cash_popup default 0 / disabled)
     try { await conn.query('ALTER TABLE settings ADD COLUMN startup_cash_popup TINYINT(1) DEFAULT 0'); } catch (e: any) {}

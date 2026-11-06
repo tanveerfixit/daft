@@ -573,6 +573,7 @@ async function initSchema() {
         user_id INT NULL,
         customer_id INT NULL,
         invoice_number VARCHAR(100),
+        parent_invoice_id INT NULL,
         type VARCHAR(50) DEFAULT 'sale',
         subtotal DECIMAL(10,2),
         tax_total DECIMAL(10,2),
@@ -590,6 +591,29 @@ async function initSchema() {
         FOREIGN KEY (branch_id) REFERENCES branches(id),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
         FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
+      )
+    `);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS credit_notes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        business_id INT NOT NULL,
+        branch_id INT NOT NULL,
+        credit_note_number VARCHAR(100) NOT NULL,
+        original_invoice_id INT NOT NULL,
+        refund_invoice_id INT NULL,
+        customer_id INT NULL,
+        total_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        remaining_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        reason TEXT NULL,
+        status VARCHAR(50) DEFAULT 'active',
+        created_by INT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE,
+        FOREIGN KEY (original_invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+        INDEX idx_cn_biz_number (business_id, credit_note_number),
+        INDEX idx_cn_orig_inv (original_invoice_id),
+        INDEX idx_cn_customer (customer_id)
       )
     `);
     await conn.query(`
@@ -1187,6 +1211,10 @@ async function initSchema() {
     } catch (e) {
     }
     try {
+      await conn.query("ALTER TABLE invoices ADD COLUMN parent_invoice_id INT NULL AFTER invoice_number");
+    } catch (e) {
+    }
+    try {
       await conn.query("ALTER TABLE settings ADD COLUMN startup_cash_popup TINYINT(1) DEFAULT 0");
     } catch (e) {
     }
@@ -1589,7 +1617,7 @@ var init_mysql = __esm({
       }
     });
     connectionChecked = false;
-    CURRENT_SCHEMA_VERSION = "2026_09_NOTIF_AND_LOGS_V1";
+    CURRENT_SCHEMA_VERSION = "2026_11_CREDIT_NOTES_V1";
   }
 });
 
@@ -1729,6 +1757,7 @@ async function sendInvoiceEmail(to, subject, invoice, company, customNote, branc
   const paidAmount = Number(invoice.paid_amount) || (invoice.payments && invoice.payments.length > 0 ? invoice.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) : grandTotal);
   const dueAmount = Math.max(0, Number(invoice.due_amount) || grandTotal - paidAmount);
   const changeDue = Math.max(0, paidAmount - grandTotal);
+  const isCreditNote = invoice.type === "credit_note" || String(invoice.invoice_number || "").startsWith("CN-");
   const isPaid = invoice.status === "paid" || dueAmount <= 5e-3;
   const footerText = thermalSettings && (thermalSettings.show_footer === 0 || thermalSettings.show_footer === false) ? "" : thermalSettings?.footer_text && thermalSettings.footer_text.trim() || "Thank you for your business!";
   const itemsHtml = (invoice.items || []).map((item, idx) => `
@@ -1856,14 +1885,19 @@ async function sendInvoiceEmail(to, subject, invoice, company, customNote, branc
                 </td>
                 <td class="mobile-stack mobile-right-align" style="vertical-align: top; width: 45%; text-align: right;">
                   <div style="font-size: 15px; font-weight: 800; color: #111827; letter-spacing: 0.2px;">
-                    Invoice #${invoice.invoice_number}
+                    ${isCreditNote ? "Credit Note" : "Invoice"} #${invoice.invoice_number}
                   </div>
+                  ${invoice.parent_invoice_number ? `
+                    <div style="font-size: 12px; color: #4b5563; margin-top: 2px;">
+                      Original Invoice: <strong>#${invoice.parent_invoice_number}</strong>
+                    </div>
+                  ` : ""}
                   <div style="font-size: 12.5px; color: #6b7280; margin-top: 2px;">
                     Date: ${new Date(invoice.created_at || Date.now()).toLocaleDateString("en-IE", { day: "2-digit", month: "2-digit", year: "numeric" })}
                   </div>
                   <div style="margin-top: 6px;">
-                    <span style="display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; ${isPaid ? "background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;" : "background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;"}">
-                      ${isPaid ? "PAID \u2713" : "BALANCE DUE"}
+                    <span style="display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; ${isCreditNote ? "background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe;" : isPaid ? "background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;" : "background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;"}">
+                      ${isCreditNote ? "CREDIT NOTE \u2713" : isPaid ? "PAID \u2713" : "BALANCE DUE"}
                     </span>
                   </div>
                 </td>
@@ -1929,11 +1963,11 @@ async function sendInvoiceEmail(to, subject, invoice, company, customNote, branc
                         </tr>
                       ` : ""}
                       <tr style="border-top: 1.5px solid #111827; font-size: 15px; font-weight: 800;">
-                        <td style="padding: 8px 0; color: #111827;">Grand Total:</td>
+                        <td style="padding: 8px 0; color: #111827;">${isCreditNote ? "Credit Note Total:" : "Grand Total:"}</td>
                         <td style="padding: 8px 0; text-align: right; color: #111827;">\u20AC${grandTotal.toFixed(2)}</td>
                       </tr>
                       <tr>
-                        <td style="padding: 4px 0; color: #6b7280;">Amount Paid:</td>
+                        <td style="padding: 4px 0; color: #6b7280;">${isCreditNote ? "Store Credit Issued:" : "Amount Paid:"}</td>
                         <td style="padding: 4px 0; text-align: right; font-weight: 600; color: #16a34a;">\u20AC${paidAmount.toFixed(2)}</td>
                       </tr>
                       ${changeDue > 5e-3 ? `
@@ -4286,6 +4320,19 @@ var init_customers = __esm({
         next(e);
       }
     });
+    router4.get("/:id/credit-notes", async (req, res, next) => {
+      try {
+        res.json(await query(`
+      SELECT cn.*, orig.invoice_number as original_invoice_number
+      FROM credit_notes cn
+      LEFT JOIN invoices orig ON cn.original_invoice_id = orig.id
+      WHERE cn.customer_id = ? AND cn.business_id = ?
+      ORDER BY cn.created_at DESC
+    `, [req.params.id, req.user.business_id]));
+      } catch (e) {
+        next(e);
+      }
+    });
     router4.get("/:id/payments", async (req, res, next) => {
       try {
         res.json(await query(`
@@ -4823,13 +4870,41 @@ var init_invoices = __esm({
         if (conn) conn.release();
       }
     });
+    router5.get("/credit-note/:cnNumber", async (req, res, next) => {
+      try {
+        const searchTerm = (req.params.cnNumber || "").trim();
+        if (!searchTerm) return res.status(400).json({ error: "Credit Note number is required" });
+        const cn = await queryOne(`
+      SELECT cn.*, 
+             orig.invoice_number as original_invoice_number,
+             c.name as customer_name, c.phone as customer_phone, c.wallet_balance
+      FROM credit_notes cn
+      LEFT JOIN invoices orig ON cn.original_invoice_id = orig.id
+      LEFT JOIN customers c ON cn.customer_id = c.id
+      WHERE cn.business_id = ?
+        AND (
+          UPPER(cn.credit_note_number) = UPPER(?)
+          OR UPPER(cn.credit_note_number) LIKE UPPER(?)
+        )
+      ORDER BY cn.id DESC
+      LIMIT 1
+    `, [req.user.business_id, searchTerm, `%${searchTerm}`]);
+        if (!cn) {
+          return res.status(404).json({ error: `Credit Note "${searchTerm}" not found` });
+        }
+        res.json(cn);
+      } catch (e) {
+        next(e);
+      }
+    });
     router5.get("/", async (req, res, next) => {
       try {
-        const { startDate, endDate } = req.query;
+        const { startDate, endDate, type } = req.query;
         const isDeveloper = req.user.role === "developer";
         const branchId = req.user.branch_id;
         let sql = `
       SELECT i.*, 
+             p_inv.invoice_number as parent_invoice_number,
              c.name as customer_name,
              b.name as branch_name,
              u.name as user_name,
@@ -4849,6 +4924,7 @@ var init_invoices = __esm({
                WHERE ii.invoice_id = i.id
              ) as products_summary
       FROM invoices i
+      LEFT JOIN invoices p_inv ON i.parent_invoice_id = p_inv.id
       LEFT JOIN customers c ON i.customer_id=c.id
       LEFT JOIN branches b ON i.branch_id=b.id
       LEFT JOIN users u ON i.user_id=u.id
@@ -4863,6 +4939,10 @@ var init_invoices = __esm({
           sql += " AND i.created_at <= ?";
           params.push(endDate + " 23:59:59");
         }
+        if (type && type !== "all") {
+          sql += " AND i.type = ?";
+          params.push(type);
+        }
         sql += " ORDER BY i.created_at DESC";
         res.json(await query(sql, params));
       } catch (e) {
@@ -4874,11 +4954,13 @@ var init_invoices = __esm({
         const isDeveloper = req.user.role === "developer";
         const branchId = req.user.branch_id;
         const sql = `
-      SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.email as customer_email,
+      SELECT i.*, p_inv.invoice_number as parent_invoice_number,
+             c.name as customer_name, c.phone as customer_phone, c.email as customer_email,
              b.name as branch_name,
              u.name as user_name,
              u.name as created_by_name
       FROM invoices i 
+      LEFT JOIN invoices p_inv ON i.parent_invoice_id=p_inv.id
       LEFT JOIN customers c ON i.customer_id=c.id 
       LEFT JOIN branches b ON i.branch_id=b.id
       LEFT JOIN users u ON i.user_id=u.id
@@ -4901,12 +4983,33 @@ var init_invoices = __esm({
       LEFT JOIN users u ON a.user_id=u.id
       WHERE a.invoice_id=? ORDER BY a.created_at DESC
     `, [req.params.id]);
+        let credit_notes = [];
+        let credit_note = null;
+        try {
+          credit_notes = await query(`
+        SELECT cn.*, orig.invoice_number as original_invoice_number
+        FROM credit_notes cn
+        LEFT JOIN invoices orig ON cn.original_invoice_id = orig.id
+        WHERE cn.original_invoice_id = ?
+        ORDER BY cn.created_at DESC
+      `, [req.params.id]);
+          credit_note = await queryOne(`
+        SELECT cn.*, orig.invoice_number as original_invoice_number
+        FROM credit_notes cn
+        LEFT JOIN invoices orig ON cn.original_invoice_id = orig.id
+        WHERE cn.refund_invoice_id = ?
+        LIMIT 1
+      `, [req.params.id]);
+        } catch {
+        }
         const paymentMethod = payments.length > 1 ? "Split" : payments[0]?.method || "Cash";
         res.json({
           ...invoice,
           items,
           payments,
           activities,
+          credit_notes,
+          credit_note,
           payment_method: paymentMethod,
           customer: { name: invoice.customer_name, phone: invoice.customer_phone, email: invoice.customer_email }
         });
@@ -4939,7 +5042,9 @@ var init_invoices = __esm({
       })).min(1, "Cart is empty"),
       payments: z4.array(z4.object({
         method: z4.string(),
-        amount: z4.number().or(z4.string().transform(Number))
+        amount: z4.number().or(z4.string().transform(Number)),
+        credit_note_id: z4.number().optional(),
+        credit_note_number: z4.string().optional()
       })).optional(),
       activities: z4.array(z4.object({
         action: z4.string().optional(),
@@ -5109,13 +5214,104 @@ var init_invoices = __esm({
           return { ...p, amount: amt };
         }).filter((p) => p.amount > 0);
         for (const p of settledPayments) {
-          const type = p.method === "Store Credit" || p.method === "Wallet" ? "wallet_use" : isDeposit ? "deposit" : isRepair ? "repair_payment" : "sale_payment";
-          await conn.execute(
-            "INSERT INTO payments (customer_id,invoice_id,type,method,amount) VALUES (?,?,?,?,?)",
-            [finalCustomerId, invoiceId, type, p.method, p.amount]
-          );
-          if (type === "wallet_use") {
-            await conn.execute("UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)-? WHERE id=?", [p.amount, finalCustomerId]);
+          const mLower = (p.method || "").toLowerCase();
+          const isCnRedemption = Boolean(p.credit_note_id || p.credit_note_number || mLower.startsWith("credit note"));
+          const isWalletUse = !isCnRedemption && (p.method === "Store Credit" || p.method === "Wallet");
+          if (isCnRedemption) {
+            const cnLookupNumber = p.credit_note_number || (p.method.match(/CN-[A-Z0-9-]+/i)?.[0] ?? "");
+            const [cnRows] = await conn.execute(
+              `SELECT * FROM credit_notes 
+           WHERE business_id = ? AND (id = ? OR (credit_note_number != '' AND UPPER(credit_note_number) = UPPER(?)))
+           LIMIT 1`,
+              [req.user.business_id, p.credit_note_id || 0, cnLookupNumber]
+            );
+            const cn = cnRows[0];
+            if (!cn) {
+              throw new Error(`Credit Note ${cnLookupNumber || ""} not found.`);
+            }
+            const avail = Number(cn.remaining_amount) || 0;
+            if (avail < p.amount - 0.01 || cn.status === "redeemed" || cn.status === "void") {
+              throw new Error(`Credit Note ${cn.credit_note_number} has insufficient balance (Available: \u20AC${avail.toFixed(2)}).`);
+            }
+            const newRemaining = Math.max(0, Number((avail - p.amount).toFixed(2)));
+            const newCnStatus = newRemaining <= 9e-3 ? "redeemed" : "partially_used";
+            await conn.execute(
+              "UPDATE credit_notes SET remaining_amount = ?, status = ? WHERE id = ?",
+              [newRemaining, newCnStatus, cn.id]
+            );
+            const cnCustomerId = cn.customer_id || finalCustomerId;
+            if (cn.customer_id) {
+              const [custRows] = await conn.execute("SELECT name FROM customers WHERE id = ? LIMIT 1", [cn.customer_id]);
+              const custName = custRows[0]?.name || "";
+              if (custName && custName !== "Walk-in Customer") {
+                await conn.execute(
+                  "UPDATE customers SET wallet_balance = GREATEST(0, COALESCE(wallet_balance, 0) - ?) WHERE id = ?",
+                  [p.amount, cn.customer_id]
+                );
+              }
+            }
+            const methodLabel = p.method.includes(cn.credit_note_number) ? p.method : `Credit Note (${cn.credit_note_number})`;
+            await conn.execute(
+              "INSERT INTO payments (customer_id, invoice_id, type, method, amount) VALUES (?, ?, ?, ?, ?)",
+              [cnCustomerId, invoiceId, "credit_note_redeemed", methodLabel, p.amount]
+            );
+            const redeemDetails = `Redeemed \u20AC${p.amount.toFixed(2)} from Credit Note ${cn.credit_note_number} on Invoice ${invoiceNumber}. Remaining CN balance: \u20AC${newRemaining.toFixed(2)}`;
+            if (cn.refund_invoice_id) {
+              await conn.execute(
+                "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+                [cn.refund_invoice_id, req.userId, "Credit Note Redeemed", redeemDetails]
+              );
+            }
+            if (cn.original_invoice_id) {
+              await conn.execute(
+                "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+                [cn.original_invoice_id, req.userId, "Credit Note Redeemed", redeemDetails]
+              );
+            }
+            if (cnCustomerId) {
+              await conn.execute(
+                "INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+                [cnCustomerId, req.userId, "Credit Note Redeemed", redeemDetails]
+              );
+            }
+          } else {
+            const type = isWalletUse ? "wallet_use" : isDeposit ? "deposit" : isRepair ? "repair_payment" : "sale_payment";
+            await conn.execute(
+              "INSERT INTO payments (customer_id,invoice_id,type,method,amount) VALUES (?,?,?,?,?)",
+              [finalCustomerId, invoiceId, type, p.method, p.amount]
+            );
+            if (type === "wallet_use" && finalCustomerId) {
+              await conn.execute(
+                "UPDATE customers SET wallet_balance = GREATEST(0, COALESCE(wallet_balance, 0) - ?) WHERE id = ?",
+                [p.amount, finalCustomerId]
+              );
+              try {
+                const [openCns] = await conn.execute(
+                  `SELECT id, credit_note_number, remaining_amount, refund_invoice_id 
+               FROM credit_notes 
+               WHERE business_id = ? AND customer_id = ? AND status IN ('active', 'partially_used') AND remaining_amount > 0
+               ORDER BY id ASC`,
+                  [req.user.business_id, finalCustomerId]
+                );
+                let toDeduct = p.amount;
+                for (const ocn of openCns) {
+                  if (toDeduct <= 5e-3) break;
+                  const availCn = Number(ocn.remaining_amount) || 0;
+                  const used = Math.min(availCn, toDeduct);
+                  const nextRem = Math.max(0, Number((availCn - used).toFixed(2)));
+                  const nextSt = nextRem <= 9e-3 ? "redeemed" : "partially_used";
+                  await conn.execute("UPDATE credit_notes SET remaining_amount = ?, status = ? WHERE id = ?", [nextRem, nextSt, ocn.id]);
+                  if (ocn.refund_invoice_id) {
+                    await conn.execute(
+                      "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+                      [ocn.refund_invoice_id, req.userId, "Credit Note Redeemed", `\u20AC${used.toFixed(2)} redeemed via Customer Wallet on Invoice ${invoiceNumber}. Remaining: \u20AC${nextRem.toFixed(2)}`]
+                    );
+                  }
+                  toDeduct -= used;
+                }
+              } catch {
+              }
+            }
           }
         }
         const logDetails = `Invoice ${invoiceNumber} created for \u20AC${(Number(grand_total) || 0).toFixed(2)}`;
@@ -5201,7 +5397,7 @@ var init_invoices = __esm({
       }
     });
     router5.post("/:id/refund", async (req, res, next) => {
-      const { method = "Cash", restock = true, items, is_full_refund, notes } = req.body;
+      const { method = "Cash", restock = true, items, is_full_refund, notes, customer_id } = req.body;
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
@@ -5213,8 +5409,9 @@ var init_invoices = __esm({
         const invoice = invRows[0];
         if (!invoice) throw new Error("Invoice not found or access denied");
         if (invoice.status === "void") throw new Error("This invoice has already been fully refunded");
+        if (invoice.type === "credit_note") throw new Error("Cannot refund a Credit Note document");
         const [itemRows] = await conn.execute(`
-      SELECT ii.*, p.name as product_name, d.imei
+      SELECT ii.*, p.name as product_name, s.sku_code, d.imei
       FROM invoice_items ii
       JOIN product_skus s ON ii.sku_id = s.id
       JOIN products p ON s.product_id = p.id
@@ -5240,8 +5437,11 @@ var init_invoices = __esm({
               id: item.id,
               sku_id: item.sku_id,
               device_id: item.device_id,
+              imei: item.imei,
+              sku_code: item.sku_code,
               qty: qtyToRefund,
               unitPrice: unitEffectivePrice,
+              cost: Number(item.cost) || 0,
               name: item.product_name || "Product"
             });
             refundSummaries.push(`${qtyToRefund}x ${item.product_name} (\u20AC${itemRefundTotal.toFixed(2)})`);
@@ -5257,8 +5457,11 @@ var init_invoices = __esm({
               id: item.id,
               sku_id: item.sku_id,
               device_id: item.device_id,
+              imei: item.imei,
+              sku_code: item.sku_code,
               qty: returnableQty,
               unitPrice: unitEffectivePrice,
+              cost: Number(item.cost) || 0,
               name: item.product_name || "Product"
             });
             refundSummaries.push(`${returnableQty}x ${item.product_name} (\u20AC${itemRefundTotal.toFixed(2)})`);
@@ -5282,10 +5485,176 @@ var init_invoices = __esm({
             }
           }
         }
-        await conn.execute(
-          "INSERT INTO payments (invoice_id, method, amount) VALUES (?, ?, ?)",
-          [req.params.id, `Refund (${method})`, -totalRefundAmount]
-        );
+        const methodLower = String(method || "").toLowerCase();
+        const isCreditNote = ["customer wallet", "credit note", "store credit", "wallet"].some((k) => methodLower.includes(k));
+        const targetCustomerId = customer_id ? Number(customer_id) : invoice.customer_id || null;
+        let createdCreditNote = null;
+        let creditNoteInvoice = null;
+        if (isCreditNote) {
+          const targetBranchId = invoice.branch_id || req.user.branch_id || 1;
+          const branchPrefix = await getBranchPrefix(targetBranchId);
+          const now = /* @__PURE__ */ new Date();
+          const yy = String(now.getFullYear()).slice(-2);
+          const mm = String(now.getMonth() + 1).padStart(2, "0");
+          const yymm = `${yy}${mm}`;
+          const cnPrefix = `CN-${branchPrefix}-${yymm}`;
+          const [lastCn] = await conn.execute(
+            "SELECT credit_note_number FROM credit_notes WHERE credit_note_number LIKE ? AND business_id=? ORDER BY id DESC LIMIT 1",
+            [`${cnPrefix}-%`, req.user.business_id]
+          );
+          let nextCnNum = 1;
+          if (lastCn.length > 0) {
+            const parts = String(lastCn[0].credit_note_number).split("-");
+            const lastNum = parseInt(parts[parts.length - 1], 10);
+            if (!isNaN(lastNum)) nextCnNum = lastNum + 1;
+          }
+          const cnNumber = `${cnPrefix}-${String(nextCnNum).padStart(4, "0")}`;
+          const origGrand = Number(invoice.grand_total) || 0;
+          const origTax = Number(invoice.tax_total) || 0;
+          const taxRatio = origGrand > 0 ? origTax / origGrand : 0;
+          const cnTaxTotal = Number((totalRefundAmount * taxRatio).toFixed(2));
+          const cnSubtotal = Number((totalRefundAmount - cnTaxTotal).toFixed(2));
+          const [cnInvRes] = await conn.execute(
+            `INSERT INTO invoices 
+         (business_id, branch_id, user_id, customer_id, invoice_number, parent_invoice_id, type, subtotal, tax_total, tax_rate, tax_type, discount_total, grand_total, paid_amount, due_amount, status)
+         VALUES (?, ?, ?, ?, ?, ?, 'credit_note', ?, ?, ?, ?, 0, ?, ?, 0, 'credit_note')`,
+            [
+              req.user.business_id,
+              targetBranchId,
+              req.userId,
+              targetCustomerId,
+              cnNumber,
+              invoice.id,
+              cnSubtotal,
+              cnTaxTotal,
+              Number(invoice.tax_rate) || 0,
+              invoice.tax_type || "excluded",
+              totalRefundAmount,
+              totalRefundAmount
+            ]
+          );
+          const cnInvoiceId = cnInvRes.insertId;
+          for (const pItem of itemsToProcess) {
+            const lineTotal = Number((pItem.unitPrice * pItem.qty).toFixed(2));
+            await conn.execute(
+              "INSERT INTO invoice_items (invoice_id, sku_id, device_id, quantity, price, cost, discount, total, notes) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)",
+              [cnInvoiceId, pItem.sku_id, pItem.device_id || null, pItem.qty, pItem.unitPrice, pItem.cost, lineTotal, notes || `Returned from ${invoice.invoice_number}`]
+            );
+          }
+          const [cnRes] = await conn.execute(
+            `INSERT INTO credit_notes 
+         (business_id, branch_id, credit_note_number, original_invoice_id, refund_invoice_id, customer_id, total_amount, remaining_amount, reason, status, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
+            [
+              req.user.business_id,
+              targetBranchId,
+              cnNumber,
+              invoice.id,
+              cnInvoiceId,
+              targetCustomerId,
+              totalRefundAmount,
+              totalRefundAmount,
+              notes || null,
+              req.userId
+            ]
+          );
+          const cnId = cnRes.insertId;
+          await conn.execute(
+            "INSERT INTO payments (customer_id, invoice_id, type, method, amount) VALUES (?, ?, ?, ?, ?)",
+            [targetCustomerId, invoice.id, "credit_note_issued", `Credit Note (${cnNumber})`, -totalRefundAmount]
+          );
+          await conn.execute(
+            "INSERT INTO payments (customer_id, invoice_id, type, method, amount) VALUES (?, ?, ?, ?, ?)",
+            [targetCustomerId, cnInvoiceId, "credit_note_issued", `Credit Note (${cnNumber})`, totalRefundAmount]
+          );
+          let customerObj = null;
+          if (targetCustomerId) {
+            const [cRows] = await conn.execute("SELECT * FROM customers WHERE id = ? AND business_id = ? LIMIT 1", [targetCustomerId, req.user.business_id]);
+            customerObj = cRows[0] || null;
+            if (customerObj && customerObj.name !== "Walk-in Customer") {
+              await conn.execute(
+                "UPDATE customers SET wallet_balance = COALESCE(wallet_balance, 0) + ? WHERE id = ?",
+                [totalRefundAmount, targetCustomerId]
+              );
+              await conn.execute(
+                "INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+                [
+                  targetCustomerId,
+                  req.userId,
+                  "Credit Note Issued",
+                  `Credit Note ${cnNumber} issued for \u20AC${totalRefundAmount.toFixed(2)} (from Invoice ${invoice.invoice_number}). Added to Customer Wallet.`
+                ]
+              );
+            }
+          }
+          await conn.execute(
+            "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [
+              cnInvoiceId,
+              req.userId,
+              "Credit Note Created",
+              `Credit Note ${cnNumber} issued for \u20AC${totalRefundAmount.toFixed(2)} against Invoice ${invoice.invoice_number} [${refundSummaries.join(", ")}].`
+            ]
+          );
+          createdCreditNote = {
+            id: cnId,
+            credit_note_number: cnNumber,
+            original_invoice_id: invoice.id,
+            original_invoice_number: invoice.invoice_number,
+            refund_invoice_id: cnInvoiceId,
+            customer_id: targetCustomerId,
+            customer_name: customerObj?.name || "Walk-in Customer",
+            total_amount: totalRefundAmount,
+            remaining_amount: totalRefundAmount,
+            status: "active",
+            created_at: now.toISOString()
+          };
+          creditNoteInvoice = {
+            id: cnInvoiceId,
+            invoice_number: cnNumber,
+            parent_invoice_id: invoice.id,
+            parent_invoice_number: invoice.invoice_number,
+            type: "credit_note",
+            customer_id: targetCustomerId,
+            customer_name: customerObj?.name || "Walk-in Customer",
+            subtotal: cnSubtotal,
+            tax_total: cnTaxTotal,
+            tax_rate: Number(invoice.tax_rate) || 0,
+            tax_type: invoice.tax_type || "excluded",
+            discount_total: 0,
+            grand_total: totalRefundAmount,
+            paid_amount: totalRefundAmount,
+            due_amount: 0,
+            status: "credit_note",
+            created_at: now.toISOString(),
+            branch_id: targetBranchId,
+            payment_method: `Credit Note (${cnNumber})`,
+            credit_note: createdCreditNote,
+            customer: customerObj ? { name: customerObj.name, phone: customerObj.phone, email: customerObj.email } : { name: "Walk-in Customer" },
+            items: itemsToProcess.map((it) => ({
+              sku_id: it.sku_id,
+              device_id: it.device_id,
+              imei: it.imei,
+              sku_code: it.sku_code,
+              product_name: it.name,
+              quantity: it.qty,
+              price: it.unitPrice,
+              total: Number((it.unitPrice * it.qty).toFixed(2)),
+              notes: notes || `Returned from ${invoice.invoice_number}`
+            })),
+            payments: [{
+              method: `Credit Note (${cnNumber})`,
+              amount: totalRefundAmount,
+              type: "credit_note_issued",
+              paid_at: now.toISOString()
+            }]
+          };
+        } else {
+          await conn.execute(
+            "INSERT INTO payments (customer_id, invoice_id, type, method, amount) VALUES (?, ?, ?, ?, ?)",
+            [targetCustomerId, req.params.id, "refund", `Refund (${method})`, -totalRefundAmount]
+          );
+        }
         const [updatedItems] = await conn.execute(
           "SELECT SUM(quantity) as total_qty, SUM(COALESCE(refunded_quantity, 0)) as total_refunded FROM invoice_items WHERE invoice_id=?",
           [req.params.id]
@@ -5295,8 +5664,8 @@ var init_invoices = __esm({
         const isFullyRefunded = totalRefunded >= totalQty;
         const newStatus = isFullyRefunded ? "void" : "partially_refunded";
         await conn.execute("UPDATE invoices SET status=? WHERE id=?", [newStatus, req.params.id]);
-        const activityLabel = isFullyRefunded ? "Refund Created" : "Partial Refund";
-        const detailMsg = `${activityLabel} issued via ${method} for \u20AC${totalRefundAmount.toFixed(2)} [${refundSummaries.join(", ")}]. ${restock ? "Restocked to inventory." : "No restock."}${notes ? ` Note: ${notes}` : ""}`;
+        const activityLabel = isCreditNote ? `Credit Note Issued (${createdCreditNote?.credit_note_number})` : isFullyRefunded ? "Refund Created" : "Partial Refund";
+        const detailMsg = `${activityLabel} via ${isCreditNote ? "Credit Note / Store Credit" : method} for \u20AC${totalRefundAmount.toFixed(2)} [${refundSummaries.join(", ")}]. ${restock ? "Restocked to inventory." : "No restock."}${notes ? ` Note: ${notes}` : ""}`;
         await conn.execute(
           "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
           [req.params.id, req.userId, activityLabel, detailMsg]
@@ -5306,7 +5675,9 @@ var init_invoices = __esm({
           success: true,
           status: newStatus,
           refundAmount: totalRefundAmount,
-          refundedItems: itemsToProcess
+          refundedItems: itemsToProcess,
+          creditNote: createdCreditNote,
+          creditNoteInvoice
         });
       } catch (e) {
         await conn.rollback();
@@ -5456,7 +5827,7 @@ var init_reports = __esm({
         let salesSql = `
       SELECT COUNT(id) as count, COALESCE(SUM(grand_total), 0) as total 
       FROM invoices 
-      WHERE business_id=? AND created_at >= ? AND created_at <= ?
+      WHERE business_id=? AND (type IS NULL OR type != 'credit_note') AND created_at >= ? AND created_at <= ?
       ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
     `;
         const salesParams = !isDeveloper && branchId ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
@@ -5794,6 +6165,7 @@ var init_reports = __esm({
       LEFT JOIN users u ON i.user_id=u.id
       LEFT JOIN customers c ON p.customer_id=c.id
       WHERE p.paid_at >= ? AND p.paid_at <= ? AND i.business_id=? 
+        AND NOT (i.type = 'credit_note' AND p.type = 'credit_note_issued')
       ${!isSuper && branchId ? "AND (i.branch_id=? OR i.branch_id IS NULL)" : ""}
       ORDER BY p.id ASC
     `, !isSuper && branchId ? [startDateTime, endDateTime, req.user.business_id, branchId] : [startDateTime, endDateTime, req.user.business_id]);
@@ -5812,6 +6184,7 @@ var init_reports = __esm({
       LEFT JOIN invoices i ON p.invoice_id=i.id
       LEFT JOIN customers c ON p.customer_id=c.id
       WHERE p.paid_at >= ? AND p.paid_at <= ? 
+        AND NOT (i.type = 'credit_note' AND p.type = 'credit_note_issued')
         AND ((p.invoice_id IS NOT NULL AND i.business_id=?) OR (p.invoice_id IS NULL AND c.business_id=?))
       ${!isSuper && branchId ? "AND ((p.invoice_id IS NOT NULL AND (i.branch_id=? OR i.branch_id IS NULL)) OR (p.invoice_id IS NULL AND (c.branch_id=? OR c.branch_id IS NULL)))" : ""}
       GROUP BY p.method, p.type

@@ -173,6 +173,7 @@ const InvoiceDetailsRoute = () => {
       invoiceId={Number(id)} 
       onBack={() => navigate(`/${branchSlug}/invoices`)} 
       onSelectCustomer={(customerId) => navigate(`/${branchSlug}/customers/${customerId}`)}
+      onSelectInvoice={(invId) => navigate(`/${branchSlug}/invoices/${invId}`)}
     />
   );
 };

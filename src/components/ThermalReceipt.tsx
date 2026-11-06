@@ -47,6 +47,9 @@ export default function ThermalReceipt({ invoice, settings, company }: Props) {
     : Number(invoice.grand_total) || 0;
   const changeDue = Math.max(0, totalPaid - (Number(invoice.grand_total) || 0));
   const dueAmount = Number(invoice.due_amount) || 0;
+  const isCreditNote = invoice.type === 'credit_note' || String(invoice.invoice_number || '').startsWith('CN-');
+  const origInvoiceNumber = invoice.parent_invoice_number || invoice.credit_note?.original_invoice_number || '';
+  const remainingCredit = invoice.credit_note ? Number(invoice.credit_note.remaining_amount) : Number(invoice.grand_total) || 0;
 
   const showHeaderInfo = settings.show_logo || settings.show_business_name || settings.show_business_address || settings.show_business_phone || settings.show_business_email || (settings.show_vat_number !== false && !!vatNumber);
   const showMetaInfo = settings.show_invoice_number !== false || settings.show_date !== false || settings.show_customer_info;
@@ -133,6 +136,12 @@ export default function ThermalReceipt({ invoice, settings, company }: Props) {
       
       {/* Divider under header */}
       {showHeaderInfo && showMetaInfo && <div className="receipt-line" />}
+
+      {isCreditNote && (
+        <div className="text-center text-bold" style={{ fontSize: '1.15em', border: '1.5px solid #000', padding: '3px 0', margin: '4px 0', letterSpacing: '1px' }}>
+          CREDIT NOTE
+        </div>
+      )}
       
       {/* 2. Receipt Metadata */}
       {showMetaInfo && (
@@ -140,11 +149,18 @@ export default function ThermalReceipt({ invoice, settings, company }: Props) {
           {(settings.show_invoice_number !== false || settings.show_date !== false) && (
             <div className="flex-between">
               {settings.show_invoice_number !== false ? (
-                <span><span className="text-bold">Invoice:</span> {invoice.invoice_number}</span>
+                <span><span className="text-bold">{isCreditNote ? 'Credit Note:' : 'Invoice:'}</span> {invoice.invoice_number}</span>
               ) : <span />}
               {settings.show_date !== false && (
                 <span>{new Date(invoice.created_at || now).toLocaleDateString('en-IE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
               )}
+            </div>
+          )}
+
+          {isCreditNote && origInvoiceNumber && (
+            <div className="flex-between">
+              <span><span className="text-bold">Orig. Invoice:</span> {origInvoiceNumber}</span>
+              <span>Return / Credit</span>
             </div>
           )}
           
@@ -225,41 +241,55 @@ export default function ThermalReceipt({ invoice, settings, company }: Props) {
 
             {/* Grand Total */}
             <div className="flex-between text-bold" style={{ fontSize: '1.2em', margin: '4px 0', borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000', padding: '3px 0' }}>
-              <span>Total:</span>
+              <span>{isCreditNote ? 'Credit Total:' : 'Total:'}</span>
               <span>€{taxDetails.grandTotal.toFixed(2)}</span>
             </div>
 
-            {/* Payments Breakdown */}
-            <div style={{ marginTop: '3px' }}>
-              {invoice.payments && invoice.payments.length > 0 ? (
-                invoice.payments.map((p, idx) => (
-                  <div key={idx} className="flex-between" style={{ fontSize: '0.95em' }}>
-                    <span>Paid ({formatCapitalized(p.method || 'Cash')}):</span>
-                    <span>€{(Number(p.amount) || 0).toFixed(2)}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="flex-between" style={{ fontSize: '0.95em' }}>
-                  <span>Paid ({formatCapitalized(invoice.payment_method || 'Cash')}):</span>
-                  <span>€{(Number(invoice.grand_total) || 0).toFixed(2)}</span>
+            {isCreditNote ? (
+              <div style={{ marginTop: '3px' }}>
+                <div className="flex-between text-bold" style={{ fontSize: '1em' }}>
+                  <span>Available Store Credit:</span>
+                  <span>€{remainingCredit.toFixed(2)}</span>
                 </div>
-              )}
-            </div>
-
-            {/* Change Due */}
-            {changeDue > 0.005 && (
-              <div className="flex-between text-bold" style={{ fontSize: '1em', marginTop: '2px' }}>
-                <span>Change:</span>
-                <span>€{changeDue.toFixed(2)}</span>
+                <div style={{ fontSize: '0.85em', marginTop: '4px', textAlign: 'center', fontStyle: 'italic' }}>
+                  Present this Credit Note ({invoice.invoice_number}) on your next purchase.
+                </div>
               </div>
-            )}
+            ) : (
+              <>
+                {/* Payments Breakdown */}
+                <div style={{ marginTop: '3px' }}>
+                  {invoice.payments && invoice.payments.length > 0 ? (
+                    invoice.payments.map((p, idx) => (
+                      <div key={idx} className="flex-between" style={{ fontSize: '0.95em' }}>
+                        <span>Paid ({formatCapitalized(p.method || 'Cash')}):</span>
+                        <span>€{(Number(p.amount) || 0).toFixed(2)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex-between" style={{ fontSize: '0.95em' }}>
+                      <span>Paid ({formatCapitalized(invoice.payment_method || 'Cash')}):</span>
+                      <span>€{(Number(invoice.grand_total) || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
 
-            {/* Due / Unpaid Balance */}
-            {dueAmount > 0.005 && (
-              <div className="flex-between text-bold" style={{ fontSize: '1em', marginTop: '2px' }}>
-                <span>Balance Due:</span>
-                <span>€{dueAmount.toFixed(2)}</span>
-              </div>
+                {/* Change Due */}
+                {changeDue > 0.005 && (
+                  <div className="flex-between text-bold" style={{ fontSize: '1em', marginTop: '2px' }}>
+                    <span>Change:</span>
+                    <span>€{changeDue.toFixed(2)}</span>
+                  </div>
+                )}
+
+                {/* Due / Unpaid Balance */}
+                {dueAmount > 0.005 && (
+                  <div className="flex-between text-bold" style={{ fontSize: '1em', marginTop: '2px' }}>
+                    <span>Balance Due:</span>
+                    <span>€{dueAmount.toFixed(2)}</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

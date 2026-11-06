@@ -45,6 +45,7 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
   const [customStart, setCustomStart] = useState(getLocalDateString());
   const [customEnd, setCustomEnd] = useState(getLocalDateString());
   const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'sales' | 'credit_notes'>('all');
 
   const fetchInvoices = async () => {
     setLoading(true);
@@ -101,10 +102,15 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
   };
 
   const filteredInvoices = Array.isArray(invoices) ? invoices.filter(inv => {
+    const isCn = inv.type === 'credit_note' || inv.invoice_number?.startsWith('CN-');
+    if (typeFilter === 'sales' && isCn) return false;
+    if (typeFilter === 'credit_notes' && !isCn) return false;
+
     if (!searchTerm) return true;
     const lowerSearch = searchTerm.toLowerCase();
     return (
       inv.invoice_number.toLowerCase().includes(lowerSearch) ||
+      (inv.parent_invoice_number || '').toLowerCase().includes(lowerSearch) ||
       (inv.products_summary || '').toLowerCase().includes(lowerSearch) ||
       (inv.customer_name || '').toLowerCase().includes(lowerSearch) ||
       (inv.branch_name || '').toLowerCase().includes(lowerSearch) ||
@@ -199,15 +205,22 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
             </div>
           )}
 
-          <select className="hidden sm:inline-block bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded px-2.5 py-1 outline-none w-36 sm:w-48 h-8 opacity-50 cursor-not-allowed text-xs sm:text-sm font-normal">
-            <option>All Types</option>
+          <select 
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as any)}
+            className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded px-2.5 py-1 outline-none focus:border-neutral-400 w-36 sm:w-44 h-9 sm:h-8 text-xs sm:text-sm font-normal cursor-pointer"
+          >
+            <option value="all">All Types</option>
+            <option value="sales">Sales Invoices</option>
+            <option value="credit_notes">Credit Notes (CN)</option>
           </select>
           
-          {(dateRange !== 'today' || searchTerm) && (
+          {(dateRange !== 'today' || searchTerm || typeFilter !== 'all') && (
             <button
               onClick={() => {
                 setDateRange('today');
                 setSearchTerm('');
+                setTypeFilter('all');
                 setCustomStart(getLocalDateString());
                 setCustomEnd(getLocalDateString());
               }}
@@ -242,14 +255,19 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
                 {/* Top row: Invoice #, Date/Time, Grand Total */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">
+                    <span className={`font-mono font-bold text-sm ${invoice.type === 'credit_note' || invoice.invoice_number?.startsWith('CN-') ? 'text-purple-700 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'}`}>
                       {invoice.invoice_number}
                     </span>
+                    {(invoice.type === 'credit_note' || invoice.invoice_number?.startsWith('CN-')) && (
+                      <span className="bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800 px-1.5 py-0.2 rounded text-[10px] font-bold uppercase">
+                        Credit Note
+                      </span>
+                    )}
                     <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
                       {formatDate(invoice.created_at)} {formatTime(invoice.created_at)}
                     </span>
                   </div>
-                  <div className="font-mono font-bold text-base text-neutral-900 dark:text-neutral-100">
+                  <div className={`font-mono font-bold text-base ${invoice.type === 'credit_note' || invoice.invoice_number?.startsWith('CN-') ? 'text-purple-700 dark:text-purple-400' : 'text-neutral-900 dark:text-neutral-100'}`}>
                     €{(Number(invoice.grand_total) || 0).toFixed(2)}
                   </div>
                 </div>
@@ -326,7 +344,18 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
                 >
                   <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400">{formatDate(invoice.created_at)}</td>
                   <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400">{formatTime(invoice.created_at)}</td>
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 font-mono text-neutral-700 dark:text-neutral-300">{invoice.invoice_number}</td>
+                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 font-mono text-neutral-700 dark:text-neutral-300">
+                    <div className="flex items-center gap-1.5">
+                      <span className={invoice.type === 'credit_note' || invoice.invoice_number?.startsWith('CN-') ? 'text-purple-700 dark:text-purple-400 font-bold' : ''}>
+                        {invoice.invoice_number}
+                      </span>
+                      {(invoice.type === 'credit_note' || invoice.invoice_number?.startsWith('CN-')) && (
+                        <span className="bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800 px-1 py-0 rounded text-[10px] font-bold uppercase leading-tight shrink-0" title={invoice.parent_invoice_number ? `Orig. Invoice #${invoice.parent_invoice_number}` : 'Credit Note'}>
+                          CN
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-900 dark:text-neutral-100 font-normal">
                     {invoice.products_summary ? (
                       <span className="line-clamp-2" title={invoice.products_summary}>
