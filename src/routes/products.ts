@@ -687,7 +687,8 @@ router.get('/:id', async (req: any, res, next) => {
       SELECT s.id, p.name as product_name, s.sku_code, s.barcode,
              s.selling_price, s.cost_price, p.product_type, p.allow_overselling,
              c.name as category_name, m.name as manufacturer_name,
-             p.id as product_id, p.category_id, p.manufacturer_id
+             p.id as product_id, p.category_id, p.manufacturer_id, p.supplier_id,
+             (SELECT COUNT(*) FROM devices d WHERE d.sku_id = s.id AND d.business_id = p.business_id AND d.status = 'in_stock') as in_stock_devices_count
       FROM product_skus s
       JOIN products p ON s.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
@@ -859,7 +860,19 @@ async function syncNewProductToOtherBusinesses(
 
 // PUT /api/products/:id
 router.put('/:id', async (req: any, res, next) => {
-  const { product_name, category_id, manufacturer_id, sku_code, barcode, selling_price, cost_price, product_type } = req.body;
+  const {
+    product_name,
+    category_id,
+    manufacturer_id,
+    supplier_id,
+    sku_code,
+    barcode,
+    selling_price,
+    cost_price,
+    product_type,
+    cascade_device_price,
+    exclude_custom_priced_devices
+  } = req.body;
   const skuId = req.params.id;
   const businessId = req.user.business_id;
   const conn = await pool.getConnection();
@@ -875,9 +888,48 @@ router.put('/:id', async (req: any, res, next) => {
     const cleanNewName = String(product_name || sku.product_name).trim().replace(/\s+/g, ' ');
 
     await conn.execute('UPDATE product_skus SET sku_code=?,barcode=?,selling_price=?,cost_price=? WHERE id=?',
-      [sku_code, barcode, selling_price, cost_price, skuId]);
-    await conn.execute('UPDATE products SET name=?,category_id=?,manufacturer_id=?,product_type=? WHERE id=?',
-      [cleanNewName, category_id, manufacturer_id, product_type, sku.product_id]);
+      [sku_code ?? null, barcode ?? null, selling_price ?? 0, cost_price ?? 0, skuId]);
+    await conn.execute('UPDATE products SET name=?,category_id=?,manufacturer_id=?,supplier_id=COALESCE(?, supplier_id),product_type=? WHERE id=?',
+      [cleanNewName, category_id ?? null, manufacturer_id ?? null, supplier_id ?? null, product_type || 'stock', sku.product_id]);
+
+    // Cascade new selling price to in-stock serialized IMEI devices if requested
+    let updatedDevicesCount = 0;
+    if (cascade_device_price && selling_price !== undefined) {
+      const oldSkuPrice = Number(sku.selling_price || 0);
+      const newSkuPrice = Number(selling_price || 0);
+
+      let deviceFilterSql = "SELECT id, imei, selling_price FROM devices WHERE sku_id = ? AND business_id = ? AND status = 'in_stock'";
+      const deviceFilterParams: any[] = [skuId, businessId];
+
+      if (exclude_custom_priced_devices) {
+        deviceFilterSql += ' AND (selling_price IS NULL OR ABS(selling_price - ?) < 0.005)';
+        deviceFilterParams.push(oldSkuPrice);
+      }
+
+      const [targetDevices] = await conn.execute(deviceFilterSql, deviceFilterParams);
+      const deviceList = targetDevices as Array<{ id: number; imei: string; selling_price: number | null }>;
+
+      if (deviceList.length > 0) {
+        let updateDevicesSql = "UPDATE devices SET selling_price = ? WHERE sku_id = ? AND business_id = ? AND status = 'in_stock'";
+        const updateDevicesParams: any[] = [newSkuPrice, skuId, businessId];
+
+        if (exclude_custom_priced_devices) {
+          updateDevicesSql += ' AND (selling_price IS NULL OR ABS(selling_price - ?) < 0.005)';
+          updateDevicesParams.push(oldSkuPrice);
+        }
+
+        await conn.execute(updateDevicesSql, updateDevicesParams);
+        updatedDevicesCount = deviceList.length;
+
+        for (const dev of deviceList) {
+          const prevDevPrice = Number(dev.selling_price ?? oldSkuPrice).toFixed(2);
+          await conn.execute(
+            'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+            [dev.id, req.userId, 'Device Updated', `Selling: €${prevDevPrice} -> €${newSkuPrice.toFixed(2)} (Cascaded from Product Price Update)`]
+          );
+        }
+      }
+    }
 
     // If product name was updated, propagate the rename across other businesses that had the exact old name
     if (sku.product_name && cleanNewName && sku.product_name.trim().toLowerCase() !== cleanNewName.toLowerCase()) {
@@ -904,6 +956,9 @@ router.put('/:id', async (req: any, res, next) => {
     if (selling_price != sku.selling_price) changes.push(`Price: ${sku.selling_price} -> ${selling_price}`);
     if (cost_price != sku.cost_price) changes.push(`Cost: ${sku.cost_price} -> ${cost_price}`);
     if (sku_code !== sku.sku_code) changes.push(`SKU: ${sku.sku_code} -> ${sku_code}`);
+    if (cascade_device_price && updatedDevicesCount > 0) {
+      changes.push(`Cascaded price to ${updatedDevicesCount} in-stock IMEI unit(s)`);
+    }
 
     const detailMsg = changes.length > 0 ? changes.join(', ') : 'Details updated';
 
@@ -914,7 +969,7 @@ router.put('/:id', async (req: any, res, next) => {
       [req.user.business_id, req.user.branch_id, sku.product_id, req.userId, req.user?.name || null, 'Product Updated', detailMsg]);
 
     await conn.commit();
-    res.json({ success: true });
+    res.json({ success: true, updated_devices_count: updatedDevicesCount });
   } catch (e: any) {
     await conn.rollback();
     next(e);

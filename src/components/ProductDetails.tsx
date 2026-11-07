@@ -95,8 +95,15 @@ export default function ProductDetails({
       });
       if (res.ok) {
         invalidateCache('products_');
+        invalidateCache('devices_');
         setIsEditing(false);
         fetchProductData();
+        if (activeTab === 'activity') {
+          fetch(`/api/products/${productId}/activity`)
+            .then(r => r.json())
+            .then(setActivities)
+            .catch(err => console.error('Failed to fetch product activities:', err));
+        }
       }
     } catch (error) {
       console.error('Failed to update product:', error);
