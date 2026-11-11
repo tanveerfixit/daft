@@ -2,6 +2,33 @@
 
 This document tracks all features, architectural enhancements, bug fixes, and UX improvements made to the EPOS application.
 
+## [2026-11-11] - Clean Architecture Refactoring, Strict Typing & OWASP Top 10 Security Hardening
+
+### 🛡️ Security Hardening (OWASP Top 10)
+* **Environment Validation & Secret Derivation (`src/config/env.ts`, `src/utils/crypto.ts`)**:
+  * Added startup Zod environment validation (`envSchema`) and replaced public static fallback strings (`EPOS_SUPER_SECRET_FALLBACK_KEY_2026` / `epos_secure_system_key_2026_default`) with deterministic environment-bound SHA-256 secret derivation while maintaining backward-compatible AES-256-GCM decryption for legacy encrypted SMTP passwords.
+* **Superadmin Password Persistence (`src/mysql.ts`)**:
+  * Fixed `ensureSuperAdmin()` so `ON DUPLICATE KEY UPDATE` uses `password_hash=COALESCE(NULLIF(password_hash, ''), ?)`, preventing server restarts from overwriting an existing superadmin password back to `'Admin123'`.
+* **Authentication Rate Limiting, Cryptographic OTP & Expiry-Aware Token Revocation (`src/middleware/security.ts`, `src/routes/auth.ts`)**:
+  * Implemented sliding-window rate limiters (`authRateLimiter`, `otpRateLimiter`) on `/api/auth/login`, `/api/auth/signup`, `/api/auth/forgot-password`, `/api/auth/verify-otp`, and `/api/auth/reset-password`.
+  * Upgraded OTP generation from `Math.random()` to cryptographically secure `crypto.randomInt(100000, 1000000)` and added brute-force attempt tracking that invalidates OTP codes after 5 failed attempts.
+  * Upgraded token revocation cleanup to track individual JWT `exp` timestamps so active 12h/7d revoked tokens are not prematurely cleared during hourly memory cleanup, and added immediate `invalidateUserAuthCache()` invalidation on admin user updates/deletions.
+* **HTML Email XSS Escaping & CSV Formula Injection Prevention (`src/services/mailer.ts`, `src/middleware/security.ts`)**:
+  * Added `escapeHtml()` across all account and invoice email templates (`sendInvoiceEmail`, `sendAccountPending`, `sendOtpCode`, etc.) and `sanitizeCsvCell()` across product, device, and invoice CSV exports to neutralize spreadsheet formula injection (`=`, `+`, `-`, `@`).
+* **HTTP Security Headers & Production Error Boundary (`server.ts`)**:
+  * Added `securityHeadersMiddleware` (`X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`) and hardened the global error handler to avoid leaking raw SQL error internals in production.
+
+### 🏗️ Clean Architecture & Bug Fixes
+* **Modular Controller / Service / Repository Layers**:
+  * Created `withTransaction()` in `src/repositories/baseRepository.ts` for ACID transaction safety, centralized Zod schemas in `src/validators/schemas.ts`, and extracted inline `/api/import-products` SQL logic out of `server.ts` into `src/controllers/productImportController.ts` and `src/services/productImportService.ts`.
+* **Strict TypeScript Request Typing (`src/types/express.d.ts`)**:
+  * Replaced `user?: any` with strongly typed `AuthenticatedUser` (`id`, `business_id`, `branch_id`, `name`, `email`, `role`, `status`).
+* **Route Bug Fixes (`src/routes/public.ts`, `src/routes/settings.ts`)**:
+  * Fixed `GET /api/public/business/:slug` calling `queryOne` instead of `query` when fetching business branches.
+  * Removed invalid CommonJS `require('fs')` inside ES module `src/routes/settings.ts` and added role verification on `POST /api/settings/auth`.
+
+---
+
 ## [2026-11-06] - End-to-End Credit Note (`CN-#`) & Store Credit System
 
 ### 🚀 Features & Architectural Enhancements

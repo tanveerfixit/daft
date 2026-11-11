@@ -124,9 +124,12 @@ const authSettingsSchema = z.object({
 });
 
 router.post('/settings/auth', async (req: any, res, next) => {
-  const data = authSettingsSchema.parse(req.body);
-  const { allow_signup, allow_signin } = data;
   try {
+    if (!['admin', 'superadmin', 'developer'].includes(req.user?.role)) {
+      return res.status(403).json({ error: 'Admin privileges required to modify authentication settings' });
+    }
+    const data = authSettingsSchema.parse(req.body);
+    const { allow_signup, allow_signin } = data;
     await execute('UPDATE settings SET allow_signup=?,allow_signin=? WHERE business_id=?',
       [allow_signup ? 1 : 0, allow_signin ? 1 : 0, req.user.business_id]);
     res.json({ success: true });
@@ -481,7 +484,6 @@ router.post('/manufacturers', async (req: any, res, next) => {
 router.get('/suppliers', async (req: any, res, next) => {
   try { res.json(await query('SELECT * FROM suppliers WHERE business_id=?', [req.user.business_id])); }
   catch (e: any) { 
-    require('fs').appendFileSync('debug.log', `GET /suppliers error: ${e.message}\n${e.stack}\n`);
     console.error('GET /suppliers error:', e);
     next(e); 
   }

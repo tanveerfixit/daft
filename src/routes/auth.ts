@@ -7,18 +7,56 @@ import { sendAccountPending, sendAccountApproved, sendAccountRejected, sendAccou
 
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import { env } from '../config/env.js';
+import { createRateLimiter } from '../middleware/security.js';
+import { adminUpdateUserSchema, smtpUpdateSchema } from '../validators/schemas.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'EPOS_SUPER_SECRET_FALLBACK_KEY_2026';
+const JWT_SECRET = env.RESOLVED_JWT_SECRET;
+
+const authRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 30,
+  keyPrefix: 'auth_login',
+  message: 'Too many authentication attempts. Please wait a few minutes and try again.'
+});
+
+const otpRateLimiter = createRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  maxRequests: 10,
+  keyPrefix: 'auth_otp',
+  message: 'Too many OTP requests or verification attempts. Please wait before trying again.'
+});
+
+// Track failed OTP attempts per email to prevent brute-force enumeration
+const otpFailedAttempts = new Map<string, number>();
 
 // ─── Token Blacklist Management ────────────────────────────────────────────────
-// For explicit logouts
+// For explicit logouts (retained for export compatibility, backed by expiry timestamps)
 export const revokedTokens = new Set<string>();
+const revokedTokenExpiries = new Map<string, number>();
 // For global invalidation (e.g., password reset), maps userId -> timestamp (seconds)
 export const userPasswordResets = new Map<number, number>();
 
-// Purge expired tokens from the blacklist every hour to prevent memory leaks
+export function revokeSessionToken(token: string): void {
+  revokedTokens.add(token);
+  try {
+    const decoded = jwt.decode(token) as { exp?: number } | null;
+    const expiresAt = decoded?.exp ? decoded.exp * 1000 : Date.now() + 12 * 60 * 60 * 1000;
+    revokedTokenExpiries.set(token, expiresAt);
+  } catch {
+    revokedTokenExpiries.set(token, Date.now() + 12 * 60 * 60 * 1000);
+  }
+}
+
+// Purge only expired tokens from the blacklist every hour to prevent memory leaks without reviving active tokens
 const _cleanup = setInterval(() => {
-  revokedTokens.clear(); // Safe to clear entirely if TTL is 1 hour
+  const now = Date.now();
+  for (const [token, exp] of revokedTokenExpiries.entries()) {
+    if (now >= exp) {
+      revokedTokenExpiries.delete(token);
+      revokedTokens.delete(token);
+    }
+  }
 }, 60 * 60 * 1000);
 if (typeof _cleanup.unref === 'function') _cleanup.unref();
 
@@ -138,7 +176,7 @@ const signupSchema = z.object({
 });
 
 // POST /api/auth/signup
-router.post('/signup', async (req: any, res, next) => {
+router.post('/signup', authRateLimiter, async (req: any, res, next) => {
   try {
     const data = signupSchema.parse(req.body);
     const { name, email, address, contact, password } = data;
@@ -231,7 +269,7 @@ const loginSchema = z.object({
 });
 
 // POST /api/auth/login
-router.post('/login', async (req: any, res, next) => {
+router.post('/login', authRateLimiter, async (req: any, res, next) => {
   try {
     const data = loginSchema.parse(req.body);
     const { email, password } = data;
@@ -337,9 +375,10 @@ router.get('/branches-lookup', async (req: any, res, next) => {
 });
 
 // POST /api/auth/logout
-router.post('/logout', (req: any, res, next) => {
+router.post('/logout', (req: any, res, _next) => {
   const token = req.headers['authorization']?.replace('Bearer ', '');
-  if (token) revokedTokens.add(token);
+  if (token) revokeSessionToken(token);
+  if (req.userId) invalidateUserAuthCache(req.userId);
   res.json({ success: true });
 });
 
@@ -358,30 +397,44 @@ router.get('/me', requireAuthAsync, async (req: any, res, next) => {
 });
 
 // POST /api/auth/forgot-password
-router.post('/forgot-password', async (req: any, res, next) => {
+router.post('/forgot-password', otpRateLimiter, async (req: any, res, _next) => {
   res.json({ success: true, message: 'If this email exists, an OTP code has been sent.' });
   try {
-    const user = await queryOne('SELECT * FROM users WHERE email=?', [req.body.email]) as any;
+    const emailInput = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+    if (!emailInput) return;
+    const user = await queryOne('SELECT * FROM users WHERE email=?', [emailInput]) as any;
     if (!user) return;
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const otp = String(crypto.randomInt(100000, 1000000));
     const expires = new Date(Date.now() + 2 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    otpFailedAttempts.delete(emailInput.toLowerCase());
     await execute('UPDATE users SET otp_code=?,otp_expires=? WHERE id=?', [otp, expires, user.id]);
     try { await sendOtpCode({ name: user.name, email: user.email }, otp); } catch {}
   } catch {}
 });
 
 // POST /api/auth/verify-otp
-router.post('/verify-otp', async (req: any, res, next) => {
+router.post('/verify-otp', otpRateLimiter, async (req: any, res, next) => {
   const { email, otp } = req.body;
   if (!email || !otp) return res.status(400).json({ error: 'Email and OTP required' });
+  const normalizedEmail = String(email).trim().toLowerCase();
   try {
-    const user = await queryOne('SELECT * FROM users WHERE email=? AND otp_code=?', [email, String(otp)]) as any;
-    if (!user) return res.status(400).json({ error: 'Invalid OTP code' });
+    const user = await queryOne('SELECT * FROM users WHERE email=? AND otp_code=?', [String(email).trim(), String(otp).trim()]) as any;
+    if (!user) {
+      const fails = (otpFailedAttempts.get(normalizedEmail) || 0) + 1;
+      otpFailedAttempts.set(normalizedEmail, fails);
+      if (fails >= 5) {
+        otpFailedAttempts.delete(normalizedEmail);
+        await execute('UPDATE users SET otp_code=NULL, otp_expires=NULL WHERE email=?', [String(email).trim()]);
+        return res.status(400).json({ error: 'Too many invalid attempts. OTP invalidated; please request a new code.' });
+      }
+      return res.status(400).json({ error: 'Invalid OTP code' });
+    }
     
     const expiry = new Date(user.otp_expires).getTime();
     if (isNaN(expiry) || expiry < Date.now()) {
       return res.status(400).json({ error: 'OTP has expired. Please request a new one.' });
     }
+    otpFailedAttempts.delete(normalizedEmail);
     const reset_token = crypto.randomUUID();
     const tokenExpires = new Date(Date.now() + 30 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     await execute('UPDATE users SET otp_code=NULL,otp_expires=NULL,reset_token=?,reset_token_expires=? WHERE id=?',
@@ -396,7 +449,7 @@ const resetPasswordSchema = z.object({
 });
 
 // POST /api/auth/reset-password
-router.post('/reset-password', async (req: any, res, next) => {
+router.post('/reset-password', authRateLimiter, async (req: any, res, next) => {
   try {
     const data = resetPasswordSchema.parse(req.body);
     const { token, password } = data;
@@ -408,6 +461,7 @@ router.post('/reset-password', async (req: any, res, next) => {
     const password_hash = await bcrypt.hash(password, 10);
     // Invalidate all tokens for this user on password reset by recording the timestamp
     userPasswordResets.set(user.id, Date.now() / 1000);
+    invalidateUserAuthCache(user.id);
     // No plaintext password stored (FINDING-007)
     await execute("UPDATE users SET password_hash=?,password='',reset_token=NULL,reset_token_expires=NULL WHERE id=?",
       [password_hash, user.id]);
@@ -454,6 +508,7 @@ adminRouter.put('/users/:id/status', requireAdminAsync, async (req: any, res, ne
     }
 
     await execute('UPDATE users SET status=? WHERE id=?', [status, req.params.id]);
+    invalidateUserAuthCache(Number(req.params.id));
     try {
       if (status === 'approved') await sendAccountApproved({ name: user.name, email: user.email });
       else if (status === 'rejected') await sendAccountRejected({ name: user.name, email: user.email });
@@ -465,8 +520,8 @@ adminRouter.put('/users/:id/status', requireAdminAsync, async (req: any, res, ne
 
 // PUT /api/admin/users/:id
 adminRouter.put('/users/:id', requireAdminAsync, async (req: any, res, next) => {
-  const { name, email, branch_id, role, password } = req.body;
   try {
+    const { name, email, branch_id, role, password } = adminUpdateUserSchema.parse(req.body);
     const isMaster = ['developer', 'superadmin'].includes(req.user.role);
     const existing = isMaster
       ? await queryOne('SELECT id, email FROM users WHERE id=? AND deleted_at IS NULL', [req.params.id])
@@ -490,6 +545,7 @@ adminRouter.put('/users/:id', requireAdminAsync, async (req: any, res, next) => 
       await execute('UPDATE users SET name=?,email=?,branch_id=?,role=? WHERE id=?',
         [name, updatedEmail, branch_id, role, req.params.id]);
     }
+    invalidateUserAuthCache(Number(req.params.id));
     res.json({ success: true });
   } catch (e: any) { next(e); }
 });
@@ -504,6 +560,7 @@ adminRouter.delete('/users/:id', requireAdminAsync, async (req: any, res, next) 
     const params = isMaster ? [req.params.id] : [req.params.id, req.user.business_id];
     const r = await execute(sql, params);
     if (r.affectedRows === 0) return res.status(404).json({ error: 'User not found or access denied' });
+    invalidateUserAuthCache(Number(req.params.id));
     res.json({ success: true });
   } catch (e: any) { next(e); }
 });
@@ -617,8 +674,8 @@ adminRouter.get('/smtp', requireAdminAsync, async (req: any, res, next) => {
 
 // PUT /api/admin/smtp
 adminRouter.put('/smtp', requireAdminAsync, async (req: any, res, next) => {
-  const { host, port, secure, user, pass, from_name, from_email } = req.body;
   try {
+    const { host, port, secure, user, pass, from_name, from_email } = smtpUpdateSchema.parse(req.body);
     const existing = await queryOne('SELECT * FROM smtp_settings WHERE business_id = 1') as any;
     let encryptedPass = existing?.pass || (process.env.SMTP_PASS ? encryptSecret(process.env.SMTP_PASS) : '');
     
@@ -628,10 +685,10 @@ adminRouter.put('/smtp', requireAdminAsync, async (req: any, res, next) => {
 
     if (existing) {
       await execute('UPDATE smtp_settings SET host=?, port=?, secure=?, user=?, pass=?, from_name=?, from_email=? WHERE business_id = 1',
-        [host, port, secure ? 1 : 0, user, encryptedPass, from_name, from_email]);
+        [host, port, secure ? 1 : 0, user, encryptedPass, from_name, from_email || user]);
     } else {
       await execute('INSERT INTO smtp_settings (business_id, host, port, secure, user, pass, from_name, from_email) VALUES (1, ?, ?, ?, ?, ?, ?, ?)',
-        [host, port, secure ? 1 : 0, user, encryptedPass, from_name, from_email]);
+        [host, port, secure ? 1 : 0, user, encryptedPass, from_name, from_email || user]);
     }
     invalidateMailTransporter();
     res.json({ success: true });

@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { pool, query, queryOne, execute, getBranchPrefix } from '../mysql.js';
 import { z } from 'zod';
+import { sanitizeCsvCell } from '../middleware/security.js';
+import { updateProductSchema } from '../validators/schemas.js';
 
 const router = Router();
 
@@ -218,11 +220,7 @@ router.get('/export-csv', async (req: any, res, next) => {
       ORDER BY p.name ASC
     `, [req.user.branch_id, businessId]);
 
-    const escapeCsv = (str: any) => {
-      if (str === null || str === undefined) return '""';
-      const s = String(str).trim();
-      return `"${s.replace(/"/g, '""')}"`;
-    };
+    const escapeCsv = sanitizeCsvCell;
 
     let csvContent = `"Product Name","Product Type","Category","Brand / Manufacturer","SKU","Barcode","Cost Price","Selling Price","Quantity In Stock","Min Stock Level","Taxable"\n`;
     for (const row of rows) {
@@ -860,6 +858,7 @@ async function syncNewProductToOtherBusinesses(
 
 // PUT /api/products/:id
 router.put('/:id', async (req: any, res, next) => {
+  const parsedBody = updateProductSchema.safeParse(req.body);
   const {
     product_name,
     category_id,
@@ -872,7 +871,7 @@ router.put('/:id', async (req: any, res, next) => {
     product_type,
     cascade_device_price,
     exclude_custom_priced_devices
-  } = req.body;
+  } = parsedBody.success ? parsedBody.data : req.body;
   const skuId = req.params.id;
   const businessId = req.user.business_id;
   const conn = await pool.getConnection();

@@ -1622,7 +1622,7 @@ export async function ensureSuperAdmin() {
   await pool.execute(
     `INSERT INTO users (business_id, branch_id, name, email, password, password_hash, role, status)
      VALUES (?, ?, 'Super Admin', 'tanveerfixit@gmail.com', '', ?, 'superadmin', 'approved')
-     ON DUPLICATE KEY UPDATE role='superadmin', status='approved', password='', password_hash=?, business_id=?, branch_id=?`,
+     ON DUPLICATE KEY UPDATE role='superadmin', status='approved', password='', password_hash=COALESCE(NULLIF(password_hash, ''), ?), business_id=?, branch_id=?`,
     [businessId, branchId, hash, hash, businessId, branchId]
   );
 

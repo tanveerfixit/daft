@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import { query, queryOne, execute } from '../mysql.js';
 import jwt from 'jsonwebtoken';
+import { env } from '../config/env.js';
+import { revokedTokens } from './auth.js';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'EPOS_SUPER_SECRET_FALLBACK_KEY_2026';
+const JWT_SECRET = env.RESOLVED_JWT_SECRET;
 
 function getUserIdFromReq(req: any): number | null {
   const token = req.headers['authorization']?.replace('Bearer ', '');
-  if (!token) return null;
+  if (!token || revokedTokens.has(token)) return null;
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     return decoded.userId || decoded.id || null;
@@ -30,8 +32,8 @@ router.get('/business/:slug', async (req: any, res, next) => {
       return res.status(404).json({ error: 'Business not found' });
     }
 
-    // Get branches for this business
-    const branches = await queryOne('SELECT id, name, address, phone FROM branches WHERE business_id = ? AND deleted_at IS NULL', [business.id]);
+    // Get all active branches for this business
+    const branches = await query('SELECT id, name, address, phone FROM branches WHERE business_id = ? AND deleted_at IS NULL', [business.id]);
     
     res.json({
       ...business,

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool, query, queryOne, execute, getBranchPrefix } from '../mysql.js';
 import { z } from 'zod';
+import { sanitizeCsvCell } from '../middleware/security.js';
 
 const router = Router();
 
@@ -473,11 +474,7 @@ router.get('/devices/export-csv', async (req: any, res, next) => {
 
     const rows = await query(sql, params);
 
-    const escapeCsv = (str: any) => {
-      if (str === null || str === undefined) return '""';
-      const s = String(str).trim();
-      return `"${s.replace(/"/g, '""')}"`;
-    };
+    const escapeCsv = sanitizeCsvCell;
 
     let csvContent = `"Serial Number / IMEI","Product Name","Category","Brand / Manufacturer","Storage","Color","Condition","Cost Price","Selling Price","Stock Status","IMEI Status","Carrier / Lock","Created Date"\n`;
     for (const row of rows) {

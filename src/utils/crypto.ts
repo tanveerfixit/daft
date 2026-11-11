@@ -1,12 +1,25 @@
 import crypto from 'crypto';
+import { env } from '../config/env.js';
 
 const ALGORITHM = 'aes-256-gcm';
-const IV_LENGTH = 12; // Standard for GCM
+const IV_LENGTH = 12; // Standard 96-bit nonce for AES-GCM
 const PREFIX = 'enc_v1:';
+const LEGACY_DEFAULT_KEY = 'epos_secure_system_key_2026_default';
 
-function getEncryptionKey(): Buffer {
-  const secret = process.env.ENCRYPTION_KEY || process.env.JWT_SECRET || 'epos_secure_system_key_2026_default';
+function deriveKey(secret: string): Buffer {
   return crypto.createHash('sha256').update(secret).digest();
+}
+
+function getPrimaryKey(): Buffer {
+  return deriveKey(env.RESOLVED_ENCRYPTION_KEY);
+}
+
+function decryptWithKey(key: Buffer, iv: Buffer, authTag: Buffer, encryptedHex: string): string {
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
 }
 
 /**
@@ -17,10 +30,10 @@ export function encryptSecret(plainText: string): string {
   if (!plainText || plainText.trim() === '') return '';
   if (plainText.startsWith(PREFIX)) return plainText; // already encrypted
 
-  const key = getEncryptionKey();
+  const key = getPrimaryKey();
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  
+
   let encrypted = cipher.update(plainText, 'utf8', 'hex');
   encrypted += cipher.final('hex');
   const authTag = cipher.getAuthTag().toString('hex');
@@ -30,6 +43,7 @@ export function encryptSecret(plainText: string): string {
 
 /**
  * Decrypt an AES-256-GCM encrypted string.
+ * Supports seamless backward-compatible decryption for legacy records encrypted prior to key rotation.
  * If not encrypted (legacy plaintext), returns as is.
  */
 export function decryptSecret(cipherText: string | null | undefined): string {
@@ -37,23 +51,22 @@ export function decryptSecret(cipherText: string | null | undefined): string {
     return cipherText || '';
   }
 
+  const parts = cipherText.slice(PREFIX.length).split(':');
+  if (parts.length !== 3) return cipherText;
+
+  const [ivHex, authTagHex, encryptedHex] = parts;
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(authTagHex, 'hex');
+
   try {
-    const parts = cipherText.slice(PREFIX.length).split(':');
-    if (parts.length !== 3) return cipherText;
-
-    const [ivHex, authTagHex, encryptedHex] = parts;
-    const key = getEncryptionKey();
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-    decipher.setAuthTag(authTag);
-
-    let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-  } catch (e: any) {
-    console.error('[Crypto] Decryption error:', e.message);
-    return '';
+    return decryptWithKey(getPrimaryKey(), iv, authTag, encryptedHex);
+  } catch {
+    try {
+      return decryptWithKey(deriveKey(LEGACY_DEFAULT_KEY), iv, authTag, encryptedHex);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[Crypto] Decryption error:', msg);
+      return '';
+    }
   }
 }

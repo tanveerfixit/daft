@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import { queryOne } from '../mysql.js';
 import { decryptSecret } from '../utils/crypto.js';
+import { escapeHtml } from '../middleware/security.js';
 
 let cachedTransporter: nodemailer.Transporter | null = null;
 let cachedKey: string = '';
@@ -74,8 +75,9 @@ const baseStyle = `font-family:'Inter',sans-serif;max-width:600px;margin:0 auto;
 const btnStyle = `display:inline-block;background:#2980b9;color:#ffffff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:bold;margin-top:16px;`;
 
 export async function sendAccountPending(user: { name: string; email: string }) {
+  const safeName = escapeHtml(user.name);
   const html = `<div style="${baseStyle}">
-    <h2 style="color:#2c3e50;">Hi ${user.name},</h2>
+    <h2 style="color:#2c3e50;">Hi ${safeName},</h2>
     <p>Your account has been created and is currently <strong>pending approval</strong> by an administrator.</p>
     <p>You will receive an email once your account has been reviewed.</p>
     <p style="color:#7f8c8d;font-size:13px;">If you did not request this account, please ignore this email.</p>
@@ -84,16 +86,18 @@ export async function sendAccountPending(user: { name: string; email: string }) 
 }
 
 export async function sendAccountApproved(user: { name: string; email: string }) {
+  const safeName = escapeHtml(user.name);
   const html = `<div style="${baseStyle}">
-    <h2 style="color:#27ae60;">Hi ${user.name}, your account is approved! ✓</h2>
+    <h2 style="color:#27ae60;">Hi ${safeName}, your account is approved! ✓</h2>
     <p>An administrator has approved your account. You can now log in to the EPOS system.</p>
   </div>`;
   await sendMail(user.email, 'Account Approved ✓', html);
 }
 
 export async function sendAccountRejected(user: { name: string; email: string }) {
+  const safeName = escapeHtml(user.name);
   const html = `<div style="${baseStyle}">
-    <h2 style="color:#e74c3c;">Hi ${user.name},</h2>
+    <h2 style="color:#e74c3c;">Hi ${safeName},</h2>
     <p>Unfortunately, your account registration has been <strong>rejected</strong> by an administrator.</p>
     <p>If you believe this is a mistake, please contact your administrator directly.</p>
   </div>`;
@@ -101,8 +105,9 @@ export async function sendAccountRejected(user: { name: string; email: string })
 }
 
 export async function sendAccountDeactivated(user: { name: string; email: string }) {
+  const safeName = escapeHtml(user.name);
   const html = `<div style="${baseStyle}">
-    <h2 style="color:#e67e22;">Hi ${user.name},</h2>
+    <h2 style="color:#e67e22;">Hi ${safeName},</h2>
     <p>Your EPOS account has been <strong>deactivated</strong> by an administrator.</p>
     <p>Please contact your administrator if you have any questions.</p>
   </div>`;
@@ -110,33 +115,39 @@ export async function sendAccountDeactivated(user: { name: string; email: string
 }
 
 export async function sendPasswordReset(user: { name: string; email: string }, resetLink: string) {
+  const safeName = escapeHtml(user.name);
+  const safeLink = escapeHtml(resetLink);
   const html = `<div style="${baseStyle}">
     <h2 style="color:#2c3e50;">Password Reset Request</h2>
-    <p>Hi ${user.name},</p>
+    <p>Hi ${safeName},</p>
     <p>You requested a password reset. Click the button below:</p>
-    <a href="${resetLink}" style="${btnStyle}">Reset My Password</a>
+    <a href="${safeLink}" style="${btnStyle}">Reset My Password</a>
     <p style="margin-top:24px;color:#7f8c8d;font-size:13px;">This link expires in 1 hour. Ignore if you didn't request this.</p>
   </div>`;
   await sendMail(user.email, 'Password Reset Request', html);
 }
 
 export async function sendOtpCode(user: { name: string; email: string }, otp: string) {
+  const safeName = escapeHtml(user.name);
+  const safeOtp = escapeHtml(otp);
   const html = `<div style="${baseStyle}">
     <h2 style="color:#2c3e50;">Password Reset OTP</h2>
-    <p>Hi ${user.name},</p>
+    <p>Hi ${safeName},</p>
     <p>Use the following code to reset your password. It expires in <strong>10 minutes</strong>.</p>
-    <div style="font-size:36px;font-weight:bold;letter-spacing:12px;text-align:center;padding:24px;background:#fff;border:2px solid #2980b9;border-radius:8px;margin:20px 0;color:#2980b9;">${otp}</div>
+    <div style="font-size:36px;font-weight:bold;letter-spacing:12px;text-align:center;padding:24px;background:#fff;border:2px solid #2980b9;border-radius:8px;margin:20px 0;color:#2980b9;">${safeOtp}</div>
     <p style="color:#7f8c8d;font-size:13px;">If you did not request this, please ignore this email.</p>
   </div>`;
   await sendMail(user.email, 'Your EPOS Password Reset Code', html);
 }
 
 export async function sendGeneratedPassword(user: { name: string; email: string }, password: string) {
+  const safeName = escapeHtml(user.name);
+  const safePass = escapeHtml(password);
   const html = `<div style="${baseStyle}">
     <h2 style="color:#2c3e50;">Your EPOS Account Password</h2>
-    <p>Hi ${user.name},</p>
+    <p>Hi ${safeName},</p>
     <p>An administrator has set a new password for your EPOS account:</p>
-    <div style="font-size:22px;font-weight:bold;text-align:center;padding:16px;background:#fff;border:2px solid #27ae60;border-radius:8px;margin:20px 0;color:#27ae60;font-family:monospace;">${password}</div>
+    <div style="font-size:22px;font-weight:bold;text-align:center;padding:16px;background:#fff;border:2px solid #27ae60;border-radius:8px;margin:20px 0;color:#27ae60;font-family:monospace;">${safePass}</div>
     <p>Please log in and change your password immediately.</p>
     <p style="color:#7f8c8d;font-size:13px;">If you did not expect this email, contact your administrator.</p>
   </div>`;
@@ -193,12 +204,12 @@ export async function sendInvoiceEmail(to: string, subject: string, invoice: any
   const itemsHtml = (invoice.items || []).map((item: any, idx: number) => `
     <tr style="border-bottom: 1px solid #f1f5f9; background: ${idx % 2 === 0 ? '#ffffff' : '#fafafa'};">
       <td style="padding: 12px 10px; font-size: 13px; color: #111827; vertical-align: top;">
-        <div style="font-weight: 600; color: #111827; font-size: 13.5px;">${item.product_name || 'Item'}</div>
-        ${item.sku_code ? `<div style="font-size: 11px; color: #6b7280; margin-top: 2px;">SKU: ${item.sku_code}</div>` : ''}
-        ${item.imei ? `<div style="font-size: 11px; color: #4b5563; font-weight: 500; margin-top: 2px;">IMEI: ${item.imei}</div>` : ''}
-        ${item.notes ? `<div style="font-size: 11px; color: #6b7280; font-style: italic; margin-top: 2px;">↳ ${item.notes}</div>` : ''}
+        <div style="font-weight: 600; color: #111827; font-size: 13.5px;">${escapeHtml(item.product_name || 'Item')}</div>
+        ${item.sku_code ? `<div style="font-size: 11px; color: #6b7280; margin-top: 2px;">SKU: ${escapeHtml(item.sku_code)}</div>` : ''}
+        ${item.imei ? `<div style="font-size: 11px; color: #4b5563; font-weight: 500; margin-top: 2px;">IMEI: ${escapeHtml(item.imei)}</div>` : ''}
+        ${item.notes ? `<div style="font-size: 11px; color: #6b7280; font-style: italic; margin-top: 2px;">↳ ${escapeHtml(item.notes)}</div>` : ''}
       </td>
-      <td style="padding: 12px 6px; font-size: 13px; text-align: center; color: #374151; vertical-align: top; white-space: nowrap;">${item.quantity}</td>
+      <td style="padding: 12px 6px; font-size: 13px; text-align: center; color: #374151; vertical-align: top; white-space: nowrap;">${Number(item.quantity) || 0}</td>
       <td style="padding: 12px 8px; font-size: 13px; text-align: right; color: #374151; vertical-align: top; white-space: nowrap;">€${(Number(item.price) || 0).toFixed(2)}</td>
       <td style="padding: 12px 10px; font-size: 13px; text-align: right; font-weight: 700; color: #111827; vertical-align: top; white-space: nowrap;">€${(Number(item.total) || 0).toFixed(2)}</td>
     </tr>
@@ -339,7 +350,7 @@ export async function sendInvoiceEmail(to: string, subject: string, invoice: any
           <!-- 3. Optional Custom Message -->
           ${customNote ? `
             <div style="margin: 16px 24px 0 24px; padding: 12px 16px; background: #f8fafc; border-left: 3px solid #64748b; border-radius: 4px; font-size: 13px; color: #334155; line-height: 1.45;">
-              ${customNote.replace(/\n/g, '<br/>')}
+              ${escapeHtml(customNote).replace(/\n/g, '<br/>')}
             </div>
           ` : ''}
 

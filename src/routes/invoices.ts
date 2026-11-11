@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { pool, query, queryOne, execute, getBranchPrefix } from '../mysql.js';
 import { z } from 'zod';
 import { sendInvoiceEmail } from '../services/mailer.js';
+import { sanitizeCsvCell } from '../middleware/security.js';
+import { refundInvoiceSchema, sendInvoiceEmailSchema } from '../validators/schemas.js';
 
 const router = Router();
 
@@ -214,11 +216,7 @@ router.get('/export', async (req: any, res, next) => {
     }));
 
     if (format === 'csv') {
-      const escapeCsv = (val: any) => {
-        if (val === null || val === undefined) return '""';
-        const str = String(val).replace(/"/g, '""');
-        return `"${str}"`;
-      };
+      const escapeCsv = sanitizeCsvCell;
 
       const headers = [
         'Invoice Number',
@@ -1029,7 +1027,8 @@ router.post('/', async (req: any, res, next) => {
 });
 
 router.post('/:id/refund', async (req: any, res, next) => {
-  const { method = 'Cash', restock = true, items, is_full_refund, notes, customer_id } = req.body;
+  const parsedRefund = refundInvoiceSchema.safeParse(req.body);
+  const { method = 'Cash', restock = true, items, is_full_refund, notes, customer_id } = parsedRefund.success ? parsedRefund.data : req.body;
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -1371,10 +1370,11 @@ router.post('/:id/refund', async (req: any, res, next) => {
 
 router.post('/:id/send-email', async (req: any, res, next) => {
   try {
-    const { email, subject, message } = req.body;
-    if (!email || !email.includes('@')) {
+    const parsedEmail = sendInvoiceEmailSchema.safeParse(req.body);
+    if (!parsedEmail.success) {
       return res.status(400).json({ error: 'A valid email address is required' });
     }
+    const { email, subject, message } = parsedEmail.data;
 
     const isDeveloper = req.user.role === 'developer';
     const branchId = req.user.branch_id;

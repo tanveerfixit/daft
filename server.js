@@ -1,11 +1,5 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
-  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
-}) : x)(function(x) {
-  if (typeof require !== "undefined") return require.apply(this, arguments);
-  throw Error('Dynamic require of "' + x + '" is not supported');
-});
 var __esm = (fn, res, err) => function __init() {
   if (err) throw err[0];
   try {
@@ -19,18 +13,84 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// src/utils/crypto.ts
+// src/config/env.ts
+import dotenv from "dotenv";
+import path from "path";
 import crypto from "crypto";
-function getEncryptionKey() {
-  const secret = process.env.ENCRYPTION_KEY || process.env.JWT_SECRET || "epos_secure_system_key_2026_default";
-  return crypto.createHash("sha256").update(secret).digest();
+import { z } from "zod";
+function loadEnv() {
+  const parsed = envSchema.safeParse(process.env);
+  if (!parsed.success) {
+    const formatted = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    throw new Error(`[ENV VALIDATION FATAL] Invalid environment configuration: ${formatted}`);
+  }
+  const data = parsed.data;
+  const fallbackJwtSeed = `epos:${data.DB_USER}:${data.DB_NAME}:${data.DB_PASS}:jwt_v1`;
+  const derivedJwtSecret = crypto.createHash("sha256").update(fallbackJwtSeed).digest("hex");
+  const resolvedJwtSecret = data.JWT_SECRET || derivedJwtSecret;
+  const resolvedEncryptionKey = data.ENCRYPTION_KEY || data.JWT_SECRET || crypto.createHash("sha256").update(`epos:${data.DB_USER}:${data.DB_PASS}:aes_gcm_v1`).digest("hex");
+  return {
+    ...data,
+    RESOLVED_JWT_SECRET: resolvedJwtSecret,
+    RESOLVED_ENCRYPTION_KEY: resolvedEncryptionKey
+  };
+}
+var envSchema, env;
+var init_env = __esm({
+  "src/config/env.ts"() {
+    dotenv.config();
+    try {
+      dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+    } catch {
+    }
+    envSchema = z.object({
+      NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+      PORT: z.coerce.number().int().positive().default(3e3),
+      DB_HOST: z.string().trim().min(1).default("127.0.0.1"),
+      DB_PORT: z.coerce.number().int().positive().default(3306),
+      DB_NAME: z.string().trim().min(1, "DB_NAME is required"),
+      DB_USER: z.string().trim().min(1, "DB_USER is required"),
+      DB_PASS: z.string({ message: "DB_PASS must be defined in environment" }),
+      DB_CONNECTION_LIMIT: z.coerce.number().int().positive().default(15),
+      DB_MAX_IDLE: z.coerce.number().int().positive().default(10),
+      DB_IDLE_TIMEOUT: z.coerce.number().int().positive().default(6e4),
+      DB_QUEUE_LIMIT: z.coerce.number().int().nonnegative().default(0),
+      JWT_SECRET: z.string().min(16).optional(),
+      ENCRYPTION_KEY: z.string().min(16).optional(),
+      SMTP_HOST: z.string().trim().default("smtp.hostinger.com"),
+      SMTP_PORT: z.coerce.number().int().positive().default(465),
+      SMTP_SECURE: z.string().optional().default("true"),
+      SMTP_USER: z.string().trim().optional(),
+      SMTP_PASS: z.string().optional(),
+      SMTP_FROM_NAME: z.string().trim().default("PhoneLab EPOS"),
+      SMTP_FROM_EMAIL: z.string().trim().optional(),
+      DEV_PASS: z.string().optional()
+    });
+    env = loadEnv();
+  }
+});
+
+// src/utils/crypto.ts
+import crypto2 from "crypto";
+function deriveKey(secret) {
+  return crypto2.createHash("sha256").update(secret).digest();
+}
+function getPrimaryKey() {
+  return deriveKey(env.RESOLVED_ENCRYPTION_KEY);
+}
+function decryptWithKey(key, iv, authTag, encryptedHex) {
+  const decipher = crypto2.createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(encryptedHex, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
 }
 function encryptSecret(plainText) {
   if (!plainText || plainText.trim() === "") return "";
   if (plainText.startsWith(PREFIX)) return plainText;
-  const key = getEncryptionKey();
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+  const key = getPrimaryKey();
+  const iv = crypto2.randomBytes(IV_LENGTH);
+  const cipher = crypto2.createCipheriv(ALGORITHM, key, iv);
   let encrypted = cipher.update(plainText, "utf8", "hex");
   encrypted += cipher.final("hex");
   const authTag = cipher.getAuthTag().toString("hex");
@@ -40,29 +100,31 @@ function decryptSecret(cipherText) {
   if (!cipherText || typeof cipherText !== "string" || !cipherText.startsWith(PREFIX)) {
     return cipherText || "";
   }
+  const parts = cipherText.slice(PREFIX.length).split(":");
+  if (parts.length !== 3) return cipherText;
+  const [ivHex, authTagHex, encryptedHex] = parts;
+  const iv = Buffer.from(ivHex, "hex");
+  const authTag = Buffer.from(authTagHex, "hex");
   try {
-    const parts = cipherText.slice(PREFIX.length).split(":");
-    if (parts.length !== 3) return cipherText;
-    const [ivHex, authTagHex, encryptedHex] = parts;
-    const key = getEncryptionKey();
-    const iv = Buffer.from(ivHex, "hex");
-    const authTag = Buffer.from(authTagHex, "hex");
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-    decipher.setAuthTag(authTag);
-    let decrypted = decipher.update(encryptedHex, "hex", "utf8");
-    decrypted += decipher.final("utf8");
-    return decrypted;
-  } catch (e) {
-    console.error("[Crypto] Decryption error:", e.message);
-    return "";
+    return decryptWithKey(getPrimaryKey(), iv, authTag, encryptedHex);
+  } catch {
+    try {
+      return decryptWithKey(deriveKey(LEGACY_DEFAULT_KEY), iv, authTag, encryptedHex);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[Crypto] Decryption error:", msg);
+      return "";
+    }
   }
 }
-var ALGORITHM, IV_LENGTH, PREFIX;
+var ALGORITHM, IV_LENGTH, PREFIX, LEGACY_DEFAULT_KEY;
 var init_crypto = __esm({
   "src/utils/crypto.ts"() {
+    init_env();
     ALGORITHM = "aes-256-gcm";
     IV_LENGTH = 12;
     PREFIX = "enc_v1:";
+    LEGACY_DEFAULT_KEY = "epos_secure_system_key_2026_default";
   }
 });
 
@@ -86,8 +148,8 @@ __export(mysql_exports, {
   syncBusinessTimezone: () => syncBusinessTimezone
 });
 import mysql from "mysql2/promise";
-import dotenv from "dotenv";
-import path from "path";
+import dotenv2 from "dotenv";
+import path2 from "path";
 function resolveTimezoneOffset(tzInput) {
   let ianaTz = "Europe/Dublin";
   if (tzInput) {
@@ -1544,7 +1606,7 @@ async function ensureSuperAdmin() {
   await pool.execute(
     `INSERT INTO users (business_id, branch_id, name, email, password, password_hash, role, status)
      VALUES (?, ?, 'Super Admin', 'tanveerfixit@gmail.com', '', ?, 'superadmin', 'approved')
-     ON DUPLICATE KEY UPDATE role='superadmin', status='approved', password='', password_hash=?, business_id=?, branch_id=?`,
+     ON DUPLICATE KEY UPDATE role='superadmin', status='approved', password='', password_hash=COALESCE(NULLIF(password_hash, ''), ?), business_id=?, branch_id=?`,
     [businessId, branchId, hash, hash, businessId, branchId]
   );
   await pool.execute(
@@ -1594,9 +1656,9 @@ var resolveDbHost, businessTzCache, currentHost, activePool, pool, connectionChe
 var init_mysql = __esm({
   "src/mysql.ts"() {
     init_crypto();
-    dotenv.config();
+    dotenv2.config();
     try {
-      dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+      dotenv2.config({ path: path2.resolve(process.cwd(), ".env") });
     } catch {
     }
     resolveDbHost = () => {
@@ -1618,6 +1680,76 @@ var init_mysql = __esm({
     });
     connectionChecked = false;
     CURRENT_SCHEMA_VERSION = "2026_11_CREDIT_NOTES_V1";
+  }
+});
+
+// src/middleware/security.ts
+function securityHeadersMiddleware(_req, res, next) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-XSS-Protection", "0");
+  res.setHeader("Permissions-Policy", "camera=(self), microphone=(), geolocation=()");
+  res.removeHeader("X-Powered-By");
+  next();
+}
+function createRateLimiter(options) {
+  const buckets = /* @__PURE__ */ new Map();
+  const MAX_BUCKETS = 5e3;
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, bucket] of buckets.entries()) {
+      if (now >= bucket.resetAt) {
+        buckets.delete(key);
+      }
+    }
+  }, Math.min(options.windowMs, 6e4));
+  if (typeof cleanupInterval.unref === "function") {
+    cleanupInterval.unref();
+  }
+  return (req, res, next) => {
+    const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+    const clientIp = (typeof rawIp === "string" ? rawIp.split(",")[0].trim() : String(rawIp)).replace(/^::ffff:/, "");
+    const key = `${options.keyPrefix || "rl"}:${clientIp}`;
+    const now = Date.now();
+    let bucket = buckets.get(key);
+    if (!bucket || now >= bucket.resetAt) {
+      if (buckets.size >= MAX_BUCKETS) {
+        const oldestKey = buckets.keys().next().value;
+        if (oldestKey !== void 0) buckets.delete(oldestKey);
+      }
+      bucket = { count: 1, resetAt: now + options.windowMs };
+      buckets.set(key, bucket);
+    } else {
+      bucket.count += 1;
+    }
+    const remaining = Math.max(0, options.maxRequests - bucket.count);
+    res.setHeader("X-RateLimit-Limit", String(options.maxRequests));
+    res.setHeader("X-RateLimit-Remaining", String(remaining));
+    res.setHeader("X-RateLimit-Reset", String(Math.ceil(bucket.resetAt / 1e3)));
+    if (bucket.count > options.maxRequests) {
+      res.status(429).json({
+        error: options.message || "Too many requests. Please try again later."
+      });
+      return;
+    }
+    next();
+  };
+}
+function escapeHtml(input) {
+  if (input === null || input === void 0) return "";
+  return String(input).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function sanitizeCsvCell(value) {
+  if (value === null || value === void 0) return '""';
+  let str = String(value).trim();
+  if (/^[=+\-@\t\r]/.test(str) && !/^-[0-9]+(\.[0-9]+)?$/.test(str)) {
+    str = `'${str}`;
+  }
+  return `"${str.replace(/"/g, '""')}"`;
+}
+var init_security = __esm({
+  "src/middleware/security.ts"() {
   }
 });
 
@@ -1681,44 +1813,51 @@ async function sendMail(to, subject, html) {
   await transporter.sendMail({ from, to: cleanTo, subject, html });
 }
 async function sendAccountApproved(user) {
+  const safeName = escapeHtml(user.name);
   const html = `<div style="${baseStyle}">
-    <h2 style="color:#27ae60;">Hi ${user.name}, your account is approved! \u2713</h2>
+    <h2 style="color:#27ae60;">Hi ${safeName}, your account is approved! \u2713</h2>
     <p>An administrator has approved your account. You can now log in to the EPOS system.</p>
   </div>`;
   await sendMail(user.email, "Account Approved \u2713", html);
 }
 async function sendAccountRejected(user) {
+  const safeName = escapeHtml(user.name);
   const html = `<div style="${baseStyle}">
-    <h2 style="color:#e74c3c;">Hi ${user.name},</h2>
+    <h2 style="color:#e74c3c;">Hi ${safeName},</h2>
     <p>Unfortunately, your account registration has been <strong>rejected</strong> by an administrator.</p>
     <p>If you believe this is a mistake, please contact your administrator directly.</p>
   </div>`;
   await sendMail(user.email, "Account Registration Rejected", html);
 }
 async function sendAccountDeactivated(user) {
+  const safeName = escapeHtml(user.name);
   const html = `<div style="${baseStyle}">
-    <h2 style="color:#e67e22;">Hi ${user.name},</h2>
+    <h2 style="color:#e67e22;">Hi ${safeName},</h2>
     <p>Your EPOS account has been <strong>deactivated</strong> by an administrator.</p>
     <p>Please contact your administrator if you have any questions.</p>
   </div>`;
   await sendMail(user.email, "Account Deactivated", html);
 }
 async function sendOtpCode(user, otp) {
+  const safeName = escapeHtml(user.name);
+  const safeOtp = escapeHtml(otp);
   const html = `<div style="${baseStyle}">
     <h2 style="color:#2c3e50;">Password Reset OTP</h2>
-    <p>Hi ${user.name},</p>
+    <p>Hi ${safeName},</p>
     <p>Use the following code to reset your password. It expires in <strong>10 minutes</strong>.</p>
-    <div style="font-size:36px;font-weight:bold;letter-spacing:12px;text-align:center;padding:24px;background:#fff;border:2px solid #2980b9;border-radius:8px;margin:20px 0;color:#2980b9;">${otp}</div>
+    <div style="font-size:36px;font-weight:bold;letter-spacing:12px;text-align:center;padding:24px;background:#fff;border:2px solid #2980b9;border-radius:8px;margin:20px 0;color:#2980b9;">${safeOtp}</div>
     <p style="color:#7f8c8d;font-size:13px;">If you did not request this, please ignore this email.</p>
   </div>`;
   await sendMail(user.email, "Your EPOS Password Reset Code", html);
 }
 async function sendGeneratedPassword(user, password) {
+  const safeName = escapeHtml(user.name);
+  const safePass = escapeHtml(password);
   const html = `<div style="${baseStyle}">
     <h2 style="color:#2c3e50;">Your EPOS Account Password</h2>
-    <p>Hi ${user.name},</p>
+    <p>Hi ${safeName},</p>
     <p>An administrator has set a new password for your EPOS account:</p>
-    <div style="font-size:22px;font-weight:bold;text-align:center;padding:16px;background:#fff;border:2px solid #27ae60;border-radius:8px;margin:20px 0;color:#27ae60;font-family:monospace;">${password}</div>
+    <div style="font-size:22px;font-weight:bold;text-align:center;padding:16px;background:#fff;border:2px solid #27ae60;border-radius:8px;margin:20px 0;color:#27ae60;font-family:monospace;">${safePass}</div>
     <p>Please log in and change your password immediately.</p>
     <p style="color:#7f8c8d;font-size:13px;">If you did not expect this email, contact your administrator.</p>
   </div>`;
@@ -1763,12 +1902,12 @@ async function sendInvoiceEmail(to, subject, invoice, company, customNote, branc
   const itemsHtml = (invoice.items || []).map((item, idx) => `
     <tr style="border-bottom: 1px solid #f1f5f9; background: ${idx % 2 === 0 ? "#ffffff" : "#fafafa"};">
       <td style="padding: 12px 10px; font-size: 13px; color: #111827; vertical-align: top;">
-        <div style="font-weight: 600; color: #111827; font-size: 13.5px;">${item.product_name || "Item"}</div>
-        ${item.sku_code ? `<div style="font-size: 11px; color: #6b7280; margin-top: 2px;">SKU: ${item.sku_code}</div>` : ""}
-        ${item.imei ? `<div style="font-size: 11px; color: #4b5563; font-weight: 500; margin-top: 2px;">IMEI: ${item.imei}</div>` : ""}
-        ${item.notes ? `<div style="font-size: 11px; color: #6b7280; font-style: italic; margin-top: 2px;">\u21B3 ${item.notes}</div>` : ""}
+        <div style="font-weight: 600; color: #111827; font-size: 13.5px;">${escapeHtml(item.product_name || "Item")}</div>
+        ${item.sku_code ? `<div style="font-size: 11px; color: #6b7280; margin-top: 2px;">SKU: ${escapeHtml(item.sku_code)}</div>` : ""}
+        ${item.imei ? `<div style="font-size: 11px; color: #4b5563; font-weight: 500; margin-top: 2px;">IMEI: ${escapeHtml(item.imei)}</div>` : ""}
+        ${item.notes ? `<div style="font-size: 11px; color: #6b7280; font-style: italic; margin-top: 2px;">\u21B3 ${escapeHtml(item.notes)}</div>` : ""}
       </td>
-      <td style="padding: 12px 6px; font-size: 13px; text-align: center; color: #374151; vertical-align: top; white-space: nowrap;">${item.quantity}</td>
+      <td style="padding: 12px 6px; font-size: 13px; text-align: center; color: #374151; vertical-align: top; white-space: nowrap;">${Number(item.quantity) || 0}</td>
       <td style="padding: 12px 8px; font-size: 13px; text-align: right; color: #374151; vertical-align: top; white-space: nowrap;">\u20AC${(Number(item.price) || 0).toFixed(2)}</td>
       <td style="padding: 12px 10px; font-size: 13px; text-align: right; font-weight: 700; color: #111827; vertical-align: top; white-space: nowrap;">\u20AC${(Number(item.total) || 0).toFixed(2)}</td>
     </tr>
@@ -1908,7 +2047,7 @@ async function sendInvoiceEmail(to, subject, invoice, company, customNote, branc
           <!-- 3. Optional Custom Message -->
           ${customNote ? `
             <div style="margin: 16px 24px 0 24px; padding: 12px 16px; background: #f8fafc; border-left: 3px solid #64748b; border-radius: 4px; font-size: 13px; color: #334155; line-height: 1.45;">
-              ${customNote.replace(/\n/g, "<br/>")}
+              ${escapeHtml(customNote).replace(/\n/g, "<br/>")}
             </div>
           ` : ""}
 
@@ -2016,9 +2155,79 @@ var init_mailer = __esm({
   "src/services/mailer.ts"() {
     init_mysql();
     init_crypto();
+    init_security();
     cachedTransporter = null;
     cachedKey = "";
     baseStyle = `font-family:'Inter',sans-serif;max-width:600px;margin:0 auto;background:#f9fafb;padding:32px;border-radius:8px;`;
+  }
+});
+
+// src/validators/schemas.ts
+import { z as z2 } from "zod";
+var importProductsItemSchema, importProductsPayloadSchema, updateProductSchema, refundInvoiceSchema, sendInvoiceEmailSchema, adminUpdateUserSchema, smtpUpdateSchema;
+var init_schemas = __esm({
+  "src/validators/schemas.ts"() {
+    importProductsItemSchema = z2.object({
+      product_name: z2.string().trim().min(1, "Product name is required"),
+      category_name: z2.string().trim().optional().nullable(),
+      manufacturer_name: z2.string().trim().optional().nullable(),
+      product_type: z2.string().trim().optional().nullable(),
+      allow_overselling: z2.union([z2.string(), z2.boolean(), z2.number()]).optional().nullable(),
+      sku: z2.string().trim().optional().default(""),
+      cost_price: z2.union([z2.number(), z2.string()]).optional().default(0),
+      selling_price: z2.union([z2.number(), z2.string()]).optional().default(0),
+      current_inventory: z2.union([z2.number(), z2.string()]).optional().default(0)
+    });
+    importProductsPayloadSchema = z2.object({
+      products: z2.array(importProductsItemSchema).min(1, "At least one product is required")
+    });
+    updateProductSchema = z2.object({
+      product_name: z2.string().trim().optional(),
+      category_id: z2.union([z2.number(), z2.string().transform(Number)]).nullable().optional(),
+      manufacturer_id: z2.union([z2.number(), z2.string().transform(Number)]).nullable().optional(),
+      supplier_id: z2.union([z2.number(), z2.string().transform(Number)]).nullable().optional(),
+      sku_code: z2.string().trim().nullable().optional(),
+      barcode: z2.string().trim().nullable().optional(),
+      selling_price: z2.union([z2.number(), z2.string().transform(Number)]).optional(),
+      cost_price: z2.union([z2.number(), z2.string().transform(Number)]).optional(),
+      product_type: z2.string().trim().optional(),
+      cascade_device_price: z2.boolean().optional(),
+      exclude_custom_priced_devices: z2.boolean().optional()
+    });
+    refundInvoiceSchema = z2.object({
+      method: z2.string().trim().optional().default("Cash"),
+      restock: z2.boolean().optional().default(true),
+      is_full_refund: z2.boolean().optional(),
+      notes: z2.string().optional().nullable(),
+      customer_id: z2.union([z2.number(), z2.string().transform(Number)]).optional().nullable(),
+      items: z2.array(
+        z2.object({
+          item_id: z2.union([z2.number(), z2.string().transform(Number)]),
+          quantity: z2.union([z2.number(), z2.string().transform(Number)])
+        })
+      ).optional()
+    });
+    sendInvoiceEmailSchema = z2.object({
+      email: z2.string().trim().email("A valid email address is required"),
+      subject: z2.string().trim().max(255).optional(),
+      message: z2.string().max(5e3).optional()
+    });
+    adminUpdateUserSchema = z2.object({
+      name: z2.string().trim().min(1, "Name is required"),
+      email: z2.string().trim().email("Invalid email address").optional().or(z2.literal("")),
+      branch_id: z2.union([z2.number(), z2.string().transform(Number)]).nullable().optional(),
+      role: z2.enum(["admin", "staff", "superadmin", "developer"]).optional().default("staff"),
+      password: z2.string().optional().nullable()
+    });
+    smtpUpdateSchema = z2.object({
+      host: z2.string().trim().min(1, "SMTP host is required"),
+      port: z2.coerce.number().int().positive().max(65535).default(465),
+      secure: z2.union([z2.boolean(), z2.number()]).optional().default(true),
+      user: z2.string().trim().min(1, "SMTP user is required"),
+      pass: z2.string().optional().nullable(),
+      from_name: z2.string().trim().optional().default("PhoneLab EPOS"),
+      from_email: z2.string().trim().email("Invalid sender email").optional().or(z2.literal(""))
+    });
   }
 });
 
@@ -2031,14 +2240,25 @@ __export(auth_exports, {
   requireAdminAsync: () => requireAdminAsync,
   requireAuth: () => requireAuth,
   requireAuthAsync: () => requireAuthAsync,
+  revokeSessionToken: () => revokeSessionToken,
   revokedTokens: () => revokedTokens,
   userPasswordResets: () => userPasswordResets
 });
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import crypto2 from "crypto";
+import crypto3 from "crypto";
 import jwt from "jsonwebtoken";
-import { z } from "zod";
+import { z as z3 } from "zod";
+function revokeSessionToken(token) {
+  revokedTokens.add(token);
+  try {
+    const decoded = jwt.decode(token);
+    const expiresAt = decoded?.exp ? decoded.exp * 1e3 : Date.now() + 12 * 60 * 60 * 1e3;
+    revokedTokenExpiries.set(token, expiresAt);
+  } catch {
+    revokedTokenExpiries.set(token, Date.now() + 12 * 60 * 60 * 1e3);
+  }
+}
 function verifyToken(token) {
   if (!token) return null;
   if (revokedTokens.has(token)) return null;
@@ -2121,30 +2341,53 @@ async function requireAdminAsync(req, res, next) {
 function slugify(text) {
   return text.toString().toLowerCase().trim().replace(/\s+/g, "-").replace(/[^\w-]+/g, "").replace(/--+/g, "-");
 }
-var JWT_SECRET, revokedTokens, userPasswordResets, _cleanup, MAX_AUTH_CACHE_SIZE, authUserCache, router, signupSchema, loginSchema, resetPasswordSchema, adminRouter, getAnnouncementsPath, readAnnouncementsFile, writeAnnouncementsFile, auth_default;
+var JWT_SECRET, authRateLimiter, otpRateLimiter, otpFailedAttempts, revokedTokens, revokedTokenExpiries, userPasswordResets, _cleanup, MAX_AUTH_CACHE_SIZE, authUserCache, router, signupSchema, loginSchema, resetPasswordSchema, adminRouter, getAnnouncementsPath, readAnnouncementsFile, writeAnnouncementsFile, auth_default;
 var init_auth = __esm({
   "src/routes/auth.ts"() {
     init_mysql();
     init_crypto();
     init_mailer();
-    JWT_SECRET = process.env.JWT_SECRET || "EPOS_SUPER_SECRET_FALLBACK_KEY_2026";
+    init_env();
+    init_security();
+    init_schemas();
+    JWT_SECRET = env.RESOLVED_JWT_SECRET;
+    authRateLimiter = createRateLimiter({
+      windowMs: 15 * 60 * 1e3,
+      maxRequests: 30,
+      keyPrefix: "auth_login",
+      message: "Too many authentication attempts. Please wait a few minutes and try again."
+    });
+    otpRateLimiter = createRateLimiter({
+      windowMs: 10 * 60 * 1e3,
+      maxRequests: 10,
+      keyPrefix: "auth_otp",
+      message: "Too many OTP requests or verification attempts. Please wait before trying again."
+    });
+    otpFailedAttempts = /* @__PURE__ */ new Map();
     revokedTokens = /* @__PURE__ */ new Set();
+    revokedTokenExpiries = /* @__PURE__ */ new Map();
     userPasswordResets = /* @__PURE__ */ new Map();
     _cleanup = setInterval(() => {
-      revokedTokens.clear();
+      const now = Date.now();
+      for (const [token, exp] of revokedTokenExpiries.entries()) {
+        if (now >= exp) {
+          revokedTokenExpiries.delete(token);
+          revokedTokens.delete(token);
+        }
+      }
     }, 60 * 60 * 1e3);
     if (typeof _cleanup.unref === "function") _cleanup.unref();
     MAX_AUTH_CACHE_SIZE = 500;
     authUserCache = /* @__PURE__ */ new Map();
     router = Router();
-    signupSchema = z.object({
-      name: z.string().min(2, "Business Name is required"),
-      email: z.string().email("Invalid email address"),
-      address: z.string().min(2, "Address is required"),
-      contact: z.string().min(3, "Contact number is required"),
-      password: z.string().min(6, "Password must be at least 6 characters")
+    signupSchema = z3.object({
+      name: z3.string().min(2, "Business Name is required"),
+      email: z3.string().email("Invalid email address"),
+      address: z3.string().min(2, "Address is required"),
+      contact: z3.string().min(3, "Contact number is required"),
+      password: z3.string().min(6, "Password must be at least 6 characters")
     });
-    router.post("/signup", async (req, res, next) => {
+    router.post("/signup", authRateLimiter, async (req, res, next) => {
       try {
         const data = signupSchema.parse(req.body);
         const { name, email, address, contact, password } = data;
@@ -2214,11 +2457,11 @@ var init_auth = __esm({
         next(e);
       }
     });
-    loginSchema = z.object({
-      email: z.string().email("Invalid email address"),
-      password: z.string().min(1, "Password is required")
+    loginSchema = z3.object({
+      email: z3.string().email("Invalid email address"),
+      password: z3.string().min(1, "Password is required")
     });
-    router.post("/login", async (req, res, next) => {
+    router.post("/login", authRateLimiter, async (req, res, next) => {
       try {
         const data = loginSchema.parse(req.body);
         const { email, password } = data;
@@ -2318,9 +2561,10 @@ var init_auth = __esm({
         next(e);
       }
     });
-    router.post("/logout", (req, res, next) => {
+    router.post("/logout", (req, res, _next) => {
       const token = req.headers["authorization"]?.replace("Bearer ", "");
-      if (token) revokedTokens.add(token);
+      if (token) revokeSessionToken(token);
+      if (req.userId) invalidateUserAuthCache(req.userId);
       res.json({ success: true });
     });
     router.get("/me", requireAuthAsync, async (req, res, next) => {
@@ -2337,13 +2581,16 @@ var init_auth = __esm({
         next(e);
       }
     });
-    router.post("/forgot-password", async (req, res, next) => {
+    router.post("/forgot-password", otpRateLimiter, async (req, res, _next) => {
       res.json({ success: true, message: "If this email exists, an OTP code has been sent." });
       try {
-        const user = await queryOne("SELECT * FROM users WHERE email=?", [req.body.email]);
+        const emailInput = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+        if (!emailInput) return;
+        const user = await queryOne("SELECT * FROM users WHERE email=?", [emailInput]);
         if (!user) return;
-        const otp = String(Math.floor(1e5 + Math.random() * 9e5));
+        const otp = String(crypto3.randomInt(1e5, 1e6));
         const expires = new Date(Date.now() + 2 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
+        otpFailedAttempts.delete(emailInput.toLowerCase());
         await execute("UPDATE users SET otp_code=?,otp_expires=? WHERE id=?", [otp, expires, user.id]);
         try {
           await sendOtpCode({ name: user.name, email: user.email }, otp);
@@ -2352,17 +2599,28 @@ var init_auth = __esm({
       } catch {
       }
     });
-    router.post("/verify-otp", async (req, res, next) => {
+    router.post("/verify-otp", otpRateLimiter, async (req, res, next) => {
       const { email, otp } = req.body;
       if (!email || !otp) return res.status(400).json({ error: "Email and OTP required" });
+      const normalizedEmail = String(email).trim().toLowerCase();
       try {
-        const user = await queryOne("SELECT * FROM users WHERE email=? AND otp_code=?", [email, String(otp)]);
-        if (!user) return res.status(400).json({ error: "Invalid OTP code" });
+        const user = await queryOne("SELECT * FROM users WHERE email=? AND otp_code=?", [String(email).trim(), String(otp).trim()]);
+        if (!user) {
+          const fails = (otpFailedAttempts.get(normalizedEmail) || 0) + 1;
+          otpFailedAttempts.set(normalizedEmail, fails);
+          if (fails >= 5) {
+            otpFailedAttempts.delete(normalizedEmail);
+            await execute("UPDATE users SET otp_code=NULL, otp_expires=NULL WHERE email=?", [String(email).trim()]);
+            return res.status(400).json({ error: "Too many invalid attempts. OTP invalidated; please request a new code." });
+          }
+          return res.status(400).json({ error: "Invalid OTP code" });
+        }
         const expiry = new Date(user.otp_expires).getTime();
         if (isNaN(expiry) || expiry < Date.now()) {
           return res.status(400).json({ error: "OTP has expired. Please request a new one." });
         }
-        const reset_token = crypto2.randomUUID();
+        otpFailedAttempts.delete(normalizedEmail);
+        const reset_token = crypto3.randomUUID();
         const tokenExpires = new Date(Date.now() + 30 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
         await execute(
           "UPDATE users SET otp_code=NULL,otp_expires=NULL,reset_token=?,reset_token_expires=? WHERE id=?",
@@ -2373,11 +2631,11 @@ var init_auth = __esm({
         next(e);
       }
     });
-    resetPasswordSchema = z.object({
-      token: z.string().min(1, "Token is required"),
-      password: z.string().min(8, "Password must be at least 8 characters")
+    resetPasswordSchema = z3.object({
+      token: z3.string().min(1, "Token is required"),
+      password: z3.string().min(8, "Password must be at least 8 characters")
     });
-    router.post("/reset-password", async (req, res, next) => {
+    router.post("/reset-password", authRateLimiter, async (req, res, next) => {
       try {
         const data = resetPasswordSchema.parse(req.body);
         const { token, password } = data;
@@ -2388,6 +2646,7 @@ var init_auth = __esm({
         }
         const password_hash = await bcrypt.hash(password, 10);
         userPasswordResets.set(user.id, Date.now() / 1e3);
+        invalidateUserAuthCache(user.id);
         await execute(
           "UPDATE users SET password_hash=?,password='',reset_token=NULL,reset_token_expires=NULL WHERE id=?",
           [password_hash, user.id]
@@ -2425,6 +2684,7 @@ var init_auth = __esm({
           return res.status(400).json({ error: "Master admin accounts cannot be deactivated" });
         }
         await execute("UPDATE users SET status=? WHERE id=?", [status, req.params.id]);
+        invalidateUserAuthCache(Number(req.params.id));
         try {
           if (status === "approved") await sendAccountApproved({ name: user.name, email: user.email });
           else if (status === "rejected") await sendAccountRejected({ name: user.name, email: user.email });
@@ -2437,8 +2697,8 @@ var init_auth = __esm({
       }
     });
     adminRouter.put("/users/:id", requireAdminAsync, async (req, res, next) => {
-      const { name, email, branch_id, role, password } = req.body;
       try {
+        const { name, email, branch_id, role, password } = adminUpdateUserSchema.parse(req.body);
         const isMaster = ["developer", "superadmin"].includes(req.user.role);
         const existing = isMaster ? await queryOne("SELECT id, email FROM users WHERE id=? AND deleted_at IS NULL", [req.params.id]) : await queryOne("SELECT id, email FROM users WHERE id=? AND business_id=? AND deleted_at IS NULL", [req.params.id, req.user.business_id]);
         if (!existing) return res.status(404).json({ error: "User not found or access denied" });
@@ -2461,6 +2721,7 @@ var init_auth = __esm({
             [name, updatedEmail, branch_id, role, req.params.id]
           );
         }
+        invalidateUserAuthCache(Number(req.params.id));
         res.json({ success: true });
       } catch (e) {
         next(e);
@@ -2473,6 +2734,7 @@ var init_auth = __esm({
         const params = isMaster ? [req.params.id] : [req.params.id, req.user.business_id];
         const r = await execute(sql, params);
         if (r.affectedRows === 0) return res.status(404).json({ error: "User not found or access denied" });
+        invalidateUserAuthCache(Number(req.params.id));
         res.json({ success: true });
       } catch (e) {
         next(e);
@@ -2485,7 +2747,7 @@ var init_auth = __esm({
           [req.params.id, req.user.business_id]
         );
         if (!user) return res.status(404).json({ error: "User not found or access denied" });
-        const newPass = crypto2.randomBytes(6).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) + "!";
+        const newPass = crypto3.randomBytes(6).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) + "!";
         const hash = await bcrypt.hash(newPass, 10);
         await execute(
           "UPDATE users SET password='',password_hash=?,last_generated_password=NULL WHERE id=?",
@@ -2507,7 +2769,7 @@ var init_auth = __esm({
           [req.params.id, req.user.business_id]
         );
         if (!user) return res.status(404).json({ error: "User not found or access denied" });
-        const newPass = crypto2.randomBytes(6).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) + "!";
+        const newPass = crypto3.randomBytes(6).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) + "!";
         const hash = await bcrypt.hash(newPass, 10);
         await execute(
           "UPDATE users SET password='',password_hash=?,last_generated_password=NULL WHERE id=?",
@@ -2603,8 +2865,8 @@ var init_auth = __esm({
       }
     });
     adminRouter.put("/smtp", requireAdminAsync, async (req, res, next) => {
-      const { host, port, secure, user, pass, from_name, from_email } = req.body;
       try {
+        const { host, port, secure, user, pass, from_name, from_email } = smtpUpdateSchema.parse(req.body);
         const existing = await queryOne("SELECT * FROM smtp_settings WHERE business_id = 1");
         let encryptedPass = existing?.pass || (process.env.SMTP_PASS ? encryptSecret(process.env.SMTP_PASS) : "");
         if (pass && pass !== "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" && pass !== "********" && String(pass).trim() !== "") {
@@ -2613,12 +2875,12 @@ var init_auth = __esm({
         if (existing) {
           await execute(
             "UPDATE smtp_settings SET host=?, port=?, secure=?, user=?, pass=?, from_name=?, from_email=? WHERE business_id = 1",
-            [host, port, secure ? 1 : 0, user, encryptedPass, from_name, from_email]
+            [host, port, secure ? 1 : 0, user, encryptedPass, from_name, from_email || user]
           );
         } else {
           await execute(
             "INSERT INTO smtp_settings (business_id, host, port, secure, user, pass, from_name, from_email) VALUES (1, ?, ?, ?, ?, ?, ?, ?)",
-            [host, port, secure ? 1 : 0, user, encryptedPass, from_name, from_email]
+            [host, port, secure ? 1 : 0, user, encryptedPass, from_name, from_email || user]
           );
         }
         invalidateMailTransporter();
@@ -2704,8 +2966,8 @@ var init_auth = __esm({
       }
     });
     getAnnouncementsPath = async () => {
-      const path2 = await import("path");
-      return path2.resolve(process.cwd(), "src", "data", "announcements.json");
+      const path3 = await import("path");
+      return path3.resolve(process.cwd(), "src", "data", "announcements.json");
     };
     readAnnouncementsFile = async () => {
       const fs2 = await import("fs");
@@ -2722,9 +2984,9 @@ var init_auth = __esm({
     };
     writeAnnouncementsFile = async (data) => {
       const fs2 = await import("fs");
-      const path2 = await import("path");
+      const path3 = await import("path");
       const filePath = await getAnnouncementsPath();
-      const dir = path2.dirname(filePath);
+      const dir = path3.dirname(filePath);
       if (!fs2.existsSync(dir)) fs2.mkdirSync(dir, { recursive: true });
       fs2.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
     };
@@ -2807,7 +3069,7 @@ import { Router as Router2 } from "express";
 import jwt2 from "jsonwebtoken";
 function getUserIdFromReq(req) {
   const token = req.headers["authorization"]?.replace("Bearer ", "");
-  if (!token) return null;
+  if (!token || revokedTokens.has(token)) return null;
   try {
     const decoded = jwt2.verify(token, JWT_SECRET2);
     return decoded.userId || decoded.id || null;
@@ -2819,8 +3081,10 @@ var router2, JWT_SECRET2, public_default;
 var init_public = __esm({
   "src/routes/public.ts"() {
     init_mysql();
+    init_env();
+    init_auth();
     router2 = Router2();
-    JWT_SECRET2 = process.env.JWT_SECRET || "EPOS_SUPER_SECRET_FALLBACK_KEY_2026";
+    JWT_SECRET2 = env.RESOLVED_JWT_SECRET;
     router2.get("/business/:slug", async (req, res, next) => {
       const { slug } = req.params;
       try {
@@ -2832,7 +3096,7 @@ var init_public = __esm({
         if (!business) {
           return res.status(404).json({ error: "Business not found" });
         }
-        const branches = await queryOne("SELECT id, name, address, phone FROM branches WHERE business_id = ? AND deleted_at IS NULL", [business.id]);
+        const branches = await query("SELECT id, name, address, phone FROM branches WHERE business_id = ? AND deleted_at IS NULL", [business.id]);
         res.json({
           ...business,
           branches: Array.isArray(branches) ? branches : [branches].filter(Boolean)
@@ -2844,8 +3108,8 @@ var init_public = __esm({
     router2.get("/announcements", async (_req, res, next) => {
       try {
         const fs2 = await import("fs");
-        const path2 = await import("path");
-        const filePath = path2.resolve(process.cwd(), "src", "data", "announcements.json");
+        const path3 = await import("path");
+        const filePath = path3.resolve(process.cwd(), "src", "data", "announcements.json");
         if (fs2.existsSync(filePath)) {
           const data = fs2.readFileSync(filePath, "utf-8");
           try {
@@ -2893,8 +3157,8 @@ var init_public = __esm({
       try {
         const userId = getUserIdFromReq(req);
         const fs2 = await import("fs");
-        const path2 = await import("path");
-        const filePath = path2.resolve(process.cwd(), "src", "data", "announcements.json");
+        const path3 = await import("path");
+        const filePath = path3.resolve(process.cwd(), "src", "data", "announcements.json");
         let targetIds = [];
         if (fs2.existsSync(filePath)) {
           try {
@@ -2925,7 +3189,7 @@ __export(products_exports, {
   default: () => products_default
 });
 import { Router as Router3 } from "express";
-import { z as z2 } from "zod";
+import { z as z4 } from "zod";
 async function syncNewProductToOtherBusinesses(conn, sourceBusinessId, params) {
   try {
     const cleanName = params.name.trim();
@@ -3041,6 +3305,8 @@ var router3, createProductSchema, quickAddSchema, products_default;
 var init_products = __esm({
   "src/routes/products.ts"() {
     init_mysql();
+    init_security();
+    init_schemas();
     router3 = Router3();
     router3.get("/", async (req, res, next) => {
       try {
@@ -3224,11 +3490,7 @@ var init_products = __esm({
       WHERE p.business_id = ? AND p.deleted_at IS NULL AND p.product_type != 'serialized'
       ORDER BY p.name ASC
     `, [req.user.branch_id, businessId]);
-        const escapeCsv = (str) => {
-          if (str === null || str === void 0) return '""';
-          const s = String(str).trim();
-          return `"${s.replace(/"/g, '""')}"`;
-        };
+        const escapeCsv = sanitizeCsvCell;
         let csvContent = `"Product Name","Product Type","Category","Brand / Manufacturer","SKU","Barcode","Cost Price","Selling Price","Quantity In Stock","Min Stock Level","Taxable"
 `;
         for (const row of rows) {
@@ -3650,6 +3912,7 @@ var init_products = __esm({
       }
     });
     router3.put("/:id", async (req, res, next) => {
+      const parsedBody = updateProductSchema.safeParse(req.body);
       const {
         product_name,
         category_id,
@@ -3662,7 +3925,7 @@ var init_products = __esm({
         product_type,
         cascade_device_price,
         exclude_custom_priced_devices
-      } = req.body;
+      } = parsedBody.success ? parsedBody.data : req.body;
       const skuId = req.params.id;
       const businessId = req.user.business_id;
       const conn = await pool.getConnection();
@@ -3757,23 +4020,23 @@ var init_products = __esm({
         conn.release();
       }
     });
-    createProductSchema = z2.object({
-      name: z2.string().min(1, "Product name is required"),
-      category_id: z2.number().nullable().optional(),
-      manufacturer_id: z2.number().nullable().optional(),
-      supplier_id: z2.number().or(z2.string().transform(Number)).nullable().optional(),
-      selling_price: z2.number().or(z2.string().transform(Number)).optional(),
-      cost_price: z2.number().or(z2.string().transform(Number)).optional(),
-      product_type: z2.string().optional(),
-      sku_code: z2.string().optional(),
-      barcode: z2.string().optional(),
-      allow_overselling: z2.boolean().optional(),
-      min_stock_level: z2.number().or(z2.string().transform(Number)).optional(),
-      is_taxable: z2.boolean().optional(),
-      require_note: z2.boolean().optional(),
-      min_sales_price: z2.number().or(z2.string().transform(Number)).optional(),
-      additional_description: z2.string().optional(),
-      alert_message: z2.string().optional()
+    createProductSchema = z4.object({
+      name: z4.string().min(1, "Product name is required"),
+      category_id: z4.number().nullable().optional(),
+      manufacturer_id: z4.number().nullable().optional(),
+      supplier_id: z4.number().or(z4.string().transform(Number)).nullable().optional(),
+      selling_price: z4.number().or(z4.string().transform(Number)).optional(),
+      cost_price: z4.number().or(z4.string().transform(Number)).optional(),
+      product_type: z4.string().optional(),
+      sku_code: z4.string().optional(),
+      barcode: z4.string().optional(),
+      allow_overselling: z4.boolean().optional(),
+      min_stock_level: z4.number().or(z4.string().transform(Number)).optional(),
+      is_taxable: z4.boolean().optional(),
+      require_note: z4.boolean().optional(),
+      min_sales_price: z4.number().or(z4.string().transform(Number)).optional(),
+      additional_description: z4.string().optional(),
+      alert_message: z4.string().optional()
     });
     router3.post("/", async (req, res, next) => {
       const data = createProductSchema.parse(req.body);
@@ -3872,17 +4135,17 @@ var init_products = __esm({
         conn.release();
       }
     });
-    quickAddSchema = z2.object({
-      name: z2.string().min(1, "Product name is required"),
-      category_id: z2.number().nullable().optional(),
-      manufacturer_id: z2.number().nullable().optional(),
-      supplier_id: z2.number().or(z2.string().transform(Number)).nullable().optional(),
-      selling_price: z2.number().or(z2.string().transform(Number)).optional(),
-      cost_price: z2.number().or(z2.string().transform(Number)).optional(),
-      sku_code: z2.string().optional(),
-      barcode: z2.string().optional(),
-      branch_id: z2.number().optional(),
-      quantity: z2.number().or(z2.string().transform(Number)).optional()
+    quickAddSchema = z4.object({
+      name: z4.string().min(1, "Product name is required"),
+      category_id: z4.number().nullable().optional(),
+      manufacturer_id: z4.number().nullable().optional(),
+      supplier_id: z4.number().or(z4.string().transform(Number)).nullable().optional(),
+      selling_price: z4.number().or(z4.string().transform(Number)).optional(),
+      cost_price: z4.number().or(z4.string().transform(Number)).optional(),
+      sku_code: z4.string().optional(),
+      barcode: z4.string().optional(),
+      branch_id: z4.number().optional(),
+      quantity: z4.number().or(z4.string().transform(Number)).optional()
     });
     router3.post("/quick-add", async (req, res, next) => {
       const data = quickAddSchema.parse(req.body);
@@ -4157,7 +4420,7 @@ __export(customers_exports, {
   default: () => customers_default
 });
 import { Router as Router4 } from "express";
-import { z as z3 } from "zod";
+import { z as z5 } from "zod";
 var router4, customerSchema, depositSchema, customers_default;
 var init_customers = __esm({
   "src/routes/customers.ts"() {
@@ -4186,26 +4449,26 @@ var init_customers = __esm({
         next(e);
       }
     });
-    customerSchema = z3.object({
-      name: z3.string().nullable().optional(),
-      phone: z3.string().nullable().optional(),
-      email: z3.string().email("Invalid email").optional().or(z3.literal("")).or(z3.null()),
-      first_name: z3.string().nullable().optional(),
-      last_name: z3.string().nullable().optional(),
-      secondary_phone: z3.string().nullable().optional(),
-      fax: z3.string().nullable().optional(),
-      offers_email: z3.union([z3.boolean(), z3.number().transform((v) => v === 1)]).nullable().optional(),
-      company: z3.string().nullable().optional(),
-      customer_type: z3.string().nullable().optional(),
-      address_line1: z3.string().nullable().optional(),
-      address_line2: z3.string().nullable().optional(),
-      city: z3.string().nullable().optional(),
-      state: z3.string().nullable().optional(),
-      zip_code: z3.string().nullable().optional(),
-      country: z3.string().nullable().optional(),
-      website: z3.string().nullable().optional(),
-      alert_message: z3.string().nullable().optional(),
-      wallet_balance: z3.number().or(z3.string().transform(Number)).nullable().optional()
+    customerSchema = z5.object({
+      name: z5.string().nullable().optional(),
+      phone: z5.string().nullable().optional(),
+      email: z5.string().email("Invalid email").optional().or(z5.literal("")).or(z5.null()),
+      first_name: z5.string().nullable().optional(),
+      last_name: z5.string().nullable().optional(),
+      secondary_phone: z5.string().nullable().optional(),
+      fax: z5.string().nullable().optional(),
+      offers_email: z5.union([z5.boolean(), z5.number().transform((v) => v === 1)]).nullable().optional(),
+      company: z5.string().nullable().optional(),
+      customer_type: z5.string().nullable().optional(),
+      address_line1: z5.string().nullable().optional(),
+      address_line2: z5.string().nullable().optional(),
+      city: z5.string().nullable().optional(),
+      state: z5.string().nullable().optional(),
+      zip_code: z5.string().nullable().optional(),
+      country: z5.string().nullable().optional(),
+      website: z5.string().nullable().optional(),
+      alert_message: z5.string().nullable().optional(),
+      wallet_balance: z5.number().or(z5.string().transform(Number)).nullable().optional()
     });
     router4.post("/", async (req, res, next) => {
       try {
@@ -4418,10 +4681,10 @@ var init_customers = __esm({
         next(e);
       }
     });
-    depositSchema = z3.object({
-      amount: z3.number().or(z3.string().transform(Number)),
-      method: z3.string().optional(),
-      note: z3.string().optional()
+    depositSchema = z5.object({
+      amount: z5.number().or(z5.string().transform(Number)),
+      method: z5.string().optional(),
+      note: z5.string().optional()
     });
     router4.post("/:id/payments", async (req, res, next) => {
       const data = depositSchema.parse(req.body);
@@ -4487,12 +4750,14 @@ __export(invoices_exports, {
   default: () => invoices_default
 });
 import { Router as Router5 } from "express";
-import { z as z4 } from "zod";
+import { z as z6 } from "zod";
 var router5, createInvoiceSchema, invoices_default;
 var init_invoices = __esm({
   "src/routes/invoices.ts"() {
     init_mysql();
     init_mailer();
+    init_security();
+    init_schemas();
     router5 = Router5();
     router5.get("/suggestions", async (req, res, next) => {
       try {
@@ -4680,11 +4945,7 @@ var init_invoices = __esm({
           payments: paymentsMap.get(inv.id) || []
         }));
         if (format === "csv") {
-          const escapeCsv = (val) => {
-            if (val === null || val === void 0) return '""';
-            const str = String(val).replace(/"/g, '""');
-            return `"${str}"`;
-          };
+          const escapeCsv = sanitizeCsvCell;
           const headers = [
             "Invoice Number",
             "Date",
@@ -5063,39 +5324,39 @@ var init_invoices = __esm({
         next(e);
       }
     });
-    createInvoiceSchema = z4.object({
-      customer_id: z4.number().nullable().optional(),
-      subtotal: z4.number().or(z4.string().transform(Number)),
-      tax_total: z4.number().or(z4.string().transform(Number)),
-      tax_rate: z4.number().or(z4.string().transform(Number)).optional(),
-      tax_type: z4.string().optional(),
-      discount_total: z4.number().or(z4.string().transform(Number)),
-      grand_total: z4.number().or(z4.string().transform(Number)),
-      items: z4.array(z4.object({
-        id: z4.number().optional(),
-        sku_id: z4.number().optional(),
-        device_id: z4.number().nullable().optional(),
-        quantity: z4.number().or(z4.string().transform(Number)),
-        price: z4.number().or(z4.string().transform(Number)),
-        cost: z4.number().or(z4.string().transform(Number)).optional(),
-        discount: z4.number().or(z4.string().transform(Number)).optional(),
-        discount_type: z4.string().optional().nullable(),
-        total: z4.number().or(z4.string().transform(Number)),
-        is_deposit: z4.boolean().optional(),
-        is_repair_payment: z4.boolean().optional(),
-        repair_job_id: z4.number().or(z4.string().transform(Number)).nullable().optional(),
-        notes: z4.string().optional().nullable()
+    createInvoiceSchema = z6.object({
+      customer_id: z6.number().nullable().optional(),
+      subtotal: z6.number().or(z6.string().transform(Number)),
+      tax_total: z6.number().or(z6.string().transform(Number)),
+      tax_rate: z6.number().or(z6.string().transform(Number)).optional(),
+      tax_type: z6.string().optional(),
+      discount_total: z6.number().or(z6.string().transform(Number)),
+      grand_total: z6.number().or(z6.string().transform(Number)),
+      items: z6.array(z6.object({
+        id: z6.number().optional(),
+        sku_id: z6.number().optional(),
+        device_id: z6.number().nullable().optional(),
+        quantity: z6.number().or(z6.string().transform(Number)),
+        price: z6.number().or(z6.string().transform(Number)),
+        cost: z6.number().or(z6.string().transform(Number)).optional(),
+        discount: z6.number().or(z6.string().transform(Number)).optional(),
+        discount_type: z6.string().optional().nullable(),
+        total: z6.number().or(z6.string().transform(Number)),
+        is_deposit: z6.boolean().optional(),
+        is_repair_payment: z6.boolean().optional(),
+        repair_job_id: z6.number().or(z6.string().transform(Number)).nullable().optional(),
+        notes: z6.string().optional().nullable()
       })).min(1, "Cart is empty"),
-      payments: z4.array(z4.object({
-        method: z4.string(),
-        amount: z4.number().or(z4.string().transform(Number)),
-        credit_note_id: z4.number().optional(),
-        credit_note_number: z4.string().optional()
+      payments: z6.array(z6.object({
+        method: z6.string(),
+        amount: z6.number().or(z6.string().transform(Number)),
+        credit_note_id: z6.number().optional(),
+        credit_note_number: z6.string().optional()
       })).optional(),
-      activities: z4.array(z4.object({
-        action: z4.string().optional(),
-        activity: z4.string().optional(),
-        details: z4.string().optional()
+      activities: z6.array(z6.object({
+        action: z6.string().optional(),
+        activity: z6.string().optional(),
+        details: z6.string().optional()
       })).optional()
     });
     router5.post("/", async (req, res, next) => {
@@ -5443,7 +5704,8 @@ var init_invoices = __esm({
       }
     });
     router5.post("/:id/refund", async (req, res, next) => {
-      const { method = "Cash", restock = true, items, is_full_refund, notes, customer_id } = req.body;
+      const parsedRefund = refundInvoiceSchema.safeParse(req.body);
+      const { method = "Cash", restock = true, items, is_full_refund, notes, customer_id } = parsedRefund.success ? parsedRefund.data : req.body;
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
@@ -5734,10 +5996,11 @@ var init_invoices = __esm({
     });
     router5.post("/:id/send-email", async (req, res, next) => {
       try {
-        const { email, subject, message } = req.body;
-        if (!email || !email.includes("@")) {
+        const parsedEmail = sendInvoiceEmailSchema.safeParse(req.body);
+        if (!parsedEmail.success) {
           return res.status(400).json({ error: "A valid email address is required" });
         }
+        const { email, subject, message } = parsedEmail.data;
         const isDeveloper = req.user.role === "developer";
         const branchId = req.user.branch_id;
         const invRows = await query(`
@@ -5855,7 +6118,7 @@ __export(reports_exports, {
   default: () => reports_default
 });
 import { Router as Router6 } from "express";
-import { z as z5 } from "zod";
+import { z as z7 } from "zod";
 var router6, endOfDaySchema, reports_default;
 var init_reports = __esm({
   "src/routes/reports.ts"() {
@@ -6306,21 +6569,21 @@ var init_reports = __esm({
         next(e);
       }
     });
-    endOfDaySchema = z5.object({
-      report_date: z5.string().optional(),
-      starting_balance: z5.number().or(z5.string().transform(Number)).optional(),
-      cash_counted: z5.number().or(z5.string().transform(Number)).optional(),
-      calculated_cash: z5.number().or(z5.string().transform(Number)).optional(),
-      difference: z5.number().or(z5.string().transform(Number)).optional(),
-      total_sales: z5.number().or(z5.string().transform(Number)).optional(),
-      total_deposits: z5.number().or(z5.string().transform(Number)).optional(),
-      total_cash_in_drawer: z5.number().or(z5.string().transform(Number)).optional(),
-      comments: z5.string().optional(),
-      payment_summaries: z5.array(z5.object({
-        payment_type: z5.string().optional(),
-        calculated: z5.number().or(z5.string().transform(Number)).optional(),
-        counted: z5.number().or(z5.string().transform(Number)).optional(),
-        difference: z5.number().or(z5.string().transform(Number)).optional()
+    endOfDaySchema = z7.object({
+      report_date: z7.string().optional(),
+      starting_balance: z7.number().or(z7.string().transform(Number)).optional(),
+      cash_counted: z7.number().or(z7.string().transform(Number)).optional(),
+      calculated_cash: z7.number().or(z7.string().transform(Number)).optional(),
+      difference: z7.number().or(z7.string().transform(Number)).optional(),
+      total_sales: z7.number().or(z7.string().transform(Number)).optional(),
+      total_deposits: z7.number().or(z7.string().transform(Number)).optional(),
+      total_cash_in_drawer: z7.number().or(z7.string().transform(Number)).optional(),
+      comments: z7.string().optional(),
+      payment_summaries: z7.array(z7.object({
+        payment_type: z7.string().optional(),
+        calculated: z7.number().or(z7.string().transform(Number)).optional(),
+        counted: z7.number().or(z7.string().transform(Number)).optional(),
+        difference: z7.number().or(z7.string().transform(Number)).optional()
       })).default([])
     });
     router6.post("/eod", async (req, res, next) => {
@@ -6672,7 +6935,7 @@ __export(settings_exports, {
   default: () => settings_default
 });
 import { Router as Router7 } from "express";
-import { z as z6 } from "zod";
+import { z as z8 } from "zod";
 async function ensureDefaultSpeedGridCategories(businessId) {
   const existing = await query("SELECT id FROM speed_grid_categories WHERE business_id=? ORDER BY sort_order ASC", [businessId]);
   if (existing.length === 0) {
@@ -6711,17 +6974,17 @@ var init_settings = __esm({
         next(e);
       }
     });
-    settingsSchema = z6.object({
-      currency: z6.string().optional(),
-      timezone: z6.string().optional(),
-      date_format: z6.string().optional(),
-      time_format: z6.string().optional(),
-      language: z6.string().optional(),
-      startup_cash_popup: z6.boolean().optional(),
-      low_stock_popup: z6.boolean().optional(),
-      announcements_popup: z6.boolean().optional(),
-      sound_notifications: z6.boolean().optional(),
-      daily_eod_popup: z6.boolean().optional()
+    settingsSchema = z8.object({
+      currency: z8.string().optional(),
+      timezone: z8.string().optional(),
+      date_format: z8.string().optional(),
+      time_format: z8.string().optional(),
+      language: z8.string().optional(),
+      startup_cash_popup: z8.boolean().optional(),
+      low_stock_popup: z8.boolean().optional(),
+      announcements_popup: z8.boolean().optional(),
+      sound_notifications: z8.boolean().optional(),
+      daily_eod_popup: z8.boolean().optional()
     });
     router7.post("/settings", async (req, res, next) => {
       const data = settingsSchema.parse(req.body);
@@ -6766,12 +7029,12 @@ var init_settings = __esm({
         next(e);
       }
     });
-    popupSettingsSchema = z6.object({
-      startup_cash_popup: z6.boolean().optional(),
-      low_stock_popup: z6.boolean().optional(),
-      announcements_popup: z6.boolean().optional(),
-      sound_notifications: z6.boolean().optional(),
-      daily_eod_popup: z6.boolean().optional()
+    popupSettingsSchema = z8.object({
+      startup_cash_popup: z8.boolean().optional(),
+      low_stock_popup: z8.boolean().optional(),
+      announcements_popup: z8.boolean().optional(),
+      sound_notifications: z8.boolean().optional(),
+      daily_eod_popup: z8.boolean().optional()
     });
     router7.post("/settings/popups", async (req, res, next) => {
       const data = popupSettingsSchema.parse(req.body);
@@ -6801,14 +7064,17 @@ var init_settings = __esm({
         next(e);
       }
     });
-    authSettingsSchema = z6.object({
-      allow_signup: z6.boolean().optional(),
-      allow_signin: z6.boolean().optional()
+    authSettingsSchema = z8.object({
+      allow_signup: z8.boolean().optional(),
+      allow_signin: z8.boolean().optional()
     });
     router7.post("/settings/auth", async (req, res, next) => {
-      const data = authSettingsSchema.parse(req.body);
-      const { allow_signup, allow_signin } = data;
       try {
+        if (!["admin", "superadmin", "developer"].includes(req.user?.role)) {
+          return res.status(403).json({ error: "Admin privileges required to modify authentication settings" });
+        }
+        const data = authSettingsSchema.parse(req.body);
+        const { allow_signup, allow_signin } = data;
         await execute(
           "UPDATE settings SET allow_signup=?,allow_signin=? WHERE business_id=?",
           [allow_signup ? 1 : 0, allow_signin ? 1 : 0, req.user.business_id]
@@ -6847,17 +7113,17 @@ var init_settings = __esm({
         next(e);
       }
     });
-    companySchema = z6.object({
-      name: z6.string().optional(),
-      email: z6.string().optional(),
-      phone: z6.string().optional(),
-      subdomain: z6.string().optional(),
-      address: z6.string().optional(),
-      city: z6.string().optional(),
-      state: z6.string().optional(),
-      zip_code: z6.string().optional(),
-      country: z6.string().optional(),
-      vat_number: z6.string().optional()
+    companySchema = z8.object({
+      name: z8.string().optional(),
+      email: z8.string().optional(),
+      phone: z8.string().optional(),
+      subdomain: z8.string().optional(),
+      address: z8.string().optional(),
+      city: z8.string().optional(),
+      state: z8.string().optional(),
+      zip_code: z8.string().optional(),
+      country: z8.string().optional(),
+      vat_number: z8.string().optional()
     });
     router7.post("/company", async (req, res, next) => {
       const data = companySchema.parse(req.body);
@@ -6902,10 +7168,10 @@ var init_settings = __esm({
         next(e);
       }
     });
-    paymentMethodsSchema = z6.object({
-      methods: z6.array(z6.object({
-        id: z6.number().optional(),
-        name: z6.string()
+    paymentMethodsSchema = z8.object({
+      methods: z8.array(z8.object({
+        id: z8.number().optional(),
+        name: z8.string()
       })).default([])
     });
     router7.post("/payment-methods", async (req, res, next) => {
@@ -6960,16 +7226,16 @@ var init_settings = __esm({
         next(e);
       }
     });
-    printerSettingsSchema = z6.object({
-      label_size: z6.string().optional(),
-      barcode_length: z6.number().or(z6.string().transform(Number)).optional(),
-      margin_top: z6.number().or(z6.string().transform(Number)).optional(),
-      margin_left: z6.number().or(z6.string().transform(Number)).optional(),
-      margin_bottom: z6.number().or(z6.string().transform(Number)).optional(),
-      margin_right: z6.number().or(z6.string().transform(Number)).optional(),
-      orientation: z6.string().optional(),
-      font_size: z6.string().optional(),
-      font_family: z6.string().optional()
+    printerSettingsSchema = z8.object({
+      label_size: z8.string().optional(),
+      barcode_length: z8.number().or(z8.string().transform(Number)).optional(),
+      margin_top: z8.number().or(z8.string().transform(Number)).optional(),
+      margin_left: z8.number().or(z8.string().transform(Number)).optional(),
+      margin_bottom: z8.number().or(z8.string().transform(Number)).optional(),
+      margin_right: z8.number().or(z8.string().transform(Number)).optional(),
+      orientation: z8.string().optional(),
+      font_size: z8.string().optional(),
+      font_family: z8.string().optional()
     });
     router7.post("/printer-settings", async (req, res, next) => {
       const branchId = req.user?.branch_id ?? null;
@@ -7027,30 +7293,30 @@ var init_settings = __esm({
         next(e);
       }
     });
-    thermalPrinterSettingsSchema = z6.object({
-      font_family: z6.string().optional(),
-      font_size: z6.string().optional(),
-      show_logo: z6.boolean().optional(),
-      show_business_name: z6.boolean().optional(),
-      show_business_address: z6.boolean().optional(),
-      show_business_phone: z6.boolean().optional(),
-      show_business_email: z6.boolean().optional(),
-      show_customer_info: z6.boolean().optional(),
-      show_invoice_number: z6.boolean().optional(),
-      show_date: z6.boolean().optional(),
-      show_items_table: z6.boolean().optional(),
-      show_totals: z6.boolean().optional(),
-      show_footer: z6.boolean().optional(),
-      show_powered_by: z6.boolean().optional(),
-      show_vat_number: z6.boolean().optional(),
-      eod_show_cash_summary: z6.boolean().optional(),
-      eod_show_payment_type: z6.boolean().optional(),
-      eod_show_total_cash: z6.boolean().optional(),
-      eod_show_total_card_sale: z6.boolean().optional(),
-      eod_show_total: z6.boolean().optional(),
-      eod_footer_type: z6.string().optional(),
-      eod_footer_custom_text: z6.string().optional(),
-      footer_text: z6.string().optional()
+    thermalPrinterSettingsSchema = z8.object({
+      font_family: z8.string().optional(),
+      font_size: z8.string().optional(),
+      show_logo: z8.boolean().optional(),
+      show_business_name: z8.boolean().optional(),
+      show_business_address: z8.boolean().optional(),
+      show_business_phone: z8.boolean().optional(),
+      show_business_email: z8.boolean().optional(),
+      show_customer_info: z8.boolean().optional(),
+      show_invoice_number: z8.boolean().optional(),
+      show_date: z8.boolean().optional(),
+      show_items_table: z8.boolean().optional(),
+      show_totals: z8.boolean().optional(),
+      show_footer: z8.boolean().optional(),
+      show_powered_by: z8.boolean().optional(),
+      show_vat_number: z8.boolean().optional(),
+      eod_show_cash_summary: z8.boolean().optional(),
+      eod_show_payment_type: z8.boolean().optional(),
+      eod_show_total_cash: z8.boolean().optional(),
+      eod_show_total_card_sale: z8.boolean().optional(),
+      eod_show_total: z8.boolean().optional(),
+      eod_footer_type: z8.string().optional(),
+      eod_footer_custom_text: z8.string().optional(),
+      footer_text: z8.string().optional()
     });
     router7.post("/thermal-printer-settings", async (req, res, next) => {
       const branchId = req.user?.branch_id ?? null;
@@ -7172,8 +7438,8 @@ var init_settings = __esm({
         next(e);
       }
     });
-    categoryManufacturerSchema = z6.object({
-      name: z6.string().min(1, "Name is required")
+    categoryManufacturerSchema = z8.object({
+      name: z8.string().min(1, "Name is required")
     });
     router7.post("/categories", async (req, res, next) => {
       const data = categoryManufacturerSchema.parse(req.body);
@@ -7206,18 +7472,15 @@ var init_settings = __esm({
       try {
         res.json(await query("SELECT * FROM suppliers WHERE business_id=?", [req.user.business_id]));
       } catch (e) {
-        __require("fs").appendFileSync("debug.log", `GET /suppliers error: ${e.message}
-${e.stack}
-`);
         console.error("GET /suppliers error:", e);
         next(e);
       }
     });
-    supplierSchema = z6.object({
-      name: z6.string().min(1, "Name is required"),
-      phone: z6.string().optional(),
-      email: z6.string().optional(),
-      contact_person: z6.string().optional()
+    supplierSchema = z8.object({
+      name: z8.string().min(1, "Name is required"),
+      phone: z8.string().optional(),
+      email: z8.string().optional(),
+      contact_person: z8.string().optional()
     });
     router7.post("/suppliers", async (req, res, next) => {
       const data = supplierSchema.parse(req.body);
@@ -7454,7 +7717,7 @@ __export(inventory_exports, {
   default: () => inventory_default
 });
 import { Router as Router8 } from "express";
-import { z as z7 } from "zod";
+import { z as z9 } from "zod";
 async function dispatchSingleTransferItem(conn, item, sourceBusinessId, sourceBranchId, toBranchId, userId, defaultNotes) {
   const {
     device_id: rawDeviceId,
@@ -7623,20 +7886,21 @@ var router8, addInventorySchema, batchAddDevicesSchema, updateDeviceSchema, devi
 var init_inventory = __esm({
   "src/routes/inventory.ts"() {
     init_mysql();
+    init_security();
     router8 = Router8();
-    addInventorySchema = z7.object({
-      sku_id: z7.number().or(z7.string().transform(Number)),
-      branch_id: z7.number().or(z7.string().transform(Number)).optional(),
-      quantity: z7.number().or(z7.string().transform(Number)).optional(),
-      cost_price: z7.number().or(z7.string().transform(Number)).optional(),
-      selling_price: z7.number().or(z7.string().transform(Number)).optional(),
-      supplier_id: z7.number().or(z7.string().transform(Number)),
-      po_number: z7.string().optional(),
-      items: z7.array(z7.object({
-        imei: z7.string().optional(),
-        color: z7.string().optional(),
-        gb: z7.string().optional(),
-        condition: z7.string().optional()
+    addInventorySchema = z9.object({
+      sku_id: z9.number().or(z9.string().transform(Number)),
+      branch_id: z9.number().or(z9.string().transform(Number)).optional(),
+      quantity: z9.number().or(z9.string().transform(Number)).optional(),
+      cost_price: z9.number().or(z9.string().transform(Number)).optional(),
+      selling_price: z9.number().or(z9.string().transform(Number)).optional(),
+      supplier_id: z9.number().or(z9.string().transform(Number)),
+      po_number: z9.string().optional(),
+      items: z9.array(z9.object({
+        imei: z9.string().optional(),
+        color: z9.string().optional(),
+        gb: z9.string().optional(),
+        condition: z9.string().optional()
       })).optional()
     });
     router8.post("/add", async (req, res, next) => {
@@ -7774,18 +8038,18 @@ var init_inventory = __esm({
         conn.release();
       }
     });
-    batchAddDevicesSchema = z7.object({
-      branch_id: z7.number().or(z7.string().transform(Number)).optional(),
-      supplier_id: z7.number().or(z7.string().transform(Number)),
-      po_number: z7.string().optional(),
-      items: z7.array(z7.object({
-        sku_id: z7.number().or(z7.string().transform(Number)),
-        imei: z7.string().min(1, "IMEI/Serial is required"),
-        cost_price: z7.number().or(z7.string().transform(Number)).optional(),
-        selling_price: z7.number().or(z7.string().transform(Number)).optional(),
-        color: z7.string().optional(),
-        gb: z7.string().optional(),
-        condition: z7.string().optional()
+    batchAddDevicesSchema = z9.object({
+      branch_id: z9.number().or(z9.string().transform(Number)).optional(),
+      supplier_id: z9.number().or(z9.string().transform(Number)),
+      po_number: z9.string().optional(),
+      items: z9.array(z9.object({
+        sku_id: z9.number().or(z9.string().transform(Number)),
+        imei: z9.string().min(1, "IMEI/Serial is required"),
+        cost_price: z9.number().or(z9.string().transform(Number)).optional(),
+        selling_price: z9.number().or(z9.string().transform(Number)).optional(),
+        color: z9.string().optional(),
+        gb: z9.string().optional(),
+        condition: z9.string().optional()
       })).min(1, "At least one device is required")
     });
     router8.post("/batch-add-devices", async (req, res, next) => {
@@ -8060,11 +8324,7 @@ var init_inventory = __esm({
         }
         sql += " ORDER BY d.created_at DESC";
         const rows = await query(sql, params);
-        const escapeCsv = (str) => {
-          if (str === null || str === void 0) return '""';
-          const s = String(str).trim();
-          return `"${s.replace(/"/g, '""')}"`;
-        };
+        const escapeCsv = sanitizeCsvCell;
         let csvContent = `"Serial Number / IMEI","Product Name","Category","Brand / Manufacturer","Storage","Color","Condition","Cost Price","Selling Price","Stock Status","IMEI Status","Carrier / Lock","Created Date"
 `;
         for (const row of rows) {
@@ -8335,17 +8595,17 @@ var init_inventory = __esm({
         next(e);
       }
     });
-    updateDeviceSchema = z7.object({
-      sku_id: z7.union([z7.number(), z7.string()]).nullable().optional().transform((v) => v === null || v === void 0 || v === "" ? void 0 : Number(v)),
-      color: z7.string().nullable().optional(),
-      gb: z7.union([z7.string(), z7.number()]).nullable().optional().transform((v) => v === null || v === void 0 ? v : String(v)),
-      ram: z7.union([z7.string(), z7.number()]).nullable().optional().transform((v) => v === null || v === void 0 ? v : String(v)),
-      condition: z7.string().nullable().optional(),
-      cost_price: z7.union([z7.number(), z7.string()]).nullable().optional().transform((v) => v === null || v === void 0 || v === "" ? null : Number(v)),
-      selling_price: z7.union([z7.number(), z7.string()]).nullable().optional().transform((v) => v === null || v === void 0 || v === "" ? null : Number(v)),
-      unlocked: z7.union([z7.string(), z7.boolean(), z7.number()]).nullable().optional().transform((v) => v === null || v === void 0 ? v : String(v)),
-      imei_status: z7.string().nullable().optional(),
-      carrier: z7.string().nullable().optional()
+    updateDeviceSchema = z9.object({
+      sku_id: z9.union([z9.number(), z9.string()]).nullable().optional().transform((v) => v === null || v === void 0 || v === "" ? void 0 : Number(v)),
+      color: z9.string().nullable().optional(),
+      gb: z9.union([z9.string(), z9.number()]).nullable().optional().transform((v) => v === null || v === void 0 ? v : String(v)),
+      ram: z9.union([z9.string(), z9.number()]).nullable().optional().transform((v) => v === null || v === void 0 ? v : String(v)),
+      condition: z9.string().nullable().optional(),
+      cost_price: z9.union([z9.number(), z9.string()]).nullable().optional().transform((v) => v === null || v === void 0 || v === "" ? null : Number(v)),
+      selling_price: z9.union([z9.number(), z9.string()]).nullable().optional().transform((v) => v === null || v === void 0 || v === "" ? null : Number(v)),
+      unlocked: z9.union([z9.string(), z9.boolean(), z9.number()]).nullable().optional().transform((v) => v === null || v === void 0 ? v : String(v)),
+      imei_status: z9.string().nullable().optional(),
+      carrier: z9.string().nullable().optional()
     });
     router8.put("/devices/:id", async (req, res, next) => {
       const conn = await pool.getConnection();
@@ -8509,9 +8769,9 @@ var init_inventory = __esm({
         next(e);
       }
     });
-    deviceActivitySchema = z7.object({
-      activity: z7.string().optional(),
-      details: z7.string().optional()
+    deviceActivitySchema = z9.object({
+      activity: z9.string().optional(),
+      details: z9.string().optional()
     });
     router8.post("/devices/:id/activity", async (req, res, next) => {
       const data = deviceActivitySchema.parse(req.body);
@@ -8647,24 +8907,24 @@ var init_inventory = __esm({
         next(e);
       }
     });
-    transferItemSchema = z7.object({
-      device_id: z7.number().or(z7.string().transform(Number)).optional().nullable(),
-      sku_id: z7.number().or(z7.string().transform(Number)).optional().nullable(),
-      product_name: z7.string().optional().nullable(),
-      sku_code: z7.string().optional().nullable(),
-      imei: z7.string().optional().nullable(),
-      serial_number: z7.string().optional().nullable(),
-      quantity: z7.number().or(z7.string().transform(Number)).optional().default(1),
-      cost_price: z7.number().or(z7.string().transform(Number)).optional().nullable(),
-      selling_price: z7.number().or(z7.string().transform(Number)).optional().nullable(),
-      color: z7.string().optional().nullable(),
-      gb: z7.string().optional().nullable(),
-      condition: z7.string().optional().nullable(),
-      notes: z7.string().optional().nullable()
+    transferItemSchema = z9.object({
+      device_id: z9.number().or(z9.string().transform(Number)).optional().nullable(),
+      sku_id: z9.number().or(z9.string().transform(Number)).optional().nullable(),
+      product_name: z9.string().optional().nullable(),
+      sku_code: z9.string().optional().nullable(),
+      imei: z9.string().optional().nullable(),
+      serial_number: z9.string().optional().nullable(),
+      quantity: z9.number().or(z9.string().transform(Number)).optional().default(1),
+      cost_price: z9.number().or(z9.string().transform(Number)).optional().nullable(),
+      selling_price: z9.number().or(z9.string().transform(Number)).optional().nullable(),
+      color: z9.string().optional().nullable(),
+      gb: z9.string().optional().nullable(),
+      condition: z9.string().optional().nullable(),
+      notes: z9.string().optional().nullable()
     });
     transferSchema = transferItemSchema.extend({
-      to_branch_id: z7.number().or(z7.string().transform(Number)),
-      items: z7.array(transferItemSchema).optional()
+      to_branch_id: z9.number().or(z9.string().transform(Number)),
+      items: z9.array(transferItemSchema).optional()
     });
     router8.get("/transfers/search-items", async (req, res, next) => {
       const q = String(req.query.q || "").trim();
@@ -9270,20 +9530,20 @@ var init_inventory = __esm({
         next(e);
       }
     });
-    createRepairSchema = z7.object({
-      customer_id: z7.number().nullable().optional(),
-      customer_name: z7.string().optional(),
-      first_name: z7.string().optional(),
-      last_name: z7.string().optional(),
-      phone: z7.string().optional(),
-      email: z7.string().optional().nullable(),
-      device_model: z7.string().optional(),
-      issue: z7.string().optional(),
-      status: z7.string().optional(),
-      total_quote: z7.number().or(z7.string().transform(Number)).optional(),
-      deposit_paid: z7.number().or(z7.string().transform(Number)).optional(),
-      remaining_balance: z7.number().or(z7.string().transform(Number)).optional(),
-      payment_method: z7.string().optional()
+    createRepairSchema = z9.object({
+      customer_id: z9.number().nullable().optional(),
+      customer_name: z9.string().optional(),
+      first_name: z9.string().optional(),
+      last_name: z9.string().optional(),
+      phone: z9.string().optional(),
+      email: z9.string().optional().nullable(),
+      device_model: z9.string().optional(),
+      issue: z9.string().optional(),
+      status: z9.string().optional(),
+      total_quote: z9.number().or(z9.string().transform(Number)).optional(),
+      deposit_paid: z9.number().or(z9.string().transform(Number)).optional(),
+      remaining_balance: z9.number().or(z9.string().transform(Number)).optional(),
+      payment_method: z9.string().optional()
     });
     router8.post("/repairs", async (req, res, next) => {
       const conn = await pool.getConnection();
@@ -9360,15 +9620,15 @@ var init_inventory = __esm({
         conn.release();
       }
     });
-    updateRepairSchema = z7.object({
-      status: z7.string().optional(),
-      device_model: z7.string().optional(),
-      issue: z7.string().optional(),
-      notes: z7.string().optional(),
-      total_quote: z7.number().or(z7.string().transform(Number)).optional(),
-      customer_name: z7.string().optional(),
-      customer_phone: z7.string().optional().nullable(),
-      customer_email: z7.string().optional().nullable()
+    updateRepairSchema = z9.object({
+      status: z9.string().optional(),
+      device_model: z9.string().optional(),
+      issue: z9.string().optional(),
+      notes: z9.string().optional(),
+      total_quote: z9.number().or(z9.string().transform(Number)).optional(),
+      customer_name: z9.string().optional(),
+      customer_phone: z9.string().optional().nullable(),
+      customer_email: z9.string().optional().nullable()
     });
     router8.put("/repairs/:id", async (req, res, next) => {
       const data = updateRepairSchema.parse(req.body);
@@ -9527,16 +9787,147 @@ var init_inventory = __esm({
 });
 
 // server.ts
+init_env();
 init_mysql();
 init_auth();
+init_security();
 import express from "express";
-import dotenv2 from "dotenv";
+import dotenv3 from "dotenv";
 import fs from "fs";
 import { ZodError } from "zod";
-dotenv2.config();
+
+// src/controllers/productImportController.ts
+init_schemas();
+
+// src/repositories/baseRepository.ts
+init_mysql();
+async function withTransaction(work) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const result = await work(conn);
+    await conn.commit();
+    return result;
+  } catch (err) {
+    try {
+      await conn.rollback();
+    } catch {
+    }
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+// src/services/productImportService.ts
+async function importProductsBatch(businessId, branchId, products) {
+  const effectiveBranchId = branchId || 1;
+  await withTransaction(async (conn) => {
+    for (const p of products) {
+      let categoryId = null;
+      if (p.category_name) {
+        const [cr] = await conn.execute(
+          "SELECT id FROM categories WHERE business_id=? AND name=?",
+          [businessId, p.category_name]
+        );
+        if (cr.length > 0) {
+          categoryId = cr[0].id;
+        } else {
+          const [ins] = await conn.execute(
+            "INSERT INTO categories (business_id,name) VALUES (?,?)",
+            [businessId, p.category_name]
+          );
+          categoryId = ins.insertId;
+        }
+      }
+      let manufacturerId = null;
+      if (p.manufacturer_name) {
+        const [mr] = await conn.execute(
+          "SELECT id FROM manufacturers WHERE business_id=? AND name=?",
+          [businessId, p.manufacturer_name]
+        );
+        if (mr.length > 0) {
+          manufacturerId = mr[0].id;
+        } else {
+          const [ins] = await conn.execute(
+            "INSERT INTO manufacturers (business_id,name) VALUES (?,?)",
+            [businessId, p.manufacturer_name]
+          );
+          manufacturerId = ins.insertId;
+        }
+      }
+      let productType = "stock";
+      if (p.product_type === "Mobile Devices") productType = "serialized";
+      else if (p.product_type === "Labor/Services") productType = "service";
+      const allowOverselling = p.allow_overselling === "Yes" || p.allow_overselling === true || p.allow_overselling === 1 ? 1 : 0;
+      const [pr] = await conn.execute(
+        "SELECT id FROM products WHERE business_id=? AND name=?",
+        [businessId, p.product_name]
+      );
+      let productId;
+      if (pr.length > 0) {
+        productId = pr[0].id;
+        await conn.execute(
+          "UPDATE products SET category_id=?,manufacturer_id=?,product_type=?,allow_overselling=? WHERE id=?",
+          [categoryId, manufacturerId, productType, allowOverselling, productId]
+        );
+      } else {
+        const [ins] = await conn.execute(
+          "INSERT INTO products (business_id,category_id,manufacturer_id,name,product_type,allow_overselling) VALUES (?,?,?,?,?,?)",
+          [businessId, categoryId, manufacturerId, p.product_name, productType, allowOverselling]
+        );
+        productId = ins.insertId;
+      }
+      const costPrice = parseFloat(String(p.cost_price)) || 0;
+      const sellingPrice = parseFloat(String(p.selling_price)) || 0;
+      const [sr] = await conn.execute(
+        "SELECT id FROM product_skus WHERE product_id=? AND sku_code=?",
+        [productId, p.sku]
+      );
+      let skuId;
+      if (sr.length > 0) {
+        skuId = sr[0].id;
+        await conn.execute(
+          "UPDATE product_skus SET cost_price=?,selling_price=? WHERE id=?",
+          [costPrice, sellingPrice, skuId]
+        );
+      } else {
+        const [ins] = await conn.execute(
+          "INSERT INTO product_skus (product_id,sku_code,cost_price,selling_price) VALUES (?,?,?,?)",
+          [productId, p.sku, costPrice, sellingPrice]
+        );
+        skuId = ins.insertId;
+      }
+      const quantity = parseInt(String(p.current_inventory), 10) || 0;
+      await conn.execute(
+        "INSERT INTO branch_stock (sku_id,branch_id,quantity) VALUES (?,?,?) ON DUPLICATE KEY UPDATE quantity=VALUES(quantity)",
+        [skuId, effectiveBranchId, quantity]
+      );
+    }
+  });
+}
+
+// src/controllers/productImportController.ts
+async function handleImportProducts(req, res, next) {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const { products } = importProductsPayloadSchema.parse(req.body);
+    await importProductsBatch(req.user.business_id, req.user.branch_id, products);
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// server.ts
+dotenv3.config();
 function logError(message, error) {
-  const entry = `[${(/* @__PURE__ */ new Date()).toISOString()}] ${message}: ${error?.message || error}
-${error?.stack || ""}
+  const errObj = error instanceof Error ? error : new Error(String(error));
+  const entry = `[${(/* @__PURE__ */ new Date()).toISOString()}] ${message}: ${errObj.message}
+${errObj.stack || ""}
 
 `;
   try {
@@ -9558,11 +9949,13 @@ async function startServer() {
     await seedData();
     await ensureSuperAdmin();
   } catch (err) {
-    console.error("[MySQL] Failed to initialise on startup:", err.message);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[MySQL] Failed to initialise on startup:", msg);
     logError("MySQL init failed on startup", err);
   }
   const app = express();
-  const PORT = Number(process.env.PORT) || 3e3;
+  const PORT = env.PORT;
+  app.use(securityHeadersMiddleware);
   app.use(express.json({ limit: "10mb" }));
   const { default: authRouter, adminRouter: adminRouter2 } = await Promise.resolve().then(() => (init_auth(), auth_exports));
   const { default: publicRouter } = await Promise.resolve().then(() => (init_public(), public_exports));
@@ -9583,11 +9976,12 @@ async function startServer() {
         timestamp: (/* @__PURE__ */ new Date()).toISOString()
       });
     } catch (err) {
+      const errObj = err;
       res.status(500).json({
         status: "error",
         database: "disconnected",
-        error: err?.message,
-        code: err?.code,
+        error: env.NODE_ENV === "production" ? "Database unavailable" : errObj?.message,
+        code: errObj?.code,
         timestamp: (/* @__PURE__ */ new Date()).toISOString()
       });
     }
@@ -9603,90 +9997,15 @@ async function startServer() {
   app.use("/api/inventory", inventoryRouter);
   app.use("/api", settingsRouter);
   app.use("/api", inventoryRouter);
-  app.post("/api/import-products", requireAuthAsync, async (req, res, next) => {
-    const { products } = req.body;
-    const businessId = req.user.business_id;
-    const { pool: pool2 } = await Promise.resolve().then(() => (init_mysql(), mysql_exports));
-    const conn = await pool2.getConnection();
-    try {
-      await conn.beginTransaction();
-      for (const p of products) {
-        let categoryId = null;
-        if (p.category_name) {
-          const [cr] = await conn.execute("SELECT id FROM categories WHERE business_id=? AND name=?", [businessId, p.category_name]);
-          if (cr.length) {
-            categoryId = cr[0].id;
-          } else {
-            const [ins] = await conn.execute("INSERT INTO categories (business_id,name) VALUES (?,?)", [businessId, p.category_name]);
-            categoryId = ins.insertId;
-          }
-        }
-        let manufacturerId = null;
-        if (p.manufacturer_name) {
-          const [mr] = await conn.execute("SELECT id FROM manufacturers WHERE business_id=? AND name=?", [businessId, p.manufacturer_name]);
-          if (mr.length) {
-            manufacturerId = mr[0].id;
-          } else {
-            const [ins] = await conn.execute("INSERT INTO manufacturers (business_id,name) VALUES (?,?)", [businessId, p.manufacturer_name]);
-            manufacturerId = ins.insertId;
-          }
-        }
-        let productType = "stock";
-        if (p.product_type === "Mobile Devices") productType = "serialized";
-        else if (p.product_type === "Labor/Services") productType = "service";
-        const [pr] = await conn.execute("SELECT id FROM products WHERE business_id=? AND name=?", [businessId, p.product_name]);
-        let productId;
-        if (pr.length) {
-          productId = pr[0].id;
-          await conn.execute(
-            "UPDATE products SET category_id=?,manufacturer_id=?,product_type=?,allow_overselling=? WHERE id=?",
-            [categoryId, manufacturerId, productType, p.allow_overselling === "Yes" ? 1 : 0, productId]
-          );
-        } else {
-          const [ins] = await conn.execute(
-            "INSERT INTO products (business_id,category_id,manufacturer_id,name,product_type,allow_overselling) VALUES (?,?,?,?,?,?)",
-            [businessId, categoryId, manufacturerId, p.product_name, productType, p.allow_overselling === "Yes" ? 1 : 0]
-          );
-          productId = ins.insertId;
-        }
-        const [sr] = await conn.execute("SELECT id FROM product_skus WHERE product_id=? AND sku_code=?", [productId, p.sku]);
-        let skuId;
-        if (sr.length) {
-          skuId = sr[0].id;
-          await conn.execute(
-            "UPDATE product_skus SET cost_price=?,selling_price=? WHERE id=?",
-            [parseFloat(p.cost_price) || 0, parseFloat(p.selling_price) || 0, skuId]
-          );
-        } else {
-          const [ins] = await conn.execute(
-            "INSERT INTO product_skus (product_id,sku_code,cost_price,selling_price) VALUES (?,?,?,?)",
-            [productId, p.sku, parseFloat(p.cost_price) || 0, parseFloat(p.selling_price) || 0]
-          );
-          skuId = ins.insertId;
-        }
-        const quantity = parseInt(p.current_inventory) || 0;
-        await conn.execute(
-          "INSERT INTO branch_stock (sku_id,branch_id,quantity) VALUES (?,?,?) ON DUPLICATE KEY UPDATE quantity=VALUES(quantity)",
-          [skuId, req.user.branch_id, quantity]
-        );
-      }
-      await conn.commit();
-      res.json({ success: true });
-    } catch (e) {
-      await conn.rollback();
-      next(e);
-    } finally {
-      conn.release();
-    }
-  });
-  const path2 = await import("path");
+  app.post("/api/import-products", requireAuthAsync, handleImportProducts);
+  const path3 = await import("path");
   const { fileURLToPath } = await import("url");
-  const __dirname = path2.dirname(fileURLToPath(import.meta.url));
-  const distDir = path2.join(__dirname, "dist");
-  const distIndex = path2.join(distDir, "index.html");
-  if (fs.existsSync(distIndex) || process.env.NODE_ENV === "production") {
+  const __dirname = path3.dirname(fileURLToPath(import.meta.url));
+  const distDir = path3.join(__dirname, "dist");
+  const distIndex = path3.join(distDir, "index.html");
+  if (fs.existsSync(distIndex) || env.NODE_ENV === "production") {
     app.use(express.static(distDir));
-    app.get("*", (req, res) => {
+    app.get("*", (_req, res) => {
       res.sendFile(distIndex);
     });
   } else {
@@ -9698,24 +10017,30 @@ async function startServer() {
       });
       app.use(vite.middlewares);
     } catch (viteErr) {
-      console.warn("[Vite] Dev middleware not available, falling back to static files:", viteErr?.message);
+      const msg = viteErr instanceof Error ? viteErr.message : String(viteErr);
+      console.warn("[Vite] Dev middleware not available, falling back to static files:", msg);
       app.use(express.static(distDir));
-      app.get("*", (req, res) => {
+      app.get("*", (_req, res) => {
         res.sendFile(distIndex);
       });
     }
   }
-  app.use((err, req, res, next) => {
+  app.use((err, _req, res, _next) => {
     if (err instanceof ZodError || err?.name === "ZodError") {
-      return res.status(400).json({ error: "Validation Error", details: err.errors || err.issues });
+      return res.status(400).json({
+        error: "Validation Error",
+        details: err.errors || err.issues
+      });
     }
     logError("Unhandled API Error", err);
     console.error("[Global Error Handler]", err);
-    const isDbError = err?.code && (typeof err.code === "string" && (err.code.startsWith("ER_") || ["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "PROTOCOL_CONNECTION_LOST"].includes(err.code)));
+    const isDbError = Boolean(
+      err?.code && typeof err.code === "string" && (err.code.startsWith("ER_") || ["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "PROTOCOL_CONNECTION_LOST"].includes(err.code))
+    );
+    const safeMessage = isDbError ? "Database operation failed" : err?.message || "Internal Server Error";
     res.status(500).json({
-      error: isDbError ? "Database Connection Error" : err?.message || "Internal Server Error",
-      details: err?.message,
-      code: err?.code
+      error: safeMessage,
+      ...env.NODE_ENV !== "production" ? { details: err?.message, code: err?.code } : {}
     });
   });
   app.listen(PORT, "0.0.0.0", () => {
@@ -9731,7 +10056,7 @@ startServer().catch((err) => {
     fallbackApp.get("*", (_req, res) => {
       res.status(503).json({
         error: "Application starting or database unavailable",
-        details: err?.message || String(err)
+        details: err instanceof Error ? err.message : String(err)
       });
     });
     fallbackApp.listen(fallbackPort, "0.0.0.0", () => {
