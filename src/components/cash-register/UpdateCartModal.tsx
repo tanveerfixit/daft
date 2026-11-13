@@ -90,6 +90,12 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
     }
   };
 
+  const handleStepPrice = (delta: number) => {
+    const curr = parseFloat(unitPrice) || 0;
+    const nextVal = Math.max(0, Math.round((curr + delta) * 100) / 100);
+    setUnitPrice(nextVal.toFixed(2));
+  };
+
   const handleStepQuantity = (delta: number) => {
     if (item.product_type === 'serialized') return;
     const curr = parseInt(quantity) || 1;
@@ -139,24 +145,43 @@ export const UpdateCartModal: React.FC<UpdateCartModalProps> = ({
               <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider mb-1 block">
                 Unit Price (€)
               </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono font-bold text-sm text-neutral-500">€</span>
-                <input 
-                  ref={priceInputRef}
-                  type="text"
-                  inputMode="decimal"
-                  value={unitPrice}
-                  onChange={(e) => setUnitPrice(e.target.value.replace(/[^0-9.]/g, ''))}
-                  onFocus={(e) => e.target.select()}
-                  onBlur={() => {
-                    const parsed = parseFloat(unitPrice);
-                    if (!isNaN(parsed) && unitPrice !== '') {
-                      setUnitPrice(parsed.toFixed(2));
-                    }
-                  }}
-                  className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 pl-8 pr-3 py-2 text-sm font-mono font-bold text-neutral-900 dark:text-neutral-100 outline-none focus:border-blue-500 rounded-none"
-                  placeholder="0.00"
-                />
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleStepPrice(-5)}
+                  disabled={(parseFloat(unitPrice) || 0) <= 0}
+                  title="Subtract €5"
+                  className="w-9 h-9 flex items-center justify-center rounded-none border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                >
+                  <Minus size={14} />
+                </button>
+                <div className="relative flex-1 min-w-0">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-mono font-bold text-sm text-neutral-500">€</span>
+                  <input 
+                    ref={priceInputRef}
+                    type="text"
+                    inputMode="decimal"
+                    value={unitPrice}
+                    onChange={(e) => setUnitPrice(e.target.value.replace(/[^0-9.]/g, ''))}
+                    onFocus={(e) => e.target.select()}
+                    onBlur={() => {
+                      const parsed = parseFloat(unitPrice);
+                      if (!isNaN(parsed) && unitPrice !== '') {
+                        setUnitPrice(parsed.toFixed(2));
+                      }
+                    }}
+                    className="w-full bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 pl-6 pr-2 py-2 text-sm font-mono font-bold text-neutral-900 dark:text-neutral-100 outline-none focus:border-blue-500 rounded-none"
+                    placeholder="0.00"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleStepPrice(5)}
+                  title="Add €5"
+                  className="w-9 h-9 flex items-center justify-center rounded-none border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 cursor-pointer shrink-0"
+                >
+                  <Plus size={14} />
+                </button>
               </div>
             </div>
 
