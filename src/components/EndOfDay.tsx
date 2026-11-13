@@ -723,14 +723,30 @@ const EndOfDayListModal: React.FC<EndOfDayListModalProps> = ({ currentDate, onCl
   const [selectedDayStr, setSelectedDayStr] = useState(initialDateStr);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
     fetch('/api/reports/eod-list')
       .then(res => res.json())
       .then(data => {
-        setReports(Array.isArray(data) ? data : []);
+        if (Array.isArray(data)) {
+          const seenDates = new Set<string>();
+          const uniqueReports = data.filter(r => {
+            const dStr = String(r.report_date || '').substring(0, 10);
+            if (!dStr || seenDates.has(dStr)) return false;
+            seenDates.add(dStr);
+            return true;
+          });
+          setReports(uniqueReports);
+        } else {
+          setReports([]);
+        }
       })
       .catch(err => console.error('Failed to fetch EOD list:', err))
       .finally(() => setLoading(false));
-  }, []);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -740,11 +756,11 @@ const EndOfDayListModal: React.FC<EndOfDayListModalProps> = ({ currentDate, onCl
   const todayStr = getTodayString();
   const yesterdayStr = getYesterdayString();
 
-  // Create a map of dates that have saved reports
+  // Create a map of dates that have saved reports (preserving latest per date)
   const reportDatesMap = new Map<string, any>();
   reports.forEach(r => {
     const dStr = String(r.report_date || '').substring(0, 10);
-    if (dStr) reportDatesMap.set(dStr, r);
+    if (dStr && !reportDatesMap.has(dStr)) reportDatesMap.set(dStr, r);
   });
 
   const handlePrevMonth = () => {
@@ -855,101 +871,103 @@ const EndOfDayListModal: React.FC<EndOfDayListModalProps> = ({ currentDate, onCl
   const selectedReport = reportDatesMap.get(selectedDayStr);
 
   return (
-    <div className="no-print fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50">
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-3xl w-full p-4 sm:p-6 space-y-4 text-slate-800 dark:text-slate-100 max-h-[92vh] flex flex-col">
+    <div
+      className="no-print fixed inset-0 bg-slate-900/60 flex items-center justify-center p-1.5 sm:p-3 z-50"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-slate-900 rounded-sm shadow-xl border border-slate-200 dark:border-slate-800 max-w-2xl w-full p-2.5 sm:p-4 space-y-2.5 text-slate-800 dark:text-slate-100 max-h-[94vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-slate-800 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
-              <Calendar size={20} />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 dark:text-white text-base sm:text-lg">
-                End of Day Calendar & History
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Select any date to inspect transactions, cash drawer, and sales
-              </p>
-            </div>
+        <div className="flex items-center justify-between border-b pb-2 border-slate-200 dark:border-slate-800 shrink-0 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Calendar size={16} className="text-sky-600 dark:text-sky-400 shrink-0" />
+            <h3 className="font-semibold text-slate-900 dark:text-white text-sm sm:text-base truncate">
+              End of Day Calendar &amp; History
+            </h3>
           </div>
           <button 
             type="button"
             onClick={onClose} 
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer p-1 rounded-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition shrink-0"
+            aria-label="Close"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
-        {/* Tab Selector */}
-        <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg text-xs font-semibold">
+        {/* Tab Selector & Legend */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
+          <div className="grid grid-cols-2 sm:inline-flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-sm text-xs font-medium w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setActiveTab('calendar')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md transition cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-sm transition cursor-pointer ${
                 activeTab === 'calendar'
-                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-sm'
+                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
-              <Calendar size={14} />
-              <span>Select Date (Calendar)</span>
+              <Calendar size={13} />
+              <span>Calendar</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('reports')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md transition cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-sm transition cursor-pointer ${
                 activeTab === 'reports'
-                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-sm'
+                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
-              <List size={14} />
-              <span>Saved Reports List ({reports.length})</span>
+              <List size={13} />
+              <span>History ({reports.length})</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Closed Day
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full border border-sky-500 bg-sky-100 dark:bg-sky-950"></span> Today
-            </span>
-          </div>
+          {activeTab === 'calendar' && (
+            <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Closed
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-sm border border-sky-500 bg-sky-100 dark:bg-sky-950"></span> Today
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Tab Body */}
         {activeTab === 'calendar' ? (
-          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          <div className="flex-1 overflow-y-auto space-y-2">
             {/* Calendar Controls */}
-            <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/60 p-2 sm:p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/60 px-1.5 py-1 rounded-sm border border-slate-200 dark:border-slate-700 gap-1">
               <button
                 type="button"
                 onClick={handlePrevMonth}
-                className="p-1.5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition cursor-pointer"
+                className="p-1 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-sm transition cursor-pointer"
                 title="Previous Month"
               >
-                <ChevronLeft size={20} />
+                <ChevronLeft size={18} />
               </button>
 
-              <div className="flex items-center gap-2 sm:gap-3">
-                <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-center">
+                <span className="font-semibold text-slate-900 dark:text-white text-xs sm:text-sm">
                   {monthNames[viewMonth]} {viewYear}
                 </span>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={handleGoToday}
-                    className="px-2 py-0.5 sm:px-2.5 sm:py-1 text-xs font-semibold rounded bg-white dark:bg-slate-700 hover:bg-sky-50 dark:hover:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-slate-200 dark:border-slate-600 transition cursor-pointer"
+                    className="px-1.5 py-0.5 text-[11px] font-medium rounded-sm bg-white dark:bg-slate-700 hover:bg-sky-50 dark:hover:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-slate-200 dark:border-slate-600 transition cursor-pointer"
                   >
                     Today
                   </button>
                   <button
                     type="button"
                     onClick={handleGoYesterday}
-                    className="px-2 py-0.5 sm:px-2.5 sm:py-1 text-xs font-semibold rounded bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600 transition cursor-pointer"
+                    className="px-1.5 py-0.5 text-[11px] font-medium rounded-sm bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600 transition cursor-pointer"
                   >
                     Yesterday
                   </button>
@@ -959,22 +977,22 @@ const EndOfDayListModal: React.FC<EndOfDayListModalProps> = ({ currentDate, onCl
               <button
                 type="button"
                 onClick={handleNextMonth}
-                className="p-1.5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition cursor-pointer"
+                className="p-1 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-sm transition cursor-pointer"
                 title="Next Month"
               >
-                <ChevronRight size={20} />
+                <ChevronRight size={18} />
               </button>
             </div>
 
             {/* Days of week header */}
-            <div className="grid grid-cols-7 text-center text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider py-1 border-b border-slate-100 dark:border-slate-800">
+            <div className="grid grid-cols-7 text-center text-slate-500 dark:text-slate-400 text-[11px] font-semibold uppercase tracking-wide border-b border-slate-100 dark:border-slate-800 pb-1">
               {weekDays.map((w, idx) => (
-                <div key={idx} className="py-1">{w}</div>
+                <div key={idx}>{w}</div>
               ))}
             </div>
 
             {/* Calendar Grid */}
-            <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+            <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
               {calendarDays.map((d, idx) => {
                 const isSel = d.isSelected;
                 const isTod = d.isToday;
@@ -987,11 +1005,11 @@ const EndOfDayListModal: React.FC<EndOfDayListModalProps> = ({ currentDate, onCl
                     type="button"
                     onClick={() => setSelectedDayStr(d.dateStr)}
                     onDoubleClick={() => handleSelectAndLoad(d.dateStr)}
-                    className={`h-11 sm:h-12 rounded-lg flex flex-col items-center justify-center relative transition cursor-pointer select-none text-xs sm:text-sm ${
+                    className={`h-9 sm:h-10 rounded-sm flex flex-col items-center justify-center relative transition cursor-pointer select-none text-xs ${
                       isSel 
-                        ? 'bg-sky-600 text-white font-bold shadow-md ring-2 ring-sky-300 dark:ring-sky-500' 
+                        ? 'bg-sky-600 text-white font-bold ring-1 ring-sky-400' 
                         : isTod
-                        ? 'border-2 border-sky-500 font-bold text-slate-900 dark:text-white bg-sky-50/50 dark:bg-sky-950/30 hover:bg-sky-100/60'
+                        ? 'border border-sky-500 font-bold text-slate-900 dark:text-white bg-sky-50/50 dark:bg-sky-950/30 hover:bg-sky-100/60'
                         : !inMonth
                         ? 'text-slate-400 dark:text-slate-600 bg-slate-50/40 dark:bg-slate-800/20 hover:bg-slate-100/60'
                         : 'text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800/60 hover:bg-sky-50 dark:hover:bg-slate-700/60 border border-slate-100 dark:border-slate-800'
@@ -1010,20 +1028,21 @@ const EndOfDayListModal: React.FC<EndOfDayListModalProps> = ({ currentDate, onCl
             </div>
 
             {/* Selected Date Summary & Load Action */}
-            <div className="mt-4 p-3.5 bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="text-left w-full sm:w-auto">
-                <span className="text-xs text-sky-700 dark:text-sky-300 font-medium">Selected Date:</span>
-                <p className="text-sm sm:text-base font-bold text-slate-900 dark:text-white font-mono">
+            <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white font-mono truncate">
                   {formatDisplayDate(selectedDayStr)} ({selectedDayStr})
-                </p>
+                </div>
                 {selectedReport ? (
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 mt-0.5">
-                    <CheckCircle2 size={13} />
-                    Report closed by {selectedReport.user_name || 'Staff'} • Sales: €{(Number(selectedReport.total_sales) || 0).toFixed(2)}
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 mt-0.5">
+                    <CheckCircle2 size={12} className="shrink-0" />
+                    <span className="truncate">
+                      Closed by {selectedReport.user_name || 'Staff'} • Net Sales: €{(Number(selectedReport.total_sales) || 0).toFixed(2)}
+                    </span>
                   </p>
                 ) : (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Click "Load Day Details" to view all invoices, payments, & cash for this date
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Not closed yet — load day to inspect or close
                   </p>
                 )}
               </div>
@@ -1031,92 +1050,132 @@ const EndOfDayListModal: React.FC<EndOfDayListModalProps> = ({ currentDate, onCl
               <button
                 type="button"
                 onClick={() => handleSelectAndLoad(selectedDayStr)}
-                className="w-full sm:w-auto px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs sm:text-sm rounded-lg shadow flex items-center justify-center gap-2 cursor-pointer transition shrink-0"
+                className="w-full sm:w-auto px-3.5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-sm flex items-center justify-center gap-1.5 cursor-pointer transition shrink-0"
               >
-                <span>Load Day Details</span>
-                <ArrowRightLeft size={16} />
+                <span>Load Day</span>
+                <ArrowRightLeft size={14} />
               </button>
             </div>
           </div>
         ) : (
           /* Reports History Tab */
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="Filter by date (YYYY-MM-DD) or staff name..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs sm:text-sm placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500"
-              />
-            </div>
+          <div className="flex-1 overflow-y-auto space-y-2">
+            <input
+              type="text"
+              placeholder="Filter by date (YYYY-MM-DD) or staff..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-sm text-xs placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500"
+            />
 
-            <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg">
+            <div className="border border-slate-200 dark:border-slate-800 rounded-sm overflow-hidden">
               {loading ? (
-                <div className="py-12 text-center text-slate-500 text-sm flex items-center justify-center gap-2">
-                  <Loader2 size={18} className="animate-spin text-sky-500" />
-                  <span>Loading reports history...</span>
+                <div className="py-8 text-center text-slate-500 text-xs flex items-center justify-center gap-2">
+                  <Loader2 size={16} className="animate-spin text-sky-500" />
+                  <span>Loading history...</span>
                 </div>
               ) : filteredReports.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 text-sm italic">
+                <div className="py-8 px-3 text-center text-slate-400 text-xs">
                   {reports.length === 0 
-                    ? 'No saved End of Day closing reports found yet. Use the Calendar Picker tab to select any date.' 
+                    ? 'No saved End of Day reports yet.' 
                     : 'No reports matched your search.'}
                 </div>
               ) : (
-                <table className="w-full text-left text-xs sm:text-sm border-collapse min-w-[540px]">
-                  <thead>
-                    <tr className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-700">
-                      <th className="py-2.5 px-3">Date</th>
-                      <th className="py-2.5 px-3">Staff</th>
-                      <th className="py-2.5 px-3 text-right">Total Sales</th>
-                      <th className="py-2.5 px-3 text-right">Cash Counted</th>
-                      <th className="py-2.5 px-3 text-right">Difference</th>
-                      <th className="py-2.5 px-3 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <>
+                  {/* Mobile Card List */}
+                  <div className="sm:hidden divide-y divide-slate-200 dark:divide-slate-800">
                     {filteredReports.map((r, idx) => {
                       const dFormatted = String(r.report_date || '').substring(0, 10);
+                      const diffVal = Number(r.difference) || 0;
+                      const depVal = Number(r.total_deposits) || 0;
+                      const diffStr = `${diffVal < -0.005 ? '-€' : diffVal > 0.005 ? '+€' : '€'}${Math.abs(diffVal).toFixed(2)}`;
                       return (
-                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
-                          <td className="py-2.5 px-3 font-semibold font-mono text-slate-900 dark:text-white">
-                            {dFormatted}
-                          </td>
-                          <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{r.user_name || 'Staff'}</td>
-                          <td className="py-2.5 px-3 text-right font-mono">€{(Number(r.total_sales) || 0).toFixed(2)}</td>
-                          <td className="py-2.5 px-3 text-right font-mono">€{(Number(r.cash_counted) || 0).toFixed(2)}</td>
-                          <td className={`py-2.5 px-3 text-right font-mono font-semibold ${Number(r.difference) < 0 ? 'text-red-600' : Number(r.difference) > 0 ? 'text-emerald-600' : 'text-slate-600'}`}>
-                            {Number(r.difference) >= 0 ? '+' : ''}€{(Number(r.difference) || 0).toFixed(2)}
-                          </td>
-                          <td className="py-2.5 px-3 text-center">
-                            <button 
-                              type="button"
-                              onClick={() => handleSelectAndLoad(dFormatted)}
-                              className="px-3 py-1 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-xs font-semibold rounded cursor-pointer transition"
-                            >
-                              Load Day
-                            </button>
-                          </td>
-                        </tr>
+                        <div key={idx} className="p-2.5 flex items-center justify-between gap-2 bg-white dark:bg-slate-900">
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-xs text-slate-900 dark:text-white">{dFormatted}</span>
+                              <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{r.user_name || 'Staff'}</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] font-mono text-slate-600 dark:text-slate-300">
+                              <span>Sales: <strong>€{(Number(r.total_sales) || 0).toFixed(2)}</strong></span>
+                              {depVal > 0 && <span className="text-indigo-600 dark:text-indigo-400">Dep: €{depVal.toFixed(2)}</span>}
+                              <span>Cash: €{(Number(r.cash_counted) || 0).toFixed(2)}</span>
+                              <span className={diffVal < -0.005 ? 'text-red-600 font-semibold' : diffVal > 0.005 ? 'text-emerald-600 font-semibold' : 'text-slate-500'}>
+                                {diffStr}
+                              </span>
+                            </div>
+                          </div>
+                          <button 
+                            type="button"
+                            onClick={() => handleSelectAndLoad(dFormatted)}
+                            className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-xs font-semibold rounded-sm cursor-pointer transition shrink-0"
+                          >
+                            Load
+                          </button>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
+                  </div>
+
+                  {/* Desktop Compact Table */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-700">
+                          <th className="py-2 px-2.5">Date</th>
+                          <th className="py-2 px-2.5">Staff</th>
+                          <th className="py-2 px-2.5 text-right">Net Sales</th>
+                          <th className="py-2 px-2.5 text-right">Cash Counted</th>
+                          <th className="py-2 px-2.5 text-right">Diff</th>
+                          <th className="py-2 px-2.5 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {filteredReports.map((r, idx) => {
+                          const dFormatted = String(r.report_date || '').substring(0, 10);
+                          const diffVal = Number(r.difference) || 0;
+                          const diffStr = `${diffVal < -0.005 ? '-€' : diffVal > 0.005 ? '+€' : '€'}${Math.abs(diffVal).toFixed(2)}`;
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                              <td className="py-1.5 px-2.5 font-semibold font-mono text-slate-900 dark:text-white">
+                                {dFormatted}
+                              </td>
+                              <td className="py-1.5 px-2.5 text-slate-600 dark:text-slate-300">{r.user_name || 'Staff'}</td>
+                              <td className="py-1.5 px-2.5 text-right font-mono">€{(Number(r.total_sales) || 0).toFixed(2)}</td>
+                              <td className="py-1.5 px-2.5 text-right font-mono">€{(Number(r.cash_counted) || 0).toFixed(2)}</td>
+                              <td className={`py-1.5 px-2.5 text-right font-mono font-semibold ${diffVal < -0.005 ? 'text-red-600' : diffVal > 0.005 ? 'text-emerald-600' : 'text-slate-600'}`}>
+                                {diffStr}
+                              </td>
+                              <td className="py-1.5 px-2.5 text-center">
+                                <button 
+                                  type="button"
+                                  onClick={() => handleSelectAndLoad(dFormatted)}
+                                  className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-xs font-semibold rounded-sm cursor-pointer transition"
+                                >
+                                  Load
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </div>
         )}
 
         {/* Footer */}
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-3 flex items-center justify-between shrink-0">
-          <p className="text-xs text-slate-400">
-            Tip: Double-click any day on the calendar to load it immediately
+        <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex items-center justify-between shrink-0">
+          <p className="hidden sm:block text-[11px] text-slate-400">
+            Double-click any calendar date to load immediately
           </p>
           <button 
             type="button" 
             onClick={onClose} 
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-lg cursor-pointer transition"
+            className="ml-auto px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-sm cursor-pointer transition"
           >
             Close
           </button>

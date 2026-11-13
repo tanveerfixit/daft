@@ -587,14 +587,16 @@ router.post('/eod', async (req: any, res, next) => {
 // GET /api/reports/eod-list
 router.get('/eod-list', async (req: any, res, next) => {
   try {
-    const isSuper = req.user.role === 'superadmin';
+    const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
+    const branchId = req.user.branch_id;
     const sql = `
-      SELECT r.*, u.name as user_name FROM closing_reports r
-      JOIN users u ON r.user_id=u.id 
-      WHERE r.business_id=? ${!isSuper ? 'AND r.branch_id=?' : ''}
-      ORDER BY r.report_date DESC
+      SELECT r.*, DATE_FORMAT(r.report_date, '%Y-%m-%d') as report_date, COALESCE(u.name, 'Staff') as user_name
+      FROM closing_reports r
+      LEFT JOIN users u ON r.user_id = u.id 
+      WHERE r.business_id = ? ${(!isSuper && branchId) ? 'AND (r.branch_id = ? OR r.branch_id IS NULL)' : ''}
+      ORDER BY r.report_date DESC, r.id DESC
     `;
-    const params = !isSuper ? [req.user.business_id, req.user.branch_id] : [req.user.business_id];
+    const params = (!isSuper && branchId) ? [req.user.business_id, branchId] : [req.user.business_id];
     res.json(await query(sql, params));
   } catch (e: any) { next(e); }
 });
