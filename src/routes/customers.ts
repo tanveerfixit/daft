@@ -254,13 +254,13 @@ router.post('/:id/payments', async (req: any, res, next) => {
     const [invR] = await conn.execute(
       `INSERT INTO invoices (business_id, branch_id, user_id, customer_id, invoice_number, type, 
         subtotal, tax_total, discount_total, grand_total, paid_amount, due_amount, status)
-       VALUES (?, ?, ?, ?, ?, 'wallet', ?, 0, 0, ?, ?, 0, 'paid')`,
+       VALUES (?, ?, ?, ?, ?, 'deposit', ?, 0, 0, ?, ?, 0, 'paid')`,
       [req.user.business_id, req.user.branch_id, req.userId, req.params.id, invoiceNumber, numAmount, numAmount, numAmount]
     );
     const invoiceId = (invR as any).insertId;
 
     await conn.execute("INSERT INTO payments (customer_id, invoice_id, type, method, amount) VALUES (?,?,?,?,?)",
-      [req.params.id, invoiceId, 'wallet_deposit', method || 'Cash', numAmount]);
+      [req.params.id, invoiceId, 'deposit', method || 'Cash', numAmount]);
     
     await conn.execute("UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)+? WHERE id=?", [numAmount, req.params.id]);
     

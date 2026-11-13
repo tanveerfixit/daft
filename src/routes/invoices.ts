@@ -686,7 +686,7 @@ router.post('/', async (req: any, res, next) => {
       finalCustomerId = (wRows as any[])[0]?.id || null;
     }
 
-    const isDeposit = (items || []).some((item: any) => item.is_deposit);
+    const isDeposit = (items || []).length > 0 && (items || []).every((item: any) => item.is_deposit);
     const isRepair = (items || []).some((item: any) => item.is_repair_payment);
     const invoiceType = isRepair ? 'repair' : (isDeposit ? 'deposit' : 'sale');
 

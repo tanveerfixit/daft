@@ -16,11 +16,11 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
     const endDateTime = String(endDate).includes(' ') ? String(endDate) : `${endDate} 23:59:59`;
 
     // 1. SALES KPI:
-    // Total (count of sales in range), Total Sales (sum of grand_total in range)
+    // Total (count of earned sales in range, excluding credit notes and unearned wallet deposits), Total Sales (sum of grand_total in range)
     let salesSql = `
       SELECT COUNT(id) as count, COALESCE(SUM(grand_total), 0) as total 
       FROM invoices 
-      WHERE business_id=? AND (type IS NULL OR type != 'credit_note') AND created_at >= ? AND created_at <= ?
+      WHERE business_id=? AND COALESCE(type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet') AND created_at >= ? AND created_at <= ?
       ${(!isDeveloper && branchId) ? 'AND branch_id=?' : ''}
     `;
     const salesParams = (!isDeveloper && branchId) ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
@@ -64,10 +64,10 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
     const addedCustomersParams = (!isDeveloper && branchId) ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
     const addedCustomersKpi = await queryOne(addedCustomersSql, addedCustomersParams) as any;
 
-    // - Purchased: unique customers with invoices in range
+    // - Purchased: unique customers with sales/repair invoices in range
     let purchasedCustomersSql = `
       SELECT COUNT(DISTINCT customer_id) as count FROM invoices
-      WHERE business_id=? AND created_at >= ? AND created_at <= ?
+      WHERE business_id=? AND COALESCE(type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet') AND created_at >= ? AND created_at <= ?
       ${(!isDeveloper && branchId) ? 'AND branch_id=?' : ''}
     `;
     const purchasedCustomersParams = (!isDeveloper && branchId) ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
@@ -79,6 +79,7 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
       FROM payments p
       LEFT JOIN invoices i ON p.invoice_id=i.id
       WHERE i.business_id=? AND p.paid_at >= ? AND p.paid_at <= ?
+        AND NOT (i.type = 'credit_note' AND p.type = 'credit_note_issued')
       ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
       GROUP BY p.method
     `;
@@ -107,7 +108,9 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
       JOIN invoices i ON ii.invoice_id=i.id
       JOIN product_skus s ON ii.sku_id=s.id
       JOIN products p ON s.product_id=p.id
-      WHERE i.business_id=? AND i.created_at >= ? AND i.created_at <= ?
+      WHERE i.business_id=? AND COALESCE(i.type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet')
+        AND COALESCE(s.sku_code, '') NOT IN ('DEPOSIT', 'SYS-DEPOSIT')
+        AND i.created_at >= ? AND i.created_at <= ?
       ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
       GROUP BY p.category_id
     `;
@@ -133,7 +136,7 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
              COUNT(id) as count,
              COALESCE(SUM(grand_total), 0) as total
       FROM invoices
-      WHERE business_id=? AND created_at >= ? AND created_at <= ?
+      WHERE business_id=? AND COALESCE(type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet') AND created_at >= ? AND created_at <= ?
       ${(!isDeveloper && branchId) ? 'AND branch_id=?' : ''}
       GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d')
       ORDER BY date ASC
@@ -147,7 +150,7 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
              COUNT(id) as count,
              COALESCE(SUM(grand_total), 0) as total
       FROM invoices
-      WHERE business_id=? AND created_at >= ? AND created_at <= ?
+      WHERE business_id=? AND COALESCE(type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet') AND created_at >= ? AND created_at <= ?
       ${(!isDeveloper && branchId) ? 'AND branch_id=?' : ''}
       GROUP BY HOUR(created_at)
       ORDER BY hour ASC
@@ -177,7 +180,7 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
       FROM invoices i
       LEFT JOIN invoice_items ii ON ii.invoice_id = i.id
       LEFT JOIN product_skus s ON ii.sku_id = s.id
-      WHERE i.business_id=? AND i.created_at >= ? AND i.created_at <= ?
+      WHERE i.business_id=? AND COALESCE(i.type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet') AND i.created_at >= ? AND i.created_at <= ?
       ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
     `;
     const profitParams = (!isDeveloper && branchId) ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
@@ -205,7 +208,9 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
       LEFT JOIN product_skus s ON ii.sku_id = s.id
       LEFT JOIN products p ON s.product_id = p.id
       LEFT JOIN branch_stock bs ON (bs.sku_id = s.id AND bs.branch_id = i.branch_id)
-      WHERE i.business_id=? AND i.created_at >= ? AND i.created_at <= ?
+      WHERE i.business_id=? AND COALESCE(i.type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet')
+        AND COALESCE(s.sku_code, '') NOT IN ('DEPOSIT', 'SYS-DEPOSIT')
+        AND i.created_at >= ? AND i.created_at <= ?
       ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
       GROUP BY p.name, p.id, bs.quantity
       ORDER BY profit DESC
@@ -239,7 +244,7 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
         FROM invoice_items 
         GROUP BY invoice_id
       ) item_counts ON item_counts.invoice_id = i.id
-      WHERE i.business_id=? AND i.created_at >= ? AND i.created_at <= ?
+      WHERE i.business_id=? AND COALESCE(i.type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet') AND i.created_at >= ? AND i.created_at <= ?
       ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
     `;
     const multiItemParams = (!isDeveloper && branchId) ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
@@ -257,7 +262,9 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
       JOIN invoices i ON ii.invoice_id = i.id
       LEFT JOIN product_skus s ON ii.sku_id = s.id
       LEFT JOIN products p ON s.product_id = p.id
-      WHERE i.business_id=? AND i.created_at >= ? AND i.created_at <= ?
+      WHERE i.business_id=? AND COALESCE(i.type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet')
+        AND COALESCE(s.sku_code, '') NOT IN ('DEPOSIT', 'SYS-DEPOSIT')
+        AND i.created_at >= ? AND i.created_at <= ?
       ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
     `;
     const splitParams = (!isDeveloper && branchId) ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
@@ -276,10 +283,10 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
       JOIN (
         SELECT customer_id, COUNT(id) as order_cnt 
         FROM invoices 
-        WHERE business_id=?
+        WHERE business_id=? AND COALESCE(type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet')
         GROUP BY customer_id
       ) cust_orders ON cust_orders.customer_id = i.customer_id
-      WHERE i.business_id=? AND i.customer_id IS NOT NULL AND i.created_at >= ? AND i.created_at <= ?
+      WHERE i.business_id=? AND COALESCE(i.type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet') AND i.customer_id IS NOT NULL AND i.created_at >= ? AND i.created_at <= ?
       ${(!isDeveloper && branchId) ? 'AND i.branch_id=?' : ''}
     `;
     const repeatCustParams = (!isDeveloper && branchId) ? [businessId, businessId, startDateTime, endDateTime, branchId] : [businessId, businessId, startDateTime, endDateTime];
@@ -377,20 +384,23 @@ router.get('/eod-data', async (req: any, res, next) => {
     const endDateTime = `${date} 23:59:59`;
 
     const invoicePayments = await query(`
-      SELECT p.*, u.name as user_name, i.invoice_number, i.status as invoice_status, c.name as customer_name,
-        (
-          SELECT GROUP_CONCAT(
-            CONCAT(
-              IF(ii.quantity > 1, CONCAT(ii.quantity, 'x '), ''),
-              COALESCE(pr.name, ii.notes, 'Item'),
-              IF(d.imei IS NOT NULL AND d.imei != '', CONCAT(' (', d.imei, ')'), '')
-            ) SEPARATOR ', '
-          )
-          FROM invoice_items ii
-          LEFT JOIN product_skus s ON ii.sku_id = s.id
-          LEFT JOIN products pr ON s.product_id = pr.id
-          LEFT JOIN devices d ON ii.device_id = d.id
-          WHERE ii.invoice_id = i.id
+      SELECT p.*, u.name as user_name, i.invoice_number, i.type as invoice_type, i.status as invoice_status, c.name as customer_name,
+        COALESCE(
+          (
+            SELECT GROUP_CONCAT(
+              CONCAT(
+                IF(ii.quantity > 1, CONCAT(ii.quantity, 'x '), ''),
+                COALESCE(pr.name, ii.notes, 'Item'),
+                IF(d.imei IS NOT NULL AND d.imei != '', CONCAT(' (', d.imei, ')'), '')
+              ) SEPARATOR ', '
+            )
+            FROM invoice_items ii
+            LEFT JOIN product_skus s ON ii.sku_id = s.id
+            LEFT JOIN products pr ON s.product_id = pr.id
+            LEFT JOIN devices d ON ii.device_id = d.id
+            WHERE ii.invoice_id = i.id
+          ),
+          IF(i.type IN ('deposit', 'wallet') OR p.type IN ('deposit', 'wallet_deposit'), 'Wallet Deposit', 'Sale')
         ) as products_summary
       FROM payments p
       LEFT JOIN invoices i ON p.invoice_id=i.id
@@ -426,11 +436,19 @@ router.get('/eod-data', async (req: any, res, next) => {
     `, (!isSuper && branchId) ? [startDateTime, endDateTime, req.user.business_id, req.user.business_id, branchId, branchId] : [startDateTime, endDateTime, req.user.business_id, req.user.business_id]);
 
     const existingReport = await queryOne(`
-      SELECT starting_balance, comments, cash_counted, difference 
+      SELECT id, starting_balance, comments, cash_counted, difference 
       FROM closing_reports 
       WHERE report_date=? AND business_id=? ${(!isSuper && branchId) ? 'AND (branch_id=? OR branch_id IS NULL)' : ''}
       ORDER BY id DESC LIMIT 1
     `, (!isSuper && branchId) ? [date, req.user.business_id, branchId] : [date, req.user.business_id]) as any;
+
+    let savedPayments: any[] = [];
+    if (existingReport?.id) {
+      savedPayments = await query(
+        'SELECT payment_type, calculated, counted, difference FROM closing_report_payments WHERE report_id=?',
+        [existingReport.id]
+      ) as any[];
+    }
 
     res.json({ 
       invoicePayments, 
@@ -439,7 +457,8 @@ router.get('/eod-data', async (req: any, res, next) => {
       date,
       startingBalance: existingReport ? Number(existingReport.starting_balance) : null,
       cashCounted: existingReport?.cash_counted != null ? Number(existingReport.cash_counted) : null,
-      comments: existingReport?.comments || ''
+      comments: existingReport?.comments || '',
+      savedPayments
     });
   } catch (e: any) { next(e); }
 });

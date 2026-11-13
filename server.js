@@ -4718,13 +4718,13 @@ var init_customers = __esm({
         const [invR] = await conn.execute(
           `INSERT INTO invoices (business_id, branch_id, user_id, customer_id, invoice_number, type, 
         subtotal, tax_total, discount_total, grand_total, paid_amount, due_amount, status)
-       VALUES (?, ?, ?, ?, ?, 'wallet', ?, 0, 0, ?, ?, 0, 'paid')`,
+       VALUES (?, ?, ?, ?, ?, 'deposit', ?, 0, 0, ?, ?, 0, 'paid')`,
           [req.user.business_id, req.user.branch_id, req.userId, req.params.id, invoiceNumber, numAmount, numAmount, numAmount]
         );
         const invoiceId = invR.insertId;
         await conn.execute(
           "INSERT INTO payments (customer_id, invoice_id, type, method, amount) VALUES (?,?,?,?,?)",
-          [req.params.id, invoiceId, "wallet_deposit", method || "Cash", numAmount]
+          [req.params.id, invoiceId, "deposit", method || "Cash", numAmount]
         );
         await conn.execute("UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)+? WHERE id=?", [numAmount, req.params.id]);
         await conn.execute(
@@ -5384,7 +5384,7 @@ var init_invoices = __esm({
           );
           finalCustomerId = wRows[0]?.id || null;
         }
-        const isDeposit = (items || []).some((item) => item.is_deposit);
+        const isDeposit = (items || []).length > 0 && (items || []).every((item) => item.is_deposit);
         const isRepair = (items || []).some((item) => item.is_repair_payment);
         const invoiceType = isRepair ? "repair" : isDeposit ? "deposit" : "sale";
         const branchPrefix = await getBranchPrefix(req.user.branch_id);
@@ -6136,7 +6136,7 @@ var init_reports = __esm({
         let salesSql = `
       SELECT COUNT(id) as count, COALESCE(SUM(grand_total), 0) as total 
       FROM invoices 
-      WHERE business_id=? AND (type IS NULL OR type != 'credit_note') AND created_at >= ? AND created_at <= ?
+      WHERE business_id=? AND COALESCE(type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet') AND created_at >= ? AND created_at <= ?
       ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
     `;
         const salesParams = !isDeveloper && branchId ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
@@ -6171,7 +6171,7 @@ var init_reports = __esm({
         const addedCustomersKpi = await queryOne(addedCustomersSql, addedCustomersParams);
         let purchasedCustomersSql = `
       SELECT COUNT(DISTINCT customer_id) as count FROM invoices
-      WHERE business_id=? AND created_at >= ? AND created_at <= ?
+      WHERE business_id=? AND COALESCE(type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet') AND created_at >= ? AND created_at <= ?
       ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
     `;
         const purchasedCustomersParams = !isDeveloper && branchId ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
@@ -6181,6 +6181,7 @@ var init_reports = __esm({
       FROM payments p
       LEFT JOIN invoices i ON p.invoice_id=i.id
       WHERE i.business_id=? AND p.paid_at >= ? AND p.paid_at <= ?
+        AND NOT (i.type = 'credit_note' AND p.type = 'credit_note_issued')
       ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
       GROUP BY p.method
     `;
@@ -6205,7 +6206,9 @@ var init_reports = __esm({
       JOIN invoices i ON ii.invoice_id=i.id
       JOIN product_skus s ON ii.sku_id=s.id
       JOIN products p ON s.product_id=p.id
-      WHERE i.business_id=? AND i.created_at >= ? AND i.created_at <= ?
+      WHERE i.business_id=? AND COALESCE(i.type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet')
+        AND COALESCE(s.sku_code, '') NOT IN ('DEPOSIT', 'SYS-DEPOSIT')
+        AND i.created_at >= ? AND i.created_at <= ?
       ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
       GROUP BY p.category_id
     `;
@@ -6228,7 +6231,7 @@ var init_reports = __esm({
              COUNT(id) as count,
              COALESCE(SUM(grand_total), 0) as total
       FROM invoices
-      WHERE business_id=? AND created_at >= ? AND created_at <= ?
+      WHERE business_id=? AND COALESCE(type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet') AND created_at >= ? AND created_at <= ?
       ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
       GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d')
       ORDER BY date ASC
@@ -6240,7 +6243,7 @@ var init_reports = __esm({
              COUNT(id) as count,
              COALESCE(SUM(grand_total), 0) as total
       FROM invoices
-      WHERE business_id=? AND created_at >= ? AND created_at <= ?
+      WHERE business_id=? AND COALESCE(type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet') AND created_at >= ? AND created_at <= ?
       ${!isDeveloper && branchId ? "AND branch_id=?" : ""}
       GROUP BY HOUR(created_at)
       ORDER BY hour ASC
@@ -6267,7 +6270,7 @@ var init_reports = __esm({
       FROM invoices i
       LEFT JOIN invoice_items ii ON ii.invoice_id = i.id
       LEFT JOIN product_skus s ON ii.sku_id = s.id
-      WHERE i.business_id=? AND i.created_at >= ? AND i.created_at <= ?
+      WHERE i.business_id=? AND COALESCE(i.type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet') AND i.created_at >= ? AND i.created_at <= ?
       ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
     `;
         const profitParams = !isDeveloper && branchId ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
@@ -6292,7 +6295,9 @@ var init_reports = __esm({
       LEFT JOIN product_skus s ON ii.sku_id = s.id
       LEFT JOIN products p ON s.product_id = p.id
       LEFT JOIN branch_stock bs ON (bs.sku_id = s.id AND bs.branch_id = i.branch_id)
-      WHERE i.business_id=? AND i.created_at >= ? AND i.created_at <= ?
+      WHERE i.business_id=? AND COALESCE(i.type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet')
+        AND COALESCE(s.sku_code, '') NOT IN ('DEPOSIT', 'SYS-DEPOSIT')
+        AND i.created_at >= ? AND i.created_at <= ?
       ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
       GROUP BY p.name, p.id, bs.quantity
       ORDER BY profit DESC
@@ -6323,7 +6328,7 @@ var init_reports = __esm({
         FROM invoice_items 
         GROUP BY invoice_id
       ) item_counts ON item_counts.invoice_id = i.id
-      WHERE i.business_id=? AND i.created_at >= ? AND i.created_at <= ?
+      WHERE i.business_id=? AND COALESCE(i.type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet') AND i.created_at >= ? AND i.created_at <= ?
       ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
     `;
         const multiItemParams = !isDeveloper && branchId ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
@@ -6339,7 +6344,9 @@ var init_reports = __esm({
       JOIN invoices i ON ii.invoice_id = i.id
       LEFT JOIN product_skus s ON ii.sku_id = s.id
       LEFT JOIN products p ON s.product_id = p.id
-      WHERE i.business_id=? AND i.created_at >= ? AND i.created_at <= ?
+      WHERE i.business_id=? AND COALESCE(i.type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet')
+        AND COALESCE(s.sku_code, '') NOT IN ('DEPOSIT', 'SYS-DEPOSIT')
+        AND i.created_at >= ? AND i.created_at <= ?
       ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
     `;
         const splitParams = !isDeveloper && branchId ? [businessId, startDateTime, endDateTime, branchId] : [businessId, startDateTime, endDateTime];
@@ -6357,10 +6364,10 @@ var init_reports = __esm({
       JOIN (
         SELECT customer_id, COUNT(id) as order_cnt 
         FROM invoices 
-        WHERE business_id=?
+        WHERE business_id=? AND COALESCE(type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet')
         GROUP BY customer_id
       ) cust_orders ON cust_orders.customer_id = i.customer_id
-      WHERE i.business_id=? AND i.customer_id IS NOT NULL AND i.created_at >= ? AND i.created_at <= ?
+      WHERE i.business_id=? AND COALESCE(i.type, 'sale') NOT IN ('credit_note', 'deposit', 'wallet') AND i.customer_id IS NOT NULL AND i.created_at >= ? AND i.created_at <= ?
       ${!isDeveloper && branchId ? "AND i.branch_id=?" : ""}
     `;
         const repeatCustParams = !isDeveloper && branchId ? [businessId, businessId, startDateTime, endDateTime, branchId] : [businessId, businessId, startDateTime, endDateTime];
@@ -6454,20 +6461,23 @@ var init_reports = __esm({
         const startDateTime = `${date} 00:00:00`;
         const endDateTime = `${date} 23:59:59`;
         const invoicePayments = await query(`
-      SELECT p.*, u.name as user_name, i.invoice_number, i.status as invoice_status, c.name as customer_name,
-        (
-          SELECT GROUP_CONCAT(
-            CONCAT(
-              IF(ii.quantity > 1, CONCAT(ii.quantity, 'x '), ''),
-              COALESCE(pr.name, ii.notes, 'Item'),
-              IF(d.imei IS NOT NULL AND d.imei != '', CONCAT(' (', d.imei, ')'), '')
-            ) SEPARATOR ', '
-          )
-          FROM invoice_items ii
-          LEFT JOIN product_skus s ON ii.sku_id = s.id
-          LEFT JOIN products pr ON s.product_id = pr.id
-          LEFT JOIN devices d ON ii.device_id = d.id
-          WHERE ii.invoice_id = i.id
+      SELECT p.*, u.name as user_name, i.invoice_number, i.type as invoice_type, i.status as invoice_status, c.name as customer_name,
+        COALESCE(
+          (
+            SELECT GROUP_CONCAT(
+              CONCAT(
+                IF(ii.quantity > 1, CONCAT(ii.quantity, 'x '), ''),
+                COALESCE(pr.name, ii.notes, 'Item'),
+                IF(d.imei IS NOT NULL AND d.imei != '', CONCAT(' (', d.imei, ')'), '')
+              ) SEPARATOR ', '
+            )
+            FROM invoice_items ii
+            LEFT JOIN product_skus s ON ii.sku_id = s.id
+            LEFT JOIN products pr ON s.product_id = pr.id
+            LEFT JOIN devices d ON ii.device_id = d.id
+            WHERE ii.invoice_id = i.id
+          ),
+          IF(i.type IN ('deposit', 'wallet') OR p.type IN ('deposit', 'wallet_deposit'), 'Wallet Deposit', 'Sale')
         ) as products_summary
       FROM payments p
       LEFT JOIN invoices i ON p.invoice_id=i.id
@@ -6500,11 +6510,18 @@ var init_reports = __esm({
       ORDER BY p.method ASC
     `, !isSuper && branchId ? [startDateTime, endDateTime, req.user.business_id, req.user.business_id, branchId, branchId] : [startDateTime, endDateTime, req.user.business_id, req.user.business_id]);
         const existingReport = await queryOne(`
-      SELECT starting_balance, comments, cash_counted, difference 
+      SELECT id, starting_balance, comments, cash_counted, difference 
       FROM closing_reports 
       WHERE report_date=? AND business_id=? ${!isSuper && branchId ? "AND (branch_id=? OR branch_id IS NULL)" : ""}
       ORDER BY id DESC LIMIT 1
     `, !isSuper && branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
+        let savedPayments = [];
+        if (existingReport?.id) {
+          savedPayments = await query(
+            "SELECT payment_type, calculated, counted, difference FROM closing_report_payments WHERE report_id=?",
+            [existingReport.id]
+          );
+        }
         res.json({
           invoicePayments,
           otherMovements,
@@ -6512,7 +6529,8 @@ var init_reports = __esm({
           date,
           startingBalance: existingReport ? Number(existingReport.starting_balance) : null,
           cashCounted: existingReport?.cash_counted != null ? Number(existingReport.cash_counted) : null,
-          comments: existingReport?.comments || ""
+          comments: existingReport?.comments || "",
+          savedPayments
         });
       } catch (e) {
         next(e);

@@ -57,10 +57,43 @@ const defaultCompanyInfo: CompanyInfo = {
   email: ''
 };
 
+const isRefundPayment = (p: Payment | any) => {
+  return (Number(p.amount) || 0) < 0 || String(p.method || '').toLowerCase().includes('refund');
+};
+
+const isDepositPayment = (p: Payment | any) => {
+  const t = String(p.type || '').toLowerCase();
+  const invType = String(p.invoice_type || '').toLowerCase();
+  return t === 'deposit' || t === 'wallet_deposit' || invType === 'deposit' || invType === 'wallet';
+};
+
+const isWalletOrCreditNotePayment = (p: Payment | any) => {
+  const t = String(p.type || '').toLowerCase();
+  const m = String(p.method || '').toLowerCase();
+  if (t === 'wallet_use' || t === 'credit_note_redeemed') return true;
+  return m.includes('wallet') || m.includes('store credit') || m.includes('credit note');
+};
+
+const getBasePaymentMethod = (method: string, payment?: any) => {
+  if (payment && isWalletOrCreditNotePayment(payment)) return 'Wallet';
+  const m = (method || '').toLowerCase();
+  if (m.includes('wallet') || m.includes('store credit') || m.includes('credit note')) return 'Wallet';
+  if (m.includes('cash')) return 'Cash';
+  if (m.includes('card') || m.includes('debit') || m.includes('credit')) return 'Card';
+  return 'Other';
+};
+
+const isCashPayment = (method: string, payment?: any) => getBasePaymentMethod(method, payment) === 'Cash';
+const isCardPayment = (method: string, payment?: any) => getBasePaymentMethod(method, payment) === 'Card';
+const isWalletPayment = (method: string, payment?: any) => getBasePaymentMethod(method, payment) === 'Wallet';
+const isOtherPayment = (method: string, payment?: any) => getBasePaymentMethod(method, payment) === 'Other';
+
 interface PrintProps {
   reportDate: string;
   startingBalance: number;
   totalSales: number;
+  totalDeposits: number;
+  totalWalletRedeemed: number;
   cashCounted: number;
   calculatedCash: number;
   difference: number;
@@ -73,6 +106,8 @@ const EndOfDayThermal: React.FC<PrintProps> = ({
   reportDate,
   startingBalance,
   totalSales,
+  totalDeposits,
+  totalWalletRedeemed,
   cashCounted,
   calculatedCash,
   difference,
@@ -157,9 +192,21 @@ const EndOfDayThermal: React.FC<PrintProps> = ({
         <span className="font-semibold">€{startingBalance.toFixed(2)}</span>
       </div>
       <div className="eod-row">
-        <span>Total Sales:</span>
+        <span>Net Sales:</span>
         <span className="font-semibold">€{totalSales.toFixed(2)}</span>
       </div>
+      {totalDeposits > 0 && (
+        <div className="eod-row">
+          <span>Wallet Deposits:</span>
+          <span className="font-semibold">€{totalDeposits.toFixed(2)}</span>
+        </div>
+      )}
+      {totalWalletRedeemed > 0 && (
+        <div className="eod-row">
+          <span>Wallet Redeemed:</span>
+          <span className="font-semibold">€{totalWalletRedeemed.toFixed(2)}</span>
+        </div>
+      )}
 
       {activeSettings.eod_show_cash_summary && (
         <>
@@ -203,18 +250,18 @@ const EndOfDayThermal: React.FC<PrintProps> = ({
           {activeSettings.eod_show_total_cash && (
             <div className="eod-row font-bold">
               <span>Total Cash:</span>
-              <span>€{allPayments.filter(p => p.method.toLowerCase().includes('cash')).reduce((sum, p) => sum + p.amount, 0).toFixed(2)}</span>
+              <span>€{allPayments.filter(p => isCashPayment(p.method, p)).reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}</span>
             </div>
           )}
           {activeSettings.eod_show_total_card_sale && (
             <div className="eod-row font-bold">
-              <span>Total Card Sale:</span>
-              <span>€{allPayments.filter(p => p.method.toLowerCase().includes('card')).reduce((sum, p) => sum + p.amount, 0).toFixed(2)}</span>
+              <span>Total Card:</span>
+              <span>€{allPayments.filter(p => isCardPayment(p.method, p)).reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}</span>
             </div>
           )}
           {activeSettings.eod_show_total && (
             <div className="eod-row font-bold text-[16px] pt-1">
-              <span>Total:</span>
+              <span>Net Sales Total:</span>
               <span>€{totalSales.toFixed(2)}</span>
             </div>
           )}
@@ -245,6 +292,8 @@ const EndOfDayA4: React.FC<PrintProps> = ({
   reportDate,
   startingBalance,
   totalSales,
+  totalDeposits,
+  totalWalletRedeemed,
   cashCounted,
   calculatedCash,
   difference,
@@ -415,9 +464,21 @@ const EndOfDayA4: React.FC<PrintProps> = ({
                 <span className="font-semibold text-gray-500">€{startingBalance.toFixed(2)}</span>
               </div>
               <div className="stat-row">
-                <span>Calculated Sales</span>
+                <span>Net Earned Sales</span>
                 <span className="font-semibold text-blue-600">€{totalSales.toFixed(2)}</span>
               </div>
+              {totalDeposits > 0 && (
+                <div className="stat-row">
+                  <span>Wallet Deposits Received</span>
+                  <span className="font-semibold text-indigo-600">€{totalDeposits.toFixed(2)}</span>
+                </div>
+              )}
+              {totalWalletRedeemed > 0 && (
+                <div className="stat-row">
+                  <span>Wallet / Credit Note Redeemed</span>
+                  <span className="font-semibold text-purple-600">€{totalWalletRedeemed.toFixed(2)}</span>
+                </div>
+              )}
               <div className="stat-row">
                 <span>Calculated Cash in Drawer</span>
                 <span className="font-semibold text-blue-600">€{calculatedCash.toFixed(2)}</span>
@@ -427,7 +488,7 @@ const EndOfDayA4: React.FC<PrintProps> = ({
                 <span className="font-semibold text-amber-600">€{cashCounted.toFixed(2)}</span>
               </div>
               <div className={`stat-row total ${difference >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                <span>Difference</span>
+                <span>Cash Difference</span>
                 <span>€{difference.toFixed(2)}</span>
               </div>
             </div>
@@ -494,18 +555,24 @@ const EndOfDayA4: React.FC<PrintProps> = ({
             {activeSettings.eod_show_total_cash && (
               <tr className="bg-gray-100 text-gray-900 font-bold border-t border-gray-300">
                 <td colSpan={5} className="text-right py-2 uppercase text-xs tracking-widest">Total Cash</td>
-                <td className="text-right py-2 text-base">€{allPayments.filter(p => p.method.toLowerCase().includes('cash')).reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}</td>
+                <td className="text-right py-2 text-base">€{allPayments.filter(p => isCashPayment(p.method, p)).reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}</td>
               </tr>
             )}
             {activeSettings.eod_show_total_card_sale && (
               <tr className="bg-gray-100 text-gray-900 font-bold border-t border-gray-300">
-                <td colSpan={5} className="text-right py-2 uppercase text-xs tracking-widest">Total Card Sale</td>
-                <td className="text-right py-2 text-base">€{allPayments.filter(p => p.method.toLowerCase().includes('card')).reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}</td>
+                <td colSpan={5} className="text-right py-2 uppercase text-xs tracking-widest">Total Card</td>
+                <td className="text-right py-2 text-base">€{allPayments.filter(p => isCardPayment(p.method, p)).reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}</td>
+              </tr>
+            )}
+            {totalDeposits > 0 && (
+              <tr className="bg-gray-100 text-gray-900 font-bold border-t border-gray-300">
+                <td colSpan={5} className="text-right py-2 uppercase text-xs tracking-widest">Wallet Deposits Received</td>
+                <td className="text-right py-2 text-base">€{(Number(totalDeposits) || 0).toFixed(2)}</td>
               </tr>
             )}
             {activeSettings.eod_show_total && (
               <tr className="bg-gray-900 text-white font-bold">
-                <td colSpan={5} className="text-right py-3 uppercase text-xs tracking-widest">Total Sales for Period</td>
+                <td colSpan={5} className="text-right py-3 uppercase text-xs tracking-widest">Net Earned Sales for Period</td>
                 <td className="text-right py-3 text-xl">€{(Number(totalSales) || 0).toFixed(2)}</td>
               </tr>
             )}
@@ -1320,7 +1387,7 @@ export default function EndOfDay() {
   // Cash Counter Modal State
   const [showCashCounter, setShowCashCounter] = useState<'counted' | 'starting' | null>(null);
   const [showEodListModal, setShowEodListModal] = useState(false);
-  const [paymentTypeFilter, setPaymentTypeFilter] = useState<'All' | 'Cash' | 'Card' | 'Other' | 'Refunds'>('All');
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState<'All' | 'Cash' | 'Card' | 'Wallet' | 'Other' | 'Refunds'>('All');
 
   // Counted values state
   const [countedValues, setCountedValues] = useState<Record<string, number>>({
@@ -1368,11 +1435,29 @@ export default function EndOfDay() {
       } else {
         setStartingBalance(0);
       }
-      if (data.cashCounted !== null && data.cashCounted !== undefined) {
-        setCountedValues(prev => ({ ...prev, 'Cash': Number(data.cashCounted) }));
-      } else {
-        setCountedValues(prev => ({ ...prev, 'Cash': 0 }));
+
+      const nextCounted: Record<string, number> = {
+        'Cash': data.cashCounted !== null && data.cashCounted !== undefined ? Number(data.cashCounted) : 0,
+        'Debit Card': 0,
+        'Card': 0,
+        'Credit Card': 0,
+        'Customer Deposit': 0,
+        'Other': 0,
+        'Refunds': 0
+      };
+      if (Array.isArray(data.savedPayments)) {
+        for (const sp of data.savedPayments) {
+          const pt = String(sp.payment_type || '');
+          const cVal = Number(sp.counted) || 0;
+          if (pt === 'Card' || pt === 'Debit Card') {
+            nextCounted['Card'] = cVal;
+            nextCounted['Debit Card'] = cVal;
+          } else if (pt === 'Other') {
+            nextCounted['Other'] = cVal;
+          }
+        }
       }
+      setCountedValues(nextCounted);
       setComments(data.comments || '');
     } catch (error) {
       console.error('Error fetching EOD data:', error);
@@ -1404,54 +1489,43 @@ export default function EndOfDay() {
     }
   };
 
-  const isRefundPayment = (p: Payment | any) => {
-    return (Number(p.amount) || 0) < 0 || String(p.method || '').toLowerCase().includes('refund');
-  };
-
-  const getBasePaymentMethod = (method: string) => {
-    const m = (method || '').toLowerCase();
-    if (m.includes('cash')) return 'Cash';
-    if (m.includes('card') || m.includes('debit') || m.includes('credit')) return 'Card';
-    return 'Other';
-  };
-
-  const isCashPayment = (method: string) => {
-    return getBasePaymentMethod(method) === 'Cash';
-  };
-
-  const isCardPayment = (method: string) => {
-    return getBasePaymentMethod(method) === 'Card';
-  };
-
-  const isOtherPayment = (method: string) => {
-    return getBasePaymentMethod(method) === 'Other';
-  };
-
   const allPayments = [...invoicePayments, ...otherMovements];
   
   const filteredPayments = allPayments.filter(payment => {
     if (paymentTypeFilter === 'All') return true;
     if (paymentTypeFilter === 'Refunds') return isRefundPayment(payment);
     if (isRefundPayment(payment)) return false;
-    return getBasePaymentMethod(payment.method) === paymentTypeFilter;
+    return getBasePaymentMethod(payment.method, payment) === paymentTypeFilter;
   });
   
-  // Total Net Sales
-  const totalSales = allPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  // Earned Net Sales (Revenue from product/repair sales, including Wallet redemptions, EXCLUDING unearned Wallet Deposits)
+  const totalSales = allPayments
+    .filter(p => !isDepositPayment(p))
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+  // Unearned Customer Wallet Deposits collected today (Liability inflow, not earned sales revenue)
+  const totalDeposits = allPayments
+    .filter(p => isDepositPayment(p))
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+  // Internal Ledger Redemptions (Customer Wallet / Store Credit / Credit Notes applied to sales)
+  const totalWalletRedeemed = allPayments
+    .filter(p => isWalletPayment(p.method, p))
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   
-  // Cash Sales (Net cash sales, including any cash refund reductions)
+  // Physical Cash Inflow in Drawer (Sales + Repairs + Wallet Deposits paid in Cash, net of Cash Refunds)
   const totalCashSales = allPayments
-    .filter(p => isCashPayment(p.method))
+    .filter(p => isCashPayment(p.method, p))
     .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
-  // Card Sales (Net card sales, including any card refund reductions)
+  // Card Terminal Inflow (Sales + Repairs + Wallet Deposits paid by Card, net of Card Refunds)
   const totalCardSales = allPayments
-    .filter(p => isCardPayment(p.method))
+    .filter(p => isCardPayment(p.method, p))
     .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
-  // Other Sales
+  // Countable Other External Payments (excluding virtual Wallet / Credit Note redemptions)
   const totalOtherSales = allPayments
-    .filter(p => isOtherPayment(p.method))
+    .filter(p => isOtherPayment(p.method, p))
     .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
   const totalRefunds = allPayments
@@ -1468,7 +1542,8 @@ export default function EndOfDay() {
   const otherCounted = countedValues['Other'] || 0;
   const diffOther = otherCounted - totalOtherSales;
 
-  const calculatedTotal = totalSales;
+  // Countable Drawer + Terminal Total (excludes internal virtual Wallet redemptions so cashiers never get false discrepancies)
+  const calculatedTotal = totalCashSales + totalCardSales + totalOtherSales;
   const countedTotal = countedCashNet + cardCounted + otherCounted;
   const diffTotal = countedTotal - calculatedTotal;
 
@@ -1499,16 +1574,23 @@ export default function EndOfDay() {
   const getCalculatedAmount = (type: string) => {
     if (type === 'Cash') return totalCashSales;
     if (type === 'Card') return totalCardSales;
+    if (type === 'Wallet') return totalWalletRedeemed;
     if (type === 'Other') return totalOtherSales;
     if (type === 'Refunds') return totalRefunds;
     return 0;
   };
 
-  const paymentTypes = ['Cash', 'Card', 'Other', 'Refunds'];
+  const paymentTypes = [
+    'Cash',
+    'Card',
+    ...(totalWalletRedeemed > 0 ? ['Wallet'] : []),
+    ...(totalOtherSales > 0 || otherCounted > 0 ? ['Other'] : []),
+    'Refunds'
+  ];
   
   const summaries = paymentTypes.map(type => {
     const calculated = getCalculatedAmount(type);
-    const counted = countedValues[type] || 0;
+    const counted = type === 'Wallet' ? calculated : (countedValues[type] || 0);
     return {
       payment_type: type,
       calculated,
@@ -1531,7 +1613,7 @@ export default function EndOfDay() {
         calculated_cash: totalCashSales,
         difference: diffCash,
         total_sales: totalSales,
-        total_deposits: 0,
+        total_deposits: totalDeposits,
         total_cash_in_drawer: cashCounted,
         comments: comments,
         payment_summaries: [
@@ -1547,6 +1629,12 @@ export default function EndOfDay() {
             counted: cardCounted,
             difference: diffCard
           },
+          ...(totalWalletRedeemed > 0 ? [{
+            payment_type: 'Wallet',
+            calculated: totalWalletRedeemed,
+            counted: totalWalletRedeemed,
+            difference: 0
+          }] : []),
           ...(totalOtherSales > 0 || otherCounted > 0 ? [{
             payment_type: 'Other',
             calculated: totalOtherSales,
@@ -1850,6 +1938,19 @@ export default function EndOfDay() {
                     </div>
                   </div>
 
+                  {/* Wallet / Store Credit Redeemed (Auto-reconciled internal ledger) */}
+                  {totalWalletRedeemed > 0 && (
+                    <div className="bg-purple-50/60 dark:bg-purple-950/20 p-2.5 border border-purple-200 dark:border-purple-800/60 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-purple-900 dark:text-purple-200 text-xs">Wallet / Store Credit Redeemed</span>
+                        <span className="font-mono font-bold text-purple-900 dark:text-purple-200 text-xs">{formatMoney(totalWalletRedeemed)}</span>
+                      </div>
+                      <div className="text-[11px] text-purple-700 dark:text-purple-300">
+                        Internal customer ledger settlement (non-drawer tender)
+                      </div>
+                    </div>
+                  )}
+
                   {/* Other Payments if present */}
                   {(totalOtherSales > 0 || otherCounted > 0) && (
                     <div className="bg-[#f8f9fa] dark:bg-slate-900 p-2.5 border border-slate-200 dark:border-slate-800 space-y-1.5">
@@ -1882,21 +1983,35 @@ export default function EndOfDay() {
               </div>
 
               {/* Overall Total Reconciliation Summary Card (Mobile) */}
-              <div className="bg-[#f8f9fa] dark:bg-slate-800/80 border border-[#dcdcdc] dark:border-slate-700 p-3.5 flex items-center justify-between">
-                <div>
-                  <div className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">Total Difference</div>
-                  <div className={`text-xl font-mono font-bold mt-0.5 ${diffTotal === 0 ? 'text-emerald-700 dark:text-emerald-400' : diffTotal > 0 ? 'text-blue-700 dark:text-sky-400' : 'text-red-700 dark:text-red-400'}`}>
-                    {formatMoney(diffTotal, true)}
+              <div className="bg-[#f8f9fa] dark:bg-slate-800/80 border border-[#dcdcdc] dark:border-slate-700 p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">Total Drawer / Terminal Diff</div>
+                    <div className={`text-xl font-mono font-bold mt-0.5 ${diffTotal === 0 ? 'text-emerald-700 dark:text-emerald-400' : diffTotal > 0 ? 'text-blue-700 dark:text-sky-400' : 'text-red-700 dark:text-red-400'}`}>
+                      {formatMoney(diffTotal, true)}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium">Calculated / Counted</div>
+                    <div className="font-mono text-sm font-bold text-slate-900 dark:text-white mt-0.5">
+                      <span>{formatMoney(calculatedTotal)}</span>
+                      <span className="text-slate-400 mx-1.5 font-normal">/</span>
+                      <span>{formatMoney(countedTotal)}</span>
+                    </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium">Calculated / Counted</div>
-                  <div className="font-mono text-sm font-bold text-slate-900 dark:text-white mt-0.5">
-                    <span>{formatMoney(calculatedTotal)}</span>
-                    <span className="text-slate-400 mx-1.5 font-normal">/</span>
-                    <span>{formatMoney(countedTotal)}</span>
+                {(totalDeposits > 0 || totalWalletRedeemed > 0) && (
+                  <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="text-slate-600 dark:text-slate-300">
+                      Net Earned Sales: <strong className="font-mono text-slate-900 dark:text-white">{formatMoney(totalSales)}</strong>
+                    </span>
+                    {totalDeposits > 0 && (
+                      <span className="text-indigo-700 dark:text-indigo-300">
+                        Wallet Deposits: <strong className="font-mono">{formatMoney(totalDeposits)}</strong>
+                      </span>
+                    )}
                   </div>
-                </div>
+                )}
               </div>
             </div>
 
@@ -2022,6 +2137,27 @@ export default function EndOfDay() {
                     </td>
                   </tr>
 
+                  {/* Row: Wallet / Store Credit Redeemed (Internal Ledger - Non-Countable) */}
+                  {totalWalletRedeemed > 0 && (
+                    <tr className="bg-purple-50/40 dark:bg-purple-950/20">
+                      <td className="border border-[#dcdcdc] dark:border-slate-700 text-purple-900 dark:text-purple-200 font-medium py-2 px-3.5">
+                        Customer Wallet / Store Credit
+                        <span className="ml-2 text-xs font-normal text-purple-600 dark:text-purple-400">(Internal Ledger)</span>
+                      </td>
+                      <td className="border border-[#dcdcdc] dark:border-slate-700 text-right font-mono text-purple-900 dark:text-purple-200 py-2 px-3.5">
+                        {formatMoney(totalWalletRedeemed)}
+                      </td>
+                      <td className="border border-[#dcdcdc] dark:border-slate-700 text-right font-mono text-purple-700 dark:text-purple-300 py-2 px-3.5 text-sm">
+                        {formatMoney(totalWalletRedeemed)} <span className="text-xs opacity-75">(Auto)</span>
+                      </td>
+                      <td className="border border-[#dcdcdc] dark:border-slate-700 p-1.5">
+                        <div className={getDiffBoxClass(0)}>
+                          {formatMoney(0, true)}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+
                   {/* Row: Other Payments if any other sales exist or are counted */}
                   {(totalOtherSales > 0 || otherCounted > 0) && (
                     <tr className="bg-[#f8f9fa] dark:bg-slate-800/40">
@@ -2049,10 +2185,10 @@ export default function EndOfDay() {
                     </tr>
                   )}
 
-                  {/* Row: Total */}
+                  {/* Row: Total (Countable Drawer & Terminal Inflow) */}
                   <tr className="bg-[#f8f9fa] dark:bg-slate-800/80 font-semibold text-slate-800 dark:text-slate-100">
                     <td className="border border-[#dcdcdc] dark:border-slate-700 text-right pr-4 py-2.5 px-3.5">
-                      Total :
+                      Total (Drawer & Terminal) :
                     </td>
                     <td className="border border-[#dcdcdc] dark:border-slate-700 text-right font-mono font-bold text-[17px] py-2.5 px-3.5" id="dispCalculatedTotal">
                       {formatMoney(calculatedTotal)}
@@ -2066,6 +2202,29 @@ export default function EndOfDay() {
                       </div>
                     </td>
                   </tr>
+
+                  {/* Financial Revenue vs Wallet Deposit Breakdown Row */}
+                  {(totalDeposits > 0 || totalWalletRedeemed > 0) && (
+                    <tr className="bg-white dark:bg-slate-900 text-sm">
+                      <td colSpan={4} className="border border-[#dcdcdc] dark:border-slate-700 py-2.5 px-4">
+                        <div className="flex flex-wrap items-center justify-end gap-6">
+                          <span className="text-slate-600 dark:text-slate-300">
+                            Net Earned Sales Revenue: <strong className="font-mono text-slate-900 dark:text-white text-[15px]">{formatMoney(totalSales)}</strong>
+                          </span>
+                          {totalDeposits > 0 && (
+                            <span className="text-indigo-700 dark:text-indigo-300">
+                              Wallet Deposits Collected (Liability): <strong className="font-mono text-[15px]">{formatMoney(totalDeposits)}</strong>
+                            </span>
+                          )}
+                          {totalWalletRedeemed > 0 && (
+                            <span className="text-purple-700 dark:text-purple-300">
+                              Paid via Wallet / Store Credit: <strong className="font-mono text-[15px]">{formatMoney(totalWalletRedeemed)}</strong>
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -2127,9 +2286,10 @@ export default function EndOfDay() {
                   className="w-full sm:w-auto px-3 py-1.5 bg-white dark:bg-slate-800 border border-[#cccccc] dark:border-slate-700 text-black dark:text-slate-200 text-sm font-medium outline-none focus:border-[#91c9f7] rounded cursor-pointer"
                 >
                   <option value="All">All Payments ({allPayments.length})</option>
-                  <option value="Cash">Cash ({allPayments.filter(p => isCashPayment(p.method) && !isRefundPayment(p)).length})</option>
-                  <option value="Card">Card ({allPayments.filter(p => isCardPayment(p.method) && !isRefundPayment(p)).length})</option>
-                  <option value="Other">Other ({allPayments.filter(p => isOtherPayment(p.method) && !isRefundPayment(p)).length})</option>
+                  <option value="Cash">Cash ({allPayments.filter(p => isCashPayment(p.method, p) && !isRefundPayment(p)).length})</option>
+                  <option value="Card">Card ({allPayments.filter(p => isCardPayment(p.method, p) && !isRefundPayment(p)).length})</option>
+                  <option value="Wallet">Wallet / Store Credit ({allPayments.filter(p => isWalletPayment(p.method, p) && !isRefundPayment(p)).length})</option>
+                  <option value="Other">Other ({allPayments.filter(p => isOtherPayment(p.method, p) && !isRefundPayment(p)).length})</option>
                   <option value="Refunds">Refunds ({allPayments.filter(p => isRefundPayment(p)).length})</option>
                 </select>
               </div>
@@ -2144,7 +2304,8 @@ export default function EndOfDay() {
               ) : (
                 filteredPayments.map((payment, idx) => {
                   const isRefund = isRefundPayment(payment);
-                  const baseMethod = getBasePaymentMethod(payment.method);
+                  const isDeposit = isDepositPayment(payment);
+                  const baseMethod = getBasePaymentMethod(payment.method, payment);
 
                   return (
                     <div 
@@ -2169,6 +2330,11 @@ export default function EndOfDay() {
                           ) : (
                             <span className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-300">
                               {payment.invoice_number || 'Deposit'}
+                            </span>
+                          )}
+                          {isDeposit && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 rounded">
+                              Wallet Deposit
                             </span>
                           )}
                           <span className="text-[11px] font-mono text-slate-400">
@@ -2199,27 +2365,33 @@ export default function EndOfDay() {
                               Refund
                             </span>
                           )}
-                          <select 
-                            value={baseMethod}
-                            onChange={(e) => {
-                              const newBase = e.target.value;
-                              const targetMethod = isRefund ? `Refund (${newBase})` : newBase;
-                              updatePaymentMethod(payment.id, targetMethod);
-                            }}
-                            className={`px-2 py-0.5 text-xs bg-white dark:bg-slate-800 outline-none cursor-pointer rounded transition-colors ${
-                              isRefund 
-                                ? 'border border-rose-400 text-rose-700 dark:text-rose-400 dark:border-rose-700' 
-                                : baseMethod === 'Cash'
-                                ? 'border border-emerald-500 text-black dark:text-emerald-300 dark:border-emerald-700'
-                                : baseMethod === 'Card'
-                                ? 'border border-blue-500 text-black dark:text-blue-300 dark:border-blue-700'
-                                : 'border border-amber-500 text-black dark:text-amber-300 dark:border-amber-700'
-                            }`}
-                          >
-                            <option value="Cash">Cash</option>
-                            <option value="Card">Card</option>
-                            <option value="Other">Other</option>
-                          </select>
+                          {baseMethod === 'Wallet' ? (
+                            <span className="px-2 py-0.5 text-xs font-semibold rounded border border-purple-400 bg-purple-50 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-700">
+                              {payment.method || 'Wallet'}
+                            </span>
+                          ) : (
+                            <select 
+                              value={baseMethod}
+                              onChange={(e) => {
+                                const newBase = e.target.value;
+                                const targetMethod = isRefund ? `Refund (${newBase})` : newBase;
+                                updatePaymentMethod(payment.id, targetMethod);
+                              }}
+                              className={`px-2 py-0.5 text-xs bg-white dark:bg-slate-800 outline-none cursor-pointer rounded transition-colors ${
+                                isRefund 
+                                  ? 'border border-rose-400 text-rose-700 dark:text-rose-400 dark:border-rose-700' 
+                                  : baseMethod === 'Cash'
+                                  ? 'border border-emerald-500 text-black dark:text-emerald-300 dark:border-emerald-700'
+                                  : baseMethod === 'Card'
+                                  ? 'border border-blue-500 text-black dark:text-blue-300 dark:border-blue-700'
+                                  : 'border border-amber-500 text-black dark:text-amber-300 dark:border-amber-700'
+                              }`}
+                            >
+                              <option value="Cash">Cash</option>
+                              <option value="Card">Card</option>
+                              <option value="Other">Other</option>
+                            </select>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -2231,7 +2403,7 @@ export default function EndOfDay() {
               {filteredPayments.length > 0 && (
                 <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border-t border-[#e5e5e5] dark:border-slate-700 flex items-center justify-between">
                   <span className="text-xs font-semibold uppercase text-slate-600 dark:text-slate-300">
-                    {paymentTypeFilter === 'All' ? 'Total' : `Total (${paymentTypeFilter})`}
+                    {paymentTypeFilter === 'All' ? 'Total Transactions' : `Total (${paymentTypeFilter})`}
                   </span>
                   <span className="text-base font-mono font-bold text-slate-900 dark:text-blue-400">
                     €{filteredPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}
@@ -2263,7 +2435,8 @@ export default function EndOfDay() {
                   ) : (
                     filteredPayments.map((payment, idx) => {
                       const isRefund = isRefundPayment(payment);
-                      const baseMethod = getBasePaymentMethod(payment.method);
+                      const isDeposit = isDepositPayment(payment);
+                      const baseMethod = getBasePaymentMethod(payment.method, payment);
 
                       return (
                         <tr key={idx} className={isRefund ? 'bg-red-50/30 dark:bg-red-950/10' : ''}>
@@ -2274,23 +2447,30 @@ export default function EndOfDay() {
                             {payment.paid_at ? new Date(payment.paid_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '--:--'}
                           </td>
                           <td className="py-3 px-6 font-mono font-medium">
-                            {payment.invoice_id ? (
-                              <button
-                                type="button"
-                                onClick={() => navigate(`/${branchSlug || 'default'}/invoices/${payment.invoice_id}`)}
-                                className={`inline-flex items-center gap-1 hover:underline cursor-pointer group text-left ${
-                                  isRefund ? 'text-rose-700 font-semibold' : 'text-blue-700 dark:text-blue-400 font-bold'
-                                }`}
-                                title={`Open Invoice ${payment.invoice_number || `#${payment.invoice_id}`}`}
-                              >
-                                <span>{payment.invoice_number || `#${payment.invoice_id}`}</span>
-                                <ExternalLink size={12} className="opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                              </button>
-                            ) : (
-                              <span className={isRefund ? 'text-rose-700 font-semibold' : 'text-[#707070] dark:text-slate-400'}>
-                                {payment.invoice_number || 'Deposit'}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {payment.invoice_id ? (
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`/${branchSlug || 'default'}/invoices/${payment.invoice_id}`)}
+                                  className={`inline-flex items-center gap-1 hover:underline cursor-pointer group text-left ${
+                                    isRefund ? 'text-rose-700 font-semibold' : 'text-blue-700 dark:text-blue-400 font-bold'
+                                  }`}
+                                  title={`Open Invoice ${payment.invoice_number || `#${payment.invoice_id}`}`}
+                                >
+                                  <span>{payment.invoice_number || `#${payment.invoice_id}`}</span>
+                                  <ExternalLink size={12} className="opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                                </button>
+                              ) : (
+                                <span className={isRefund ? 'text-rose-700 font-semibold' : 'text-[#707070] dark:text-slate-400'}>
+                                  {payment.invoice_number || 'Deposit'}
+                                </span>
+                              )}
+                              {isDeposit && (
+                                <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 rounded">
+                                  Wallet Deposit
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-3 px-6 text-black dark:text-slate-300 max-w-[280px] truncate" title={payment.products_summary || payment.customer_name || '--'}>
                             {payment.products_summary || payment.customer_name || 'Walk-in Customer'}
@@ -2302,27 +2482,33 @@ export default function EndOfDay() {
                                   Refund
                                 </span>
                               )}
-                              <select 
-                                value={baseMethod}
-                                onChange={(e) => {
-                                  const newBase = e.target.value;
-                                  const targetMethod = isRefund ? `Refund (${newBase})` : newBase;
-                                  updatePaymentMethod(payment.id, targetMethod);
-                                }}
-                                className={`px-2.5 py-1 text-[13px] bg-white dark:bg-slate-800 outline-none cursor-pointer rounded transition-colors ${
-                                  isRefund 
-                                    ? 'border border-rose-400 text-rose-700 dark:text-rose-400 dark:border-rose-700' 
-                                    : baseMethod === 'Cash'
-                                    ? 'border border-emerald-500 text-black dark:text-emerald-300 dark:border-emerald-700'
-                                    : baseMethod === 'Card'
-                                    ? 'border border-blue-500 text-black dark:text-blue-300 dark:border-blue-700'
-                                    : 'border border-amber-500 text-black dark:text-amber-300 dark:border-amber-700'
-                                }`}
-                              >
-                                <option value="Cash">Cash</option>
-                                <option value="Card">Card</option>
-                                <option value="Other">Other</option>
-                              </select>
+                              {baseMethod === 'Wallet' ? (
+                                <span className="px-2.5 py-1 text-[13px] font-medium rounded border border-purple-400 bg-purple-50 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-700">
+                                  {payment.method || 'Wallet'}
+                                </span>
+                              ) : (
+                                <select 
+                                  value={baseMethod}
+                                  onChange={(e) => {
+                                    const newBase = e.target.value;
+                                    const targetMethod = isRefund ? `Refund (${newBase})` : newBase;
+                                    updatePaymentMethod(payment.id, targetMethod);
+                                  }}
+                                  className={`px-2.5 py-1 text-[13px] bg-white dark:bg-slate-800 outline-none cursor-pointer rounded transition-colors ${
+                                    isRefund 
+                                      ? 'border border-rose-400 text-rose-700 dark:text-rose-400 dark:border-rose-700' 
+                                      : baseMethod === 'Cash'
+                                      ? 'border border-emerald-500 text-black dark:text-emerald-300 dark:border-emerald-700'
+                                      : baseMethod === 'Card'
+                                      ? 'border border-blue-500 text-black dark:text-blue-300 dark:border-blue-700'
+                                      : 'border border-amber-500 text-black dark:text-amber-300 dark:border-amber-700'
+                                  }`}
+                                >
+                                  <option value="Cash">Cash</option>
+                                  <option value="Card">Card</option>
+                                  <option value="Other">Other</option>
+                                </select>
+                              )}
                             </div>
                           </td>
                           <td className={`py-3 px-6 text-right font-mono font-medium text-[15px] ${isRefund ? 'text-rose-700 font-semibold' : 'text-black dark:text-white'}`}>
@@ -2337,7 +2523,7 @@ export default function EndOfDay() {
                   <tfoot>
                     <tr className="bg-white dark:bg-slate-900 border-t border-[#e5e5e5] dark:border-slate-800 font-semibold">
                       <td colSpan={5} className="py-3 px-6 text-right text-[15px] uppercase text-[#707070] dark:text-slate-300">
-                        {paymentTypeFilter === 'All' ? 'Total' : `Total (${paymentTypeFilter})`}
+                        {paymentTypeFilter === 'All' ? 'Total Transactions' : `Total (${paymentTypeFilter})`}
                       </td>
                       <td className="py-3 px-6 text-right text-[17px] font-mono text-black dark:text-blue-400">
                         €{filteredPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}
@@ -2385,6 +2571,8 @@ export default function EndOfDay() {
             reportDate={reportDate}
             startingBalance={startingBalance}
             totalSales={totalSales}
+            totalDeposits={totalDeposits}
+            totalWalletRedeemed={totalWalletRedeemed}
             cashCounted={cashCounted}
             calculatedCash={totalCashSales + startingBalance}
             difference={diffCash}
@@ -2401,6 +2589,8 @@ export default function EndOfDay() {
             reportDate={reportDate}
             startingBalance={startingBalance}
             totalSales={totalSales}
+            totalDeposits={totalDeposits}
+            totalWalletRedeemed={totalWalletRedeemed}
             cashCounted={cashCounted}
             calculatedCash={totalCashSales + startingBalance}
             difference={diffCash}
