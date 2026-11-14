@@ -3,7 +3,7 @@ import { queryOne } from '../mysql.js';
 import { decryptSecret } from '../utils/crypto.js';
 import { escapeHtml } from '../middleware/security.js';
 
-let cachedTransporter: nodemailer.Transporter | null = null;
+let cachedTransporter: ReturnType<typeof nodemailer.createTransport> | null = null;
 let cachedKey: string = '';
 
 export function invalidateMailTransporter() {
