@@ -656,7 +656,8 @@ const createInvoiceSchema = z.object({
 });
 
 router.post('/', async (req: any, res, next) => {
-  const data = createInvoiceSchema.parse(req.body);
+  let data: z.infer<typeof createInvoiceSchema>;
+  try { data = createInvoiceSchema.parse(req.body); } catch (e) { return next(e); }
   const { customer_id, items, subtotal, tax_total, tax_rate, tax_type, discount_total, grand_total, payments, activities } = data;
   
   if (!items || !items.length) return res.status(400).json({ error: 'Cart is empty' });

@@ -23,7 +23,8 @@ const addInventorySchema = z.object({
 
 // POST /api/inventory/add
 router.post('/add', async (req: any, res, next) => {
-  const data = addInventorySchema.parse(req.body);
+  let data: z.infer<typeof addInventorySchema>;
+  try { data = addInventorySchema.parse(req.body); } catch (e) { return next(e); }
   const { sku_id, branch_id, quantity, cost_price, selling_price, supplier_id, po_number, items } = data;
   if (!supplier_id) {
     return res.status(400).json({ error: 'Supplier is required when adding inventory.' });
@@ -172,7 +173,8 @@ const batchAddDevicesSchema = z.object({
 
 // POST /api/inventory/batch-add-devices
 router.post('/batch-add-devices', async (req: any, res, next) => {
-  const data = batchAddDevicesSchema.parse(req.body);
+  let data: z.infer<typeof batchAddDevicesSchema>;
+  try { data = batchAddDevicesSchema.parse(req.body); } catch (e) { return next(e); }
   const { branch_id, supplier_id, po_number, items } = data;
   if (!supplier_id) {
     return res.status(400).json({ error: 'Supplier is required when adding batch inventory.' });
@@ -967,9 +969,9 @@ const deviceActivitySchema = z.object({
 
 // POST /api/devices/:id/activity (Add Note)
 router.post('/devices/:id/activity', async (req: any, res, next) => {
-  const data = deviceActivitySchema.parse(req.body);
-  const { activity, details } = data;
   try {
+    const data = deviceActivitySchema.parse(req.body);
+    const { activity, details } = data;
     const branchId = req.user.branch_id;
     const checkParams = [req.params.id, req.user.business_id];
     let branchClause = '';
@@ -1489,7 +1491,8 @@ async function dispatchSingleTransferItem(
 
 // POST /api/transfers (Supports both single item AND bulk items array in one ACID transaction)
 router.post('/transfers', async (req: any, res, next) => {
-  const data = transferSchema.parse(req.body);
+  let data: z.infer<typeof transferSchema>;
+  try { data = transferSchema.parse(req.body); } catch (e) { return next(e); }
   const { to_branch_id, notes, items } = data;
 
   const sourceBranchId = req.user.branch_id;
@@ -2116,7 +2119,8 @@ const updateRepairSchema = z.object({
 
 // PUT /api/repairs/:id — update status, device_model, issue, customer profile, total_quote, and notes (payments go through Cash Register)
 router.put('/repairs/:id', async (req: any, res, next) => {
-  const data = updateRepairSchema.parse(req.body);
+  let data: z.infer<typeof updateRepairSchema>;
+  try { data = updateRepairSchema.parse(req.body); } catch (e) { return next(e); }
   const { status, device_model, issue, notes, total_quote, customer_name, customer_phone, customer_email } = data;
   const jobId = req.params.id;
   const conn = await pool.getConnection();

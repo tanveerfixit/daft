@@ -29,22 +29,22 @@ router.get('/settings', async (req: any, res, next) => {
 });
 
 const settingsSchema = z.object({
-  currency: z.string().optional(),
-  timezone: z.string().optional(),
-  date_format: z.string().optional(),
-  time_format: z.string().optional(),
-  language: z.string().optional(),
-  startup_cash_popup: z.boolean().optional(),
-  low_stock_popup: z.boolean().optional(),
-  announcements_popup: z.boolean().optional(),
-  sound_notifications: z.boolean().optional(),
-  daily_eod_popup: z.boolean().optional(),
+  currency: z.string().nullable().optional(),
+  timezone: z.string().nullable().optional(),
+  date_format: z.string().nullable().optional(),
+  time_format: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+  startup_cash_popup: z.boolean().nullable().optional(),
+  low_stock_popup: z.boolean().nullable().optional(),
+  announcements_popup: z.boolean().nullable().optional(),
+  sound_notifications: z.boolean().nullable().optional(),
+  daily_eod_popup: z.boolean().nullable().optional(),
 });
 
 router.post('/settings', async (req: any, res, next) => {
-  const data = settingsSchema.parse(req.body);
-  const { currency, timezone, date_format, time_format, language, startup_cash_popup, low_stock_popup, announcements_popup, sound_notifications, daily_eod_popup } = data;
   try {
+    const data = settingsSchema.parse(req.body);
+    const { currency, timezone, date_format, time_format, language, startup_cash_popup, low_stock_popup, announcements_popup, sound_notifications, daily_eod_popup } = data;
     let s = await queryOne('SELECT id FROM settings WHERE business_id=?', [req.user.business_id]);
     if (!s) {
       await execute('INSERT INTO settings (business_id) VALUES (?)', [req.user.business_id]);
@@ -63,12 +63,12 @@ router.post('/settings', async (req: any, res, next) => {
         daily_eod_popup = COALESCE(?, daily_eod_popup)
       WHERE business_id = ?
     `, [
-      currency || '€, Euro', timezone, date_format, time_format, language,
-      startup_cash_popup !== undefined ? (startup_cash_popup ? 1 : 0) : null,
-      low_stock_popup !== undefined ? (low_stock_popup ? 1 : 0) : null,
-      announcements_popup !== undefined ? (announcements_popup ? 1 : 0) : null,
-      sound_notifications !== undefined ? (sound_notifications ? 1 : 0) : null,
-      daily_eod_popup !== undefined ? (daily_eod_popup ? 1 : 0) : null,
+      currency || '€, Euro', timezone ?? null, date_format ?? null, time_format ?? null, language ?? null,
+      startup_cash_popup !== undefined && startup_cash_popup !== null ? (startup_cash_popup ? 1 : 0) : null,
+      low_stock_popup !== undefined && low_stock_popup !== null ? (low_stock_popup ? 1 : 0) : null,
+      announcements_popup !== undefined && announcements_popup !== null ? (announcements_popup ? 1 : 0) : null,
+      sound_notifications !== undefined && sound_notifications !== null ? (sound_notifications ? 1 : 0) : null,
+      daily_eod_popup !== undefined && daily_eod_popup !== null ? (daily_eod_popup ? 1 : 0) : null,
       req.user.business_id
     ]);
 
@@ -82,16 +82,16 @@ router.post('/settings', async (req: any, res, next) => {
 });
 
 const popupSettingsSchema = z.object({
-  startup_cash_popup: z.boolean().optional(),
-  low_stock_popup: z.boolean().optional(),
-  announcements_popup: z.boolean().optional(),
-  sound_notifications: z.boolean().optional(),
-  daily_eod_popup: z.boolean().optional(),
+  startup_cash_popup: z.boolean().nullable().optional(),
+  low_stock_popup: z.boolean().nullable().optional(),
+  announcements_popup: z.boolean().nullable().optional(),
+  sound_notifications: z.boolean().nullable().optional(),
+  daily_eod_popup: z.boolean().nullable().optional(),
 });
 
 router.post('/settings/popups', async (req: any, res, next) => {
-  const data = popupSettingsSchema.parse(req.body);
   try {
+    const data = popupSettingsSchema.parse(req.body);
     let s = await queryOne('SELECT id FROM settings WHERE business_id=?', [req.user.business_id]);
     if (!s) {
       await execute('INSERT INTO settings (business_id) VALUES (?)', [req.user.business_id]);
@@ -105,11 +105,11 @@ router.post('/settings/popups', async (req: any, res, next) => {
         daily_eod_popup = COALESCE(?, daily_eod_popup)
       WHERE business_id = ?
     `, [
-      data.startup_cash_popup !== undefined ? (data.startup_cash_popup ? 1 : 0) : null,
-      data.low_stock_popup !== undefined ? (data.low_stock_popup ? 1 : 0) : null,
-      data.announcements_popup !== undefined ? (data.announcements_popup ? 1 : 0) : null,
-      data.sound_notifications !== undefined ? (data.sound_notifications ? 1 : 0) : null,
-      data.daily_eod_popup !== undefined ? (data.daily_eod_popup ? 1 : 0) : null,
+      data.startup_cash_popup !== undefined && data.startup_cash_popup !== null ? (data.startup_cash_popup ? 1 : 0) : null,
+      data.low_stock_popup !== undefined && data.low_stock_popup !== null ? (data.low_stock_popup ? 1 : 0) : null,
+      data.announcements_popup !== undefined && data.announcements_popup !== null ? (data.announcements_popup ? 1 : 0) : null,
+      data.sound_notifications !== undefined && data.sound_notifications !== null ? (data.sound_notifications ? 1 : 0) : null,
+      data.daily_eod_popup !== undefined && data.daily_eod_popup !== null ? (data.daily_eod_popup ? 1 : 0) : null,
       req.user.business_id
     ]);
     res.json({ success: true });
@@ -169,23 +169,23 @@ router.get('/company', async (req: any, res, next) => {
 
 
 const companySchema = z.object({
-  name: z.string().optional(),
-  email: z.string().optional(),
-  phone: z.string().optional(),
-  subdomain: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zip_code: z.string().optional(),
-  country: z.string().optional(),
-  vat_number: z.string().optional()
+  name: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  subdomain: z.string().nullable().optional(),
+  address: z.string().nullable().optional(),
+  city: z.string().nullable().optional(),
+  state: z.string().nullable().optional(),
+  zip_code: z.string().nullable().optional(),
+  country: z.string().nullable().optional(),
+  vat_number: z.string().nullable().optional()
 });
 
 router.post('/company', async (req: any, res, next) => {
-  const data = companySchema.parse(req.body);
-  const { name, email, phone, subdomain, address, city, state, zip_code, country, vat_number } = data;
-  const safeName = name && name.trim() ? name.trim() : null;
   try {
+    const data = companySchema.parse(req.body);
+    const { name, email, phone, subdomain, address, city, state, zip_code, country, vat_number } = data;
+    const safeName = name && name.trim() ? name.trim() : null;
     const branchId = req.user?.branch_id;
     if (branchId) {
       try {
@@ -220,16 +220,17 @@ router.get('/payment-methods', async (req: any, res, next) => {
 
 const paymentMethodsSchema = z.object({
   methods: z.array(z.object({
-    id: z.number().optional(),
+    id: z.number().nullable().optional(),
     name: z.string()
   })).default([])
 });
 
 router.post('/payment-methods', async (req: any, res, next) => {
-  const data = paymentMethodsSchema.parse(req.body);
-  const { methods } = data;
-  const conn = await pool.getConnection();
+  let conn: any;
   try {
+    const data = paymentMethodsSchema.parse(req.body);
+    const { methods } = data;
+    conn = await pool.getConnection();
     await conn.beginTransaction();
     await conn.execute('UPDATE payment_methods SET is_active=0 WHERE business_id=?', [req.user.business_id]);
     for (let i = 0; i < methods.length; i++) {
@@ -244,8 +245,12 @@ router.post('/payment-methods', async (req: any, res, next) => {
     }
     await conn.commit();
     res.json({ success: true });
-  } catch (e: any) { await conn.rollback(); next(e); }
-  finally { conn.release(); }
+  } catch (e: any) {
+    if (conn) await conn.rollback().catch(() => {});
+    next(e);
+  } finally {
+    if (conn) conn.release();
+  }
 });
 
 // ─── Printer Settings ─────────────────────────────────────────────────────────
@@ -254,16 +259,16 @@ router.get('/printer-settings', async (req: any, res, next) => {
   try {
     const branchId = req.user?.branch_id ?? null;
     let s = await queryOne(
-      'SELECT * FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL))',
+      'SELECT * FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL)) ORDER BY id DESC LIMIT 1',
       [req.user.business_id, branchId, branchId]
     );
     if (!s && branchId !== null) {
-      s = await queryOne('SELECT * FROM printer_settings WHERE business_id=? AND branch_id IS NULL', [req.user.business_id]);
+      s = await queryOne('SELECT * FROM printer_settings WHERE business_id=? AND branch_id IS NULL ORDER BY id DESC LIMIT 1', [req.user.business_id]);
     }
     if (!s) {
       await execute('INSERT INTO printer_settings (business_id, branch_id) VALUES (?, ?)', [req.user.business_id, branchId]);
       s = await queryOne(
-        'SELECT * FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL))',
+        'SELECT * FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL)) ORDER BY id DESC LIMIT 1',
         [req.user.business_id, branchId, branchId]
       );
     }
@@ -272,35 +277,33 @@ router.get('/printer-settings', async (req: any, res, next) => {
 });
 
 const printerSettingsSchema = z.object({
-  label_size: z.string().optional(),
-  barcode_length: z.number().or(z.string().transform(Number)).optional(),
-  margin_top: z.number().or(z.string().transform(Number)).optional(),
-  margin_left: z.number().or(z.string().transform(Number)).optional(),
-  margin_bottom: z.number().or(z.string().transform(Number)).optional(),
-  margin_right: z.number().or(z.string().transform(Number)).optional(),
-  orientation: z.string().optional(),
-  font_size: z.string().optional(),
-  font_family: z.string().optional()
+  label_size: z.string().nullable().optional(),
+  barcode_length: z.number().or(z.string().transform(Number)).nullable().optional(),
+  margin_top: z.number().or(z.string().transform(Number)).nullable().optional(),
+  margin_left: z.number().or(z.string().transform(Number)).nullable().optional(),
+  margin_bottom: z.number().or(z.string().transform(Number)).nullable().optional(),
+  margin_right: z.number().or(z.string().transform(Number)).nullable().optional(),
+  orientation: z.string().nullable().optional(),
+  font_size: z.string().nullable().optional(),
+  font_family: z.string().nullable().optional()
 });
 
 router.post('/printer-settings', async (req: any, res, next) => {
-  const branchId = req.user?.branch_id ?? null;
-  const data = printerSettingsSchema.parse(req.body);
-  const { 
-    label_size = '2.25" (57mm) x 1.25" (32mm) Dymo 11354 / 30334', 
-    barcode_length = 20, 
-    margin_top = 2, 
-    margin_left = 2, 
-    margin_bottom = 2, 
-    margin_right = 2, 
-    orientation = 'Landscape', 
-    font_size = 'Medium', 
-    font_family = 'Arial' 
-  } = data;
-
   try {
+    const branchId = req.user?.branch_id ?? null;
+    const data = printerSettingsSchema.parse(req.body);
+    const label_size = data.label_size ?? '2.25" (57mm) x 1.25" (32mm) Dymo 11354 / 30334';
+    const barcode_length = data.barcode_length ?? 20;
+    const margin_top = data.margin_top ?? 2;
+    const margin_left = data.margin_left ?? 2;
+    const margin_bottom = data.margin_bottom ?? 2;
+    const margin_right = data.margin_right ?? 2;
+    const orientation = data.orientation ?? 'Landscape';
+    const font_size = data.font_size ?? 'Medium';
+    const font_family = data.font_family ?? 'Arial';
+
     const existing = await queryOne(
-      'SELECT id FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL))',
+      'SELECT id FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL)) ORDER BY id DESC LIMIT 1',
       [req.user.business_id, branchId, branchId]
     );
 
@@ -321,124 +324,211 @@ router.post('/printer-settings', async (req: any, res, next) => {
 
 // ─── Thermal Printer Settings ─────────────────────────────────────────────────
 
+async function resolveValidBranchId(businessId: number, rawBranchId: any): Promise<number | null> {
+  const numBranchId = rawBranchId ? Number(rawBranchId) : null;
+  if (!numBranchId || Number.isNaN(numBranchId)) return null;
+  try {
+    const validBranch = await queryOne('SELECT id FROM branches WHERE id=? AND business_id=?', [numBranchId, businessId]);
+    return validBranch ? numBranchId : null;
+  } catch {
+    return null;
+  }
+}
+
 router.get('/thermal-printer-settings', async (req: any, res, next) => {
   try {
-    const branchId = req.user?.branch_id ?? null;
-    let s;
+    const branchId = await resolveValidBranchId(req.user.business_id, req.user?.branch_id);
+    let s: any;
     if (branchId) {
-      s = await queryOne('SELECT * FROM thermal_printer_settings WHERE business_id=? AND branch_id=?', [req.user.business_id, branchId]);
+      s = await queryOne('SELECT * FROM thermal_printer_settings WHERE business_id=? AND branch_id=? ORDER BY id DESC LIMIT 1', [req.user.business_id, branchId]);
       if (!s) {
-        s = await queryOne('SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0)', [req.user.business_id]);
+        s = await queryOne('SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0) ORDER BY id DESC LIMIT 1', [req.user.business_id]);
       }
     } else {
-      s = await queryOne('SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0)', [req.user.business_id]);
+      s = await queryOne('SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0) ORDER BY id DESC LIMIT 1', [req.user.business_id]);
     }
 
     if (!s) {
-      await execute('INSERT INTO thermal_printer_settings (business_id,branch_id,font_family,font_size) VALUES (?,?,?,?)', [req.user.business_id, branchId, 'Arial', '14px']);
+      await execute(
+        'INSERT INTO thermal_printer_settings (business_id,branch_id,font_family,font_size,eod_footer_type,eod_footer_custom_text,footer_text) VALUES (?,?,?,?,?,?,?)',
+        [req.user.business_id, branchId, 'Arial', '14px', 'branch', '', 'Thank you for your business!']
+      );
       s = await queryOne('SELECT * FROM thermal_printer_settings WHERE business_id=? ORDER BY id DESC LIMIT 1', [req.user.business_id]);
     }
-    res.json(s);
+
+    res.json({
+      ...(s || {}),
+      font_family: s?.font_family || 'Arial',
+      font_size: s?.font_size || '14px',
+      eod_footer_type: s?.eod_footer_type || 'branch',
+      eod_footer_custom_text: s?.eod_footer_custom_text ?? '',
+      footer_text: s?.footer_text ?? 'Thank you for your business!'
+    });
   } catch (e: any) { next(e); }
 });
 
 const thermalPrinterSettingsSchema = z.object({
-  font_family: z.string().optional(),
-  font_size: z.string().optional(),
-  show_logo: z.boolean().optional(),
-  show_business_name: z.boolean().optional(),
-  show_business_address: z.boolean().optional(),
-  show_business_phone: z.boolean().optional(),
-  show_business_email: z.boolean().optional(),
-  show_customer_info: z.boolean().optional(),
-  show_invoice_number: z.boolean().optional(),
-  show_date: z.boolean().optional(),
-  show_items_table: z.boolean().optional(),
-  show_totals: z.boolean().optional(),
-  show_footer: z.boolean().optional(),
-  show_powered_by: z.boolean().optional(),
-  show_vat_number: z.boolean().optional(),
-  eod_show_cash_summary: z.boolean().optional(),
-  eod_show_payment_type: z.boolean().optional(),
-  eod_show_total_cash: z.boolean().optional(),
-  eod_show_total_card_sale: z.boolean().optional(),
-  eod_show_total: z.boolean().optional(),
-  eod_footer_type: z.string().optional(),
-  eod_footer_custom_text: z.string().optional(),
-  footer_text: z.string().optional()
+  font_family: z.string().nullable().optional(),
+  font_size: z.string().nullable().optional(),
+  show_logo: z.union([z.boolean(), z.number()]).nullable().optional(),
+  show_business_name: z.union([z.boolean(), z.number()]).nullable().optional(),
+  show_business_address: z.union([z.boolean(), z.number()]).nullable().optional(),
+  show_business_phone: z.union([z.boolean(), z.number()]).nullable().optional(),
+  show_business_email: z.union([z.boolean(), z.number()]).nullable().optional(),
+  show_customer_info: z.union([z.boolean(), z.number()]).nullable().optional(),
+  show_invoice_number: z.union([z.boolean(), z.number()]).nullable().optional(),
+  show_date: z.union([z.boolean(), z.number()]).nullable().optional(),
+  show_items_table: z.union([z.boolean(), z.number()]).nullable().optional(),
+  show_totals: z.union([z.boolean(), z.number()]).nullable().optional(),
+  show_footer: z.union([z.boolean(), z.number()]).nullable().optional(),
+  show_powered_by: z.union([z.boolean(), z.number()]).nullable().optional(),
+  show_vat_number: z.union([z.boolean(), z.number()]).nullable().optional(),
+  eod_show_cash_summary: z.union([z.boolean(), z.number()]).nullable().optional(),
+  eod_show_payment_type: z.union([z.boolean(), z.number()]).nullable().optional(),
+  eod_show_total_cash: z.union([z.boolean(), z.number()]).nullable().optional(),
+  eod_show_total_card_sale: z.union([z.boolean(), z.number()]).nullable().optional(),
+  eod_show_total: z.union([z.boolean(), z.number()]).nullable().optional(),
+  eod_footer_type: z.string().nullable().optional(),
+  eod_footer_custom_text: z.string().nullable().optional(),
+  footer_text: z.string().nullable().optional()
 });
 
 router.post('/thermal-printer-settings', async (req: any, res, next) => {
-  const branchId = req.user?.branch_id ?? null;
-  const m = thermalPrinterSettingsSchema.parse(req.body);
   try {
-    // Atomic upsert — no data loss if server crashes mid-write (FINDING-019)
-    try {
-      await execute(`
-        INSERT INTO thermal_printer_settings
-          (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
-           show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
-           show_items_table,show_totals,show_footer,show_powered_by,show_vat_number,
-           eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
-           eod_footer_type,eod_footer_custom_text,
-           footer_text)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        ON DUPLICATE KEY UPDATE
-          branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
-          show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
-          show_business_address=VALUES(show_business_address),show_business_phone=VALUES(show_business_phone),
-          show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
-          show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
-          show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
-          show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),show_vat_number=VALUES(show_vat_number),
-          eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
-          eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
-          eod_show_total=VALUES(eod_show_total),
-          eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
-          footer_text=VALUES(footer_text)`,
-        [req.user.business_id, branchId, m.font_family||'Arial', m.font_size||'14px', m.show_logo?1:0,
-         m.show_business_name?1:0, m.show_business_address?1:0, m.show_business_phone?1:0,
-         m.show_business_email?1:0, m.show_customer_info?1:0, m.show_invoice_number?1:0,
-         m.show_date?1:0, m.show_items_table?1:0, m.show_totals?1:0, m.show_footer?1:0,
-         m.show_powered_by?1:0, m.show_vat_number !== false ? 1 : 0,
-         m.eod_show_cash_summary?1:0, m.eod_show_payment_type?1:0, m.eod_show_total_cash?1:0,
-         m.eod_show_total_card_sale?1:0, m.eod_show_total?1:0,
-         m.eod_footer_type||'branch', m.eod_footer_custom_text||'',
-         m.footer_text||'Thank you for your business!']
-      );
-    } catch (upsertErr: any) {
-      await execute(`
-        INSERT INTO thermal_printer_settings
-          (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
-           show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
-           show_items_table,show_totals,show_footer,show_powered_by,
-           eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
-           eod_footer_type,eod_footer_custom_text,
-           footer_text)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        ON DUPLICATE KEY UPDATE
-          branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
-          show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
-          show_business_address=VALUES(show_business_address),show_business_phone=VALUES(show_business_phone),
-          show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
-          show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
-          show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
-          show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),
-          eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
-          eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
-          eod_show_total=VALUES(eod_show_total),
-          eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
-          footer_text=VALUES(footer_text)`,
-        [req.user.business_id, branchId, m.font_family||'Arial', m.font_size||'14px', m.show_logo?1:0,
-         m.show_business_name?1:0, m.show_business_address?1:0, m.show_business_phone?1:0,
-         m.show_business_email?1:0, m.show_customer_info?1:0, m.show_invoice_number?1:0,
-         m.show_date?1:0, m.show_items_table?1:0, m.show_totals?1:0, m.show_footer?1:0,
-         m.show_powered_by?1:0,
-         m.eod_show_cash_summary?1:0, m.eod_show_payment_type?1:0, m.eod_show_total_cash?1:0,
-         m.eod_show_total_card_sale?1:0, m.eod_show_total?1:0,
-         m.eod_footer_type||'branch', m.eod_footer_custom_text||'',
-         m.footer_text||'Thank you for your business!']
-      );
+    const branchId = await resolveValidBranchId(req.user.business_id, req.user?.branch_id);
+    const m = thermalPrinterSettingsSchema.parse(req.body);
+
+    const existing = branchId
+      ? await queryOne('SELECT id FROM thermal_printer_settings WHERE business_id=? AND branch_id=? ORDER BY id DESC LIMIT 1', [req.user.business_id, branchId])
+      : await queryOne('SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0) ORDER BY id DESC LIMIT 1', [req.user.business_id]);
+
+    const commonValuesWithVat = [
+      m.font_family || 'Arial',
+      m.font_size || '14px',
+      m.show_logo ? 1 : 0,
+      m.show_business_name ? 1 : 0,
+      m.show_business_address ? 1 : 0,
+      m.show_business_phone ? 1 : 0,
+      m.show_business_email ? 1 : 0,
+      m.show_customer_info ? 1 : 0,
+      m.show_invoice_number ? 1 : 0,
+      m.show_date ? 1 : 0,
+      m.show_items_table ? 1 : 0,
+      m.show_totals ? 1 : 0,
+      m.show_footer ? 1 : 0,
+      m.show_powered_by ? 1 : 0,
+      m.show_vat_number !== false && m.show_vat_number !== 0 ? 1 : 0,
+      m.eod_show_cash_summary ? 1 : 0,
+      m.eod_show_payment_type ? 1 : 0,
+      m.eod_show_total_cash ? 1 : 0,
+      m.eod_show_total_card_sale ? 1 : 0,
+      m.eod_show_total ? 1 : 0,
+      m.eod_footer_type || 'branch',
+      m.eod_footer_custom_text || '',
+      m.footer_text || 'Thank you for your business!'
+    ];
+
+    const commonValuesWithoutVat = [
+      m.font_family || 'Arial',
+      m.font_size || '14px',
+      m.show_logo ? 1 : 0,
+      m.show_business_name ? 1 : 0,
+      m.show_business_address ? 1 : 0,
+      m.show_business_phone ? 1 : 0,
+      m.show_business_email ? 1 : 0,
+      m.show_customer_info ? 1 : 0,
+      m.show_invoice_number ? 1 : 0,
+      m.show_date ? 1 : 0,
+      m.show_items_table ? 1 : 0,
+      m.show_totals ? 1 : 0,
+      m.show_footer ? 1 : 0,
+      m.show_powered_by ? 1 : 0,
+      m.eod_show_cash_summary ? 1 : 0,
+      m.eod_show_payment_type ? 1 : 0,
+      m.eod_show_total_cash ? 1 : 0,
+      m.eod_show_total_card_sale ? 1 : 0,
+      m.eod_show_total ? 1 : 0,
+      m.eod_footer_type || 'branch',
+      m.eod_footer_custom_text || '',
+      m.footer_text || 'Thank you for your business!'
+    ];
+
+    if (existing?.id) {
+      try {
+        await execute(
+          `UPDATE thermal_printer_settings SET
+            font_family=?, font_size=?, show_logo=?, show_business_name=?, show_business_address=?,
+            show_business_phone=?, show_business_email=?, show_customer_info=?, show_invoice_number=?, show_date=?,
+            show_items_table=?, show_totals=?, show_footer=?, show_powered_by=?, show_vat_number=?,
+            eod_show_cash_summary=?, eod_show_payment_type=?, eod_show_total_cash=?, eod_show_total_card_sale=?, eod_show_total=?,
+            eod_footer_type=?, eod_footer_custom_text=?, footer_text=?
+          WHERE id=? AND business_id=?`,
+          [...commonValuesWithVat, existing.id, req.user.business_id]
+        );
+      } catch {
+        await execute(
+          `UPDATE thermal_printer_settings SET
+            font_family=?, font_size=?, show_logo=?, show_business_name=?, show_business_address=?,
+            show_business_phone=?, show_business_email=?, show_customer_info=?, show_invoice_number=?, show_date=?,
+            show_items_table=?, show_totals=?, show_footer=?, show_powered_by=?,
+            eod_show_cash_summary=?, eod_show_payment_type=?, eod_show_total_cash=?, eod_show_total_card_sale=?, eod_show_total=?,
+            eod_footer_type=?, eod_footer_custom_text=?, footer_text=?
+          WHERE id=? AND business_id=?`,
+          [...commonValuesWithoutVat, existing.id, req.user.business_id]
+        );
+      }
+    } else {
+      try {
+        await execute(`
+          INSERT INTO thermal_printer_settings
+            (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
+             show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
+             show_items_table,show_totals,show_footer,show_powered_by,show_vat_number,
+             eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
+             eod_footer_type,eod_footer_custom_text,
+             footer_text)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          ON DUPLICATE KEY UPDATE
+            branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
+            show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
+            show_business_address=VALUES(show_business_address),show_business_phone=VALUES(show_business_phone),
+            show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
+            show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
+            show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
+            show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),show_vat_number=VALUES(show_vat_number),
+            eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
+            eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
+            eod_show_total=VALUES(eod_show_total),
+            eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
+            footer_text=VALUES(footer_text)`,
+          [req.user.business_id, branchId, ...commonValuesWithVat]
+        );
+      } catch {
+        await execute(`
+          INSERT INTO thermal_printer_settings
+            (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
+             show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
+             show_items_table,show_totals,show_footer,show_powered_by,
+             eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
+             eod_footer_type,eod_footer_custom_text,
+             footer_text)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          ON DUPLICATE KEY UPDATE
+            branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
+            show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
+            show_business_address=VALUES(show_business_address),show_business_phone=VALUES(show_business_phone),
+            show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
+            show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
+            show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
+            show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),
+            eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
+            eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
+            eod_show_total=VALUES(eod_show_total),
+            eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
+            footer_text=VALUES(footer_text)`,
+          [req.user.business_id, branchId, ...commonValuesWithoutVat]
+        );
+      }
     }
     res.json({ success: true });
   } catch (e: any) { next(e); }
@@ -457,9 +547,9 @@ const categoryManufacturerSchema = z.object({
 });
 
 router.post('/categories', async (req: any, res, next) => {
-  const data = categoryManufacturerSchema.parse(req.body);
-  const { name } = data;
   try {
+    const data = categoryManufacturerSchema.parse(req.body);
+    const { name } = data;
     const r = await execute('INSERT INTO categories (business_id,name) VALUES (?,?)', [req.user.business_id, name]);
     res.json({ id: r.insertId, name });
   } catch (e: any) { next(e); }
@@ -471,9 +561,9 @@ router.get('/manufacturers', async (req: any, res, next) => {
 });
 
 router.post('/manufacturers', async (req: any, res, next) => {
-  const data = categoryManufacturerSchema.parse(req.body);
-  const { name } = data;
   try {
+    const data = categoryManufacturerSchema.parse(req.body);
+    const { name } = data;
     const r = await execute('INSERT INTO manufacturers (business_id,name) VALUES (?,?)', [req.user.business_id, name]);
     res.json({ id: r.insertId, name });
   } catch (e: any) { next(e); }
@@ -491,17 +581,17 @@ router.get('/suppliers', async (req: any, res, next) => {
 
 const supplierSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  phone: z.string().optional(),
-  email: z.string().optional(),
-  contact_person: z.string().optional()
+  phone: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  contact_person: z.string().nullable().optional()
 });
 
 router.post('/suppliers', async (req: any, res, next) => {
-  const data = supplierSchema.parse(req.body);
-  const { name, phone, email, contact_person } = data;
   try {
+    const data = supplierSchema.parse(req.body);
+    const { name, phone, email, contact_person } = data;
     const r = await execute('INSERT INTO suppliers (business_id,name,phone,email,contact_person) VALUES (?,?,?,?,?)',
-      [req.user.business_id, name, phone, email, contact_person]);
+      [req.user.business_id, name, phone ?? null, email ?? null, contact_person ?? null]);
     res.json({ id: r.insertId, name, phone, email, contact_person });
   } catch (e: any) { next(e); }
 });

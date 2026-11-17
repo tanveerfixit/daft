@@ -883,6 +883,11 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
             setSettings(prev => ({
               ...prev,
               ...data,
+              currency: data.currency || prev.currency,
+              timezone: data.timezone || prev.timezone,
+              date_format: data.date_format || prev.date_format,
+              time_format: data.time_format || prev.time_format,
+              language: data.language || prev.language,
               startup_cash_popup: data.startup_cash_popup !== undefined ? Boolean(Number(data.startup_cash_popup) === 1) : false,
               low_stock_popup: data.low_stock_popup !== undefined ? Boolean(data.low_stock_popup) : true,
               announcements_popup: data.announcements_popup !== undefined ? Boolean(data.announcements_popup) : true,
@@ -960,6 +965,8 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
           if (data) {
             setThermalSettings({
               ...data,
+              font_family: data.font_family || 'Arial',
+              font_size: data.font_size || '14px',
               show_logo: !!data.show_logo,
               show_business_name: !!data.show_business_name,
               show_business_address: !!data.show_business_address,
@@ -980,6 +987,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
               eod_show_total: data.eod_show_total !== undefined ? !!data.eod_show_total : true,
               eod_footer_type: data.eod_footer_type || 'branch',
               eod_footer_custom_text: data.eod_footer_custom_text || '',
+              footer_text: data.footer_text ?? 'Thank you for your business!',
             });
           }
         })

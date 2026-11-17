@@ -91,7 +91,8 @@ router.post('/', async (req: any, res, next) => {
 });
 
 router.put('/:id', async (req: any, res, next) => {
-  const data = customerSchema.parse(req.body);
+  let data: z.infer<typeof customerSchema>;
+  try { data = customerSchema.parse(req.body); } catch (e) { return next(e); }
   const { phone, email, address, first_name, last_name, secondary_phone, fax, offers_email,
     company, customer_type, address_line1, address_line2, city, state, zip_code, country, website, alert_message, wallet_balance } = data as any;
   // Helper to strip literal "null" strings
@@ -216,7 +217,8 @@ const depositSchema = z.object({
 });
 
 router.post('/:id/payments', async (req: any, res, next) => {
-  const data = depositSchema.parse(req.body);
+  let data: z.infer<typeof depositSchema>;
+  try { data = depositSchema.parse(req.body); } catch (e) { return next(e); }
   const { amount, method, note } = data;
   const numAmount = Number(amount);
   const conn = await pool.getConnection();

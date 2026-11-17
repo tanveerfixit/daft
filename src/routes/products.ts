@@ -996,7 +996,8 @@ const createProductSchema = z.object({
 
 // POST /api/products
 router.post('/', async (req: any, res, next) => {
-  const data = createProductSchema.parse(req.body);
+  let data: z.infer<typeof createProductSchema>;
+  try { data = createProductSchema.parse(req.body); } catch (e) { return next(e); }
   const { 
     name: rawName, category_id, manufacturer_id, supplier_id, selling_price, cost_price, product_type, sku_code, barcode, allow_overselling,
     min_stock_level, is_taxable, require_note, min_sales_price, additional_description, alert_message 
@@ -1083,7 +1084,8 @@ const quickAddSchema = z.object({
 
 // POST /api/products/quick-add
 router.post('/quick-add', async (req: any, res, next) => {
-  const data = quickAddSchema.parse(req.body);
+  let data: z.infer<typeof quickAddSchema>;
+  try { data = quickAddSchema.parse(req.body); } catch (e) { return next(e); }
   const { name: rawName, category_id, manufacturer_id, supplier_id, selling_price, cost_price, sku_code, barcode, branch_id, quantity } = data;
   const name = rawName.trim().replace(/\s+/g, ' ');
   const businessId = req.user.business_id;

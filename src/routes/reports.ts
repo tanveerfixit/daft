@@ -538,7 +538,8 @@ const endOfDaySchema = z.object({
 
 // POST /api/reports/eod
 router.post('/eod', async (req: any, res, next) => {
-  const data = endOfDaySchema.parse(req.body);
+  let data: z.infer<typeof endOfDaySchema>;
+  try { data = endOfDaySchema.parse(req.body); } catch (e) { return next(e); }
   const { report_date, starting_balance, cash_counted, calculated_cash, difference,
     total_sales, total_deposits, total_cash_in_drawer, comments, payment_summaries } = data;
   const conn = await pool.getConnection();

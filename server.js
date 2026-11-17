@@ -4039,7 +4039,12 @@ var init_products = __esm({
       alert_message: z4.string().optional()
     });
     router3.post("/", async (req, res, next) => {
-      const data = createProductSchema.parse(req.body);
+      let data;
+      try {
+        data = createProductSchema.parse(req.body);
+      } catch (e) {
+        return next(e);
+      }
       const {
         name: rawName,
         category_id,
@@ -4148,7 +4153,12 @@ var init_products = __esm({
       quantity: z4.number().or(z4.string().transform(Number)).optional()
     });
     router3.post("/quick-add", async (req, res, next) => {
-      const data = quickAddSchema.parse(req.body);
+      let data;
+      try {
+        data = quickAddSchema.parse(req.body);
+      } catch (e) {
+        return next(e);
+      }
       const { name: rawName, category_id, manufacturer_id, supplier_id, selling_price, cost_price, sku_code, barcode, branch_id, quantity } = data;
       const name = rawName.trim().replace(/\s+/g, " ");
       const businessId = req.user.business_id;
@@ -4520,7 +4530,12 @@ var init_customers = __esm({
       }
     });
     router4.put("/:id", async (req, res, next) => {
-      const data = customerSchema.parse(req.body);
+      let data;
+      try {
+        data = customerSchema.parse(req.body);
+      } catch (e) {
+        return next(e);
+      }
       const {
         phone,
         email,
@@ -4687,7 +4702,12 @@ var init_customers = __esm({
       note: z5.string().optional()
     });
     router4.post("/:id/payments", async (req, res, next) => {
-      const data = depositSchema.parse(req.body);
+      let data;
+      try {
+        data = depositSchema.parse(req.body);
+      } catch (e) {
+        return next(e);
+      }
       const { amount, method, note } = data;
       const numAmount = Number(amount);
       const conn = await pool.getConnection();
@@ -5360,7 +5380,12 @@ var init_invoices = __esm({
       })).optional()
     });
     router5.post("/", async (req, res, next) => {
-      const data = createInvoiceSchema.parse(req.body);
+      let data;
+      try {
+        data = createInvoiceSchema.parse(req.body);
+      } catch (e) {
+        return next(e);
+      }
       const { customer_id, items, subtotal, tax_total, tax_rate, tax_type, discount_total, grand_total, payments, activities } = data;
       if (!items || !items.length) return res.status(400).json({ error: "Cart is empty" });
       const conn = await pool.getConnection();
@@ -6605,7 +6630,12 @@ var init_reports = __esm({
       })).default([])
     });
     router6.post("/eod", async (req, res, next) => {
-      const data = endOfDaySchema.parse(req.body);
+      let data;
+      try {
+        data = endOfDaySchema.parse(req.body);
+      } catch (e) {
+        return next(e);
+      }
       const {
         report_date,
         starting_balance,
@@ -6956,6 +6986,16 @@ __export(settings_exports, {
 });
 import { Router as Router7 } from "express";
 import { z as z8 } from "zod";
+async function resolveValidBranchId(businessId, rawBranchId) {
+  const numBranchId = rawBranchId ? Number(rawBranchId) : null;
+  if (!numBranchId || Number.isNaN(numBranchId)) return null;
+  try {
+    const validBranch = await queryOne("SELECT id FROM branches WHERE id=? AND business_id=?", [numBranchId, businessId]);
+    return validBranch ? numBranchId : null;
+  } catch {
+    return null;
+  }
+}
 async function ensureDefaultSpeedGridCategories(businessId) {
   const existing = await query("SELECT id FROM speed_grid_categories WHERE business_id=? ORDER BY sort_order ASC", [businessId]);
   if (existing.length === 0) {
@@ -6995,21 +7035,21 @@ var init_settings = __esm({
       }
     });
     settingsSchema = z8.object({
-      currency: z8.string().optional(),
-      timezone: z8.string().optional(),
-      date_format: z8.string().optional(),
-      time_format: z8.string().optional(),
-      language: z8.string().optional(),
-      startup_cash_popup: z8.boolean().optional(),
-      low_stock_popup: z8.boolean().optional(),
-      announcements_popup: z8.boolean().optional(),
-      sound_notifications: z8.boolean().optional(),
-      daily_eod_popup: z8.boolean().optional()
+      currency: z8.string().nullable().optional(),
+      timezone: z8.string().nullable().optional(),
+      date_format: z8.string().nullable().optional(),
+      time_format: z8.string().nullable().optional(),
+      language: z8.string().nullable().optional(),
+      startup_cash_popup: z8.boolean().nullable().optional(),
+      low_stock_popup: z8.boolean().nullable().optional(),
+      announcements_popup: z8.boolean().nullable().optional(),
+      sound_notifications: z8.boolean().nullable().optional(),
+      daily_eod_popup: z8.boolean().nullable().optional()
     });
     router7.post("/settings", async (req, res, next) => {
-      const data = settingsSchema.parse(req.body);
-      const { currency, timezone, date_format, time_format, language, startup_cash_popup, low_stock_popup, announcements_popup, sound_notifications, daily_eod_popup } = data;
       try {
+        const data = settingsSchema.parse(req.body);
+        const { currency, timezone, date_format, time_format, language, startup_cash_popup, low_stock_popup, announcements_popup, sound_notifications, daily_eod_popup } = data;
         let s = await queryOne("SELECT id FROM settings WHERE business_id=?", [req.user.business_id]);
         if (!s) {
           await execute("INSERT INTO settings (business_id) VALUES (?)", [req.user.business_id]);
@@ -7029,15 +7069,15 @@ var init_settings = __esm({
       WHERE business_id = ?
     `, [
           currency || "\u20AC, Euro",
-          timezone,
-          date_format,
-          time_format,
-          language,
-          startup_cash_popup !== void 0 ? startup_cash_popup ? 1 : 0 : null,
-          low_stock_popup !== void 0 ? low_stock_popup ? 1 : 0 : null,
-          announcements_popup !== void 0 ? announcements_popup ? 1 : 0 : null,
-          sound_notifications !== void 0 ? sound_notifications ? 1 : 0 : null,
-          daily_eod_popup !== void 0 ? daily_eod_popup ? 1 : 0 : null,
+          timezone ?? null,
+          date_format ?? null,
+          time_format ?? null,
+          language ?? null,
+          startup_cash_popup !== void 0 && startup_cash_popup !== null ? startup_cash_popup ? 1 : 0 : null,
+          low_stock_popup !== void 0 && low_stock_popup !== null ? low_stock_popup ? 1 : 0 : null,
+          announcements_popup !== void 0 && announcements_popup !== null ? announcements_popup ? 1 : 0 : null,
+          sound_notifications !== void 0 && sound_notifications !== null ? sound_notifications ? 1 : 0 : null,
+          daily_eod_popup !== void 0 && daily_eod_popup !== null ? daily_eod_popup ? 1 : 0 : null,
           req.user.business_id
         ]);
         let tzInfo = { ianaTz: "Europe/Dublin", offset: "+01:00" };
@@ -7050,15 +7090,15 @@ var init_settings = __esm({
       }
     });
     popupSettingsSchema = z8.object({
-      startup_cash_popup: z8.boolean().optional(),
-      low_stock_popup: z8.boolean().optional(),
-      announcements_popup: z8.boolean().optional(),
-      sound_notifications: z8.boolean().optional(),
-      daily_eod_popup: z8.boolean().optional()
+      startup_cash_popup: z8.boolean().nullable().optional(),
+      low_stock_popup: z8.boolean().nullable().optional(),
+      announcements_popup: z8.boolean().nullable().optional(),
+      sound_notifications: z8.boolean().nullable().optional(),
+      daily_eod_popup: z8.boolean().nullable().optional()
     });
     router7.post("/settings/popups", async (req, res, next) => {
-      const data = popupSettingsSchema.parse(req.body);
       try {
+        const data = popupSettingsSchema.parse(req.body);
         let s = await queryOne("SELECT id FROM settings WHERE business_id=?", [req.user.business_id]);
         if (!s) {
           await execute("INSERT INTO settings (business_id) VALUES (?)", [req.user.business_id]);
@@ -7072,11 +7112,11 @@ var init_settings = __esm({
         daily_eod_popup = COALESCE(?, daily_eod_popup)
       WHERE business_id = ?
     `, [
-          data.startup_cash_popup !== void 0 ? data.startup_cash_popup ? 1 : 0 : null,
-          data.low_stock_popup !== void 0 ? data.low_stock_popup ? 1 : 0 : null,
-          data.announcements_popup !== void 0 ? data.announcements_popup ? 1 : 0 : null,
-          data.sound_notifications !== void 0 ? data.sound_notifications ? 1 : 0 : null,
-          data.daily_eod_popup !== void 0 ? data.daily_eod_popup ? 1 : 0 : null,
+          data.startup_cash_popup !== void 0 && data.startup_cash_popup !== null ? data.startup_cash_popup ? 1 : 0 : null,
+          data.low_stock_popup !== void 0 && data.low_stock_popup !== null ? data.low_stock_popup ? 1 : 0 : null,
+          data.announcements_popup !== void 0 && data.announcements_popup !== null ? data.announcements_popup ? 1 : 0 : null,
+          data.sound_notifications !== void 0 && data.sound_notifications !== null ? data.sound_notifications ? 1 : 0 : null,
+          data.daily_eod_popup !== void 0 && data.daily_eod_popup !== null ? data.daily_eod_popup ? 1 : 0 : null,
           req.user.business_id
         ]);
         res.json({ success: true });
@@ -7134,22 +7174,22 @@ var init_settings = __esm({
       }
     });
     companySchema = z8.object({
-      name: z8.string().optional(),
-      email: z8.string().optional(),
-      phone: z8.string().optional(),
-      subdomain: z8.string().optional(),
-      address: z8.string().optional(),
-      city: z8.string().optional(),
-      state: z8.string().optional(),
-      zip_code: z8.string().optional(),
-      country: z8.string().optional(),
-      vat_number: z8.string().optional()
+      name: z8.string().nullable().optional(),
+      email: z8.string().nullable().optional(),
+      phone: z8.string().nullable().optional(),
+      subdomain: z8.string().nullable().optional(),
+      address: z8.string().nullable().optional(),
+      city: z8.string().nullable().optional(),
+      state: z8.string().nullable().optional(),
+      zip_code: z8.string().nullable().optional(),
+      country: z8.string().nullable().optional(),
+      vat_number: z8.string().nullable().optional()
     });
     router7.post("/company", async (req, res, next) => {
-      const data = companySchema.parse(req.body);
-      const { name, email, phone, subdomain, address, city, state, zip_code, country, vat_number } = data;
-      const safeName = name && name.trim() ? name.trim() : null;
       try {
+        const data = companySchema.parse(req.body);
+        const { name, email, phone, subdomain, address, city, state, zip_code, country, vat_number } = data;
+        const safeName = name && name.trim() ? name.trim() : null;
         const branchId = req.user?.branch_id;
         if (branchId) {
           try {
@@ -7190,15 +7230,16 @@ var init_settings = __esm({
     });
     paymentMethodsSchema = z8.object({
       methods: z8.array(z8.object({
-        id: z8.number().optional(),
+        id: z8.number().nullable().optional(),
         name: z8.string()
       })).default([])
     });
     router7.post("/payment-methods", async (req, res, next) => {
-      const data = paymentMethodsSchema.parse(req.body);
-      const { methods } = data;
-      const conn = await pool.getConnection();
+      let conn;
       try {
+        const data = paymentMethodsSchema.parse(req.body);
+        const { methods } = data;
+        conn = await pool.getConnection();
         await conn.beginTransaction();
         await conn.execute("UPDATE payment_methods SET is_active=0 WHERE business_id=?", [req.user.business_id]);
         for (let i = 0; i < methods.length; i++) {
@@ -7218,26 +7259,27 @@ var init_settings = __esm({
         await conn.commit();
         res.json({ success: true });
       } catch (e) {
-        await conn.rollback();
+        if (conn) await conn.rollback().catch(() => {
+        });
         next(e);
       } finally {
-        conn.release();
+        if (conn) conn.release();
       }
     });
     router7.get("/printer-settings", async (req, res, next) => {
       try {
         const branchId = req.user?.branch_id ?? null;
         let s = await queryOne(
-          "SELECT * FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL))",
+          "SELECT * FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL)) ORDER BY id DESC LIMIT 1",
           [req.user.business_id, branchId, branchId]
         );
         if (!s && branchId !== null) {
-          s = await queryOne("SELECT * FROM printer_settings WHERE business_id=? AND branch_id IS NULL", [req.user.business_id]);
+          s = await queryOne("SELECT * FROM printer_settings WHERE business_id=? AND branch_id IS NULL ORDER BY id DESC LIMIT 1", [req.user.business_id]);
         }
         if (!s) {
           await execute("INSERT INTO printer_settings (business_id, branch_id) VALUES (?, ?)", [req.user.business_id, branchId]);
           s = await queryOne(
-            "SELECT * FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL))",
+            "SELECT * FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL)) ORDER BY id DESC LIMIT 1",
             [req.user.business_id, branchId, branchId]
           );
         }
@@ -7247,33 +7289,31 @@ var init_settings = __esm({
       }
     });
     printerSettingsSchema = z8.object({
-      label_size: z8.string().optional(),
-      barcode_length: z8.number().or(z8.string().transform(Number)).optional(),
-      margin_top: z8.number().or(z8.string().transform(Number)).optional(),
-      margin_left: z8.number().or(z8.string().transform(Number)).optional(),
-      margin_bottom: z8.number().or(z8.string().transform(Number)).optional(),
-      margin_right: z8.number().or(z8.string().transform(Number)).optional(),
-      orientation: z8.string().optional(),
-      font_size: z8.string().optional(),
-      font_family: z8.string().optional()
+      label_size: z8.string().nullable().optional(),
+      barcode_length: z8.number().or(z8.string().transform(Number)).nullable().optional(),
+      margin_top: z8.number().or(z8.string().transform(Number)).nullable().optional(),
+      margin_left: z8.number().or(z8.string().transform(Number)).nullable().optional(),
+      margin_bottom: z8.number().or(z8.string().transform(Number)).nullable().optional(),
+      margin_right: z8.number().or(z8.string().transform(Number)).nullable().optional(),
+      orientation: z8.string().nullable().optional(),
+      font_size: z8.string().nullable().optional(),
+      font_family: z8.string().nullable().optional()
     });
     router7.post("/printer-settings", async (req, res, next) => {
-      const branchId = req.user?.branch_id ?? null;
-      const data = printerSettingsSchema.parse(req.body);
-      const {
-        label_size = '2.25" (57mm) x 1.25" (32mm) Dymo 11354 / 30334',
-        barcode_length = 20,
-        margin_top = 2,
-        margin_left = 2,
-        margin_bottom = 2,
-        margin_right = 2,
-        orientation = "Landscape",
-        font_size = "Medium",
-        font_family = "Arial"
-      } = data;
       try {
+        const branchId = req.user?.branch_id ?? null;
+        const data = printerSettingsSchema.parse(req.body);
+        const label_size = data.label_size ?? '2.25" (57mm) x 1.25" (32mm) Dymo 11354 / 30334';
+        const barcode_length = data.barcode_length ?? 20;
+        const margin_top = data.margin_top ?? 2;
+        const margin_left = data.margin_left ?? 2;
+        const margin_bottom = data.margin_bottom ?? 2;
+        const margin_right = data.margin_right ?? 2;
+        const orientation = data.orientation ?? "Landscape";
+        const font_size = data.font_size ?? "Medium";
+        const font_family = data.font_family ?? "Arial";
         const existing = await queryOne(
-          "SELECT id FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL))",
+          "SELECT id FROM printer_settings WHERE business_id=? AND (branch_id = ? OR (branch_id IS NULL AND ? IS NULL)) ORDER BY id DESC LIMIT 1",
           [req.user.business_id, branchId, branchId]
         );
         if (existing) {
@@ -7294,157 +7334,192 @@ var init_settings = __esm({
     });
     router7.get("/thermal-printer-settings", async (req, res, next) => {
       try {
-        const branchId = req.user?.branch_id ?? null;
+        const branchId = await resolveValidBranchId(req.user.business_id, req.user?.branch_id);
         let s;
         if (branchId) {
-          s = await queryOne("SELECT * FROM thermal_printer_settings WHERE business_id=? AND branch_id=?", [req.user.business_id, branchId]);
+          s = await queryOne("SELECT * FROM thermal_printer_settings WHERE business_id=? AND branch_id=? ORDER BY id DESC LIMIT 1", [req.user.business_id, branchId]);
           if (!s) {
-            s = await queryOne("SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0)", [req.user.business_id]);
+            s = await queryOne("SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0) ORDER BY id DESC LIMIT 1", [req.user.business_id]);
           }
         } else {
-          s = await queryOne("SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0)", [req.user.business_id]);
+          s = await queryOne("SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0) ORDER BY id DESC LIMIT 1", [req.user.business_id]);
         }
         if (!s) {
-          await execute("INSERT INTO thermal_printer_settings (business_id,branch_id,font_family,font_size) VALUES (?,?,?,?)", [req.user.business_id, branchId, "Arial", "14px"]);
+          await execute(
+            "INSERT INTO thermal_printer_settings (business_id,branch_id,font_family,font_size,eod_footer_type,eod_footer_custom_text,footer_text) VALUES (?,?,?,?,?,?,?)",
+            [req.user.business_id, branchId, "Arial", "14px", "branch", "", "Thank you for your business!"]
+          );
           s = await queryOne("SELECT * FROM thermal_printer_settings WHERE business_id=? ORDER BY id DESC LIMIT 1", [req.user.business_id]);
         }
-        res.json(s);
+        res.json({
+          ...s || {},
+          font_family: s?.font_family || "Arial",
+          font_size: s?.font_size || "14px",
+          eod_footer_type: s?.eod_footer_type || "branch",
+          eod_footer_custom_text: s?.eod_footer_custom_text ?? "",
+          footer_text: s?.footer_text ?? "Thank you for your business!"
+        });
       } catch (e) {
         next(e);
       }
     });
     thermalPrinterSettingsSchema = z8.object({
-      font_family: z8.string().optional(),
-      font_size: z8.string().optional(),
-      show_logo: z8.boolean().optional(),
-      show_business_name: z8.boolean().optional(),
-      show_business_address: z8.boolean().optional(),
-      show_business_phone: z8.boolean().optional(),
-      show_business_email: z8.boolean().optional(),
-      show_customer_info: z8.boolean().optional(),
-      show_invoice_number: z8.boolean().optional(),
-      show_date: z8.boolean().optional(),
-      show_items_table: z8.boolean().optional(),
-      show_totals: z8.boolean().optional(),
-      show_footer: z8.boolean().optional(),
-      show_powered_by: z8.boolean().optional(),
-      show_vat_number: z8.boolean().optional(),
-      eod_show_cash_summary: z8.boolean().optional(),
-      eod_show_payment_type: z8.boolean().optional(),
-      eod_show_total_cash: z8.boolean().optional(),
-      eod_show_total_card_sale: z8.boolean().optional(),
-      eod_show_total: z8.boolean().optional(),
-      eod_footer_type: z8.string().optional(),
-      eod_footer_custom_text: z8.string().optional(),
-      footer_text: z8.string().optional()
+      font_family: z8.string().nullable().optional(),
+      font_size: z8.string().nullable().optional(),
+      show_logo: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      show_business_name: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      show_business_address: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      show_business_phone: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      show_business_email: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      show_customer_info: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      show_invoice_number: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      show_date: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      show_items_table: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      show_totals: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      show_footer: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      show_powered_by: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      show_vat_number: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      eod_show_cash_summary: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      eod_show_payment_type: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      eod_show_total_cash: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      eod_show_total_card_sale: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      eod_show_total: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      eod_footer_type: z8.string().nullable().optional(),
+      eod_footer_custom_text: z8.string().nullable().optional(),
+      footer_text: z8.string().nullable().optional()
     });
     router7.post("/thermal-printer-settings", async (req, res, next) => {
-      const branchId = req.user?.branch_id ?? null;
-      const m = thermalPrinterSettingsSchema.parse(req.body);
       try {
-        try {
-          await execute(
-            `
-        INSERT INTO thermal_printer_settings
-          (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
-           show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
-           show_items_table,show_totals,show_footer,show_powered_by,show_vat_number,
-           eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
-           eod_footer_type,eod_footer_custom_text,
-           footer_text)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        ON DUPLICATE KEY UPDATE
-          branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
-          show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
-          show_business_address=VALUES(show_business_address),show_business_phone=VALUES(show_business_phone),
-          show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
-          show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
-          show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
-          show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),show_vat_number=VALUES(show_vat_number),
-          eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
-          eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
-          eod_show_total=VALUES(eod_show_total),
-          eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
-          footer_text=VALUES(footer_text)`,
-            [
-              req.user.business_id,
-              branchId,
-              m.font_family || "Arial",
-              m.font_size || "14px",
-              m.show_logo ? 1 : 0,
-              m.show_business_name ? 1 : 0,
-              m.show_business_address ? 1 : 0,
-              m.show_business_phone ? 1 : 0,
-              m.show_business_email ? 1 : 0,
-              m.show_customer_info ? 1 : 0,
-              m.show_invoice_number ? 1 : 0,
-              m.show_date ? 1 : 0,
-              m.show_items_table ? 1 : 0,
-              m.show_totals ? 1 : 0,
-              m.show_footer ? 1 : 0,
-              m.show_powered_by ? 1 : 0,
-              m.show_vat_number !== false ? 1 : 0,
-              m.eod_show_cash_summary ? 1 : 0,
-              m.eod_show_payment_type ? 1 : 0,
-              m.eod_show_total_cash ? 1 : 0,
-              m.eod_show_total_card_sale ? 1 : 0,
-              m.eod_show_total ? 1 : 0,
-              m.eod_footer_type || "branch",
-              m.eod_footer_custom_text || "",
-              m.footer_text || "Thank you for your business!"
-            ]
-          );
-        } catch (upsertErr) {
-          await execute(
-            `
-        INSERT INTO thermal_printer_settings
-          (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
-           show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
-           show_items_table,show_totals,show_footer,show_powered_by,
-           eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
-           eod_footer_type,eod_footer_custom_text,
-           footer_text)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        ON DUPLICATE KEY UPDATE
-          branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
-          show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
-          show_business_address=VALUES(show_business_address),show_business_phone=VALUES(show_business_phone),
-          show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
-          show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
-          show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
-          show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),
-          eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
-          eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
-          eod_show_total=VALUES(eod_show_total),
-          eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
-          footer_text=VALUES(footer_text)`,
-            [
-              req.user.business_id,
-              branchId,
-              m.font_family || "Arial",
-              m.font_size || "14px",
-              m.show_logo ? 1 : 0,
-              m.show_business_name ? 1 : 0,
-              m.show_business_address ? 1 : 0,
-              m.show_business_phone ? 1 : 0,
-              m.show_business_email ? 1 : 0,
-              m.show_customer_info ? 1 : 0,
-              m.show_invoice_number ? 1 : 0,
-              m.show_date ? 1 : 0,
-              m.show_items_table ? 1 : 0,
-              m.show_totals ? 1 : 0,
-              m.show_footer ? 1 : 0,
-              m.show_powered_by ? 1 : 0,
-              m.eod_show_cash_summary ? 1 : 0,
-              m.eod_show_payment_type ? 1 : 0,
-              m.eod_show_total_cash ? 1 : 0,
-              m.eod_show_total_card_sale ? 1 : 0,
-              m.eod_show_total ? 1 : 0,
-              m.eod_footer_type || "branch",
-              m.eod_footer_custom_text || "",
-              m.footer_text || "Thank you for your business!"
-            ]
-          );
+        const branchId = await resolveValidBranchId(req.user.business_id, req.user?.branch_id);
+        const m = thermalPrinterSettingsSchema.parse(req.body);
+        const existing = branchId ? await queryOne("SELECT id FROM thermal_printer_settings WHERE business_id=? AND branch_id=? ORDER BY id DESC LIMIT 1", [req.user.business_id, branchId]) : await queryOne("SELECT * FROM thermal_printer_settings WHERE business_id=? AND (branch_id IS NULL OR branch_id=0) ORDER BY id DESC LIMIT 1", [req.user.business_id]);
+        const commonValuesWithVat = [
+          m.font_family || "Arial",
+          m.font_size || "14px",
+          m.show_logo ? 1 : 0,
+          m.show_business_name ? 1 : 0,
+          m.show_business_address ? 1 : 0,
+          m.show_business_phone ? 1 : 0,
+          m.show_business_email ? 1 : 0,
+          m.show_customer_info ? 1 : 0,
+          m.show_invoice_number ? 1 : 0,
+          m.show_date ? 1 : 0,
+          m.show_items_table ? 1 : 0,
+          m.show_totals ? 1 : 0,
+          m.show_footer ? 1 : 0,
+          m.show_powered_by ? 1 : 0,
+          m.show_vat_number !== false && m.show_vat_number !== 0 ? 1 : 0,
+          m.eod_show_cash_summary ? 1 : 0,
+          m.eod_show_payment_type ? 1 : 0,
+          m.eod_show_total_cash ? 1 : 0,
+          m.eod_show_total_card_sale ? 1 : 0,
+          m.eod_show_total ? 1 : 0,
+          m.eod_footer_type || "branch",
+          m.eod_footer_custom_text || "",
+          m.footer_text || "Thank you for your business!"
+        ];
+        const commonValuesWithoutVat = [
+          m.font_family || "Arial",
+          m.font_size || "14px",
+          m.show_logo ? 1 : 0,
+          m.show_business_name ? 1 : 0,
+          m.show_business_address ? 1 : 0,
+          m.show_business_phone ? 1 : 0,
+          m.show_business_email ? 1 : 0,
+          m.show_customer_info ? 1 : 0,
+          m.show_invoice_number ? 1 : 0,
+          m.show_date ? 1 : 0,
+          m.show_items_table ? 1 : 0,
+          m.show_totals ? 1 : 0,
+          m.show_footer ? 1 : 0,
+          m.show_powered_by ? 1 : 0,
+          m.eod_show_cash_summary ? 1 : 0,
+          m.eod_show_payment_type ? 1 : 0,
+          m.eod_show_total_cash ? 1 : 0,
+          m.eod_show_total_card_sale ? 1 : 0,
+          m.eod_show_total ? 1 : 0,
+          m.eod_footer_type || "branch",
+          m.eod_footer_custom_text || "",
+          m.footer_text || "Thank you for your business!"
+        ];
+        if (existing?.id) {
+          try {
+            await execute(
+              `UPDATE thermal_printer_settings SET
+            font_family=?, font_size=?, show_logo=?, show_business_name=?, show_business_address=?,
+            show_business_phone=?, show_business_email=?, show_customer_info=?, show_invoice_number=?, show_date=?,
+            show_items_table=?, show_totals=?, show_footer=?, show_powered_by=?, show_vat_number=?,
+            eod_show_cash_summary=?, eod_show_payment_type=?, eod_show_total_cash=?, eod_show_total_card_sale=?, eod_show_total=?,
+            eod_footer_type=?, eod_footer_custom_text=?, footer_text=?
+          WHERE id=? AND business_id=?`,
+              [...commonValuesWithVat, existing.id, req.user.business_id]
+            );
+          } catch {
+            await execute(
+              `UPDATE thermal_printer_settings SET
+            font_family=?, font_size=?, show_logo=?, show_business_name=?, show_business_address=?,
+            show_business_phone=?, show_business_email=?, show_customer_info=?, show_invoice_number=?, show_date=?,
+            show_items_table=?, show_totals=?, show_footer=?, show_powered_by=?,
+            eod_show_cash_summary=?, eod_show_payment_type=?, eod_show_total_cash=?, eod_show_total_card_sale=?, eod_show_total=?,
+            eod_footer_type=?, eod_footer_custom_text=?, footer_text=?
+          WHERE id=? AND business_id=?`,
+              [...commonValuesWithoutVat, existing.id, req.user.business_id]
+            );
+          }
+        } else {
+          try {
+            await execute(
+              `
+          INSERT INTO thermal_printer_settings
+            (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
+             show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
+             show_items_table,show_totals,show_footer,show_powered_by,show_vat_number,
+             eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
+             eod_footer_type,eod_footer_custom_text,
+             footer_text)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          ON DUPLICATE KEY UPDATE
+            branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
+            show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
+            show_business_address=VALUES(show_business_address),show_business_phone=VALUES(show_business_phone),
+            show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
+            show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
+            show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
+            show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),show_vat_number=VALUES(show_vat_number),
+            eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
+            eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
+            eod_show_total=VALUES(eod_show_total),
+            eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
+            footer_text=VALUES(footer_text)`,
+              [req.user.business_id, branchId, ...commonValuesWithVat]
+            );
+          } catch {
+            await execute(
+              `
+          INSERT INTO thermal_printer_settings
+            (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
+             show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
+             show_items_table,show_totals,show_footer,show_powered_by,
+             eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
+             eod_footer_type,eod_footer_custom_text,
+             footer_text)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          ON DUPLICATE KEY UPDATE
+            branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
+            show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
+            show_business_address=VALUES(show_business_address),show_business_phone=VALUES(show_business_phone),
+            show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
+            show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
+            show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
+            show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),
+            eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
+            eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
+            eod_show_total=VALUES(eod_show_total),
+            eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
+            footer_text=VALUES(footer_text)`,
+              [req.user.business_id, branchId, ...commonValuesWithoutVat]
+            );
+          }
         }
         res.json({ success: true });
       } catch (e) {
@@ -7462,9 +7537,9 @@ var init_settings = __esm({
       name: z8.string().min(1, "Name is required")
     });
     router7.post("/categories", async (req, res, next) => {
-      const data = categoryManufacturerSchema.parse(req.body);
-      const { name } = data;
       try {
+        const data = categoryManufacturerSchema.parse(req.body);
+        const { name } = data;
         const r = await execute("INSERT INTO categories (business_id,name) VALUES (?,?)", [req.user.business_id, name]);
         res.json({ id: r.insertId, name });
       } catch (e) {
@@ -7479,9 +7554,9 @@ var init_settings = __esm({
       }
     });
     router7.post("/manufacturers", async (req, res, next) => {
-      const data = categoryManufacturerSchema.parse(req.body);
-      const { name } = data;
       try {
+        const data = categoryManufacturerSchema.parse(req.body);
+        const { name } = data;
         const r = await execute("INSERT INTO manufacturers (business_id,name) VALUES (?,?)", [req.user.business_id, name]);
         res.json({ id: r.insertId, name });
       } catch (e) {
@@ -7498,17 +7573,17 @@ var init_settings = __esm({
     });
     supplierSchema = z8.object({
       name: z8.string().min(1, "Name is required"),
-      phone: z8.string().optional(),
-      email: z8.string().optional(),
-      contact_person: z8.string().optional()
+      phone: z8.string().nullable().optional(),
+      email: z8.string().nullable().optional(),
+      contact_person: z8.string().nullable().optional()
     });
     router7.post("/suppliers", async (req, res, next) => {
-      const data = supplierSchema.parse(req.body);
-      const { name, phone, email, contact_person } = data;
       try {
+        const data = supplierSchema.parse(req.body);
+        const { name, phone, email, contact_person } = data;
         const r = await execute(
           "INSERT INTO suppliers (business_id,name,phone,email,contact_person) VALUES (?,?,?,?,?)",
-          [req.user.business_id, name, phone, email, contact_person]
+          [req.user.business_id, name, phone ?? null, email ?? null, contact_person ?? null]
         );
         res.json({ id: r.insertId, name, phone, email, contact_person });
       } catch (e) {
@@ -7924,7 +7999,12 @@ var init_inventory = __esm({
       })).optional()
     });
     router8.post("/add", async (req, res, next) => {
-      const data = addInventorySchema.parse(req.body);
+      let data;
+      try {
+        data = addInventorySchema.parse(req.body);
+      } catch (e) {
+        return next(e);
+      }
       const { sku_id, branch_id, quantity, cost_price, selling_price, supplier_id, po_number, items } = data;
       if (!supplier_id) {
         return res.status(400).json({ error: "Supplier is required when adding inventory." });
@@ -8073,7 +8153,12 @@ var init_inventory = __esm({
       })).min(1, "At least one device is required")
     });
     router8.post("/batch-add-devices", async (req, res, next) => {
-      const data = batchAddDevicesSchema.parse(req.body);
+      let data;
+      try {
+        data = batchAddDevicesSchema.parse(req.body);
+      } catch (e) {
+        return next(e);
+      }
       const { branch_id, supplier_id, po_number, items } = data;
       if (!supplier_id) {
         return res.status(400).json({ error: "Supplier is required when adding batch inventory." });
@@ -8794,9 +8879,9 @@ var init_inventory = __esm({
       details: z9.string().optional()
     });
     router8.post("/devices/:id/activity", async (req, res, next) => {
-      const data = deviceActivitySchema.parse(req.body);
-      const { activity, details } = data;
       try {
+        const data = deviceActivitySchema.parse(req.body);
+        const { activity, details } = data;
         const branchId = req.user.branch_id;
         const checkParams = [req.params.id, req.user.business_id];
         let branchClause = "";
@@ -9096,7 +9181,12 @@ var init_inventory = __esm({
       }
     });
     router8.post("/transfers", async (req, res, next) => {
-      const data = transferSchema.parse(req.body);
+      let data;
+      try {
+        data = transferSchema.parse(req.body);
+      } catch (e) {
+        return next(e);
+      }
       const { to_branch_id, notes, items } = data;
       const sourceBranchId = req.user.branch_id;
       const sourceBusinessId = req.user.business_id;
@@ -9651,7 +9741,12 @@ var init_inventory = __esm({
       customer_email: z9.string().optional().nullable()
     });
     router8.put("/repairs/:id", async (req, res, next) => {
-      const data = updateRepairSchema.parse(req.body);
+      let data;
+      try {
+        data = updateRepairSchema.parse(req.body);
+      } catch (e) {
+        return next(e);
+      }
       const { status, device_model, issue, notes, total_quote, customer_name, customer_phone, customer_email } = data;
       const jobId = req.params.id;
       const conn = await pool.getConnection();
