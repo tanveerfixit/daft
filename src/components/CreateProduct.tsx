@@ -486,7 +486,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
               {showSuggestions && searchQuery.length >= 3 && filteredSuggestions.length > 0 && (
                 <div 
                   ref={suggestionsContainerRef}
-                  className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 shadow-lg z-50 max-h-64 overflow-y-auto font-mono text-sm"
+                  className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 z-50 max-h-64 overflow-y-auto font-mono text-sm"
                 >
                   <div className="px-3 py-1.5 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 text-[11px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider flex justify-between items-center">
                     <span>Database Matches ({filteredSuggestions.length})</span>

@@ -269,7 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {/* Inactivity Warning Dialog */}
       {showWarning && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-[var(--bg-card,#1e293b)] text-[var(--text-main,#ffffff)] border border-amber-500/40 rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-[var(--bg-card,#1e293b)] text-[var(--text-main,#ffffff)] border border-amber-500/40 rounded-xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-amber-500/20 text-amber-400 rounded-full shrink-0">
                 <Clock className="w-6 h-6 animate-pulse" />
@@ -306,7 +306,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               <button
                 type="button"
                 onClick={resetInactivityTimer}
-                className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-md transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 Stay Logged In

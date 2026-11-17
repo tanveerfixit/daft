@@ -280,7 +280,7 @@ export async function sendInvoiceEmail(to: string, subject: string, invoice: any
     </head>
     <body style="margin: 0; padding: 20px 0; background-color: #f4f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #111827;">
       <center style="width: 100%; table-layout: fixed; background-color: #f4f5f7;">
-        <div class="email-container" style="max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); text-align: left;">
+        <div class="email-container" style="max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; text-align: left;">
           
           <!-- 1. Header (Clean Light Store & Branch Presentation) -->
           <div style="background: #ffffff; padding: 26px 24px 20px 24px; text-align: center; border-bottom: 1px solid #f1f5f9;">

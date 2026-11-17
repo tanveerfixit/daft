@@ -42,7 +42,7 @@ export const TopProgressBar: React.FC = () => {
       aria-hidden="true"
     >
       <div 
-        className="h-full bg-gradient-to-r from-blue-500 via-sky-400 to-indigo-500 shadow-[0_0_8px_rgba(59,130,246,0.6)] transition-all duration-200 ease-out"
+        className="h-full bg-gradient-to-r from-blue-500 via-sky-400 to-indigo-500 transition-all duration-200 ease-out"
         style={{ 
           width: `${progress}%`,
           opacity: isVisible ? 1 : 0,

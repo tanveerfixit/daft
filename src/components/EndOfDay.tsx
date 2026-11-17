@@ -876,7 +876,7 @@ const EndOfDayListModal: React.FC<EndOfDayListModalProps> = ({ currentDate, onCl
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-slate-900 rounded-sm shadow-xl border border-slate-200 dark:border-slate-800 max-w-2xl w-full p-2.5 sm:p-4 space-y-2.5 text-slate-800 dark:text-slate-100 max-h-[94vh] flex flex-col"
+        className="bg-white dark:bg-slate-900 rounded-sm border border-slate-200 dark:border-slate-800 max-w-2xl w-full p-2.5 sm:p-4 space-y-2.5 text-slate-800 dark:text-slate-100 max-h-[94vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -905,7 +905,7 @@ const EndOfDayListModal: React.FC<EndOfDayListModalProps> = ({ currentDate, onCl
               onClick={() => setActiveTab('calendar')}
               className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-sm transition cursor-pointer ${
                 activeTab === 'calendar'
-                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-xs'
+                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 '
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
@@ -917,7 +917,7 @@ const EndOfDayListModal: React.FC<EndOfDayListModalProps> = ({ currentDate, onCl
               onClick={() => setActiveTab('reports')}
               className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-sm transition cursor-pointer ${
                 activeTab === 'reports'
-                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-xs'
+                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 '
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
@@ -1817,7 +1817,7 @@ export default function EndOfDay() {
                 <button 
                   type="button" 
                   onClick={() => setShowEodListModal(true)}
-                  className="flex-1 md:flex-initial inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[13px] sm:text-[14px] font-medium border border-slate-300 dark:border-slate-600 rounded transition cursor-pointer shadow-sm"
+                  className="flex-1 md:flex-initial inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[13px] sm:text-[14px] font-medium border border-slate-300 dark:border-slate-600 rounded transition cursor-pointer"
                   title="Select any date from calendar or view saved End of Day reports"
                 >
                   <Calendar size={16} className="text-sky-600 dark:text-sky-400" />

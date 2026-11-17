@@ -92,7 +92,7 @@ export default function RepairUpdateModal({ repair, onClose, onSaved }: RepairUp
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-      <div className="bg-[var(--bg-card)] border border-[var(--border-base)] rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-[var(--bg-card)] border border-[var(--border-base)] rounded-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-base)] bg-[var(--bg-zebra)] shrink-0">
@@ -227,7 +227,7 @@ export default function RepairUpdateModal({ repair, onClose, onSaved }: RepairUp
                     key={opt.value}
                     className={`flex items-center gap-2.5 px-3 py-2.5 rounded border cursor-pointer transition-all text-xs font-bold ${
                       status === opt.value
-                        ? opt.color + ' border-current shadow-sm'
+                        ? opt.color + ' border-current '
                         : 'border-[var(--border-base)] hover:bg-[var(--bg-hover)] text-[var(--text-main)]'
                     }`}
                   >

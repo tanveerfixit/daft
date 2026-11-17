@@ -57,7 +57,7 @@ export default function LoginPage({ onForgotPassword }: Props) {
 
   return (
     <div className="min-h-screen bg-[#f2f2f2] dark:bg-neutral-950 flex flex-col items-center justify-center p-3 sm:p-6 py-6 sm:py-10 font-sans select-none overflow-y-auto">
-      <div className="w-full max-w-[480px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-10 shadow-xs sm:shadow-sm my-auto transition-all">
+      <div className="w-full max-w-[480px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-10 my-auto transition-all">
         
         {/* Top Book SVG Icon */}
         <div className="mb-3 sm:mb-4">
@@ -143,7 +143,7 @@ export default function LoginPage({ onForgotPassword }: Props) {
 
           {/* Math Captcha Row (Responsive & Touch Friendly) */}
           <div className="pt-0.5 flex items-center">
-            <div className="bg-gradient-to-b from-[#f7f7f7] to-[#e1e1e1] border border-[#c4c4c4] rounded-full px-3.5 sm:px-5 py-1.5 sm:py-2 flex items-center gap-2 sm:gap-3 shadow-xs max-w-full">
+            <div className="bg-gradient-to-b from-[#f7f7f7] to-[#e1e1e1] border border-[#c4c4c4] rounded-full px-3.5 sm:px-5 py-1.5 sm:py-2 flex items-center gap-2 sm:gap-3 max-w-full">
               <span className="font-serif italic font-extrabold text-base sm:text-lg tracking-wide text-neutral-900 select-none whitespace-nowrap">
                 {num1} + {num2} =
               </span>
@@ -183,7 +183,7 @@ export default function LoginPage({ onForgotPassword }: Props) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full h-11 sm:h-12 bg-[#009beb] hover:bg-[#0088d1] disabled:opacity-50 text-white font-semibold text-base sm:text-lg rounded-full shadow-xs cursor-pointer flex items-center justify-center gap-2 transition-colors mt-2"
+            className="w-full h-11 sm:h-12 bg-[#009beb] hover:bg-[#0088d1] disabled:opacity-50 text-white font-semibold text-base sm:text-lg rounded-full cursor-pointer flex items-center justify-center gap-2 transition-colors mt-2"
           >
             {loading ? (
               <Loader2 size={20} className="animate-spin" />

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useRefetchOnActivate } from '../hooks/useRefetchOnActivate';
 import { TrendingUp, Wrench, Users, Calendar, Search, ArrowRight, BarChart3, Award, Target, RefreshCw, CreditCard, Layers } from 'lucide-react';
 import SalesTrendChart from './dashboard/SalesTrendChart';
 import PeakTradingHoursChart from './dashboard/PeakTradingHoursChart';
@@ -109,11 +110,7 @@ export default function Dashboard({ isActive }: { isActive?: boolean }) {
     fetchDashboardStats();
   }, [startDate, endDate]);
 
-  useEffect(() => {
-    if (isActive) {
-      fetchDashboardStats();
-    }
-  }, [isActive]);
+  useRefetchOnActivate(isActive, fetchDashboardStats);
 
   const formatDateDisplay = (dateStr: string) => {
     return dateStr.split('-').reverse().join('-');

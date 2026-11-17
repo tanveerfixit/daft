@@ -518,7 +518,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
           <button
             type="button"
             onClick={onCancel}
-            className="px-3.5 py-1.5 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 rounded-md font-medium text-xs cursor-pointer font-sans shadow-xs transition-all active:scale-[0.98]"
+            className="px-3.5 py-1.5 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 rounded-md font-medium text-xs cursor-pointer font-sans transition-all active:scale-[0.98]"
           >
             Cancel
           </button>
@@ -526,14 +526,14 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
             type="button"
             onClick={handleSaveAndAddAnother}
             disabled={isSaving}
-            className="px-3.5 py-1.5 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-900 dark:text-white border border-neutral-300 dark:border-neutral-700 rounded-md font-medium text-xs cursor-pointer font-sans shadow-xs transition-all active:scale-[0.98] disabled:opacity-40"
+            className="px-3.5 py-1.5 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-900 dark:text-white border border-neutral-300 dark:border-neutral-700 rounded-md font-medium text-xs cursor-pointer font-sans transition-all active:scale-[0.98] disabled:opacity-40"
           >
             {isSaving ? 'Saving...' : 'Save & Add Another'}
           </button>
           <button
             type="submit"
             disabled={isSaving}
-            className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md text-xs flex items-center gap-1.5 cursor-pointer font-sans shadow-xs hover:shadow transition-all active:scale-[0.98] disabled:opacity-40"
+            className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md text-xs flex items-center gap-1.5 cursor-pointer font-sans transition-all active:scale-[0.98] disabled:opacity-40"
           >
             {isSaving ? 'Saving...' : 'Save Product'}
           </button>
@@ -543,7 +543,7 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
       {/* Quick Add Modals */}
       {(showNewCategoryModal || showNewManufacturerModal) && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-md shadow-lg w-full max-w-md overflow-hidden font-mono text-sm" style={{ fontSize: '15px' }}>
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-md w-full max-w-md overflow-hidden font-mono text-sm" style={{ fontSize: '15px' }}>
             <div className="px-4 py-2 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900 flex justify-between items-center">
               <h3 className="text-xs font-bold text-black dark:text-white uppercase tracking-wider">
                 {showNewCategoryModal ? 'Add New Category' : 'Add New Manufacturer'}
@@ -579,13 +579,13 @@ export default function CreateProduct({ onCancel, onSave }: CreateProductProps) 
                   setShowNewManufacturerModal(false);
                   setNewItemName('');
                 }}
-                className="px-3 py-1 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 rounded-md text-xs font-medium cursor-pointer shadow-xs transition-all active:scale-[0.98]"
+                className="px-3 py-1 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 rounded-md text-xs font-medium cursor-pointer transition-all active:scale-[0.98]"
               >
                 Cancel
               </button>
               <button
                 onClick={showNewCategoryModal ? handleQuickAddCategory : handleQuickAddManufacturer}
-                className="px-3.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md text-xs cursor-pointer shadow-xs transition-all active:scale-[0.98]"
+                className="px-3.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md text-xs cursor-pointer transition-all active:scale-[0.98]"
               >
                 Add Now
               </button>

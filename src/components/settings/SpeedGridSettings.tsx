@@ -353,7 +353,7 @@ export default function SpeedGridSettings() {
         <button
           onClick={handleSaveAll}
           disabled={isSaving}
-          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-md shadow-xs transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-md transition-colors disabled:opacity-50"
         >
           {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
           Save Speed Grid
@@ -387,7 +387,7 @@ export default function SpeedGridSettings() {
                 onClick={() => setActiveCatIndex(idx)}
                 className={`flex flex-col items-center justify-center p-2.5 rounded-md border text-center transition-all ${
                   isActive
-                    ? 'bg-blue-600 border-blue-600 text-white shadow-xs font-bold'
+                    ? 'bg-blue-600 border-blue-600 text-white  font-bold'
                     : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300 font-medium'
                 }`}
               >
@@ -471,13 +471,13 @@ export default function SpeedGridSettings() {
                   setTargetSlotIndex(null);
                   setShowAddModal(true);
                 }}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-md shadow-xs"
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-md"
               >
                 + Add First Product
               </button>
               <button
                 onClick={handleOpenTopSellers}
-                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-md shadow-xs"
+                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-md"
               >
                 ⚡ Auto-Fill Best Sellers
               </button>
@@ -494,7 +494,7 @@ export default function SpeedGridSettings() {
               {currentCategory.items.map((item, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center justify-between gap-3 p-3 bg-slate-50 hover:bg-white border border-slate-200 hover:border-blue-200 rounded-lg transition-all shadow-2xs group"
+                  className="flex items-center justify-between gap-3 p-3 bg-slate-50 hover:bg-white border border-slate-200 hover:border-blue-200 rounded-lg transition-all group"
                 >
                   {/* Slot Number & Reorder */}
                   <div className="flex items-center gap-1.5">
@@ -626,7 +626,7 @@ export default function SpeedGridSettings() {
       {/* MODAL: Search & Add Product */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-lg w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <div>
                 <h3 className="font-bold text-slate-800 text-base">
@@ -708,7 +708,7 @@ export default function SpeedGridSettings() {
       {/* MODAL: Auto-Fill from Top Sellers */}
       {showTopSellersModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-amber-50/50">
               <div className="flex items-center gap-2">
                 <Sparkles size={20} className="text-amber-600" />
@@ -795,7 +795,7 @@ export default function SpeedGridSettings() {
               <button
                 onClick={() => handleApplyTopSellers(topSellers)}
                 disabled={topSellers.length === 0}
-                className="flex items-center gap-2 px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-md shadow-xs disabled:opacity-50"
+                className="flex items-center gap-2 px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-md disabled:opacity-50"
               >
                 <Sparkles size={14} />
                 Apply to "{currentCategory.name}"

@@ -43,7 +43,7 @@ export default function ResetPassword({ token, onGoLogin }: Props) {
           <h1 className="text-2xl font-bold text-white">Set New Password</h1>
         </div>
 
-        <div className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-8 shadow-2xl">
+        <div className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-8">
           {done ? (
             <div className="text-center py-4">
               <CheckCircle size={48} className="text-green-400 mx-auto mb-4" />

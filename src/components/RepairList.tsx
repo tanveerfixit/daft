@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useRefetchOnActivate } from '../hooks/useRefetchOnActivate';
 import { Plus, Search, Printer, Tag, X, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Repair } from '../types';
@@ -42,11 +43,7 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
     }
   }, [preSelectedCustomerId]);
 
-  useEffect(() => {
-    if (isActive) {
-      fetchRepairs();
-    }
-  }, [isActive]);
+  useRefetchOnActivate(isActive, fetchRepairs);
 
   useEffect(() => {
     const handleFocus = () => {
@@ -133,7 +130,7 @@ export default function RepairList({ preSelectedCustomerId, isActive = true }: R
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-none px-2.5 py-1 text-sm font-normal outline-none focus:border-blue-500 cursor-pointer shadow-sm h-8"
+            className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 rounded-none px-2.5 py-1 text-sm font-normal outline-none focus:border-blue-500 cursor-pointer h-8"
           >
             <option value="active">New / Booked & Under Process ({statusCounts.active || 0})</option>
             <option value="new">New / Booked Only ({statusCounts.new || 0})</option>

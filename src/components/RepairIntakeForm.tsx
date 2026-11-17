@@ -250,7 +250,7 @@ export default function RepairIntakeForm({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[100] p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-white dark:bg-neutral-900 w-full max-w-xl rounded shadow-2xl overflow-hidden flex flex-col my-auto border border-neutral-200 dark:border-neutral-800 transition-all">
+      <div className="bg-white dark:bg-neutral-900 w-full max-w-xl rounded overflow-hidden flex flex-col my-auto border border-neutral-200 dark:border-neutral-800 transition-all">
         
         {/* Header - Large, clear and high contrast */}
         <div className="bg-neutral-100 dark:bg-neutral-800 px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-700 flex justify-between items-center shrink-0">
@@ -319,7 +319,7 @@ export default function RepairIntakeForm({
 
             {/* Returning Customer Autocomplete Suggestions */}
             {showSuggestions && matchingCustomers.length > 0 && (
-              <div className="mt-1.5 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded shadow-lg overflow-hidden z-30">
+              <div className="mt-1.5 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded overflow-hidden z-30">
                 <div className="px-3 py-1 bg-neutral-100 dark:bg-neutral-800 text-xs font-bold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
                   <span className="flex items-center gap-1">
                     <UserCheck size={13} />
@@ -497,7 +497,7 @@ export default function RepairIntakeForm({
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-13 bg-blue-600 hover:bg-blue-700 text-white rounded text-lg font-bold flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer disabled:opacity-50"
+              className="w-full h-13 bg-blue-600 hover:bg-blue-700 text-white rounded text-lg font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
             >
               <Save size={20} />
               <span>{hasDeposit ? `Save & Pay €${parseFloat(String(formData.deposit_amount)).toFixed(2)} Deposit` : 'Save Repair Job'}</span>
@@ -530,7 +530,7 @@ export default function RepairIntakeForm({
                   type="button"
                   disabled={loading}
                   onClick={() => handleCreateJob(true)}
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm sm:text-base font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm sm:text-base font-bold flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
                 >
                   <CreditCard size={18} />
                   <span>Pay €{parseFloat(String(formData.deposit_amount)).toFixed(2)} Deposit →</span>
@@ -542,7 +542,7 @@ export default function RepairIntakeForm({
                   type="button"
                   disabled={loading}
                   onClick={() => handleCreateJob(false)}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm sm:text-base font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm sm:text-base font-bold flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
                 >
                   <Save size={18} />
                   <span>Save Repair Job</span>

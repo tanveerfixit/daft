@@ -92,7 +92,7 @@ export default function ManageData() {
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Problem Name</label>
                   <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Enter problem name" />
                 </div>
-                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all shadow-lg shadow-blue-100 mt-4">
+                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all mt-4">
                   Add Problem
                 </button>
               </div>
@@ -124,7 +124,7 @@ export default function ManageData() {
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Service Type</label>
                   <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Enter service type" />
                 </div>
-                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all shadow-lg shadow-blue-100 mt-4">
+                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all mt-4">
                   Add Vendor
                 </button>
               </div>
@@ -154,7 +154,7 @@ export default function ManageData() {
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Type Name</label>
                   <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Enter expense type" />
                 </div>
-                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all shadow-lg shadow-blue-100 mt-4">
+                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all mt-4">
                   Add Expense Type
                 </button>
               </div>
@@ -184,7 +184,7 @@ export default function ManageData() {
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Type Name</label>
                   <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Enter customer type" />
                 </div>
-                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all shadow-lg shadow-blue-100 mt-4">
+                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all mt-4">
                   Add Customer Type
                 </button>
               </div>
@@ -217,7 +217,7 @@ export default function ManageData() {
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Condition</label>
                   <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Enter condition" />
                 </div>
-                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all shadow-lg shadow-blue-100 mt-4">
+                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all mt-4">
                   Add Rule
                 </button>
               </div>
@@ -257,7 +257,7 @@ export default function ManageData() {
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Rate (%)</label>
                   <input type="number" className="w-full bg-slate-50 border border-slate-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Enter rate" />
                 </div>
-                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all shadow-lg shadow-blue-100 mt-4">
+                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all mt-4">
                   Add Commission
                 </button>
               </div>
@@ -287,7 +287,7 @@ export default function ManageData() {
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Policy Name</label>
                   <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Enter policy name" />
                 </div>
-                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all shadow-lg shadow-blue-100 mt-4">
+                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all mt-4">
                   Add Policy
                 </button>
               </div>
@@ -319,7 +319,7 @@ export default function ManageData() {
               onClick={() => setActiveView(item.id)}
               className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-semibold transition-all ${
                 activeView === item.id
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-100'
+                  ? 'bg-blue-600 text-white  '
                   : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
@@ -357,7 +357,7 @@ function ExportDataView() {
         </p>
       </div>
 
-      <div className="bg-white rounded-md shadow-sm border border-slate-200 p-8">
+      <div className="bg-white rounded-md border border-slate-200 p-8">
         <div className="flex flex-col md:flex-row gap-4 items-end">
           <div className="flex-1">
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Choose data type to Export</label>
@@ -366,7 +366,7 @@ function ExportDataView() {
               {exportTypes.map(type => <option key={type} value={type}>{type}</option>)}
             </select>
           </div>
-          <button className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-8 py-3 rounded-md transition-all shadow-lg shadow-emerald-100 flex items-center gap-2">
+          <button className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-8 py-3 rounded-md transition-all flex items-center gap-2">
             <Download size={18} />
             Export
           </button>
@@ -502,7 +502,7 @@ function SuppliersView() {
           <button 
             onClick={handleSave}
             disabled={isSaving}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all shadow-lg shadow-blue-100 mt-4 disabled:bg-slate-300"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all mt-4 disabled:bg-slate-300"
           >
             {isSaving ? 'Saving...' : 'Save Supplier'}
           </button>
@@ -538,7 +538,7 @@ function CategoriesView() {
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Category Name</label>
             <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Enter category name" />
           </div>
-          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all shadow-lg shadow-blue-100 mt-4">
+          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all mt-4">
             Add Category
           </button>
         </div>
@@ -573,7 +573,7 @@ function ManufacturersView() {
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Manufacturer Name</label>
             <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Enter manufacturer name" />
           </div>
-          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all shadow-lg shadow-blue-100 mt-4">
+          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all mt-4">
             Add Manufacturer
           </button>
         </div>
@@ -615,7 +615,7 @@ function BrandModelsView() {
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Model Name</label>
             <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Enter model name" />
           </div>
-          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all shadow-lg shadow-blue-100 mt-4">
+          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-md transition-all mt-4">
             Add Model
           </button>
         </div>
@@ -652,7 +652,7 @@ function ManagementPageTemplate({
       </div>
 
       {/* Action Toolbar */}
-      <div className="bg-white rounded-md shadow-sm border border-slate-200 p-4 mb-6 flex flex-wrap gap-4 items-center justify-between">
+      <div className="bg-white rounded-md border border-slate-200 p-4 mb-6 flex flex-wrap gap-4 items-center justify-between">
         <div className="flex items-center gap-4 flex-1 min-w-[300px]">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -672,7 +672,7 @@ function ManagementPageTemplate({
             </select>
           </div>
         </div>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-md transition-all shadow-lg shadow-blue-100 flex items-center gap-2">
+        <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-md transition-all flex items-center gap-2">
           <Plus size={18} />
           {createButtonLabel}
         </button>
@@ -681,7 +681,7 @@ function ManagementPageTemplate({
       {/* Main Content Layout */}
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Table Area */}
-        <div className="flex-1 bg-white rounded-md shadow-sm border border-slate-200 overflow-hidden">
+        <div className="flex-1 bg-white rounded-md border border-slate-200 overflow-hidden">
           <table className="w-full border-collapse">
             <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
               <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
@@ -700,7 +700,7 @@ function ManagementPageTemplate({
 
         {/* Right Side Panel */}
         <div className="w-full lg:w-80 shrink-0">
-          <div className="bg-white rounded-md shadow-sm border border-slate-200 p-6 sticky top-8">
+          <div className="bg-white rounded-md border border-slate-200 p-6 sticky top-8">
             <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight mb-6 flex items-center gap-2">
               <Plus size={16} className="text-blue-600" />
               Add New Record

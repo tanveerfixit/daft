@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useRefetchOnActivate } from '../hooks/useRefetchOnActivate';
 import { Plus, Search, X } from 'lucide-react';
 import { Customer } from '../types';
 import { safeCustomerName } from '../utils/customerName';
@@ -27,11 +28,7 @@ export default function CustomerList({ onSelectCustomer, isActive = true }: Cust
     fetchCustomers();
   }, []);
 
-  useEffect(() => {
-    if (isActive) {
-      fetchCustomers();
-    }
-  }, [isActive]);
+  useRefetchOnActivate(isActive, fetchCustomers);
 
   useEffect(() => {
     const handleFocus = () => {

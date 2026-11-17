@@ -53,7 +53,7 @@ export default function PurchaseOrderDetail({ poId, onBack }: Props) {
   return (
     <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 pb-2 pt-0 select-none w-full overflow-auto" style={{ fontSize: '17px' }}>
       {/* Top Bar */}
-      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 px-4 py-1.5 flex justify-between items-center rounded-none shadow-none mb-2">
+      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 px-4 py-1.5 flex justify-between items-center rounded-none mb-2">
         <div className="flex gap-2">
           <button 
             onClick={onBack}
@@ -92,7 +92,7 @@ export default function PurchaseOrderDetail({ poId, onBack }: Props) {
         {/* Info Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {/* Supplier Info */}
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none overflow-hidden">
             <div className="bg-neutral-200 dark:bg-neutral-900 px-4 py-1.5 border-b border-neutral-300 dark:border-neutral-800">
               <span className="text-black dark:text-white font-bold uppercase tracking-wider text-[13px] flex items-center gap-2">
                 <Users size={15} />
@@ -119,7 +119,7 @@ export default function PurchaseOrderDetail({ poId, onBack }: Props) {
           </div>
 
           {/* Purchase Order Info */}
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none overflow-hidden">
             <div className="bg-neutral-200 dark:bg-neutral-900 px-4 py-1.5 border-b border-neutral-300 dark:border-neutral-800">
               <span className="text-black dark:text-white font-bold uppercase tracking-wider text-[13px] flex items-center gap-2">
                 <Smartphone size={15} />
@@ -149,7 +149,7 @@ export default function PurchaseOrderDetail({ poId, onBack }: Props) {
         </div>
 
         {/* Items Table */}
-        <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
+        <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none overflow-hidden">
           <table className="w-full text-left border-collapse">
             <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
               <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">

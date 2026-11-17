@@ -944,7 +944,7 @@ export default function BatchDeviceIntake({
 
     return (
       <div className="w-full min-h-screen px-4 sm:px-8 py-6 space-y-6">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-6 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5 border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-3.5">
               <div className="w-12 h-12 rounded bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
@@ -959,7 +959,7 @@ export default function BatchDeviceIntake({
               <button
                 type="button"
                 onClick={() => triggerBatchPrint(savedBatch.devices)}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-sm flex items-center gap-2 shadow cursor-pointer transition-all"
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-sm flex items-center gap-2 cursor-pointer transition-all"
                 title="Print barcode labels with IMEI for each serialized unit"
               >
                 <Printer size={18} />
@@ -968,7 +968,7 @@ export default function BatchDeviceIntake({
               <button
                 type="button"
                 onClick={() => triggerProductBarcodePrint(uniqueProducts)}
-                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-sm flex items-center gap-2 shadow cursor-pointer transition-all"
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-sm flex items-center gap-2 cursor-pointer transition-all"
                 title="Print product SKU barcode labels"
               >
                 <Printer size={18} />
@@ -1060,7 +1060,7 @@ export default function BatchDeviceIntake({
   return (
     <div className="w-full min-h-screen px-4 sm:px-8 py-5 space-y-5 bg-neutral-50 dark:bg-neutral-950">
       {/* Top Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 sm:p-5 border border-slate-200 dark:border-slate-800 rounded shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 sm:p-5 border border-slate-200 dark:border-slate-800 rounded">
         <div className="flex items-center gap-3.5">
           <button 
             type="button" 
@@ -1092,7 +1092,7 @@ export default function BatchDeviceIntake({
             type="button"
             onClick={handleSaveBatch}
             disabled={isSaving}
-            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded flex items-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer transition-colors"
+            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded flex items-center gap-2 disabled:opacity-50 cursor-pointer transition-colors"
           >
             {isSaving ? (
               <>
@@ -1186,7 +1186,7 @@ export default function BatchDeviceIntake({
 
       {/* Newly Created Product Barcode Print Alert */}
       {newlyCreatedProductForLabel && (
-        <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+        <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-sm text-emerald-900 dark:text-emerald-200">
             <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
               <CheckCircle2 size={18} />
@@ -1201,7 +1201,7 @@ export default function BatchDeviceIntake({
             <button
               type="button"
               onClick={() => triggerProductBarcodePrint([newlyCreatedProductForLabel])}
-              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
             >
               <Printer size={14} />
               Print Barcode Label
@@ -1260,7 +1260,7 @@ export default function BatchDeviceIntake({
       </div>
 
       {/* Main Multi-Product Table */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded shadow-sm overflow-visible">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded overflow-visible">
         <div className="overflow-x-auto min-h-[460px] pb-40">
           <table className="w-full text-left text-sm border-collapse">
             <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold border-b border-slate-200 dark:border-slate-700">
@@ -1318,7 +1318,7 @@ export default function BatchDeviceIntake({
 
                         {/* Dropdown overlay */}
                         {isFilteredDropdownOpen && (
-                          <div className="absolute top-full left-0 mt-1 w-84 sm:w-96 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded shadow-2xl z-50 p-2.5 space-y-2">
+                          <div className="absolute top-full left-0 mt-1 w-84 sm:w-96 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded z-50 p-2.5 space-y-2">
                             <div className="relative">
                               <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
                               <input 
@@ -1358,7 +1358,7 @@ export default function BatchDeviceIntake({
                                     <button
                                       type="button"
                                       onClick={() => handleInlineQuickCreate(productSearchTerm, idx)}
-                                      className="w-full py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow transition-all"
+                                      className="w-full py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
                                     >
                                       <PlusCircle size={15} />
                                       <span>+ Create & Select "{productSearchTerm}"</span>
@@ -1549,7 +1549,7 @@ export default function BatchDeviceIntake({
           <button
             type="button"
             onClick={() => handleAddRow()}
-            className="px-4 py-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 text-sm font-bold rounded flex items-center gap-2 cursor-pointer shadow-xs"
+            className="px-4 py-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 text-sm font-bold rounded flex items-center gap-2 cursor-pointer"
           >
             <Plus size={16} /> Add Another Device Line
           </button>
@@ -1560,7 +1560,7 @@ export default function BatchDeviceIntake({
       {/* Quick Create Serialized Product Modal */}
       {showCreateProductModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 rounded border border-slate-300 dark:border-slate-700 shadow-2xl max-w-md w-full p-5 space-y-4">
+          <div className="bg-white dark:bg-slate-900 rounded border border-slate-300 dark:border-slate-700 max-w-md w-full p-5 space-y-4">
             <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-slate-800">
               <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Smartphone size={18} className="text-blue-600" />
@@ -1622,7 +1622,7 @@ export default function BatchDeviceIntake({
                 type="button"
                 onClick={() => handleCreateNewProduct(true)}
                 disabled={!newProdName.trim() || createProdLoading}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-xs"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
                 title="Create product and immediately open barcode label print preview"
               >
                 <Printer size={15} />
@@ -1632,7 +1632,7 @@ export default function BatchDeviceIntake({
                 type="button"
                 onClick={() => handleCreateNewProduct(false)}
                 disabled={!newProdName.trim() || createProdLoading}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-xs"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
               >
                 {createProdLoading ? 'Creating...' : 'Create & Select'}
               </button>
@@ -1644,7 +1644,7 @@ export default function BatchDeviceIntake({
       {/* Bulk Paste Modal */}
       {showBulkPasteModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 rounded border border-slate-300 dark:border-slate-700 shadow-2xl max-w-lg w-full p-5 space-y-4 text-sm">
+          <div className="bg-white dark:bg-slate-900 rounded border border-slate-300 dark:border-slate-700 max-w-lg w-full p-5 space-y-4 text-sm">
             <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <FileSpreadsheet size={18} className="text-blue-600" />
               Bulk Paste IMEI / Serial Numbers
@@ -1718,7 +1718,7 @@ export default function BatchDeviceIntake({
       {/* Quick Add Supplier Modal */}
       {showSupplierModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 rounded border border-slate-300 dark:border-slate-700 shadow-2xl max-w-sm w-full p-5 space-y-3.5 text-sm">
+          <div className="bg-white dark:bg-slate-900 rounded border border-slate-300 dark:border-slate-700 max-w-sm w-full p-5 space-y-3.5 text-sm">
             <div className="flex items-center justify-between border-b pb-2.5 border-slate-200 dark:border-slate-800">
               <h3 className="text-base font-bold text-slate-900 dark:text-white">Quick Add Supplier</h3>
               <button onClick={() => setShowSupplierModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">

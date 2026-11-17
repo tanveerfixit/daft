@@ -104,7 +104,7 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--brand-primary)]"></div>
           </div>
         ) : (
-          <div className="bg-[var(--bg-card)] border border-[var(--border-header)] rounded shadow-sm overflow-hidden">
+          <div className="bg-[var(--bg-card)] border border-[var(--border-header)] rounded overflow-hidden">
             <table className="w-full text-left border-collapse">
               <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
                 <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">

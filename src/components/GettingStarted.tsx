@@ -1224,7 +1224,6 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
               font-family: inherit;
               font-size: inherit;
               line-height: 1.35;
-              box-shadow: 0 0 10px rgba(0,0,0,0.1);
               color: #000;
             }
             .text-center { text-align: center; }
@@ -1235,7 +1234,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
             .flex { display: flex; justify-content: space-between; align-items: flex-start; }
             @media print {
               body { background: white; margin: 0; }
-              .receipt { margin: 0; box-shadow: none; border: none; width: 72mm; padding: 2mm; }
+              .receipt { margin: 0; border: none; width: 72mm; padding: 2mm; }
             }
           </style>
         </head>
@@ -1558,7 +1557,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
 
       <div className="flex flex-1 overflow-hidden p-6 gap-6">
         {/* Sidebar */}
-        <div className="w-64 bg-white border border-slate-200 rounded shadow-sm overflow-hidden flex flex-col">
+        <div className="w-64 bg-white border border-slate-200 rounded overflow-hidden flex flex-col">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -1576,7 +1575,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 bg-white border border-slate-200 rounded shadow-sm p-8 overflow-auto">
+        <div className="flex-1 bg-white border border-slate-200 rounded p-8 overflow-auto">
           {activeTab === 'speed-grid' ? (
             <SpeedGridSettings />
           ) : activeTab === 'manage-invoices' ? (
@@ -1595,7 +1594,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 
                 {/* 1. EXPORT INVOICES CARD */}
-                <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-xs flex flex-col justify-between">
+                <div className="bg-white border border-slate-200 rounded-lg p-6 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-5">
                       <div className="flex items-center gap-2">
@@ -1637,7 +1636,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                               onClick={() => handleApplyPreset(btn.id as any)}
                               className={`py-1.5 px-2 text-xs font-semibold rounded border transition-colors ${
                                 exportPreset === btn.id
-                                  ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                                  ? 'bg-blue-600 border-blue-600 text-white '
                                   : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                               }`}
                             >
@@ -1706,7 +1705,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                     <button
                       onClick={() => handleDownloadInvoiceExport('json')}
                       disabled={isExporting || exportStats.total_invoices === 0}
-                      className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:cursor-not-allowed"
+                      className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:cursor-not-allowed"
                     >
                       <FileJson size={16} />
                       Download JSON (Full Data Backup)
@@ -1723,7 +1722,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                 </div>
 
                 {/* 2. IMPORT INVOICES CARD */}
-                <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-xs flex flex-col justify-between">
+                <div className="bg-white border border-slate-200 rounded-lg p-6 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-2 pb-3 border-b border-slate-200 mb-5">
                       <div className="p-2 bg-emerald-50 text-emerald-600 rounded-md">
@@ -1824,7 +1823,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                     <button
                       onClick={handleImportInvoicesSubmit}
                       disabled={isImporting || !importRawText.trim()}
-                      className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white rounded font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:cursor-not-allowed"
+                      className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white rounded font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:cursor-not-allowed"
                     >
                       <Save size={16} />
                       {isImporting ? 'Restoring Invoices...' : 'Import & Restore Invoices'}
@@ -1989,7 +1988,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                   <button
                     onClick={handleSaveSettings}
                     disabled={isSaving}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded text-sm shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded text-sm transition-all flex items-center gap-2 disabled:opacity-50"
                   >
                     <Save size={16} />
                     {isSaving ? 'Saving...' : 'Save'}
@@ -2150,7 +2149,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                   <button
                     onClick={handleSaveCompany}
                     disabled={isSaving}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded text-sm shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded text-sm transition-all flex items-center gap-2 disabled:opacity-50"
                   >
                     <Save size={16} />
                     {isSaving ? 'Saving...' : 'Save'}
@@ -2216,7 +2215,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                   <button
                     onClick={handleSavePaymentMethods}
                     disabled={isSaving}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded text-sm shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded text-sm transition-all flex items-center gap-2 disabled:opacity-50"
                   >
                     <Save size={16} />
                     {isSaving ? 'Saving...' : 'Save'}
@@ -2342,7 +2341,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                       <button
                         onClick={handleSaveThermalPrinterSettings}
                         disabled={isSaving}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded text-sm shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded text-sm transition-all flex items-center gap-2 disabled:opacity-50"
                       >
                         <Save size={16} />
                         {isSaving ? 'Saving...' : 'Save Settings'}
@@ -2355,7 +2354,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                   <h4 className="text-sm font-bold text-slate-800">Report Live Preview</h4>
                   <div className="bg-slate-100 rounded-lg p-6 flex justify-center border border-slate-200 min-h-[450px]">
                     <div 
-                      className="bg-white shadow-xl p-4 w-[280px] h-fit font-mono text-[11px] leading-tight text-neutral-900 border border-neutral-200"
+                      className="bg-white p-4 w-[280px] h-fit font-mono text-[11px] leading-tight text-neutral-900 border border-neutral-200"
                     >
                       <div className="text-center mb-3">
                         <div className="font-bold text-xs uppercase tracking-wider">End of Day Report</div>
@@ -2454,7 +2453,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
               </p>
 
               {message && (
-                <div className={`p-4 rounded mb-6 text-sm flex items-center justify-between shadow-sm animate-fade-in ${
+                <div className={`p-4 rounded mb-6 text-sm flex items-center justify-between  animate-fade-in ${
                   message.type === 'success' 
                     ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
                     : 'bg-red-50 text-red-800 border border-red-200'
@@ -2627,7 +2626,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                           type="button"
                           onClick={handleSaveThermalPrinterSettings}
                           disabled={isSaving}
-                          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-5 rounded text-xs shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-5 rounded text-xs transition-all flex items-center gap-1.5 disabled:opacity-50"
                         >
                           <Save size={14} />
                           {isSaving ? 'Saving...' : 'Save'}
@@ -2651,7 +2650,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                     )}
                   </div>
                   <div className="bg-slate-100 rounded-lg p-6 flex justify-center border border-slate-200 min-h-[500px] overflow-auto">
-                    <div className="bg-white shadow-xl p-3 h-fit border border-slate-200 rounded">
+                    <div className="bg-white p-3 h-fit border border-slate-200 rounded">
                       <ThermalReceipt 
                         invoice={latestInvoice || {
                           id: 1,
@@ -2853,7 +2852,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                   <div className="bg-slate-100 border border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-3">Live Label Preview ({printerSettings.font_size === 'Small' ? '10px' : printerSettings.font_size === 'Large' ? '14px' : '12px'})</span>
                     <div 
-                      className="bg-white border-2 border-dashed border-slate-400 rounded p-1 flex flex-col items-center justify-between text-center shadow-md select-none overflow-hidden"
+                      className="bg-white border-2 border-dashed border-slate-400 rounded p-1 flex flex-col items-center justify-between text-center select-none overflow-hidden"
                       style={{
                         width: printerSettings.orientation === 'Landscape' ? '210px' : '130px',
                         height: printerSettings.orientation === 'Landscape' ? '125px' : '210px',
@@ -2934,14 +2933,14 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                   <button
                     onClick={handleSavePrinterSettings}
                     disabled={isSaving}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded text-sm shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded text-sm transition-all flex items-center gap-2 disabled:opacity-50"
                   >
                     <Save size={16} />
                     {isSaving ? 'Saving...' : 'Save'}
                   </button>
                   <button
                     onClick={handlePrintTestLabel}
-                    className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold py-2 px-6 rounded text-sm shadow-sm transition-all"
+                    className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold py-2 px-6 rounded text-sm transition-all"
                   >
                     Print Test Label
                   </button>
@@ -2974,7 +2973,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                   onClick={() => setProductSubMode('serial')}
                   className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${
                     productSubMode === 'serial'
-                      ? 'bg-blue-600 text-white shadow-xs'
+                      ? 'bg-blue-600 text-white '
                       : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                   }`}
                 >
@@ -2985,7 +2984,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                   onClick={() => setProductSubMode('general')}
                   className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${
                     productSubMode === 'general'
-                      ? 'bg-blue-600 text-white shadow-xs'
+                      ? 'bg-blue-600 text-white '
                       : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                   }`}
                 >
@@ -3022,7 +3021,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                           onClick={() => setSerialExportMode('all')}
                           className={`flex-1 py-1.5 px-2 rounded font-medium transition-colors flex items-center justify-center gap-1.5 ${
                             serialExportMode === 'all'
-                              ? 'bg-white text-blue-700 shadow-xs font-semibold'
+                              ? 'bg-white text-blue-700  font-semibold'
                               : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
@@ -3037,7 +3036,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                           }}
                           className={`flex-1 py-1.5 px-2 rounded font-medium transition-colors flex items-center justify-center gap-1.5 ${
                             serialExportMode === 'scanned'
-                              ? 'bg-white text-blue-700 shadow-xs font-semibold'
+                              ? 'bg-white text-blue-700  font-semibold'
                               : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
@@ -3497,7 +3496,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                   type="button"
                   onClick={handleSaveSettings}
                   disabled={isSaving}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2 px-5 rounded text-sm transition-colors flex items-center gap-2 shadow-xs cursor-pointer"
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2 px-5 rounded text-sm transition-colors flex items-center gap-2 cursor-pointer"
                 >
                   <Save size={16} />
                   <span>{isSaving ? 'Saving...' : 'Save Preferences'}</span>
@@ -3517,7 +3516,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
               )}
 
               {/* Section 1: Start-of-Day & Register Opening Prompts */}
-              <div className="bg-white border border-slate-200 rounded shadow-xs overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded overflow-hidden">
                 <div className="bg-[#f8f9fa] px-4 py-3 border-b border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Coins size={17} className="text-amber-600" />
@@ -3576,7 +3575,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                     <button
                       type="button"
                       onClick={() => setShowTestCashModal(true)}
-                      className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium border border-slate-300 rounded shadow-2xs transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer"
+                      className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium border border-slate-300 rounded transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer"
                     >
                       <Calculator size={14} className="text-blue-600" />
                       <span>Test / Open Starting Cash Modal</span>
@@ -3586,7 +3585,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
               </div>
 
               {/* Section 2: System Popups & Modal Announcements */}
-              <div className="bg-white border border-slate-200 rounded shadow-xs overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded overflow-hidden">
                 <div className="bg-[#f8f9fa] px-4 py-3 border-b border-slate-200 flex items-center gap-2">
                   <Sparkles size={17} className="text-blue-600" />
                   <h4 className="font-bold text-sm text-slate-800 uppercase tracking-wide">
@@ -3640,7 +3639,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
               </div>
 
               {/* Section 3: Operational Notifications & Audio */}
-              <div className="bg-white border border-slate-200 rounded shadow-xs overflow-hidden">
+              <div className="bg-white border border-slate-200 rounded overflow-hidden">
                 <div className="bg-[#f8f9fa] px-4 py-3 border-b border-slate-200 flex items-center gap-2">
                   <Volume2 size={17} className="text-emerald-600" />
                   <h4 className="font-bold text-sm text-slate-800 uppercase tracking-wide">

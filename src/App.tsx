@@ -371,6 +371,18 @@ function AppInner() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // Keep-alive panels are mounted the first time they are visited (not all at login),
+  // then stay mounted so switching back is instant and local state is preserved.
+  // Mutating a ref during render is safe here: the Set only ever grows (idempotent).
+  const visitedViewsRef = useRef<Set<string>>(new Set());
+  {
+    const parts = location.pathname.split('/').filter(Boolean);
+    if (parts.length <= 2) {
+      visitedViewsRef.current.add(parts[1] || 'home');
+    }
+  }
+  const visited = visitedViewsRef.current;
+
   // Enforce light mode globally
   useEffect(() => {
     document.documentElement.classList.remove('dark');
@@ -648,7 +660,7 @@ function AppInner() {
             )}
             
             {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--border-base)] rounded shadow-lg z-[9999] overflow-hidden py-1 max-h-72 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--border-base)] rounded z-[9999] overflow-hidden py-1 max-h-72 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800">
                 <div className="px-3 py-1.5 text-[11px] text-[var(--text-muted)] font-semibold uppercase tracking-wider bg-[var(--bg-app)] border-b border-[var(--border-base)]">
                   Suggested Invoices ({suggestions.length})
                 </div>
@@ -733,7 +745,7 @@ function AppInner() {
               logout();
               navigate('/');
             }}
-            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded bg-[var(--bg-card)] hover:bg-red-50 hover:border-red-300 dark:hover:bg-red-950/30 text-[var(--text-main)] hover:text-red-600 dark:hover:text-red-400 text-xs font-medium transition-colors border border-[var(--border-base)] shadow-xs cursor-pointer group"
+            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded bg-[var(--bg-card)] hover:bg-red-50 hover:border-red-300 dark:hover:bg-red-950/30 text-[var(--text-main)] hover:text-red-600 dark:hover:text-red-400 text-xs font-medium transition-colors border border-[var(--border-base)] cursor-pointer group"
             title={`Logged in as ${currentUser.name} (${currentUser.role || 'Staff'}). Click to Log Out`}
             aria-label="Log Out"
           >
@@ -753,7 +765,7 @@ function AppInner() {
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.18 }}
-              className="md:hidden absolute top-full left-0 right-0 bg-[var(--bg-header)] border-b border-[var(--border-base)] p-2 shadow-lg z-[9999] overflow-hidden"
+              className="md:hidden absolute top-full left-0 right-0 bg-[var(--bg-header)] border-b border-[var(--border-base)] p-2 z-[9999] overflow-hidden"
             >
               <div className="relative">
                 <Search className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${searchLoading ? 'text-blue-500 animate-pulse' : 'text-[var(--text-muted)]'}`} size={16} />
@@ -797,7 +809,7 @@ function AppInner() {
                 )}
 
                 {showSuggestions && suggestions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-[var(--bg-card)] border border-[var(--border-base)] rounded-lg shadow-xl z-[99999] overflow-hidden py-1 max-h-64 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800">
+                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-[var(--bg-card)] border border-[var(--border-base)] rounded-lg z-[99999] overflow-hidden py-1 max-h-64 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800">
                     <div className="px-3 py-1.5 text-[11px] text-[var(--text-muted)] font-semibold uppercase tracking-wider bg-[var(--bg-app)] border-b border-[var(--border-base)]">
                       Suggested Invoices ({suggestions.length})
                     </div>
@@ -866,7 +878,7 @@ function AppInner() {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 26, stiffness: 280 }}
-              className="fixed inset-y-0 left-0 w-72 max-w-[82vw] bg-[var(--bg-sidebar)] text-white z-[201] flex flex-col shadow-2xl md:hidden overflow-hidden"
+              className="fixed inset-y-0 left-0 w-72 max-w-[82vw] bg-[var(--bg-sidebar)] text-white z-[201] flex flex-col md:hidden overflow-hidden"
             >
               {/* Drawer Top Header */}
               <div className="h-14 flex items-center justify-between px-4 border-b border-white/10 bg-black/20 shrink-0">
@@ -951,7 +963,7 @@ function AppInner() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Desktop Sidebar (100% Unchanged on Desktop md:flex, Hidden on Mobile) */}
-        <aside className="hidden md:flex w-28 bg-[var(--bg-sidebar)] text-white flex-col z-20 shadow-lg shrink-0 overflow-y-auto custom-scrollbar">
+        <aside className="hidden md:flex w-28 bg-[var(--bg-sidebar)] text-white flex-col z-20 shrink-0 overflow-y-auto custom-scrollbar">
           <nav className="flex-1 py-1 flex flex-col items-center">
             {menuItems.map((item) => (
               <button
@@ -980,37 +992,55 @@ function AppInner() {
         {/* Main Content Area */}
         <main className="flex-1 overflow-auto bg-[var(--bg-app)] transition-colors duration-300">
           <ErrorBoundary>
-            {/* Permanent Keep-Alive Panel Stack (Instant Swap, 0ms, Wipes Re-renders, Preserves Scans & Inputs) */}
+            {/* Keep-alive panels: each mounts on first visit, then stays mounted (instant swap, preserves inputs) */}
             <div className={(!isDetailView && currentView === 'home') ? 'h-full' : 'hidden'}>
               <HomeMenu onNavigate={handleSidebarNavigate} />
             </div>
-            <div className={(!isDetailView && currentView === 'dashboard') ? 'h-full' : 'hidden'}>
-              <Dashboard isActive={!isDetailView && currentView === 'dashboard'} />
-            </div>
-            <div className={(!isDetailView && currentView === 'register') ? 'h-full' : 'hidden'}>
-              <CashRegisterRoute />
-            </div>
-            <div className={(!isDetailView && currentView === 'products') ? 'h-full' : 'hidden'}>
-              <ProductListRoute isActive={!isDetailView && currentView === 'products'} />
-            </div>
-            <div className={(!isDetailView && currentView === 'invoices') ? 'h-full' : 'hidden'}>
-              <InvoiceListRoute isActive={!isDetailView && currentView === 'invoices'} />
-            </div>
-            <div className={(!isDetailView && currentView === 'customers') ? 'h-full' : 'hidden'}>
-              <CustomerListRoute isActive={!isDetailView && currentView === 'customers'} />
-            </div>
-            <div className={(!isDetailView && currentView === 'repairs') ? 'h-full' : 'hidden'}>
-              <RepairListRoute isActive={!isDetailView && currentView === 'repairs'} />
-            </div>
-            <div className={(!isDetailView && currentView === 'devices') ? 'h-full' : 'hidden'}>
-              <DeviceInventoryRoute isActive={!isDetailView && currentView === 'devices'} />
-            </div>
-            <div className={(!isDetailView && currentView === 'transfers') ? 'h-full' : 'hidden'}>
-              <BranchTransfer isActive={!isDetailView && currentView === 'transfers'} />
-            </div>
-            <div className={(!isDetailView && currentView === 'purchase-orders') ? 'h-full' : 'hidden'}>
-              <PurchaseOrderListRoute isActive={!isDetailView && currentView === 'purchase-orders'} />
-            </div>
+            {visited.has('dashboard') && (
+              <div className={(!isDetailView && currentView === 'dashboard') ? 'h-full' : 'hidden'}>
+                <Dashboard isActive={!isDetailView && currentView === 'dashboard'} />
+              </div>
+            )}
+            {visited.has('register') && (
+              <div className={(!isDetailView && currentView === 'register') ? 'h-full' : 'hidden'}>
+                <CashRegisterRoute />
+              </div>
+            )}
+            {visited.has('products') && (
+              <div className={(!isDetailView && currentView === 'products') ? 'h-full' : 'hidden'}>
+                <ProductListRoute isActive={!isDetailView && currentView === 'products'} />
+              </div>
+            )}
+            {visited.has('invoices') && (
+              <div className={(!isDetailView && currentView === 'invoices') ? 'h-full' : 'hidden'}>
+                <InvoiceListRoute isActive={!isDetailView && currentView === 'invoices'} />
+              </div>
+            )}
+            {visited.has('customers') && (
+              <div className={(!isDetailView && currentView === 'customers') ? 'h-full' : 'hidden'}>
+                <CustomerListRoute isActive={!isDetailView && currentView === 'customers'} />
+              </div>
+            )}
+            {visited.has('repairs') && (
+              <div className={(!isDetailView && currentView === 'repairs') ? 'h-full' : 'hidden'}>
+                <RepairListRoute isActive={!isDetailView && currentView === 'repairs'} />
+              </div>
+            )}
+            {visited.has('devices') && (
+              <div className={(!isDetailView && currentView === 'devices') ? 'h-full' : 'hidden'}>
+                <DeviceInventoryRoute isActive={!isDetailView && currentView === 'devices'} />
+              </div>
+            )}
+            {visited.has('transfers') && (
+              <div className={(!isDetailView && currentView === 'transfers') ? 'h-full' : 'hidden'}>
+                <BranchTransfer isActive={!isDetailView && currentView === 'transfers'} />
+              </div>
+            )}
+            {visited.has('purchase-orders') && (
+              <div className={(!isDetailView && currentView === 'purchase-orders') ? 'h-full' : 'hidden'}>
+                <PurchaseOrderListRoute isActive={!isDetailView && currentView === 'purchase-orders'} />
+              </div>
+            )}
 
             {/* Standard Router Switcher for occasional Detail & Modal Sub-Pages */}
             {(isDetailView || ![

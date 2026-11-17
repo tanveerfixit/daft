@@ -633,7 +633,7 @@ export default function AddInventory({
               type="button"
               onClick={() => handleBatchPrintLabels(selectedDevices)}
               disabled={selectedDevices.length === 0}
-              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer active:scale-[0.98]"
               title="Print barcode labels for all selected devices"
             >
               <Printer size={16} />
@@ -650,7 +650,7 @@ export default function AddInventory({
             <button 
               type="button"
               onClick={onSuccess}
-              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer active:scale-[0.98]"
             >
               <span>View Product Details</span>
               <ArrowLeft className="rotate-180" size={15} />
@@ -679,7 +679,7 @@ export default function AddInventory({
               <button
                 type="button"
                 onClick={() => handleBatchPrintLabels(savedBatch)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded text-sm flex items-center gap-2 shadow-xs cursor-pointer transition-all active:scale-95"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded text-sm flex items-center gap-2 cursor-pointer transition-all active:scale-95"
               >
                 <Printer size={16} />
                 <span>Print All {savedBatch.length} Labels</span>
@@ -688,7 +688,7 @@ export default function AddInventory({
           </div>
 
           {/* Table of added serialized devices */}
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded overflow-hidden shadow-xs">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded overflow-hidden">
             <div className="p-2.5 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <button
@@ -799,7 +799,7 @@ export default function AddInventory({
             type="button"
             disabled={isSaving}
             onClick={() => handleSubmit()}
-            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer active:scale-[0.98]"
           >
             <Save size={15} className={isSaving ? 'animate-spin' : ''} />
             <span>{isSaving ? 'Saving...' : 'Save Inventory'}</span>
@@ -947,7 +947,7 @@ export default function AddInventory({
 
           {/* Serialized Items Table */}
           {product.product_type === 'serialized' && (
-            <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded overflow-hidden shadow-xs mt-4">
+            <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded overflow-hidden mt-4">
               <div className="p-2.5 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <h3 className="text-sm font-semibold text-black dark:text-white uppercase tracking-wider flex items-center gap-2">
@@ -961,7 +961,7 @@ export default function AddInventory({
                 <button 
                   type="button"
                   onClick={() => handleAddItem()}
-                  className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1 px-3 rounded text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+                  className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1 px-3 rounded text-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
                 >
                   <Plus size={13} />
                   <span>Add Row</span>
@@ -1086,7 +1086,7 @@ export default function AddInventory({
       {/* Quick Add Supplier Modal */}
       {showNewSupplierModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 w-full max-w-md overflow-hidden flex flex-col rounded shadow-xl">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 w-full max-w-md overflow-hidden flex flex-col rounded">
             <div className="bg-neutral-100 dark:bg-neutral-800 px-5 py-3.5 border-b border-neutral-300 dark:border-neutral-800">
               <h3 className="font-medium text-black dark:text-white text-base">Add New Supplier</h3>
             </div>
@@ -1150,7 +1150,7 @@ export default function AddInventory({
               <button
                 type="button"
                 onClick={handleQuickAddSupplier}
-                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm cursor-pointer transition-colors shadow-xs active:scale-[0.98]"
+                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm cursor-pointer transition-colors active:scale-[0.98]"
               >
                 Add Supplier
               </button>

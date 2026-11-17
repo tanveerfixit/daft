@@ -5,9 +5,6 @@
   --font-brand: 'Poppins', 'AvenirLTStd-Roman', sans-serif;
   --font-icon: 'FontAwesome';
 
-  --shadow-soft: 0 10px 30px -5px rgba(0, 0, 0, 0.05), 0 4px 12px -3px rgba(0, 0, 0, 0.03);
-  --shadow-strong: 0 20px 50px -12px rgba(0, 0, 0, 0.1);
-
   --animate-shake: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
 
   @keyframes shake {
@@ -288,7 +285,7 @@ input[type="password"],
 input[type="search"],
 select,
 textarea {
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 input::placeholder,
@@ -309,7 +306,6 @@ select:focus-visible,
 textarea:focus-visible {
   outline: none;
   border-color: #3b82f6 !important;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18) !important;
 }
 
 /* Disabled input state standards */
@@ -324,7 +320,6 @@ button:disabled {
 /* Error validation input highlights */
 .input-error {
   border-color: #ef4444 !important;
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
 }
 
 /* 3. Text Overflow & Layout Resilience */

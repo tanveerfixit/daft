@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useRefetchOnActivate } from '../hooks/useRefetchOnActivate';
 import { Search, Plus, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { PurchaseOrder, Supplier } from '../types';
 
@@ -35,11 +36,7 @@ export default function PurchaseOrderList({
     fetchPOData(false);
   }, []);
 
-  useEffect(() => {
-    if (isActive) {
-      fetchPOData(true);
-    }
-  }, [isActive]);
+  useRefetchOnActivate(isActive, () => fetchPOData(true));
 
   useEffect(() => {
     const handleFocus = () => {

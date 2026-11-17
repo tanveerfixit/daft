@@ -81,7 +81,7 @@ export default function ForgotPassword({ onBack }: { onBack: () => void }) {
           <span className="text-xs font-bold uppercase tracking-widest text-[#3498db]">Back to login</span>
         </button>
 
-        <div className="bg-white rounded-[2.5rem] p-10 shadow-soft border border-slate-100 relative overflow-hidden">
+        <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 relative overflow-hidden">
           {/* Progress Indicators */}
           <div className="flex gap-2 mb-8">
             {(['email', 'otp', 'password'] as Step[]).map((s, i) => (
@@ -105,7 +105,7 @@ export default function ForgotPassword({ onBack }: { onBack: () => void }) {
               </p>
               <button 
                 onClick={onBack} 
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-slate-200"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-2xl transition-all"
               >
                 Sign In Now
               </button>
@@ -148,7 +148,7 @@ export default function ForgotPassword({ onBack }: { onBack: () => void }) {
                     />
                   </div>
                   <button type="submit" disabled={loading} 
-                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-slate-200 flex items-center justify-center gap-2"
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2"
                   >
                     {loading ? <Loader size={20} className="animate-spin" /> : <><Send size={18} /> Send Code</>}
                   </button>
@@ -173,7 +173,7 @@ export default function ForgotPassword({ onBack }: { onBack: () => void }) {
                     />
                   </div>
                   <button type="submit" disabled={loading || otp.length !== 6} 
-                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-slate-200"
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 rounded-2xl transition-all"
                   >
                     {loading ? <Loader size={20} className="animate-spin" /> : 'Verify & Continue'}
                   </button>
@@ -200,7 +200,7 @@ export default function ForgotPassword({ onBack }: { onBack: () => void }) {
                     />
                   </div>
                   <button type="submit" disabled={loading} 
-                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-100"
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-2xl transition-all"
                   >
                     {loading ? <Loader size={20} className="animate-spin" /> : 'Confirm New Password'}
                   </button>

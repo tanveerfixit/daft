@@ -230,7 +230,7 @@ export default function NotificationBell() {
       >
         <Bell size={22} />
         {unreadCount > 0 && (
-          <span className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-600 rounded-full shadow-xs ring-2 ring-white dark:ring-neutral-900 animate-in fade-in zoom-in-75 duration-200">
+          <span className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-600 rounded-full ring-2 ring-white dark:ring-neutral-900 animate-in fade-in zoom-in-75 duration-200">
             {unreadCount}
           </span>
         )}
@@ -238,7 +238,7 @@ export default function NotificationBell() {
 
       {/* Flyout Panel */}
       {isOpen && (
-        <div className="fixed sm:absolute right-2 sm:right-0 left-2 sm:left-auto mt-2 sm:w-96 max-w-[calc(100vw-16px)] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-2xl z-[99999] overflow-hidden animate-in fade-in zoom-in-95 duration-150 font-sans text-neutral-900 dark:text-neutral-100">
+        <div className="fixed sm:absolute right-2 sm:right-0 left-2 sm:left-auto mt-2 sm:w-96 max-w-[calc(100vw-16px)] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg z-[99999] overflow-hidden animate-in fade-in zoom-in-95 duration-150 font-sans text-neutral-900 dark:text-neutral-100">
           
           {/* Header */}
           <div className="px-4 py-3 bg-[var(--bg-header)] dark:bg-neutral-800/80 border-b border-neutral-200 dark:border-neutral-700 flex items-center justify-between">

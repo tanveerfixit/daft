@@ -81,7 +81,7 @@ export default function AdminLoginPage({ onBack }: Props) {
                 onChange={e => setEmail(e.target.value)}
                 required
                 autoFocus
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all shadow-inner"
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
               />
             </div>
 
@@ -93,7 +93,7 @@ export default function AdminLoginPage({ onBack }: Props) {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
-                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all shadow-inner"
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
                 />
                 <button 
                   type="button" 
@@ -108,7 +108,7 @@ export default function AdminLoginPage({ onBack }: Props) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white font-black py-4 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
+              className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white font-black py-4 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
             >
               {loading ? (
                 <Loader size={18} className="animate-spin" />

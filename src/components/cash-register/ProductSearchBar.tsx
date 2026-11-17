@@ -33,8 +33,8 @@ export const ProductSearchBar: React.FC<ProductSearchBarProps> = ({
           ref={inputRef}
           type="text"
           placeholder="Scan or Search Item..."
-          className="w-full flex-1 py-1.5 text-[#333333] placeholder-[#757575] bg-transparent text-base !outline-none !border-none !ring-0 !shadow-none focus:!outline-none focus:!border-none focus:!ring-0 focus:!shadow-none"
-          style={{ outline: 'none', border: 'none', boxShadow: 'none' }}
+          className="w-full flex-1 py-1.5 text-[#333333] placeholder-[#757575] bg-transparent text-base !outline-none !border-none !ring-0 focus:!outline-none focus:!border-none focus:!ring-0"
+          style={{ outline: 'none', border: 'none' }}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={onKeyDown}

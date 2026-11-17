@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useRefetchOnActivate } from '../hooks/useRefetchOnActivate';
 import { Plus, Search, Sparkles, X } from 'lucide-react';
 import { Product, Category, Manufacturer } from '../types';
 import ProductTypeModal, { ProductTypeKey } from './ProductTypeModal';
@@ -164,11 +165,7 @@ export default function ProductList({
     fetchProducts();
   }, [currentPage, itemsPerPage, searchQuery, selectedCategory, selectedManufacturer, selectedType, selectedStockStatus]);
 
-  useEffect(() => {
-    if (isActive) {
-      fetchProducts();
-    }
-  }, [isActive]);
+  useRefetchOnActivate(isActive, fetchProducts);
 
   useEffect(() => {
     const handleFocus = () => {
@@ -205,10 +202,10 @@ export default function ProductList({
   }, [currentUser?.business_id]);
 
   useEffect(() => {
-    if (searchInputRef.current) {
+    if (isActive && searchInputRef.current) {
       searchInputRef.current.focus();
     }
-  }, [products]);
+  }, [products, isActive]);
 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
@@ -379,7 +376,7 @@ export default function ProductList({
 
           {/* Announcement popup under search bar */}
           {showAnnouncementPopup && activeAnnouncement && !searchInput && (
-            <div className="absolute top-full right-0 left-0 mt-1.5 bg-white dark:bg-neutral-900 border-2 border-red-500 rounded-md shadow-2xl p-3.5 z-50 animate-in fade-in slide-in-from-top-2 duration-200 font-sans">
+            <div className="absolute top-full right-0 left-0 mt-1.5 bg-white dark:bg-neutral-900 border-2 border-red-500 rounded-md p-3.5 z-50 animate-in fade-in slide-in-from-top-2 duration-200 font-sans">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-1.5">
                   <span className="p-1 rounded bg-red-50 dark:bg-red-950/60 text-red-600">
@@ -420,7 +417,7 @@ export default function ProductList({
                 </span>
                 <button
                   onClick={handleDismissPopup}
-                  className="bg-red-600 hover:bg-red-700 text-white font-medium px-3 py-1 rounded text-xs cursor-pointer shadow-xs active:scale-95 transition-all"
+                  className="bg-red-600 hover:bg-red-700 text-white font-medium px-3 py-1 rounded text-xs cursor-pointer active:scale-95 transition-all"
                 >
                   Got it
                 </button>

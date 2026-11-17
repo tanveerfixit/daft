@@ -41,7 +41,7 @@ export default function ProductTypeModal({ isOpen, onClose, onSelectType }: Prod
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 font-sans animate-in fade-in duration-150">
-      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg overflow-hidden shadow-2xl rounded-none flex flex-col">
+      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg overflow-hidden rounded-none flex flex-col">
         {/* Header */}
         <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
           <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">

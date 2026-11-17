@@ -401,7 +401,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 </div>
 
                 {editUser && (
-                  <div className="bg-white rounded-lg p-6 border border-slate-200 shadow-sm mb-6">
+                  <div className="bg-white rounded-lg p-6 border border-slate-200 mb-6">
                     <h4 className="font-bold mb-4">Edit Staff Member</h4>
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       <div className="space-y-1">
@@ -510,7 +510,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             {tab === 'branches' && (
               <div className="space-y-6">
                 {editBranch && (
-                  <div className="bg-white rounded-lg p-6 border border-slate-200 shadow-sm mb-6">
+                  <div className="bg-white rounded-lg p-6 border border-slate-200 mb-6">
                     <h4 className="font-bold mb-4">Edit Branch</h4>
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       <div className="space-y-1">
@@ -629,7 +629,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                     )}
                     <button
                       onClick={() => setShowAddBusiness(!showAddBusiness)}
-                      className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-md text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                      className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-md text-xs flex items-center gap-1.5 transition-all"
                     >
                       <Plus size={14} /> Add Business
                     </button>
@@ -637,7 +637,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 </div>
 
                 {showAddBusiness && (
-                  <div className="bg-white rounded-lg p-6 border border-slate-200 shadow-sm mb-6">
+                  <div className="bg-white rounded-lg p-6 border border-slate-200 mb-6">
                     <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2"><Plus size={16} /> New Business Registration</h4>
                     <form onSubmit={createBusiness} className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
@@ -683,7 +683,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 )}
 
                 {editBusiness && (
-                  <div className="bg-white rounded-lg p-6 border border-slate-200 shadow-sm mb-6">
+                  <div className="bg-white rounded-lg p-6 border border-slate-200 mb-6">
                     <h4 className="font-bold mb-4">Edit Business</h4>
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       <div className="space-y-1">
@@ -889,7 +889,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                   </div>
                   <button
                     onClick={() => setShowAddAnnouncement(true)}
-                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer shadow-xs"
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer"
                   >
                     <Plus size={14} /> Broadcast Announcement
                   </button>
@@ -903,7 +903,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                     </div>
                   ) : (
                     announcements.map((item) => (
-                      <div key={item.id} className="bg-white border border-slate-200 rounded-lg p-5 shadow-xs hover:border-slate-300 transition-colors">
+                      <div key={item.id} className="bg-white border border-slate-200 rounded-lg p-5 hover:border-slate-300 transition-colors">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex flex-col gap-1.5 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -976,7 +976,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 {/* MODAL: ADD ANNOUNCEMENT */}
                 {showAddAnnouncement && (
                   <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4">
-                    <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="bg-white rounded-lg w-full max-w-lg p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
                       <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                         <div className="flex items-center gap-2">
                           <span className="p-1.5 bg-red-100 text-red-600 rounded">
@@ -1059,7 +1059,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                           type="button"
                           onClick={createAnnouncement}
                           disabled={loading}
-                          className="bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2 rounded text-xs flex items-center gap-2 cursor-pointer shadow-xs"
+                          className="bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2 rounded text-xs flex items-center gap-2 cursor-pointer"
                         >
                           {loading && <Loader size={14} className="animate-spin" />}
                           Publish Broadcast
@@ -1072,7 +1072,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 {/* MODAL: EDIT ANNOUNCEMENT */}
                 {editAnnouncement && (
                   <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4">
-                    <div className="bg-white rounded-lg w-full max-w-lg shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="bg-white rounded-lg w-full max-w-lg p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
                       <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                         <div className="flex items-center gap-2">
                           <span className="p-1.5 bg-slate-100 text-slate-700 rounded">
@@ -1151,7 +1151,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                           type="button"
                           onClick={saveEditAnnouncement}
                           disabled={loading}
-                          className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-5 py-2 rounded text-xs flex items-center gap-2 cursor-pointer shadow-xs"
+                          className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-5 py-2 rounded text-xs flex items-center gap-2 cursor-pointer"
                         >
                           {loading && <Loader size={14} className="animate-spin" />}
                           Save Changes

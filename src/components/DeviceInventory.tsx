@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useRefetchOnActivate } from '../hooks/useRefetchOnActivate';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Search, X, Layers, Plus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -77,11 +78,7 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
   }, [statusFilter]);
 
   // Auto-refresh when tab becomes active / loaded
-  useEffect(() => {
-    if (isActive) {
-      fetchDevices();
-    }
-  }, [isActive]);
+  useRefetchOnActivate(isActive, fetchDevices);
 
   // Auto-refresh when window regains focus
   useEffect(() => {
@@ -168,7 +165,7 @@ export default function DeviceInventory({ onSelectPO, onSelectProduct, onSelectD
           <button
             type="button"
             onClick={() => navigate(`/${branchSlug || 'default'}/batch-device-intake`)}
-            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer shadow-xs"
+            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
           >
             <Layers size={16} />
             <span>Batch Device Intake</span>

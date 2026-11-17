@@ -112,7 +112,7 @@ export const NavigationHealthCheck: React.FC<{ isOpen: boolean; onClose: () => v
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-[var(--bg-card)] border border-[var(--border-base)] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+      <div className="bg-[var(--bg-card)] border border-[var(--border-base)] rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
         {/* Modal Header */}
         <div className="p-5 border-b border-[var(--border-base)] flex items-center justify-between bg-[var(--bg-surface-secondary)]/50">
           <div className="flex items-center gap-3">
@@ -157,7 +157,7 @@ export const NavigationHealthCheck: React.FC<{ isOpen: boolean; onClose: () => v
           <button
             onClick={runAllChecks}
             disabled={isRunningAll}
-            className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-all disabled:opacity-50 cursor-pointer"
           >
             {isRunningAll ? (
               <>

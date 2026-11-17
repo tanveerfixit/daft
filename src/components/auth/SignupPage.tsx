@@ -68,7 +68,7 @@ export default function SignupPage({ onGoLogin }: Props) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-6 font-sans text-slate-900">
         <div className="w-full max-w-[420px] text-center">
-          <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-xl">
+          <div className="bg-white rounded-3xl p-8 border border-slate-200">
             <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-5">
               <CheckCircle2 size={36} strokeWidth={2.5} />
             </div>
@@ -78,7 +78,7 @@ export default function SignupPage({ onGoLogin }: Props) {
             </p>
             <button
               onClick={onGoLogin}
-              className="w-full bg-slate-950 hover:bg-slate-800 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-slate-900/10"
+              className="w-full bg-slate-950 hover:bg-slate-800 text-white font-bold py-4 rounded-xl transition-all"
             >
               Sign In Now
             </button>
@@ -101,10 +101,10 @@ export default function SignupPage({ onGoLogin }: Props) {
         </button>
 
         {/* Card Container */}
-        <div className="bg-white rounded-3xl p-8 sm:p-10 border border-slate-200/80 shadow-xl shadow-slate-200/50">
+        <div className="bg-white rounded-3xl p-8 sm:p-10 border border-slate-200/80">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 bg-slate-950 text-white rounded-2xl mb-4 shadow-md shadow-slate-950/20">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-slate-950 text-white rounded-2xl mb-4">
               <Building2 size={22} strokeWidth={2.5} />
             </div>
             <h1 className="text-2xl font-black text-slate-950 tracking-tight">Register Business</h1>
@@ -210,7 +210,7 @@ export default function SignupPage({ onGoLogin }: Props) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 bg-slate-950 hover:bg-slate-800 active:scale-[0.99] text-white font-bold py-3.5 rounded-xl transition-all shadow-md shadow-slate-950/10 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+              className="w-full mt-2 bg-slate-950 hover:bg-slate-800 active:scale-[0.99] text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
             >
               {loading ? (
                 <>

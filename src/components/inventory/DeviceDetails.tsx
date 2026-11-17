@@ -490,7 +490,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <button 
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="mt-2 text-xs bg-white dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 py-1.5 px-3 rounded-md shadow-xs font-sans font-medium flex items-center gap-1.5 cursor-pointer transition-all active:scale-[0.98]"
+                  className="mt-2 text-xs bg-white dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 py-1.5 px-3 rounded-md font-sans font-medium flex items-center gap-1.5 cursor-pointer transition-all active:scale-[0.98]"
                 >
                   <Camera size={13} />
                   <span>{device.image_url ? 'Change Photo' : 'Upload Photo'}</span>
@@ -606,21 +606,21 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 <div className="flex flex-wrap items-center gap-2.5 pt-1.5 border-t border-neutral-100 dark:border-neutral-900">
                   <button 
                     onClick={handleEditClick}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-1.5 px-4 rounded-md shadow-xs hover:shadow transition-all flex items-center gap-2 cursor-pointer font-sans active:scale-[0.98]"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-1.5 px-4 rounded-md transition-all flex items-center gap-2 cursor-pointer font-sans active:scale-[0.98]"
                   >
                     <Edit2 size={15} />
                     <span>Edit</span>
                   </button>
                   <button 
                     onClick={handlePrintLabel}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm py-1.5 px-4 rounded-md shadow-xs hover:shadow transition-all flex items-center gap-2 cursor-pointer font-sans active:scale-[0.98]"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm py-1.5 px-4 rounded-md transition-all flex items-center gap-2 cursor-pointer font-sans active:scale-[0.98]"
                   >
                     <Printer size={15} />
                     <span>Barcode Label Print</span>
                   </button>
                   <button 
                     onClick={handleDelete}
-                    className="bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800 font-medium text-sm py-1.5 px-4 rounded-md shadow-xs transition-all flex items-center gap-2 cursor-pointer font-sans active:scale-[0.98]"
+                    className="bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800 font-medium text-sm py-1.5 px-4 rounded-md transition-all flex items-center gap-2 cursor-pointer font-sans active:scale-[0.98]"
                   >
                     <Trash2 size={15} />
                     <span>Remove from Inventory</span>
@@ -638,7 +638,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                   </select>
                   <button 
                     onClick={() => setShowNoteModal(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-0.5 px-3 text-xs rounded-md shadow-xs transition-all cursor-pointer font-sans active:scale-[0.98]"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-0.5 px-3 text-xs rounded-md transition-all cursor-pointer font-sans active:scale-[0.98]"
                   >
                     + Add Note
                   </button>
@@ -683,7 +683,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
       {/* Note Modal */}
       {showNoteModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-[150] p-4">
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden font-sans">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl w-full max-w-lg overflow-hidden font-sans">
             <div className="px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center bg-white dark:bg-neutral-900">
               <h3 className="text-base font-semibold text-neutral-900 dark:text-white">Add Device Note</h3>
               <button 
@@ -705,14 +705,14 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
             <div className="px-5 py-3 bg-neutral-50 dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-2.5">
               <button 
                 onClick={() => setShowNoteModal(false)}
-                className="px-4 py-1.5 rounded-lg font-medium text-neutral-700 dark:text-neutral-200 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sm cursor-pointer shadow-xs transition-all active:scale-[0.98]"
+                className="px-4 py-1.5 rounded-lg font-medium text-neutral-700 dark:text-neutral-200 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sm cursor-pointer transition-all active:scale-[0.98]"
               >
                 Cancel
               </button>
               <button 
                 onClick={handleAddNote}
                 disabled={!newNote.trim()}
-                className="px-4 py-1.5 rounded-lg font-medium text-white bg-blue-600 hover:bg-blue-700 text-sm disabled:opacity-40 cursor-pointer shadow-xs hover:shadow transition-all active:scale-[0.98]"
+                className="px-4 py-1.5 rounded-lg font-medium text-white bg-blue-600 hover:bg-blue-700 text-sm disabled:opacity-40 cursor-pointer transition-all active:scale-[0.98]"
               >
                 Save Note
               </button>
@@ -724,7 +724,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
       {/* Edit Modal */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-[150] p-4">
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden font-sans">
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl w-full max-w-2xl overflow-hidden font-sans">
             <div className="px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center bg-white dark:bg-neutral-900">
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-semibold text-neutral-900 dark:text-white">Edit Device Details</h3>
@@ -807,7 +807,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
 
                 {/* Searchable Dropdown Menu */}
                 {isProductDropdownOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-1 z-[200] bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg shadow-2xl overflow-hidden flex flex-col">
+                  <div className="absolute top-full left-0 right-0 mt-1 z-[200] bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg overflow-hidden flex flex-col">
                     {/* Search Input Bar */}
                     <div className="p-2 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 sticky top-0 z-10 flex items-center gap-2">
                       <Search size={15} className="text-neutral-400 shrink-0 ml-1" />
@@ -992,7 +992,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 type="button"
                 onClick={() => setShowEditModal(false)}
                 disabled={isUpdating}
-                className="px-4 py-2 rounded-lg font-medium text-neutral-700 dark:text-neutral-200 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sm cursor-pointer shadow-xs transition-all active:scale-[0.98] disabled:opacity-40"
+                className="px-4 py-2 rounded-lg font-medium text-neutral-700 dark:text-neutral-200 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sm cursor-pointer transition-all active:scale-[0.98] disabled:opacity-40"
               >
                 Cancel
               </button>
@@ -1000,7 +1000,7 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                 type="button"
                 onClick={handleUpdateDevice}
                 disabled={isUpdating}
-                className="px-5 py-2 rounded-lg font-medium text-white bg-blue-600 hover:bg-blue-700 text-sm cursor-pointer shadow-xs hover:shadow transition-all active:scale-[0.98] disabled:opacity-40 flex items-center gap-2"
+                className="px-5 py-2 rounded-lg font-medium text-white bg-blue-600 hover:bg-blue-700 text-sm cursor-pointer transition-all active:scale-[0.98] disabled:opacity-40 flex items-center gap-2"
               >
                 {isUpdating ? 'Saving...' : 'Save Changes'}
               </button>

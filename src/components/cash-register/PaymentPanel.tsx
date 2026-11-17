@@ -225,7 +225,7 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
           onClick={() => handlePrimaryClick('Cash')}
           className={`flex items-center justify-center gap-2 py-3 px-3 rounded font-bold text-base transition-all cursor-pointer border ${
             isCashActive
-              ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm ring-2 ring-emerald-300'
+              ? 'bg-emerald-600 border-emerald-600 text-white  ring-2 ring-emerald-300'
               : 'bg-white border-emerald-600 text-emerald-800 hover:bg-emerald-50/70 hover:border-emerald-700'
           }`}
         >
@@ -238,7 +238,7 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
           onClick={() => handlePrimaryClick('Card')}
           className={`flex items-center justify-center gap-2 py-3 px-3 rounded font-bold text-base transition-all cursor-pointer border ${
             isCardActive
-              ? 'bg-blue-600 border-blue-600 text-white shadow-sm ring-2 ring-blue-300'
+              ? 'bg-blue-600 border-blue-600 text-white  ring-2 ring-blue-300'
               : 'bg-white border-blue-600 text-blue-800 hover:bg-blue-50/70 hover:border-blue-700'
           }`}
         >
@@ -259,7 +259,7 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
           }}
           className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded font-semibold text-xs sm:text-sm transition-all cursor-pointer border ${
             showCnInput
-              ? 'bg-purple-600 border-purple-600 text-white shadow-xs'
+              ? 'bg-purple-600 border-purple-600 text-white '
               : hasStoreCreditAvailable
                 ? 'bg-purple-50 border-purple-300 text-purple-900 hover:bg-purple-100'
                 : 'bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50 hover:border-neutral-400'
@@ -284,7 +284,7 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
             }}
             className={`w-full flex items-center justify-between py-2 px-2.5 rounded font-semibold text-xs sm:text-sm transition-all cursor-pointer border ${
               !isCashActive && !isCardActive && !showCnInput && paymentMethod !== 'Cash' && paymentMethod !== 'Card'
-                ? 'bg-amber-600 border-amber-600 text-white shadow-xs'
+                ? 'bg-amber-600 border-amber-600 text-white '
                 : 'bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50 hover:border-neutral-400'
             }`}
           >
@@ -298,7 +298,7 @@ export const PaymentPanel: React.FC<PaymentPanelProps> = ({
 
           {/* Flyout Menu for Other Methods */}
           {showOtherMenu && (
-            <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-neutral-300 rounded shadow-lg z-30 py-1 text-sm font-normal overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+            <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-neutral-300 rounded z-30 py-1 text-sm font-normal overflow-hidden animate-in fade-in zoom-in-95 duration-100">
               <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-neutral-400 border-b border-neutral-100">
                 Alternative Tenders
               </div>

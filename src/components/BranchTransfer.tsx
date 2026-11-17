@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useRefetchOnActivate } from '../hooks/useRefetchOnActivate';
 import { useAuth } from '../context/AuthContext';
 import {
   Search, ArrowRight, CheckCircle, XCircle, Clock, Loader, History,
@@ -86,12 +87,10 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
     loadTransfers();
   }, []);
 
-  useEffect(() => {
-    if (isActive) {
-      loadDestinations();
-      loadTransfers();
-    }
-  }, [isActive]);
+  useRefetchOnActivate(isActive, () => {
+    loadDestinations();
+    loadTransfers();
+  });
 
   useEffect(() => {
     const handleFocus = () => {
@@ -629,7 +628,7 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
           <div className="max-w-3xl mx-auto space-y-5">
             {msg.text && (
               <div
-                className={`px-4 py-3 text-sm border rounded-lg flex flex-wrap items-center justify-between gap-3 shadow-sm ${
+                className={`px-4 py-3 text-sm border rounded-lg flex flex-wrap items-center justify-between gap-3  ${
                   msg.type === 'success'
                     ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20'
                     : 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20'
@@ -644,7 +643,7 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
                     <button
                       type="button"
                       onClick={() => handlePrintManifest(msg.batchItems)}
-                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded flex items-center gap-1.5 shadow-xs cursor-pointer"
+                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded flex items-center gap-1.5 cursor-pointer"
                     >
                       <Printer size={13} /> Print Manifest ({msg.batchItems.length})
                     </button>
@@ -654,7 +653,7 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
               </div>
             )}
 
-            <form onSubmit={handleDispatchTransfer} className="space-y-5 bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850 p-6 rounded-lg shadow-sm">
+            <form onSubmit={handleDispatchTransfer} className="space-y-5 bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850 p-6 rounded-lg">
               {/* CURRENT LOGGED-IN BRANCH (FIXED ORIGIN) */}
               <div className="p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
@@ -775,7 +774,7 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
 
                   {/* Quick Search Dropdown Results */}
                   {searchResults.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--border-base)] rounded-xl shadow-xl overflow-hidden max-h-80 overflow-y-auto divide-y divide-[var(--border-base)] z-30">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--border-base)] rounded-xl overflow-hidden max-h-80 overflow-y-auto divide-y divide-[var(--border-base)] z-30">
                       <div className="px-3.5 py-2 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-between text-xs border-b border-[var(--border-base)] sticky top-0 z-10">
                         <span className="font-semibold text-[var(--text-muted)]">
                           Found {searchResults.length} matching item(s) — Click to add to transfer queue
@@ -991,7 +990,7 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
                 <button
                   type="submit"
                   disabled={loading || !toBranch || selectedItems.length === 0}
-                  className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 text-white font-bold py-3 px-6 rounded-xl transition flex items-center justify-center gap-2 shadow text-sm cursor-pointer"
+                  className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 text-white font-bold py-3 px-6 rounded-xl transition flex items-center justify-center gap-2 text-sm cursor-pointer"
                 >
                   {loading ? <Loader size={17} className="animate-spin" /> : <ArrowUpRight size={17} />}
                   {selectedItems.length <= 1
@@ -1020,7 +1019,7 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
                     onClick={() => setFilterDirection(flt.id as any)}
                     className={`px-3 py-1.5 text-xs font-semibold rounded transition cursor-pointer ${
                       filterDirection === flt.id
-                        ? 'bg-[var(--brand-primary)] text-white shadow-sm'
+                        ? 'bg-[var(--brand-primary)] text-white '
                         : 'bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
                     }`}
                   >
@@ -1091,7 +1090,7 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
                       type="button"
                       disabled={bulkActionLoading}
                       onClick={handleBulkCompleteSelected}
-                      className="px-3.5 py-1.5 font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
+                      className="px-3.5 py-1.5 font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                     >
                       <CheckCircle size={13} /> Receive & Accept Selected ({selectedIncomingInTransit.length})
                     </button>
@@ -1102,7 +1101,7 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
                       type="button"
                       disabled={bulkActionLoading}
                       onClick={handleBulkCancelSelected}
-                      className="px-3 py-1.5 font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
+                      className="px-3 py-1.5 font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                     >
                       <XCircle size={13} /> Cancel Selected ({selectedOutgoingInTransit.length})
                     </button>
@@ -1127,7 +1126,7 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
                   return (
                     <div
                       key={t.id}
-                      className={`bg-[var(--bg-card)] border p-4 rounded-lg flex flex-wrap items-center justify-between gap-4 shadow-sm transition ${
+                      className={`bg-[var(--bg-card)] border p-4 rounded-lg flex flex-wrap items-center justify-between gap-4  transition ${
                         isChecked
                           ? 'border-[var(--brand-primary)] bg-blue-500/5'
                           : 'border-[var(--border-base)] hover:border-[var(--brand-primary)]/40'
@@ -1213,7 +1212,7 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
                             {incoming && (
                               <button
                                 onClick={() => completeTransfer(t.id)}
-                                className="px-3.5 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded transition shadow-sm flex items-center gap-1 cursor-pointer"
+                                className="px-3.5 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded transition flex items-center gap-1 cursor-pointer"
                               >
                                 <CheckCircle size={13} /> Receive & Accept
                               </button>
@@ -1267,7 +1266,7 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
 
             {lookupResult?.device && (
               <div className="space-y-4">
-                <div className="bg-[var(--bg-card)] border border-[var(--border-base)] p-5 rounded-xl shadow-sm space-y-2">
+                <div className="bg-[var(--bg-card)] border border-[var(--border-base)] p-5 rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-lg font-bold text-[var(--text-main)]">
                       {lookupResult.device.product_name || lookupResult.device.imei}

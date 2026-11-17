@@ -63,7 +63,7 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
           </div>
         </div>
       ) : (
-        <div className="flex items-stretch bg-white border-y sm:border border-[#d8d8d8] focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 rounded-none sm:rounded overflow-hidden transition-all shadow-xs">
+        <div className="flex items-stretch bg-white border-y sm:border border-[#d8d8d8] focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 rounded-none sm:rounded overflow-hidden transition-all">
           <input
             type="text"
             placeholder="Search Customers"
@@ -84,7 +84,7 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
 
       {/* Customer search results dropdown */}
       {!selectedCustomer && customerSearch && customerResults.length > 0 && (
-        <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-[#d8d8d8] shadow-xl rounded max-h-56 overflow-y-auto divide-y divide-[#d8d8d8]">
+        <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-[#d8d8d8] rounded max-h-56 overflow-y-auto divide-y divide-[#d8d8d8]">
           {customerResults.map((customer, idx) => (
             <button
               key={`${customer.id}-${idx}`}

@@ -1208,7 +1208,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       {/* Discard Sale Confirmation Modal */}
       {showDiscardConfirm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[110] p-4 font-sans select-none">
-          <div className="bg-white dark:bg-neutral-900 border border-[#cccccc] dark:border-neutral-700 w-full max-w-sm overflow-hidden flex flex-col rounded shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white dark:bg-neutral-900 border border-[#cccccc] dark:border-neutral-700 w-full max-w-sm overflow-hidden flex flex-col rounded animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="px-4 py-2.5 border-b border-[#dfdfdf] dark:border-neutral-800 flex justify-between items-center bg-[#f2f2f2] dark:bg-neutral-800">
               <div className="flex items-center gap-2">
@@ -1245,7 +1245,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
                   resetRegister();
                   setShowDiscardConfirm(false);
                 }}
-                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold border border-rose-700 text-sm rounded shadow-xs transition-colors cursor-pointer"
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold border border-rose-700 text-sm rounded transition-colors cursor-pointer"
               >
                 Discard Sale
               </button>
@@ -1319,7 +1319,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
       {showQuickAdd && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 font-mono text-base">
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-md overflow-hidden flex flex-col rounded-lg shadow-2xl text-base">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-md overflow-hidden flex flex-col rounded-lg text-base">
             {/* Modal Header */}
             <div className="bg-neutral-200 dark:bg-neutral-900 px-4 py-2.5 border-b border-neutral-300 dark:border-neutral-800 flex justify-between items-center">
               <h3 className="text-base font-semibold text-black dark:text-white">Quick Add Product</h3>
@@ -1503,7 +1503,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       {/* Quick Add Category Modal */}
       {showNewCategoryModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[120] p-4">
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-lg shadow-2xl w-full max-w-md overflow-hidden font-mono text-base">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-lg w-full max-w-md overflow-hidden font-mono text-base">
             <div className="px-4 py-2.5 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900 flex justify-between items-center">
               <h3 className="text-base font-semibold text-black dark:text-white">
                 Add New Category
@@ -1562,7 +1562,7 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       {/* Quick Add Supplier Modal */}
       {showNewSupplierModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[120] p-4">
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-lg shadow-2xl w-full max-w-md overflow-hidden font-mono text-base">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-lg w-full max-w-md overflow-hidden font-mono text-base">
             <div className="px-4 py-2.5 border-b border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-900 flex justify-between items-center">
               <h3 className="text-base font-semibold text-black dark:text-white">
                 Add New Supplier

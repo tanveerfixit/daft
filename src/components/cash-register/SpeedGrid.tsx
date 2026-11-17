@@ -195,7 +195,7 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
               }}
               className={`px-3 py-1.5 rounded text-xs font-semibold whitespace-nowrap transition-all border cursor-pointer select-none ${
                 isActive
-                  ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                  ? 'bg-blue-600 border-blue-600 text-white '
                   : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-700 hover:border-slate-400'
               }`}
             >
@@ -247,7 +247,7 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
       {/* Required Device Input Modal (Model & IMEI) */}
       {deviceModalItem && (
         <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 font-sans">
-          <div className="bg-white rounded-lg shadow-2xl border border-slate-300 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-lg border border-slate-300 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95">
             {/* Modal Header */}
             <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -335,7 +335,7 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded shadow-xs cursor-pointer transition-colors"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded cursor-pointer transition-colors"
                 >
                   Add Device to Cart
                 </button>

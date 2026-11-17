@@ -223,7 +223,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
     <div className="text-gray-800 antialiased min-h-screen flex flex-col bg-[#f2f2f2] font-sans pb-10">
       
       {/* Top Navigation */}
-      <div className="bg-white border-b border-[#e5e7eb] shadow-sm sticky top-0 z-40">
+      <div className="bg-white border-b border-[#e5e7eb] sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h1 className="font-bold text-gray-900" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>
@@ -234,7 +234,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
             <button
               type="button"
               onClick={() => setIsNewJobModalOpen(true)}
-              className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+              className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               title={`Create another repair job for ${customerName}`}
             >
               <UserPlus size={14} className="text-emerald-600" />
@@ -243,7 +243,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
             <button
               type="button"
               onClick={() => printRepairDeviceLabel(job)}
-              className="px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-300 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+              className="px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-300 rounded text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Print Dymo Device Sticker (Attach to device)"
             >
               <Tag size={14} className="text-blue-600 dark:text-blue-400" />
@@ -252,7 +252,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
             <button
               type="button"
               onClick={() => printRepairCustomerReceipt(job)}
-              className="px-3 py-1.5 bg-white border border-[#e5e7eb] hover:bg-gray-50 text-gray-700 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+              className="px-3 py-1.5 bg-white border border-[#e5e7eb] hover:bg-gray-50 text-gray-700 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Print Customer Repair Ticket (Thermal)"
             >
               <Printer size={14} />
@@ -270,7 +270,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
           <div className="lg:col-span-1 space-y-6">
             
             {/* Customer Profile Card */}
-            <div className="bg-white border border-[#e5e7eb] rounded shadow-sm overflow-hidden">
+            <div className="bg-white border border-[#e5e7eb] rounded overflow-hidden">
               <div className="bg-[#f8f9fa] px-4 py-2.5 border-b border-[#e5e7eb] flex justify-between items-center">
                 <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Customer & Device Profile</span>
                 {!isEditingProfile && (
@@ -284,7 +284,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
                       setEditIssue(job.issue || '');
                       setIsEditingProfile(true);
                     }}
-                    className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 rounded text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                    className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 rounded text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
                     title="Edit Customer Name, Device Name, or Fault"
                   >
                     <Pencil size={12} />
@@ -493,7 +493,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
             </div>
 
             {/* Financial Card */}
-            <div className="bg-white border border-[#e5e7eb] rounded shadow-sm overflow-hidden">
+            <div className="bg-white border border-[#e5e7eb] rounded overflow-hidden">
               <div className="bg-[#f8f9fa] px-4 py-3 border-b border-[#e5e7eb] font-semibold text-gray-800 flex justify-between items-center">
                 <span>Finances</span>
                 {totalQuote === 0 && depositPaid === 0 ? (
@@ -596,7 +596,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
                       deviceModel: job.device_model,
                       label: `Repair Job #${job.id} — ${job.device_model}`
                     })}
-                    className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition-colors flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                    className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition-colors flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <CreditCard size={16} />
                     <span>Collect Payment (€{remaining.toFixed(2)})</span>
@@ -609,7 +609,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
                         setQuoteInput('');
                         setIsEditingQuote(true);
                       }}
-                      className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2 text-xs cursor-pointer shadow-xs"
+                      className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2 text-xs cursor-pointer"
                     >
                       <Pencil size={13} />
                       <span>Set Quote Price</span>
@@ -633,7 +633,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
           <div className="lg:col-span-2 space-y-6">
             
             {/* Update Status Card */}
-            <div className="bg-white border border-[#e5e7eb] rounded shadow-sm overflow-hidden">
+            <div className="bg-white border border-[#e5e7eb] rounded overflow-hidden">
               <div className="bg-[#f8f9fa] px-5 py-4 border-b border-[#e5e7eb] flex flex-wrap justify-between items-center gap-3">
                 <div className="flex items-center gap-3">
                   <h2 className="font-semibold text-gray-800 text-lg">Status:</h2>
@@ -641,7 +641,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
                     id="status-dropdown"
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
-                    className="bg-white border border-gray-300 rounded py-1.5 px-3 text-sm font-bold text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer hover:bg-gray-50 transition-colors"
+                    className="bg-white border border-gray-300 rounded py-1.5 px-3 text-sm font-bold text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-gray-50 transition-colors"
                   >
                     {STATUS_OPTIONS.map(s => (
                       <option key={s.value} value={s.value}>
@@ -674,7 +674,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
                         setStatus('collected_unfixed');
                         setNewNote(prev => (prev ? `${prev}\n` : '') + `[${new Date().toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' })}] Returned unfixed device to customer.`);
                       }}
-                      className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold transition-colors shrink-0 shadow-xs cursor-pointer flex items-center gap-1.5"
+                      className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold transition-colors shrink-0 cursor-pointer flex items-center gap-1.5"
                     >
                       <RotateCcw size={14} />
                       <span>Mark Returned to Customer</span>
@@ -695,7 +695,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
                         setStatus('collected_unfixed');
                         setNewNote(prev => (prev ? `${prev}\n` : '') + `[${new Date().toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' })}] Returned cancelled device to customer.`);
                       }}
-                      className="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded text-xs font-bold transition-colors shrink-0 shadow-xs cursor-pointer flex items-center gap-1.5"
+                      className="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded text-xs font-bold transition-colors shrink-0 cursor-pointer flex items-center gap-1.5"
                     >
                       <RotateCcw size={14} />
                       <span>Mark Returned to Customer</span>
@@ -722,7 +722,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
                       let textClass = 'text-xs font-medium text-gray-500 cursor-pointer';
 
                       if (isActive) {
-                        circleClass = 'w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold border-4 border-white shadow-sm ring-1 ring-blue-600 cursor-pointer';
+                        circleClass = 'w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold border-4 border-white  ring-1 ring-blue-600 cursor-pointer';
                         textClass = 'text-xs font-bold text-blue-600 cursor-pointer';
                       } else if (isCompleted) {
                         circleClass = 'w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold border-4 border-white cursor-pointer';
@@ -784,7 +784,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
                   <button
                     onClick={handleSaveUpdate}
                     disabled={isSaving}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded transition-colors flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
                   >
                     {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                     <span>Save Update</span>
@@ -797,7 +797,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               {/* Payment History */}
-              <div className="bg-white border border-[#e5e7eb] rounded shadow-sm overflow-hidden flex flex-col">
+              <div className="bg-white border border-[#e5e7eb] rounded overflow-hidden flex flex-col">
                 <div className="bg-[#f8f9fa] px-4 py-3 border-b border-[#e5e7eb] font-semibold text-gray-800">
                   Payment History
                 </div>
@@ -833,7 +833,7 @@ export default function RepairDetails({ repairId, onBack, onPayAtRegister, onVie
               </div>
               
               {/* Tech Notes */}
-              <div className="bg-white border border-[#e5e7eb] rounded shadow-sm overflow-hidden flex flex-col">
+              <div className="bg-white border border-[#e5e7eb] rounded overflow-hidden flex flex-col">
                 <div className="bg-[#f8f9fa] px-4 py-3 border-b border-[#e5e7eb] font-semibold text-gray-800">
                   Tech Notes
                 </div>

@@ -349,7 +349,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer, on
         </div>
 
         {/* Card: Invoice Entries */}
-        <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
+        <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none overflow-hidden">
           {/* Card Header Bar */}
           <div className="bg-neutral-100 dark:bg-neutral-900 px-3 sm:px-4 py-2.5 border-b border-neutral-300 dark:border-neutral-800 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5 sm:gap-3">
             <span className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Invoice Entries</span>
@@ -589,7 +589,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer, on
           <button
             type="button"
             onClick={() => setIsRefundView(false)}
-            className="w-full sm:w-auto justify-center bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 sm:py-2 px-6 rounded-none text-sm shadow-none transition-all flex items-center gap-2 cursor-pointer"
+            className="w-full sm:w-auto justify-center bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 sm:py-2 px-6 rounded-none text-sm transition-all flex items-center gap-2 cursor-pointer"
           >
             <X size={16} />
             <span>Cancel</span>
@@ -599,7 +599,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer, on
             type="button"
             onClick={handleOpenSettlementModal}
             disabled={refundTotal <= 0}
-            className="w-full sm:w-auto justify-center bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-2.5 sm:py-2 px-6 rounded-none text-sm shadow-none transition-all flex items-center gap-2 cursor-pointer"
+            className="w-full sm:w-auto justify-center bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-2.5 sm:py-2 px-6 rounded-none text-sm transition-all flex items-center gap-2 cursor-pointer"
           >
             <Banknote size={18} />
             <span>Refund Items</span>
@@ -611,7 +611,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer, on
            ───────────────────────────────────────────────────────────────────────────── */}
         {showSettlementModal && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-3 sm:p-4">
-            <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl rounded-none flex flex-col animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-none flex flex-col animate-in fade-in zoom-in-95 duration-150">
               {/* Header */}
               <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
                 <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
@@ -854,7 +854,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer, on
             </button>
 
             {showPrintMenu && (
-              <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-black rounded-none shadow-none border border-neutral-300 dark:border-neutral-800 z-50 overflow-hidden text-sm">
+              <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-black rounded-none border border-neutral-300 dark:border-neutral-800 z-50 overflow-hidden text-sm">
                 <button
                   onClick={() => handleThermalPrint()}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-neutral-900 dark:text-neutral-100 hover:bg-neutral-200 dark:hover:bg-neutral-900 transition-colors rounded-none cursor-pointer"
@@ -888,7 +888,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer, on
         {/* Info Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3">
           {/* Customer Info */}
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none overflow-hidden">
             <div className="bg-neutral-100 dark:bg-neutral-900 px-3 py-1.5 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-2">
               <User size={15} className="text-neutral-700 dark:text-neutral-300" />
               <h3 className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider">Customer info</h3>
@@ -923,7 +923,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer, on
           </div>
 
           {/* Order Info */}
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none overflow-hidden">
             <div className="bg-neutral-100 dark:bg-neutral-900 px-3 py-1.5 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-2">
               <Info size={15} className="text-neutral-700 dark:text-neutral-300" />
               <h3 className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider">Order Info</h3>
@@ -1059,7 +1059,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer, on
         </div>
 
         {/* Desktop Items Table (hidden on mobile, 100% original layout on md and up) */}
-        <div className="hidden md:block bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none shadow-none overflow-hidden">
+        <div className="hidden md:block bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none overflow-hidden">
           <table className="w-full text-left border-collapse">
             <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
               <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
@@ -1254,7 +1254,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer, on
           ) : invoice.status !== 'void' ? (
             <button 
               onClick={handleStartRefund}
-              className="w-full sm:w-auto justify-center bg-amber-400 hover:bg-amber-500 text-neutral-900 font-bold py-2 sm:py-1.5 px-5 rounded-none text-sm shadow-none transition-all cursor-pointer flex items-center gap-2"
+              className="w-full sm:w-auto justify-center bg-amber-400 hover:bg-amber-500 text-neutral-900 font-bold py-2 sm:py-1.5 px-5 rounded-none text-sm transition-all cursor-pointer flex items-center gap-2"
             >
               <RotateCcw size={15} />
               <span>Create Refund / Credit Note</span>
@@ -1270,7 +1270,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer, on
         </div>
 
         {/* Activity Log */}
-        <div className="bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850 rounded-none shadow-none overflow-hidden">
+        <div className="bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850 rounded-none overflow-hidden">
           <div className="bg-neutral-100 dark:bg-neutral-900/60 px-3 py-2 border-b border-neutral-200 dark:border-neutral-850 flex flex-wrap justify-between items-center gap-2">
             <h3 className="text-sm font-semibold text-black dark:text-white">Activity Log</h3>
             <div className="flex gap-2 items-center">
@@ -1286,7 +1286,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer, on
               </select>
               <button 
                 onClick={() => setShowNoteModal(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 text-xs rounded-none shadow-none transition-all cursor-pointer font-sans active:scale-[0.98] flex items-center gap-1.5"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 text-xs rounded-none transition-all cursor-pointer font-sans active:scale-[0.98] flex items-center gap-1.5"
               >
                 <Plus size={13} />
                 <span>Add Note</span>
@@ -1348,7 +1348,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer, on
       {/* Email Invoice Modal */}
       {showEmailModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-3 sm:p-4 font-sans animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl rounded-none flex flex-col">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-none flex flex-col">
             <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <Mail size={18} className="text-neutral-700 dark:text-neutral-300" />
@@ -1491,7 +1491,7 @@ export default function InvoiceDetails({ invoiceId, onBack, onSelectCustomer, on
       {/* Add Note Modal */}
       {showNoteModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-3 sm:p-4 font-sans animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl rounded-none flex flex-col">
+          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-none flex flex-col">
             <div className="p-4 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <FileText size={18} className="text-neutral-700 dark:text-neutral-300" />

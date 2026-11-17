@@ -120,7 +120,7 @@ export default function CustomerDetails({
     <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-base px-2 pb-2 pt-0 select-none w-full overflow-auto" style={{ fontSize: '17px' }}>
 
       {/* Header Tabs */}
-      <div className="flex justify-between items-end bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 pt-2 px-2 shrink-0 rounded-none shadow-none mb-2 flex-wrap md:flex-nowrap">
+      <div className="flex justify-between items-end bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 pt-2 px-2 shrink-0 rounded-none mb-2 flex-wrap md:flex-nowrap">
         <div className="flex gap-1 items-end overflow-x-auto">
           <button 
             onClick={() => setActiveTab('info')}
@@ -171,14 +171,14 @@ export default function CustomerDetails({
         <div className="pb-2 pr-2 flex gap-2">
           <button 
             onClick={handleArchive}
-            className="flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 text-red-600 dark:text-red-400 text-sm font-bold rounded-none shadow-none hover:bg-neutral-100 dark:hover:bg-neutral-900"
+            className="flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 text-red-600 dark:text-red-400 text-sm font-bold rounded-none hover:bg-neutral-100 dark:hover:bg-neutral-900"
           >
             <Trash2 size={12} />
             Archive
           </button>
           <button 
             onClick={onBack}
-            className="flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm font-bold rounded-none shadow-none hover:bg-neutral-100 dark:hover:bg-neutral-900"
+            className="flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm font-bold rounded-none hover:bg-neutral-100 dark:hover:bg-neutral-900"
           >
             Customers List
           </button>
@@ -189,11 +189,11 @@ export default function CustomerDetails({
       <div className="flex-1 overflow-auto flex flex-col md:flex-row gap-4">
 
         {/* Left Panel */}
-        <div className="w-full md:w-[40%] p-4 border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black flex gap-6 overflow-auto rounded-none shadow-none">
+        <div className="w-full md:w-[40%] p-4 border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-black flex gap-6 overflow-auto rounded-none">
 
           {/* Avatar */}
           <div className="shrink-0 pt-2">
-            <div className="w-[120px] h-[120px] rounded-none border border-neutral-300 dark:border-neutral-800 flex items-center justify-center bg-white dark:bg-black overflow-hidden shadow-none">
+            <div className="w-[120px] h-[120px] rounded-none border border-neutral-300 dark:border-neutral-800 flex items-center justify-center bg-white dark:bg-black overflow-hidden">
               {safeCustomerName(customer) !== 'Unknown' ? (
                 <span className="text-4xl font-bold text-neutral-900 dark:text-neutral-100">{safeCustomerName(customer).charAt(0)}</span>
               ) : (
@@ -246,22 +246,22 @@ export default function CustomerDetails({
 
               <button 
                 onClick={() => setIsEditing(!isEditing)}
-                className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-5 py-1 text-sm font-normal rounded-none shadow-none transition-colors"
+                className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-5 py-1 text-sm font-normal rounded-none transition-colors"
               >
                 {isEditing ? 'Cancel' : 'Edit'}
               </button>
 
-              <button className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-1 text-sm font-normal rounded-none shadow-none transition-colors">
+              <button className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-1 text-sm font-normal rounded-none transition-colors">
                 Merge Customers
               </button>
 
-              <button className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 text-sm font-normal rounded-none shadow-none transition-colors">
+              <button className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 text-sm font-normal rounded-none transition-colors">
                 Trade In
               </button>
 
               <button 
                 onClick={handleArchive}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 text-sm font-normal rounded-none shadow-none transition-colors"
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 text-sm font-normal rounded-none transition-colors"
               >
                 Archive
               </button>
@@ -270,14 +270,14 @@ export default function CustomerDetails({
               <div className="relative">
                 <button 
                   onClick={() => setShowCreateMenu(!showCreateMenu)}
-                  className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-1 text-sm font-normal rounded-none shadow-none flex items-center justify-between min-w-[110px] transition-colors"
+                  className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-1 text-sm font-normal rounded-none flex items-center justify-between min-w-[110px] transition-colors"
                 >
                   Create New
                   <ChevronDown size={14} className={`transition-transform ${showCreateMenu ? 'rotate-180' : ''}`} />
                 </button>
 
                 {showCreateMenu && (
-                  <div className="absolute top-full left-0 w-full flex flex-col z-10 shadow-none border border-neutral-300 dark:border-neutral-800 mt-1 bg-white dark:bg-black rounded-none overflow-hidden">
+                  <div className="absolute top-full left-0 w-full flex flex-col z-10 border border-neutral-300 dark:border-neutral-800 mt-1 bg-white dark:bg-black rounded-none overflow-hidden">
                     <button className="bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm text-left hover:bg-neutral-200 dark:hover:bg-neutral-900 font-bold border-b border-neutral-300 dark:border-neutral-800 rounded-none">
                       Create New
                     </button>
@@ -338,7 +338,7 @@ export default function CustomerDetails({
         </div>
 
         {/* Right Panel */}
-        <div className="flex-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 overflow-auto p-4 rounded-none shadow-none">
+        <div className="flex-1 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 overflow-auto p-4 rounded-none">
           {activeTab === 'info' && (
             <div className="space-y-8">
               {/* Financial Summary Cards */}

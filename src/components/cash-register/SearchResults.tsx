@@ -35,7 +35,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
     if (!hasQuery || !onQuickAddClick) return null;
 
     return (
-      <div className="absolute top-full left-0 right-0 z-[60] bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 p-4 mt-1 text-base text-neutral-800 dark:text-neutral-200 rounded shadow-xl" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+      <div className="absolute top-full left-0 right-0 z-[60] bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 p-4 mt-1 text-base text-neutral-800 dark:text-neutral-200 rounded" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
         <div className="text-center">
           <p className="mb-2 text-neutral-500 dark:text-neutral-400">No products found matching "{searchQuery}"</p>
           <button
@@ -79,7 +79,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   };
 
   return (
-    <div className="absolute top-full left-0 right-0 z-[60] bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 mt-1 text-base text-neutral-800 dark:text-neutral-200 rounded shadow-2xl overflow-hidden" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+    <div className="absolute top-full left-0 right-0 z-[60] bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 mt-1 text-base text-neutral-800 dark:text-neutral-200 rounded overflow-hidden" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
       <div className="max-h-72 overflow-y-auto divide-y divide-neutral-200 dark:divide-neutral-800">
         {results.map((product, idx) => {
           const isActive = idx === activeIndex;
@@ -93,7 +93,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
               onMouseEnter={() => onSetActiveIndex?.(idx)}
               className={`w-full text-left py-2.5 transition-colors flex items-center justify-between gap-4 border-0 cursor-pointer font-normal ${
                 isActive
-                  ? 'bg-blue-50/95 dark:bg-blue-950/50 text-neutral-900 dark:text-white border-l-4 border-l-blue-600 pl-3 pr-4 shadow-inner'
+                  ? 'bg-blue-50/95 dark:bg-blue-950/50 text-neutral-900 dark:text-white border-l-4 border-l-blue-600 pl-3 pr-4 '
                   : 'bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 border-l-4 border-l-transparent pl-3 pr-4 hover:bg-neutral-50 dark:hover:bg-neutral-850'
               }`}
             >

@@ -41,7 +41,7 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
         type="button"
         onClick={handlePrimaryClick}
         disabled={isCartEmpty || isAwaitingTender}
-        className={`border rounded py-3.5 font-bold text-base shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+        className={`border rounded py-3.5 font-bold text-base  transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
           isPaymentComplete
             ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
             : isAwaitingTender

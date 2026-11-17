@@ -38,7 +38,7 @@ export default function RepairPrintModal({ repair, onClose }: RepairPrintModalPr
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-      <div className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded shadow-2xl max-w-md w-full overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded max-w-md w-full overflow-hidden flex flex-col">
         
         {/* Header */}
         <div className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center bg-neutral-50 dark:bg-neutral-850">
@@ -76,7 +76,7 @@ export default function RepairPrintModal({ repair, onClose }: RepairPrintModalPr
               onClick={() => setSelectedFormat('label')}
               className={`p-3.5 rounded border text-left flex flex-col justify-between transition-all cursor-pointer ${
                 selectedFormat === 'label'
-                  ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/30 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20 shadow-xs'
+                  ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/30 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20 '
                   : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-800/50 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
               }`}
             >
@@ -104,7 +104,7 @@ export default function RepairPrintModal({ repair, onClose }: RepairPrintModalPr
               onClick={() => setSelectedFormat('receipt')}
               className={`p-3.5 rounded border text-left flex flex-col justify-between transition-all cursor-pointer ${
                 selectedFormat === 'receipt'
-                  ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/30 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20 shadow-xs'
+                  ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/30 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20 '
                   : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-800/50 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
               }`}
             >
@@ -134,7 +134,7 @@ export default function RepairPrintModal({ repair, onClose }: RepairPrintModalPr
             </div>
             
             {selectedFormat === 'label' ? (
-              <div className="p-3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 rounded text-xs space-y-1.5 font-mono shadow-xs">
+              <div className="p-3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 rounded text-xs space-y-1.5 font-mono">
                 <div className="flex justify-between items-center border-b border-neutral-300 pb-1 font-bold">
                   <span className="bg-black text-white px-2 py-0.5 rounded text-[11px]">JOB #{repair.id}</span>
                   <span className="text-neutral-600 text-[10px]">{new Date().toLocaleDateString('en-IE', { day: '2-digit', month: 'short' })}</span>
@@ -149,7 +149,7 @@ export default function RepairPrintModal({ repair, onClose }: RepairPrintModalPr
                 </div>
               </div>
             ) : (
-              <div className="p-3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 rounded text-xs space-y-1 font-mono shadow-xs">
+              <div className="p-3 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-700 rounded text-xs space-y-1 font-mono">
                 <div className="text-center font-bold">{companyInfo?.name || 'EPOS REPAIRS'}</div>
                 <div className="text-center text-[10px] border-b border-dashed pb-1">REPAIR CHECK-IN #{repair.id}</div>
                 <div className="flex justify-between text-[11px]">
@@ -186,7 +186,7 @@ export default function RepairPrintModal({ repair, onClose }: RepairPrintModalPr
               onClick={() => {
                 printRepairDeviceLabel(repair, printerSettings);
               }}
-              className="px-3.5 py-2 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-750 text-neutral-800 dark:text-neutral-200 rounded text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className="px-3.5 py-2 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-750 text-neutral-800 dark:text-neutral-200 rounded text-xs font-bold flex items-center gap-1.5 cursor-pointer"
             >
               <Tag size={14} className="text-blue-600" />
               <span>Dymo Sticker</span>
@@ -195,7 +195,7 @@ export default function RepairPrintModal({ repair, onClose }: RepairPrintModalPr
             <button
               type="button"
               onClick={handlePrint}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all"
             >
               <Printer size={15} />
               <span>Print {selectedFormat === 'label' ? 'Device Sticker' : 'Customer Ticket'}</span>

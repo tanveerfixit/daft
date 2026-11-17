@@ -128,7 +128,7 @@ export default function ProductDetails({
 
   if (loading && !product) return (
     <div className="flex items-center justify-center h-full bg-neutral-100 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-mono p-8 text-base">
-      <div className="border border-neutral-300 dark:border-neutral-800 p-6 text-center bg-white dark:bg-black w-64 shadow-sm rounded">
+      <div className="border border-neutral-300 dark:border-neutral-800 p-6 text-center bg-white dark:bg-black w-64 rounded">
         <div className="text-sm font-bold uppercase tracking-widest animate-pulse">Loading...</div>
         <div className="text-[11px] mt-2 text-neutral-500">Retrieving system data</div>
       </div>
@@ -137,7 +137,7 @@ export default function ProductDetails({
   
   if (!product) return (
     <div className="flex items-center justify-center h-full bg-neutral-100 dark:bg-neutral-950 text-red-500 font-mono p-8 text-base">
-      <div className="border border-red-500 p-6 text-center bg-white dark:bg-black rounded shadow-sm">
+      <div className="border border-red-500 p-6 text-center bg-white dark:bg-black rounded">
         <div className="text-sm font-bold uppercase tracking-widest">Product Not Found</div>
         <div className="text-[11px] mt-2 text-red-400">The requested product does not exist</div>
         <button 
@@ -158,13 +158,13 @@ export default function ProductDetails({
     <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm p-3 md:p-5 select-none w-full overflow-auto font-sans">
       
       {/* ─── Top Product Header Card ────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md p-4 mb-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md p-4 mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Left: Avatar + Title + Barcode + Tracking Info */}
         <div className="flex items-start sm:items-center gap-4">
           <div className="relative w-16 h-16 md:w-20 md:h-20 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg flex items-center justify-center shrink-0 group">
             <LinkIcon size={36} className="text-neutral-800 dark:text-neutral-200" strokeWidth={2.2} />
             <div 
-              className="absolute bottom-1 right-1 p-1 bg-white dark:bg-neutral-900 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 shadow-xs cursor-pointer hover:text-black dark:hover:text-white transition-colors"
+              className="absolute bottom-1 right-1 p-1 bg-white dark:bg-neutral-900 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 cursor-pointer hover:text-black dark:hover:text-white transition-colors"
               title="Change Picture"
               onClick={() => setIsEditing(true)}
             >
@@ -212,7 +212,7 @@ export default function ProductDetails({
             <div className="relative" ref={manageMenuRef}>
               <button 
                 onClick={() => setIsManageOpen(!isManageOpen)}
-                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-3.5 rounded text-sm inline-flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-3.5 rounded text-sm inline-flex items-center gap-2 transition-all cursor-pointer active:scale-[0.98]"
               >
                 <Settings size={15} />
                 <span>Manage</span>
@@ -220,7 +220,7 @@ export default function ProductDetails({
               </button>
 
               {isManageOpen && (
-                <div className="absolute right-0 mt-1.5 w-52 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 text-sm">
+                <div className="absolute right-0 mt-1.5 w-52 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 text-sm">
                   <button
                     onClick={() => { setIsManageOpen(false); setIsEditing(true); }}
                     className="w-full text-left px-3.5 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 flex items-center gap-2.5 cursor-pointer font-medium"
@@ -269,7 +269,7 @@ export default function ProductDetails({
             {/* Products List Button */}
             <button 
               onClick={onBack}
-              className="bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-600 font-medium py-1.5 px-3.5 rounded text-sm inline-flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
+              className="bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-600 font-medium py-1.5 px-3.5 rounded text-sm inline-flex items-center gap-2 transition-all cursor-pointer active:scale-[0.98]"
             >
               <List size={15} />
               <span>Products List</span>
@@ -284,7 +284,7 @@ export default function ProductDetails({
           onClick={() => setActiveTab('info')}
           className={`px-5 py-2.5 text-sm font-semibold rounded-t-md border-t border-x transition-colors cursor-pointer ${
             activeTab === 'info'
-              ? 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white border-b-white dark:border-b-neutral-900 -mb-[1px] shadow-xs'
+              ? 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white border-b-white dark:border-b-neutral-900 -mb-[1px] '
               : 'bg-neutral-200/60 dark:bg-neutral-900/40 border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
           }`}
         >
@@ -294,7 +294,7 @@ export default function ProductDetails({
           onClick={() => setActiveTab('pricing')}
           className={`px-5 py-2.5 text-sm font-semibold rounded-t-md border-t border-x transition-colors cursor-pointer ${
             activeTab === 'pricing'
-              ? 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white border-b-white dark:border-b-neutral-900 -mb-[1px] shadow-xs'
+              ? 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white border-b-white dark:border-b-neutral-900 -mb-[1px] '
               : 'bg-neutral-200/60 dark:bg-neutral-900/40 border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
           }`}
         >
@@ -304,7 +304,7 @@ export default function ProductDetails({
           onClick={() => setActiveTab('activity')}
           className={`px-5 py-2.5 text-sm font-semibold rounded-t-md border-t border-x transition-colors cursor-pointer ${
             activeTab === 'activity'
-              ? 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white border-b-white dark:border-b-neutral-900 -mb-[1px] shadow-xs'
+              ? 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white border-b-white dark:border-b-neutral-900 -mb-[1px] '
               : 'bg-neutral-200/60 dark:bg-neutral-900/40 border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
           }`}
         >
@@ -313,7 +313,7 @@ export default function ProductDetails({
       </div>
 
       {/* ─── Tab Content Card ────────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-neutral-900 border-x border-b border-neutral-300 dark:border-neutral-700 rounded-b-md p-6 md:p-8 shadow-xs">
+      <div className="bg-white dark:bg-neutral-900 border-x border-b border-neutral-300 dark:border-neutral-700 rounded-b-md p-6 md:p-8">
         
         {/* TAB 1: Product Information */}
         {activeTab === 'info' && (
@@ -334,7 +334,7 @@ export default function ProductDetails({
                 
                 <button 
                   onClick={() => onAddInventory(product.id)}
-                  className="bg-[#f1c40f] hover:bg-[#f39c12] text-neutral-950 font-bold py-1 px-3.5 rounded text-[13px] transition-all cursor-pointer shadow-xs active:scale-[0.98] inline-flex items-center gap-1"
+                  className="bg-[#f1c40f] hover:bg-[#f39c12] text-neutral-950 font-bold py-1 px-3.5 rounded text-[13px] transition-all cursor-pointer active:scale-[0.98] inline-flex items-center gap-1"
                 >
                   <span>Add Inventory</span>
                 </button>
@@ -385,14 +385,14 @@ export default function ProductDetails({
             <div className="flex items-center gap-3 pt-6">
               <button 
                 onClick={() => setIsEditing(true)}
-                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-5 rounded text-[14px] flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98]"
+                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-5 rounded text-[14px] flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
               >
                 <Edit3 size={15} />
                 <span>Edit</span>
               </button>
               <button 
                 onClick={handleArchive}
-                className="bg-[var(--brand-danger)] hover:bg-rose-600 text-white font-medium py-1.5 px-5 rounded text-[14px] flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98]"
+                className="bg-[var(--brand-danger)] hover:bg-rose-600 text-white font-medium py-1.5 px-5 rounded text-[14px] flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
               >
                 <Trash2 size={15} />
                 <span>Archive</span>
@@ -418,7 +418,7 @@ export default function ProductDetails({
                 <select className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 px-2 py-0.5 text-xs text-neutral-900 dark:text-neutral-100 outline-none cursor-pointer rounded">
                   <option>All Activities</option>
                 </select>
-                <button className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-0.5 px-3 text-xs rounded shadow-xs transition-all cursor-pointer font-sans active:scale-[0.98]">
+                <button className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-0.5 px-3 text-xs rounded transition-all cursor-pointer font-sans active:scale-[0.98]">
                   + Add Note
                 </button>
               </div>
