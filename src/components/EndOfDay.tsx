@@ -203,84 +203,50 @@ const EndOfDayThermal: React.FC<PrintProps> = ({
       <div className="eod-divider"></div>
 
       <div className="eod-row font-bold text-[14px]">
-        <span>SALES &amp; DEPOSITS</span>
+        <span>SUMMARY</span>
       </div>
       <div className="eod-row">
         <span>Net Sales:</span>
         <span className="font-semibold">€{totalSales.toFixed(2)}</span>
       </div>
-      {totalDeposits > 0 && (
-        <div className="eod-row">
-          <span>Wallet Deposits:</span>
-          <span className="font-semibold">€{totalDeposits.toFixed(2)}</span>
-        </div>
-      )}
-      <div className="eod-row font-bold pt-0.5">
-        <span>Total Collected:</span>
-        <span>€{totalCollected.toFixed(2)}</span>
-      </div>
-
-      {activeSettings.eod_show_cash_summary && (
+      {Math.abs(totalDeposits) > 0.005 && (
         <>
-          <div className="eod-divider"></div>
-          <div className="eod-row font-bold text-[14px]">
-            <span>CASH SUMMARY</span>
-          </div>
           <div className="eod-row">
-            <span>Calculated:</span>
-            <span>€{calculatedCash.toFixed(2)}</span>
+            <span>Wallet Deposits:</span>
+            <span className="font-semibold">€{totalDeposits.toFixed(2)}</span>
           </div>
-          <div className="eod-row">
-            <span>Counted:</span>
-            <span>€{cashCounted.toFixed(2)}</span>
-          </div>
-          <div className="eod-row font-bold">
-            <span>Difference:</span>
-            <span>€{difference.toFixed(2)}</span>
+          <div className="eod-row font-bold pt-0.5">
+            <span>Total Takings:</span>
+            <span>€{totalCollected.toFixed(2)}</span>
           </div>
         </>
       )}
 
-      {activeSettings.eod_show_payment_type && (
+      {(activeSettings.eod_show_payment_type || activeSettings.eod_show_total_cash || activeSettings.eod_show_total_card_sale || activeSettings.eod_show_total) && (
         <>
           <div className="eod-divider"></div>
           <div className="eod-row font-bold text-[14px]">
-            <span>PAYMENT TYPES</span>
+            <span>PAYMENTS</span>
           </div>
-          {summaries.map((s, idx) => (
-            <div key={idx} className="eod-row">
-              <span>{s.payment_type}:</span>
-              <span>€{s.calculated.toFixed(2)}</span>
-            </div>
-          ))}
-        </>
-      )}
-
-      {(activeSettings.eod_show_total_cash || activeSettings.eod_show_total_card_sale || activeSettings.eod_show_total) && (
-        <>
-          <div className="eod-divider"></div>
-          <div className="eod-row font-bold text-[14px]">
-            <span>PAYMENT BREAKDOWN</span>
-          </div>
-          {activeSettings.eod_show_total_cash && (
+          {(activeSettings.eod_show_total_cash || activeSettings.eod_show_payment_type) && (
             <div className="eod-row">
-              <span>Total Cash:</span>
+              <span>Cash:</span>
               <span className="font-semibold">€{totalCash.toFixed(2)}</span>
             </div>
           )}
-          {activeSettings.eod_show_total_card_sale && (
+          {(activeSettings.eod_show_total_card_sale || activeSettings.eod_show_payment_type) && (
             <div className="eod-row">
-              <span>Total Card:</span>
+              <span>Card:</span>
               <span className="font-semibold">€{totalCard.toFixed(2)}</span>
             </div>
           )}
           {Math.abs(totalOther) > 0.005 && (
             <div className="eod-row">
-              <span>Total Other:</span>
+              <span>Other:</span>
               <span className="font-semibold">€{totalOther.toFixed(2)}</span>
             </div>
           )}
-          {totalWalletRedeemed > 0 && (
+          {totalWalletRedeemed > 0.005 && (
             <div className="eod-row">
               <span>Wallet Used:</span>
               <span className="font-semibold">€{totalWalletRedeemed.toFixed(2)}</span>
@@ -295,24 +261,45 @@ const EndOfDayThermal: React.FC<PrintProps> = ({
         </>
       )}
 
-      {activeSettings.eod_show_cash_drawer && (
+      {(activeSettings.eod_show_cash_drawer || activeSettings.eod_show_cash_summary) && (
         <>
           <div className="eod-divider"></div>
           <div className="eod-row font-bold text-[14px]">
             <span>CASH DRAWER</span>
           </div>
-          <div className="eod-row">
-            <span>Starting Bal:</span>
-            <span className="font-semibold">€{startingBalance.toFixed(2)}</span>
-          </div>
-          <div className="eod-row">
-            <span>+ Cash Collected:</span>
-            <span className="font-semibold">€{totalCash.toFixed(2)}</span>
-          </div>
-          <div className="eod-row font-bold pt-0.5">
-            <span>Expected Cash in Till:</span>
-            <span>€{expectedCashInTill.toFixed(2)}</span>
-          </div>
+          {activeSettings.eod_show_cash_drawer ? (
+            <>
+              <div className="eod-row">
+                <span>Float (Start):</span>
+                <span className="font-semibold">€{startingBalance.toFixed(2)}</span>
+              </div>
+              <div className="eod-row">
+                <span>+ Cash In:</span>
+                <span className="font-semibold">€{totalCash.toFixed(2)}</span>
+              </div>
+              <div className="eod-row font-bold pt-0.5">
+                <span>Expected Cash:</span>
+                <span>€{expectedCashInTill.toFixed(2)}</span>
+              </div>
+            </>
+          ) : (
+            <div className="eod-row">
+              <span>Expected Cash:</span>
+              <span>€{calculatedCash.toFixed(2)}</span>
+            </div>
+          )}
+          {activeSettings.eod_show_cash_summary && (
+            <>
+              <div className="eod-row">
+                <span>Counted Cash:</span>
+                <span>€{cashCounted.toFixed(2)}</span>
+              </div>
+              <div className="eod-row font-bold">
+                <span>Difference:</span>
+                <span>€{difference.toFixed(2)}</span>
+              </div>
+            </>
+          )}
         </>
       )}
 

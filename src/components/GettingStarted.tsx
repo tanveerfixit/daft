@@ -2253,9 +2253,9 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                             onChange={(e) => setThermalSettings({ ...thermalSettings, eod_show_cash_summary: e.target.checked })}
                             className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                           />
-                          <span className="text-sm text-slate-700 group-hover:text-blue-600 transition-colors">Show Cash Summary</span>
+                          <span className="text-sm text-slate-700 group-hover:text-blue-600 transition-colors">Show Counted &amp; Difference</span>
                         </label>
-                        <p className="text-xs text-slate-400 pl-7 -mt-2">Shows the calculated vs counted cash reconciliation in drawer.</p>
+                        <p className="text-xs text-slate-400 pl-7 -mt-2">Adds Counted Cash and Difference inside the Cash Drawer section.</p>
 
                         <label className="flex items-center gap-3 cursor-pointer group">
                           <input 
@@ -2264,9 +2264,9 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                             onChange={(e) => setThermalSettings({ ...thermalSettings, eod_show_payment_type: e.target.checked })}
                             className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                           />
-                          <span className="text-sm text-slate-700 group-hover:text-blue-600 transition-colors">Show Payment Types</span>
+                          <span className="text-sm text-slate-700 group-hover:text-blue-600 transition-colors">Show Payments Section</span>
                         </label>
-                        <p className="text-xs text-slate-400 pl-7 -mt-2">Shows a breakdown of calculated sales per payment method.</p>
+                        <p className="text-xs text-slate-400 pl-7 -mt-2">Shows Cash, Card, Wallet Used, and Other payment totals.</p>
 
                         <label className="flex items-center gap-3 cursor-pointer group">
                           <input 
@@ -2277,7 +2277,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                           />
                           <span className="text-sm text-slate-700 group-hover:text-blue-600 transition-colors">Show Cash Drawer</span>
                         </label>
-                        <p className="text-xs text-slate-400 pl-7 -mt-2">Shows Starting Bal, + Cash Collected, and Expected Cash in Till.</p>
+                        <p className="text-xs text-slate-400 pl-7 -mt-2">Shows Float (Start), + Cash In, and Expected Cash.</p>
                       </div>
                     </div>
 
@@ -2379,7 +2379,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
 
                       <div className="border-t border-dashed border-slate-400 my-2"></div>
 
-                      <div className="font-bold mb-1">SALES &amp; DEPOSITS</div>
+                      <div className="font-bold mb-1">SUMMARY</div>
                       <div className="flex justify-between mb-1">
                         <span>Net Sales:</span>
                         <span>€385.00</span>
@@ -2389,63 +2389,29 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                         <span>€40.00</span>
                       </div>
                       <div className="flex justify-between font-bold mb-1">
-                        <span>Total Collected:</span>
+                        <span>Total Takings:</span>
                         <span>€425.00</span>
                       </div>
 
-                      {thermalSettings.eod_show_cash_summary && (
+                      {(thermalSettings.eod_show_payment_type || thermalSettings.eod_show_total_cash || thermalSettings.eod_show_total_card_sale || thermalSettings.eod_show_total) && (
                         <>
                           <div className="border-t border-dashed border-slate-400 my-2"></div>
-                          <div className="font-bold mb-1">CASH SUMMARY</div>
-                          <div className="flex justify-between text-slate-600">
-                            <span>Calculated:</span>
-                            <span>€320.00</span>
-                          </div>
-                          <div className="flex justify-between text-slate-600">
-                            <span>Counted:</span>
-                            <span>€320.00</span>
-                          </div>
-                          <div className="flex justify-between font-bold">
-                            <span>Difference:</span>
-                            <span>€0.00</span>
-                          </div>
-                        </>
-                      )}
-
-                      {thermalSettings.eod_show_payment_type && (
-                        <>
-                          <div className="border-t border-dashed border-slate-400 my-2"></div>
-                          <div className="font-bold mb-1">PAYMENT TYPES</div>
-                          <div className="flex justify-between text-slate-600">
-                            <span>Cash:</span>
-                            <span>€120.00</span>
-                          </div>
-                          <div className="flex justify-between text-slate-600">
-                            <span>Card:</span>
-                            <span>€305.00</span>
-                          </div>
-                        </>
-                      )}
-
-                      {(thermalSettings.eod_show_total_cash || thermalSettings.eod_show_total_card_sale || thermalSettings.eod_show_total) && (
-                        <>
-                          <div className="border-t border-dashed border-slate-400 my-2"></div>
-                          <div className="font-bold mb-1">PAYMENT BREAKDOWN</div>
+                          <div className="font-bold mb-1">PAYMENTS</div>
                           <div className="space-y-0.5">
-                            {thermalSettings.eod_show_total_cash && (
+                            {(thermalSettings.eod_show_total_cash || thermalSettings.eod_show_payment_type) && (
                               <div className="flex justify-between">
-                                <span>Total Cash:</span>
+                                <span>Cash:</span>
                                 <span>€120.00</span>
                               </div>
                             )}
-                            {thermalSettings.eod_show_total_card_sale && (
+                            {(thermalSettings.eod_show_total_card_sale || thermalSettings.eod_show_payment_type) && (
                               <div className="flex justify-between">
-                                <span>Total Card:</span>
+                                <span>Card:</span>
                                 <span>€305.00</span>
                               </div>
                             )}
                             {thermalSettings.eod_show_total && (
-                              <div className="flex justify-between font-extrabold text-blue-600">
+                              <div className="flex justify-between font-extrabold text-blue-600 pt-0.5">
                                 <span>Total Tendered:</span>
                                 <span>€425.00</span>
                               </div>
@@ -2454,22 +2420,43 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                         </>
                       )}
 
-                      {thermalSettings.eod_show_cash_drawer && (
+                      {(thermalSettings.eod_show_cash_drawer || thermalSettings.eod_show_cash_summary) && (
                         <>
                           <div className="border-t border-dashed border-slate-400 my-2"></div>
                           <div className="font-bold mb-1">CASH DRAWER</div>
-                          <div className="flex justify-between text-slate-600">
-                            <span>Starting Bal:</span>
-                            <span>€200.00</span>
-                          </div>
-                          <div className="flex justify-between text-slate-600">
-                            <span>+ Cash Collected:</span>
-                            <span>€120.00</span>
-                          </div>
-                          <div className="flex justify-between font-bold">
-                            <span>Expected Cash in Till:</span>
-                            <span>€320.00</span>
-                          </div>
+                          {thermalSettings.eod_show_cash_drawer ? (
+                            <>
+                              <div className="flex justify-between text-slate-600">
+                                <span>Float (Start):</span>
+                                <span>€200.00</span>
+                              </div>
+                              <div className="flex justify-between text-slate-600">
+                                <span>+ Cash In:</span>
+                                <span>€120.00</span>
+                              </div>
+                              <div className="flex justify-between font-bold">
+                                <span>Expected Cash:</span>
+                                <span>€320.00</span>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex justify-between text-slate-600">
+                              <span>Expected Cash:</span>
+                              <span>€320.00</span>
+                            </div>
+                          )}
+                          {thermalSettings.eod_show_cash_summary && (
+                            <>
+                              <div className="flex justify-between text-slate-600">
+                                <span>Counted Cash:</span>
+                                <span>€320.00</span>
+                              </div>
+                              <div className="flex justify-between font-bold">
+                                <span>Difference:</span>
+                                <span>€0.00</span>
+                              </div>
+                            </>
+                          )}
                         </>
                       )}
 
