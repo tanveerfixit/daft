@@ -120,6 +120,20 @@ const EndOfDayThermal: React.FC<PrintProps> = ({
   const activeCompany = company || defaultCompanyInfo;
   const now = new Date();
 
+  const totalCash = allPayments
+    .filter(p => isCashPayment(p.method, p))
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const totalCard = allPayments
+    .filter(p => isCardPayment(p.method, p))
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const totalOther = allPayments
+    .filter(p => isOtherPayment(p.method, p))
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+  const totalCollected = totalSales + totalDeposits;
+  const totalTendered = totalCash + totalCard + totalOther + totalWalletRedeemed;
+  const expectedCashInTill = startingBalance + totalCash;
+
   return (
     <div 
       className="thermal-receipt bg-white text-black mx-auto p-4 font-mono text-[14px] leading-tight" 
@@ -187,9 +201,8 @@ const EndOfDayThermal: React.FC<PrintProps> = ({
 
       <div className="eod-divider"></div>
 
-      <div className="eod-row">
-        <span>Starting Bal:</span>
-        <span className="font-semibold">€{startingBalance.toFixed(2)}</span>
+      <div className="eod-row font-bold text-[14px]">
+        <span>SALES &amp; DEPOSITS</span>
       </div>
       <div className="eod-row">
         <span>Net Sales:</span>
@@ -201,12 +214,10 @@ const EndOfDayThermal: React.FC<PrintProps> = ({
           <span className="font-semibold">€{totalDeposits.toFixed(2)}</span>
         </div>
       )}
-      {totalWalletRedeemed > 0 && (
-        <div className="eod-row">
-          <span>Wallet Redeemed:</span>
-          <span className="font-semibold">€{totalWalletRedeemed.toFixed(2)}</span>
-        </div>
-      )}
+      <div className="eod-row font-bold pt-0.5">
+        <span>Total Collected:</span>
+        <span>€{totalCollected.toFixed(2)}</span>
+      </div>
 
       {activeSettings.eod_show_cash_summary && (
         <>
@@ -247,26 +258,58 @@ const EndOfDayThermal: React.FC<PrintProps> = ({
       {(activeSettings.eod_show_total_cash || activeSettings.eod_show_total_card_sale || activeSettings.eod_show_total) && (
         <>
           <div className="eod-divider"></div>
+          <div className="eod-row font-bold text-[14px]">
+            <span>PAYMENT BREAKDOWN</span>
+          </div>
           {activeSettings.eod_show_total_cash && (
-            <div className="eod-row font-bold">
+            <div className="eod-row">
               <span>Total Cash:</span>
-              <span>€{allPayments.filter(p => isCashPayment(p.method, p)).reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}</span>
+              <span className="font-semibold">€{totalCash.toFixed(2)}</span>
             </div>
           )}
           {activeSettings.eod_show_total_card_sale && (
-            <div className="eod-row font-bold">
+            <div className="eod-row">
               <span>Total Card:</span>
-              <span>€{allPayments.filter(p => isCardPayment(p.method, p)).reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toFixed(2)}</span>
+              <span className="font-semibold">€{totalCard.toFixed(2)}</span>
+            </div>
+          )}
+          {Math.abs(totalOther) > 0.005 && (
+            <div className="eod-row">
+              <span>Total Other:</span>
+              <span className="font-semibold">€{totalOther.toFixed(2)}</span>
+            </div>
+          )}
+          {totalWalletRedeemed > 0 && (
+            <div className="eod-row">
+              <span>Wallet Used:</span>
+              <span className="font-semibold">€{totalWalletRedeemed.toFixed(2)}</span>
             </div>
           )}
           {activeSettings.eod_show_total && (
-            <div className="eod-row font-bold text-[16px] pt-1">
-              <span>Net Sales Total:</span>
-              <span>€{totalSales.toFixed(2)}</span>
+            <div className="eod-row font-bold text-[15px] pt-1">
+              <span>Total Tendered:</span>
+              <span>€{totalTendered.toFixed(2)}</span>
             </div>
           )}
         </>
       )}
+
+      <div className="eod-divider"></div>
+      <div className="eod-row font-bold text-[14px]">
+        <span>CASH DRAWER</span>
+      </div>
+      <div className="eod-row">
+        <span>Starting Bal:</span>
+        <span className="font-semibold">€{startingBalance.toFixed(2)}</span>
+      </div>
+      <div className="eod-row">
+        <span>+ Cash Collected:</span>
+        <span className="font-semibold">€{totalCash.toFixed(2)}</span>
+      </div>
+      <div className="eod-row font-bold pt-0.5">
+        <span>Expected Cash in Till:</span>
+        <span>€{expectedCashInTill.toFixed(2)}</span>
+      </div>
 
       {comments && (
         <>
