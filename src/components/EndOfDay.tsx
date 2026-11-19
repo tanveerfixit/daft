@@ -222,31 +222,31 @@ const EndOfDayThermal: React.FC<PrintProps> = ({
         </>
       )}
 
-      {(activeSettings.eod_show_payment_type || activeSettings.eod_show_total_cash || activeSettings.eod_show_total_card_sale || activeSettings.eod_show_total) && (
+      {(activeSettings.eod_show_total_cash || activeSettings.eod_show_total_card_sale || activeSettings.eod_show_total || (activeSettings.eod_show_payment_type && (Math.abs(totalOther) > 0.005 || totalWalletRedeemed > 0.005))) && (
         <>
           <div className="eod-divider"></div>
           <div className="eod-row font-bold text-[14px]">
             <span>PAYMENTS</span>
           </div>
-          {(activeSettings.eod_show_total_cash || activeSettings.eod_show_payment_type) && (
+          {activeSettings.eod_show_total_cash && (
             <div className="eod-row">
               <span>Cash:</span>
               <span className="font-semibold">€{totalCash.toFixed(2)}</span>
             </div>
           )}
-          {(activeSettings.eod_show_total_card_sale || activeSettings.eod_show_payment_type) && (
+          {activeSettings.eod_show_total_card_sale && (
             <div className="eod-row">
               <span>Card:</span>
               <span className="font-semibold">€{totalCard.toFixed(2)}</span>
             </div>
           )}
-          {Math.abs(totalOther) > 0.005 && (
+          {activeSettings.eod_show_payment_type && Math.abs(totalOther) > 0.005 && (
             <div className="eod-row">
               <span>Other:</span>
               <span className="font-semibold">€{totalOther.toFixed(2)}</span>
             </div>
           )}
-          {totalWalletRedeemed > 0.005 && (
+          {activeSettings.eod_show_payment_type && totalWalletRedeemed > 0.005 && (
             <div className="eod-row">
               <span>Wallet Used:</span>
               <span className="font-semibold">€{totalWalletRedeemed.toFixed(2)}</span>

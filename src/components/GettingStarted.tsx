@@ -996,7 +996,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
         })
         .catch(err => console.error('Error fetching thermal printer/EOD settings:', err));
 
-      if (activeTab === 'manage-thermal-printer') {
+      if (activeTab === 'manage-thermal-printer' || activeTab === 'manage-eod-report') {
         fetch('/api/company')
           .then(res => res.ok ? res.json() : null)
           .then(data => {
@@ -2264,9 +2264,9 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                             onChange={(e) => setThermalSettings({ ...thermalSettings, eod_show_payment_type: e.target.checked })}
                             className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                           />
-                          <span className="text-sm text-slate-700 group-hover:text-blue-600 transition-colors">Show Payments Section</span>
+                          <span className="text-sm text-slate-700 group-hover:text-blue-600 transition-colors">Show Wallet &amp; Other Methods</span>
                         </label>
-                        <p className="text-xs text-slate-400 pl-7 -mt-2">Shows Cash, Card, Wallet Used, and Other payment totals.</p>
+                        <p className="text-xs text-slate-400 pl-7 -mt-2">Shows non-zero Wallet Used and Other payment rows inside Payments.</p>
 
                         <label className="flex items-center gap-3 cursor-pointer group">
                           <input 
@@ -2398,16 +2398,22 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                           <div className="border-t border-dashed border-slate-400 my-2"></div>
                           <div className="font-bold mb-1">PAYMENTS</div>
                           <div className="space-y-0.5">
-                            {(thermalSettings.eod_show_total_cash || thermalSettings.eod_show_payment_type) && (
+                            {thermalSettings.eod_show_total_cash && (
                               <div className="flex justify-between">
                                 <span>Cash:</span>
                                 <span>€120.00</span>
                               </div>
                             )}
-                            {(thermalSettings.eod_show_total_card_sale || thermalSettings.eod_show_payment_type) && (
+                            {thermalSettings.eod_show_total_card_sale && (
                               <div className="flex justify-between">
                                 <span>Card:</span>
-                                <span>€305.00</span>
+                                <span>€290.00</span>
+                              </div>
+                            )}
+                            {thermalSettings.eod_show_payment_type && (
+                              <div className="flex justify-between">
+                                <span>Wallet Used:</span>
+                                <span>€15.00</span>
                               </div>
                             )}
                             {thermalSettings.eod_show_total && (
