@@ -163,7 +163,11 @@ async function startServer(): Promise<void> {
       ? 'Database operation failed'
       : (err?.message || 'Internal Server Error');
 
-    res.status(500).json({
+    // Business-rule errors thrown with an explicit 4xx status (e.g. insufficient wallet balance)
+    const explicitStatus = Number(err?.status);
+    const status = explicitStatus >= 400 && explicitStatus < 500 ? explicitStatus : 500;
+
+    res.status(status).json({
       error: safeMessage,
       ...(env.NODE_ENV !== 'production' ? { details: err?.message, code: err?.code } : {})
     });

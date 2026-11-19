@@ -44,6 +44,7 @@ const defaultThermalSettings: ThermalPrinterSettings = {
   eod_show_total_cash: true,
   eod_show_total_card_sale: true,
   eod_show_total: true,
+  eod_show_cash_drawer: true,
   eod_footer_type: 'branch',
   eod_footer_custom_text: '',
   footer_text: ''
@@ -294,22 +295,26 @@ const EndOfDayThermal: React.FC<PrintProps> = ({
         </>
       )}
 
-      <div className="eod-divider"></div>
-      <div className="eod-row font-bold text-[14px]">
-        <span>CASH DRAWER</span>
-      </div>
-      <div className="eod-row">
-        <span>Starting Bal:</span>
-        <span className="font-semibold">€{startingBalance.toFixed(2)}</span>
-      </div>
-      <div className="eod-row">
-        <span>+ Cash Collected:</span>
-        <span className="font-semibold">€{totalCash.toFixed(2)}</span>
-      </div>
-      <div className="eod-row font-bold pt-0.5">
-        <span>Expected Cash in Till:</span>
-        <span>€{expectedCashInTill.toFixed(2)}</span>
-      </div>
+      {activeSettings.eod_show_cash_drawer && (
+        <>
+          <div className="eod-divider"></div>
+          <div className="eod-row font-bold text-[14px]">
+            <span>CASH DRAWER</span>
+          </div>
+          <div className="eod-row">
+            <span>Starting Bal:</span>
+            <span className="font-semibold">€{startingBalance.toFixed(2)}</span>
+          </div>
+          <div className="eod-row">
+            <span>+ Cash Collected:</span>
+            <span className="font-semibold">€{totalCash.toFixed(2)}</span>
+          </div>
+          <div className="eod-row font-bold pt-0.5">
+            <span>Expected Cash in Till:</span>
+            <span>€{expectedCashInTill.toFixed(2)}</span>
+          </div>
+        </>
+      )}
 
       {comments && (
         <>

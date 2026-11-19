@@ -785,6 +785,7 @@ export async function initSchema() {
         eod_show_total_cash TINYINT(1) DEFAULT 1,
         eod_show_total_card_sale TINYINT(1) DEFAULT 1,
         eod_show_total TINYINT(1) DEFAULT 1,
+        eod_show_cash_drawer TINYINT(1) DEFAULT 1,
         eod_footer_type VARCHAR(50) DEFAULT 'branch',
         eod_footer_custom_text TEXT,
         footer_text TEXT,
@@ -833,6 +834,11 @@ export async function initSchema() {
     }
     try {
       await conn.query('ALTER TABLE thermal_printer_settings ADD COLUMN eod_show_total TINYINT(1) DEFAULT 1 AFTER eod_show_total_card_sale');
+    } catch (e: any) {
+      if (!e.message?.includes('Duplicate column')) throw e;
+    }
+    try {
+      await conn.query('ALTER TABLE thermal_printer_settings ADD COLUMN eod_show_cash_drawer TINYINT(1) DEFAULT 1 AFTER eod_show_total');
     } catch (e: any) {
       if (!e.message?.includes('Duplicate column')) throw e;
     }

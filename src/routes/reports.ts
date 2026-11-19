@@ -374,14 +374,57 @@ router.get('/dashboard-stats', async (req: any, res, next) => {
   } catch (e: any) { next(e); }
 });
 
+// ─── End of Day accounting helpers ───────────────────────────────────────────
+const getLocalDateStr = (d = new Date()) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const parseReportDate = (raw?: unknown): string => {
+  const s = typeof raw === 'string' ? raw.trim() : '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  return getLocalDateStr();
+};
+
+const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+
+const classifyPaymentMethod = (method?: string, type?: string): 'Cash' | 'Card' | 'Wallet' | 'Other' => {
+  const t = String(type || '').toLowerCase();
+  const m = String(method || '').toLowerCase();
+  if (t === 'wallet_use' || t === 'credit_note_redeemed' || m.includes('wallet') || m.includes('store credit') || m.includes('credit note')) {
+    return 'Wallet';
+  }
+  if (m.includes('cash')) return 'Cash';
+  if (m.includes('card') || m.includes('debit') || m.includes('credit')) return 'Card';
+  return 'Other';
+};
+
+const isDepositRow = (p: any): boolean => {
+  const t = String(p?.type || '').toLowerCase();
+  const invType = String(p?.invoice_type || '').toLowerCase();
+  return t === 'deposit' || t === 'wallet_deposit' || invType === 'deposit' || invType === 'wallet';
+};
+
+// Resolve branch scope consistently across EOD read and write routes.
+// Superadmins/developers may pass an explicit branch_id; regular users are pinned to req.user.branch_id.
+const resolveEodBranchId = (req: any): number | null => {
+  const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
+  if (isSuper) {
+    const requested = Number(req.query?.branch_id ?? req.body?.branch_id);
+    if (Number.isInteger(requested) && requested > 0) return requested;
+    return req.user.branch_id ? Number(req.user.branch_id) : null;
+  }
+  return req.user.branch_id ? Number(req.user.branch_id) : null;
+};
+
 // GET /api/reports/eod-data
 router.get('/eod-data', async (req: any, res, next) => {
-  const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
+  const date = parseReportDate(req.query.date);
   try {
-    const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
-    const branchId = req.user.branch_id;
+    const branchId = resolveEodBranchId(req);
     const startDateTime = `${date} 00:00:00`;
-    const endDateTime = `${date} 23:59:59`;
 
     const invoicePayments = await query(`
       SELECT p.*, u.name as user_name, i.invoice_number, i.type as invoice_type, i.status as invoice_status, c.name as customer_name,
@@ -406,41 +449,41 @@ router.get('/eod-data', async (req: any, res, next) => {
       LEFT JOIN invoices i ON p.invoice_id=i.id
       LEFT JOIN users u ON i.user_id=u.id
       LEFT JOIN customers c ON p.customer_id=c.id
-      WHERE p.paid_at >= ? AND p.paid_at <= ? AND i.business_id=? 
+      WHERE p.paid_at >= ? AND p.paid_at < DATE_ADD(?, INTERVAL 1 DAY) AND i.business_id=? 
         AND NOT (i.type = 'credit_note' AND p.type = 'credit_note_issued')
-      ${(!isSuper && branchId) ? 'AND (i.branch_id=? OR i.branch_id IS NULL)' : ''}
+      ${branchId ? 'AND (i.branch_id=? OR i.branch_id IS NULL)' : ''}
       ORDER BY p.id ASC
-    `, (!isSuper && branchId) ? [startDateTime, endDateTime, req.user.business_id, branchId] : [startDateTime, endDateTime, req.user.business_id]);
+    `, branchId ? [startDateTime, startDateTime, req.user.business_id, branchId] : [startDateTime, startDateTime, req.user.business_id]);
 
     const otherMovements = await query(`
       SELECT p.*, 'System' as user_name, c.name as customer_name,
         COALESCE(p.type, 'Customer Deposit') as products_summary
       FROM payments p
       JOIN customers c ON p.customer_id=c.id
-      WHERE p.paid_at >= ? AND p.paid_at <= ? AND p.invoice_id IS NULL AND c.business_id=?
-      ${(!isSuper && branchId) ? 'AND (c.branch_id=? OR c.branch_id IS NULL)' : ''}
+      WHERE p.paid_at >= ? AND p.paid_at < DATE_ADD(?, INTERVAL 1 DAY) AND p.invoice_id IS NULL AND c.business_id=?
+      ${branchId ? 'AND (c.branch_id=? OR c.branch_id IS NULL)' : ''}
       ORDER BY p.id ASC
-    `, (!isSuper && branchId) ? [startDateTime, endDateTime, req.user.business_id, branchId] : [startDateTime, endDateTime, req.user.business_id]);
+    `, branchId ? [startDateTime, startDateTime, req.user.business_id, branchId] : [startDateTime, startDateTime, req.user.business_id]);
 
     const summary = await query(`
       SELECT p.method, p.type, SUM(p.amount) as total 
       FROM payments p
       LEFT JOIN invoices i ON p.invoice_id=i.id
       LEFT JOIN customers c ON p.customer_id=c.id
-      WHERE p.paid_at >= ? AND p.paid_at <= ? 
+      WHERE p.paid_at >= ? AND p.paid_at < DATE_ADD(?, INTERVAL 1 DAY) 
         AND NOT (i.type = 'credit_note' AND p.type = 'credit_note_issued')
         AND ((p.invoice_id IS NOT NULL AND i.business_id=?) OR (p.invoice_id IS NULL AND c.business_id=?))
-      ${(!isSuper && branchId) ? 'AND ((p.invoice_id IS NOT NULL AND (i.branch_id=? OR i.branch_id IS NULL)) OR (p.invoice_id IS NULL AND (c.branch_id=? OR c.branch_id IS NULL)))' : ''}
+      ${branchId ? 'AND ((p.invoice_id IS NOT NULL AND (i.branch_id=? OR i.branch_id IS NULL)) OR (p.invoice_id IS NULL AND (c.branch_id=? OR c.branch_id IS NULL)))' : ''}
       GROUP BY p.method, p.type
       ORDER BY p.method ASC
-    `, (!isSuper && branchId) ? [startDateTime, endDateTime, req.user.business_id, req.user.business_id, branchId, branchId] : [startDateTime, endDateTime, req.user.business_id, req.user.business_id]);
+    `, branchId ? [startDateTime, startDateTime, req.user.business_id, req.user.business_id, branchId, branchId] : [startDateTime, startDateTime, req.user.business_id, req.user.business_id]);
 
     const existingReport = await queryOne(`
       SELECT id, starting_balance, comments, cash_counted, difference 
       FROM closing_reports 
-      WHERE report_date=? AND business_id=? ${(!isSuper && branchId) ? 'AND (branch_id=? OR branch_id IS NULL)' : ''}
+      WHERE report_date=? AND business_id=? ${branchId ? 'AND (branch_id=? OR branch_id IS NULL)' : ''}
       ORDER BY id DESC LIMIT 1
-    `, (!isSuper && branchId) ? [date, req.user.business_id, branchId] : [date, req.user.business_id]) as any;
+    `, branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]) as any;
 
     let savedPayments: any[] = [];
     if (existingReport?.id) {
@@ -466,16 +509,15 @@ router.get('/eod-data', async (req: any, res, next) => {
 // GET /api/reports/starting-cash
 router.get('/starting-cash', async (req: any, res, next) => {
   try {
-    const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
-    const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
-    const branchId = req.user.branch_id;
+    const date = parseReportDate(req.query.date);
+    const branchId = resolveEodBranchId(req);
 
     const report = await queryOne(`
       SELECT id, starting_balance, created_at 
       FROM closing_reports 
-      WHERE report_date=? AND business_id=? ${(!isSuper && branchId) ? 'AND (branch_id=? OR branch_id IS NULL)' : ''}
+      WHERE report_date=? AND business_id=? ${branchId ? 'AND (branch_id=? OR branch_id IS NULL)' : ''}
       ORDER BY id DESC LIMIT 1
-    `, (!isSuper && branchId) ? [date, req.user.business_id, branchId] : [date, req.user.business_id]) as any;
+    `, branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]) as any;
 
     const hasStartingCash = report !== null && report.starting_balance !== null && report.starting_balance !== undefined;
     res.json({
@@ -490,12 +532,16 @@ router.get('/starting-cash', async (req: any, res, next) => {
 router.post('/starting-cash', async (req: any, res, next) => {
   try {
     const { starting_balance, report_date } = req.body;
-    const date = report_date || new Date().toISOString().split('T')[0];
-    const amount = Number(starting_balance) || 0;
-    const branchId = req.user.branch_id || 1;
+    const date = parseReportDate(report_date);
+    const rawAmount = Number(starting_balance);
+    if (!Number.isFinite(rawAmount) || rawAmount < 0) {
+      return res.status(400).json({ error: 'Starting cash must be a non-negative number.' });
+    }
+    const amount = round2(rawAmount);
+    const branchId = resolveEodBranchId(req) || 1;
 
     const existing = await queryOne(`
-      SELECT id FROM closing_reports 
+      SELECT id, starting_balance FROM closing_reports 
       WHERE report_date=? AND business_id=? AND branch_id=?
       ORDER BY id DESC LIMIT 1
     `, [date, req.user.business_id, branchId]) as any;
@@ -519,47 +565,127 @@ router.post('/starting-cash', async (req: any, res, next) => {
 });
 
 const endOfDaySchema = z.object({
-  report_date: z.string().optional(),
-  starting_balance: z.number().or(z.string().transform(Number)).optional(),
-  cash_counted: z.number().or(z.string().transform(Number)).optional(),
-  calculated_cash: z.number().or(z.string().transform(Number)).optional(),
-  difference: z.number().or(z.string().transform(Number)).optional(),
-  total_sales: z.number().or(z.string().transform(Number)).optional(),
-  total_deposits: z.number().or(z.string().transform(Number)).optional(),
-  total_cash_in_drawer: z.number().or(z.string().transform(Number)).optional(),
-  comments: z.string().optional(),
+  report_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'report_date must be YYYY-MM-DD').optional(),
+  branch_id: z.coerce.number().int().positive().optional(),
+  starting_balance: z.coerce.number().finite().min(0).default(0),
+  cash_counted: z.coerce.number().finite().min(0).default(0),
+  calculated_cash: z.coerce.number().finite().optional(),
+  difference: z.coerce.number().finite().optional(),
+  total_sales: z.coerce.number().finite().optional(),
+  total_deposits: z.coerce.number().finite().optional(),
+  total_cash_in_drawer: z.coerce.number().finite().optional(),
+  comments: z.string().max(2000).default(''),
   payment_summaries: z.array(z.object({
     payment_type: z.string().optional(),
-    calculated: z.number().or(z.string().transform(Number)).optional(),
-    counted: z.number().or(z.string().transform(Number)).optional(),
-    difference: z.number().or(z.string().transform(Number)).optional()
+    calculated: z.coerce.number().finite().optional(),
+    counted: z.coerce.number().finite().optional(),
+    difference: z.coerce.number().finite().optional()
   })).default([])
 });
 
 // POST /api/reports/eod
+// Authoritatively recalculates Net Sales, Wallet Deposits, Cash/Card/Other inflows, and drawer
+// variances from the payments table inside the transaction instead of trusting client totals.
 router.post('/eod', async (req: any, res, next) => {
   let data: z.infer<typeof endOfDaySchema>;
   try { data = endOfDaySchema.parse(req.body); } catch (e) { return next(e); }
-  const { report_date, starting_balance, cash_counted, calculated_cash, difference,
-    total_sales, total_deposits, total_cash_in_drawer, comments, payment_summaries } = data;
+  const reportDate = parseReportDate(data.report_date);
+  const startingBalance = round2(data.starting_balance);
+  const cashCounted = round2(data.cash_counted);
+  const comments = data.comments || '';
+  const targetBranchId = resolveEodBranchId(req) || 1;
+  const startDateTime = `${reportDate} 00:00:00`;
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
 
+    // 1. Authoritatively fetch all payments for this business/branch/day
+    const [invPayRows] = await conn.execute(`
+      SELECT p.amount, p.method, p.type, i.type as invoice_type
+      FROM payments p
+      JOIN invoices i ON p.invoice_id = i.id
+      WHERE p.paid_at >= ? AND p.paid_at < DATE_ADD(?, INTERVAL 1 DAY)
+        AND i.business_id = ?
+        AND (i.branch_id = ? OR i.branch_id IS NULL)
+        AND NOT (i.type = 'credit_note' AND p.type = 'credit_note_issued')
+    `, [startDateTime, startDateTime, req.user.business_id, targetBranchId]);
+
+    const [otherPayRows] = await conn.execute(`
+      SELECT p.amount, p.method, p.type, NULL as invoice_type
+      FROM payments p
+      JOIN customers c ON p.customer_id = c.id
+      WHERE p.paid_at >= ? AND p.paid_at < DATE_ADD(?, INTERVAL 1 DAY)
+        AND p.invoice_id IS NULL
+        AND c.business_id = ?
+        AND (c.branch_id = ? OR c.branch_id IS NULL)
+    `, [startDateTime, startDateTime, req.user.business_id, targetBranchId]);
+
+    const allDayPayments = [...(invPayRows as any[]), ...(otherPayRows as any[])];
+
+    let serverTotalSales = 0;
+    let serverTotalDeposits = 0;
+    let serverTotalCash = 0;
+    let serverTotalCard = 0;
+    let serverTotalWallet = 0;
+    let serverTotalOther = 0;
+
+    for (const p of allDayPayments) {
+      const amt = Number(p.amount) || 0;
+      if (isDepositRow(p)) {
+        serverTotalDeposits += amt;
+      } else {
+        serverTotalSales += amt;
+      }
+      const bucket = classifyPaymentMethod(p.method, p.type);
+      if (bucket === 'Cash') serverTotalCash += amt;
+      else if (bucket === 'Card') serverTotalCard += amt;
+      else if (bucket === 'Wallet') serverTotalWallet += amt;
+      else serverTotalOther += amt;
+    }
+
+    serverTotalSales = round2(serverTotalSales);
+    serverTotalDeposits = round2(serverTotalDeposits);
+    serverTotalCash = round2(serverTotalCash);
+    serverTotalCard = round2(serverTotalCard);
+    serverTotalWallet = round2(serverTotalWallet);
+    serverTotalOther = round2(serverTotalOther);
+
+    const countedCashNet = round2(cashCounted - startingBalance);
+    const serverCashDiff = round2(countedCashNet - serverTotalCash);
+
+    // Extract physical counts supplied by cashier for Card and Other
+    const cardSummaryIn = data.payment_summaries.find(s => s.payment_type === 'Card' || s.payment_type === 'Debit Card');
+    const otherSummaryIn = data.payment_summaries.find(s => s.payment_type === 'Other');
+    const cardCounted = round2(Number(cardSummaryIn?.counted) || 0);
+    const otherCounted = round2(Number(otherSummaryIn?.counted) || 0);
+
+    const serverSummaries: Array<{ payment_type: string; calculated: number; counted: number; difference: number }> = [
+      { payment_type: 'Cash', calculated: serverTotalCash, counted: countedCashNet, difference: serverCashDiff },
+      { payment_type: 'Card', calculated: serverTotalCard, counted: cardCounted, difference: round2(cardCounted - serverTotalCard) }
+    ];
+    if (serverTotalWallet !== 0) {
+      serverSummaries.push({ payment_type: 'Wallet', calculated: serverTotalWallet, counted: serverTotalWallet, difference: 0 });
+    }
+    if (serverTotalOther !== 0 || otherCounted !== 0) {
+      serverSummaries.push({ payment_type: 'Other', calculated: serverTotalOther, counted: otherCounted, difference: round2(otherCounted - serverTotalOther) });
+    }
+
     const [existingRows] = await conn.execute(
-      'SELECT id FROM closing_reports WHERE business_id=? AND branch_id=? AND report_date=? ORDER BY id DESC LIMIT 1',
-      [req.user.business_id, req.user.branch_id || 1, report_date]
+      'SELECT id, starting_balance, cash_counted, difference FROM closing_reports WHERE business_id=? AND branch_id=? AND report_date=? ORDER BY id DESC LIMIT 1 FOR UPDATE',
+      [req.user.business_id, targetBranchId, reportDate]
     );
     let reportId: number;
-    if ((existingRows as any[]).length > 0) {
-      reportId = (existingRows as any[])[0].id;
+    const prevReport = (existingRows as any[])[0] || null;
+    if (prevReport) {
+      reportId = prevReport.id;
       await conn.execute(`
         UPDATE closing_reports 
         SET user_id=?, starting_balance=?, cash_counted=?, calculated_cash=?, difference=?,
             total_sales=?, total_deposits=?, total_cash_in_drawer=?, comments=?
         WHERE id=?
-      `, [req.userId, starting_balance, cash_counted, calculated_cash, difference,
-          total_sales, total_deposits, total_cash_in_drawer, comments, reportId]);
+      `, [req.userId, startingBalance, cashCounted, serverTotalCash, serverCashDiff,
+          serverTotalSales, serverTotalDeposits, cashCounted, comments, reportId]);
 
       await conn.execute('DELETE FROM closing_report_payments WHERE report_id=?', [reportId]);
     } else {
@@ -568,19 +694,39 @@ router.post('/eod', async (req: any, res, next) => {
           (business_id,branch_id,user_id,report_date,starting_balance,cash_counted,calculated_cash,difference,
            total_sales,total_deposits,total_cash_in_drawer,comments)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [req.user.business_id, req.user.branch_id || 1, req.userId, report_date, starting_balance, cash_counted, calculated_cash, difference,
-         total_sales, total_deposits, total_cash_in_drawer, comments]);
+        [req.user.business_id, targetBranchId, req.userId, reportDate, startingBalance, cashCounted, serverTotalCash, serverCashDiff,
+         serverTotalSales, serverTotalDeposits, cashCounted, comments]);
       reportId = (r as any).insertId;
     }
 
-    for (const s of payment_summaries) {
+    for (const s of serverSummaries) {
       await conn.execute(
         'INSERT INTO closing_report_payments (report_id,payment_type,calculated,counted,difference) VALUES (?,?,?,?,?)',
         [reportId, s.payment_type, s.calculated, s.counted, s.difference]
       );
     }
+
+    // Write audit trail entry so every EOD save/re-save is traceable
+    try {
+      const actionLabel = prevReport ? 'EOD Report Updated' : 'EOD Report Saved';
+      const auditDetails = `Date: ${reportDate} | Net Sales: €${serverTotalSales.toFixed(2)} | Deposits: €${serverTotalDeposits.toFixed(2)} | Cash Counted: €${cashCounted.toFixed(2)} (Float: €${startingBalance.toFixed(2)}, Diff: €${serverCashDiff.toFixed(2)})`;
+      await conn.execute(
+        'INSERT INTO activity_logs (business_id, branch_id, user_id, user_name, activity_type, description, reference_type, reference_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [req.user.business_id, targetBranchId, req.userId, req.user?.name || null, actionLabel, auditDetails, 'closing_report', reportId]
+      );
+    } catch {}
+
     await conn.commit();
-    res.json({ success: true, id: reportId });
+    res.json({
+      success: true,
+      id: reportId,
+      calculated: {
+        total_sales: serverTotalSales,
+        total_deposits: serverTotalDeposits,
+        calculated_cash: serverTotalCash,
+        difference: serverCashDiff
+      }
+    });
   } catch (e: any) { await conn.rollback(); next(e); }
   finally { conn.release(); }
 });
@@ -588,16 +734,17 @@ router.post('/eod', async (req: any, res, next) => {
 // GET /api/reports/eod-list
 router.get('/eod-list', async (req: any, res, next) => {
   try {
-    const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
-    const branchId = req.user.branch_id;
+    const branchId = resolveEodBranchId(req);
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
     const sql = `
       SELECT r.*, DATE_FORMAT(r.report_date, '%Y-%m-%d') as report_date, COALESCE(u.name, 'Staff') as user_name
       FROM closing_reports r
       LEFT JOIN users u ON r.user_id = u.id 
-      WHERE r.business_id = ? ${(!isSuper && branchId) ? 'AND (r.branch_id = ? OR r.branch_id IS NULL)' : ''}
+      WHERE r.business_id = ? ${branchId ? 'AND (r.branch_id = ? OR r.branch_id IS NULL)' : ''}
       ORDER BY r.report_date DESC, r.id DESC
+      LIMIT ?
     `;
-    const params = (!isSuper && branchId) ? [req.user.business_id, branchId] : [req.user.business_id];
+    const params = branchId ? [req.user.business_id, branchId, limit] : [req.user.business_id, limit];
     res.json(await query(sql, params));
   } catch (e: any) { next(e); }
 });

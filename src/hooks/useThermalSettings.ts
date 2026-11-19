@@ -21,6 +21,7 @@ export interface ThermalPrinterSettings {
   eod_show_total_cash: boolean;
   eod_show_total_card_sale: boolean;
   eod_show_total: boolean;
+  eod_show_cash_drawer: boolean;
   eod_footer_type: string;
   eod_footer_custom_text: string;
   footer_text: string;
@@ -63,6 +64,7 @@ export function useThermalSettings() {
         eod_show_total_cash: settingsData.eod_show_total_cash !== undefined ? !!settingsData.eod_show_total_cash : true,
         eod_show_total_card_sale: settingsData.eod_show_total_card_sale !== undefined ? !!settingsData.eod_show_total_card_sale : true,
         eod_show_total: settingsData.eod_show_total !== undefined ? !!settingsData.eod_show_total : true,
+        eod_show_cash_drawer: settingsData.eod_show_cash_drawer !== undefined ? !!settingsData.eod_show_cash_drawer : true,
         eod_footer_type: settingsData.eod_footer_type || 'branch',
         eod_footer_custom_text: settingsData.eod_footer_custom_text || '',
         footer_text: settingsData.footer_text || 'Thank you for your business!',

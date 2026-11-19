@@ -388,6 +388,7 @@ const thermalPrinterSettingsSchema = z.object({
   eod_show_total_cash: z.union([z.boolean(), z.number()]).nullable().optional(),
   eod_show_total_card_sale: z.union([z.boolean(), z.number()]).nullable().optional(),
   eod_show_total: z.union([z.boolean(), z.number()]).nullable().optional(),
+  eod_show_cash_drawer: z.union([z.boolean(), z.number()]).nullable().optional(),
   eod_footer_type: z.string().nullable().optional(),
   eod_footer_custom_text: z.string().nullable().optional(),
   footer_text: z.string().nullable().optional()
@@ -423,6 +424,7 @@ router.post('/thermal-printer-settings', async (req: any, res, next) => {
       m.eod_show_total_cash ? 1 : 0,
       m.eod_show_total_card_sale ? 1 : 0,
       m.eod_show_total ? 1 : 0,
+      m.eod_show_cash_drawer !== false && m.eod_show_cash_drawer !== 0 ? 1 : 0,
       m.eod_footer_type || 'branch',
       m.eod_footer_custom_text || '',
       m.footer_text || 'Thank you for your business!'
@@ -448,6 +450,7 @@ router.post('/thermal-printer-settings', async (req: any, res, next) => {
       m.eod_show_total_cash ? 1 : 0,
       m.eod_show_total_card_sale ? 1 : 0,
       m.eod_show_total ? 1 : 0,
+      m.eod_show_cash_drawer !== false && m.eod_show_cash_drawer !== 0 ? 1 : 0,
       m.eod_footer_type || 'branch',
       m.eod_footer_custom_text || '',
       m.footer_text || 'Thank you for your business!'
@@ -461,7 +464,7 @@ router.post('/thermal-printer-settings', async (req: any, res, next) => {
             show_business_phone=?, show_business_email=?, show_customer_info=?, show_invoice_number=?, show_date=?,
             show_items_table=?, show_totals=?, show_footer=?, show_powered_by=?, show_vat_number=?,
             eod_show_cash_summary=?, eod_show_payment_type=?, eod_show_total_cash=?, eod_show_total_card_sale=?, eod_show_total=?,
-            eod_footer_type=?, eod_footer_custom_text=?, footer_text=?
+            eod_show_cash_drawer=?, eod_footer_type=?, eod_footer_custom_text=?, footer_text=?
           WHERE id=? AND business_id=?`,
           [...commonValuesWithVat, existing.id, req.user.business_id]
         );
@@ -472,7 +475,7 @@ router.post('/thermal-printer-settings', async (req: any, res, next) => {
             show_business_phone=?, show_business_email=?, show_customer_info=?, show_invoice_number=?, show_date=?,
             show_items_table=?, show_totals=?, show_footer=?, show_powered_by=?,
             eod_show_cash_summary=?, eod_show_payment_type=?, eod_show_total_cash=?, eod_show_total_card_sale=?, eod_show_total=?,
-            eod_footer_type=?, eod_footer_custom_text=?, footer_text=?
+            eod_show_cash_drawer=?, eod_footer_type=?, eod_footer_custom_text=?, footer_text=?
           WHERE id=? AND business_id=?`,
           [...commonValuesWithoutVat, existing.id, req.user.business_id]
         );
@@ -485,9 +488,9 @@ router.post('/thermal-printer-settings', async (req: any, res, next) => {
              show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
              show_items_table,show_totals,show_footer,show_powered_by,show_vat_number,
              eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
-             eod_footer_type,eod_footer_custom_text,
+             eod_show_cash_drawer,eod_footer_type,eod_footer_custom_text,
              footer_text)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
           ON DUPLICATE KEY UPDATE
             branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
             show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
@@ -498,7 +501,7 @@ router.post('/thermal-printer-settings', async (req: any, res, next) => {
             show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),show_vat_number=VALUES(show_vat_number),
             eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
             eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
-            eod_show_total=VALUES(eod_show_total),
+            eod_show_total=VALUES(eod_show_total),eod_show_cash_drawer=VALUES(eod_show_cash_drawer),
             eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
             footer_text=VALUES(footer_text)`,
           [req.user.business_id, branchId, ...commonValuesWithVat]
@@ -510,9 +513,9 @@ router.post('/thermal-printer-settings', async (req: any, res, next) => {
              show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
              show_items_table,show_totals,show_footer,show_powered_by,
              eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
-             eod_footer_type,eod_footer_custom_text,
+             eod_show_cash_drawer,eod_footer_type,eod_footer_custom_text,
              footer_text)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
           ON DUPLICATE KEY UPDATE
             branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
             show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
@@ -523,7 +526,7 @@ router.post('/thermal-printer-settings', async (req: any, res, next) => {
             show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),
             eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
             eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
-            eod_show_total=VALUES(eod_show_total),
+            eod_show_total=VALUES(eod_show_total),eod_show_cash_drawer=VALUES(eod_show_cash_drawer),
             eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
             footer_text=VALUES(footer_text)`,
           [req.user.business_id, branchId, ...commonValuesWithoutVat]

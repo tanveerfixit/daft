@@ -595,6 +595,12 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   };
 
   const addToCart = (product: Product | any) => {
+    // Accounting rule: do not mix regular sales with a wallet deposit in the same transaction
+    if (!product?.is_deposit && cart.some(c => c.is_deposit)) {
+      alert('Cannot mix products with a Wallet Deposit. Please complete or remove the Wallet Deposit first.');
+      return;
+    }
+
     // If it's a serialized product and no IMEI is selected yet, open the selector
     if (product.product_type === 'serialized' && !product.imei) {
       handleOpenImeiSelector(product);
@@ -779,6 +785,16 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
   const handleAddDepositToCart = (amount: number) => {
     if (!depositProductInfo || !selectedCustomer) return;
+    if (selectedCustomer.name === 'Walk-in Customer') {
+      alert('Please select a named customer before taking a Wallet Deposit.');
+      return;
+    }
+    if (cart.some(c => !c.is_deposit)) {
+      alert('Wallet deposits must be processed as a separate transaction. Please complete or clear the current sale first.');
+      return;
+    }
+    // Wallet deposits are customer prepayments (outside the scope of VAT)
+    setTaxOption('0-excluded');
     
     const existingIndex = cart.findIndex(c => c.is_deposit);
     if (existingIndex > -1) {

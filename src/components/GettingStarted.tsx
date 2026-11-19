@@ -75,6 +75,7 @@ interface ThermalPrinterSettingsData {
   eod_show_total_cash: boolean;
   eod_show_total_card_sale: boolean;
   eod_show_total: boolean;
+  eod_show_cash_drawer: boolean;
   eod_footer_type: string;
   eod_footer_custom_text: string;
   footer_text: string;
@@ -144,6 +145,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
     eod_show_total_cash: true,
     eod_show_total_card_sale: true,
     eod_show_total: true,
+    eod_show_cash_drawer: true,
     eod_footer_type: 'branch',
     eod_footer_custom_text: '',
     footer_text: 'Thank you for your business!'
@@ -985,6 +987,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
               eod_show_total_cash: data.eod_show_total_cash !== undefined ? !!data.eod_show_total_cash : true,
               eod_show_total_card_sale: data.eod_show_total_card_sale !== undefined ? !!data.eod_show_total_card_sale : true,
               eod_show_total: data.eod_show_total !== undefined ? !!data.eod_show_total : true,
+              eod_show_cash_drawer: data.eod_show_cash_drawer !== undefined ? !!data.eod_show_cash_drawer : true,
               eod_footer_type: data.eod_footer_type || 'branch',
               eod_footer_custom_text: data.eod_footer_custom_text || '',
               footer_text: data.footer_text ?? 'Thank you for your business!',
@@ -1184,6 +1187,7 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
         eod_show_total_cash: true,
         eod_show_total_card_sale: true,
         eod_show_total: true,
+        eod_show_cash_drawer: true,
         eod_footer_type: 'branch',
         eod_footer_custom_text: '',
         footer_text: 'Thank you for your business!'
@@ -2263,6 +2267,17 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                           <span className="text-sm text-slate-700 group-hover:text-blue-600 transition-colors">Show Payment Types</span>
                         </label>
                         <p className="text-xs text-slate-400 pl-7 -mt-2">Shows a breakdown of calculated sales per payment method.</p>
+
+                        <label className="flex items-center gap-3 cursor-pointer group">
+                          <input 
+                            type="checkbox"
+                            checked={thermalSettings.eod_show_cash_drawer}
+                            onChange={(e) => setThermalSettings({ ...thermalSettings, eod_show_cash_drawer: e.target.checked })}
+                            className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-slate-700 group-hover:text-blue-600 transition-colors">Show Cash Drawer</span>
+                        </label>
+                        <p className="text-xs text-slate-400 pl-7 -mt-2">Shows Starting Bal, + Cash Collected, and Expected Cash in Till.</p>
                       </div>
                     </div>
 
@@ -2364,13 +2379,18 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
 
                       <div className="border-t border-dashed border-slate-400 my-2"></div>
 
+                      <div className="font-bold mb-1">SALES &amp; DEPOSITS</div>
                       <div className="flex justify-between mb-1">
-                        <span>Starting Bal:</span>
-                        <span>€150.00</span>
+                        <span>Net Sales:</span>
+                        <span>€385.00</span>
                       </div>
                       <div className="flex justify-between mb-1">
-                        <span>Total Sales:</span>
-                        <span>€385.00</span>
+                        <span>Wallet Deposits:</span>
+                        <span>€40.00</span>
+                      </div>
+                      <div className="flex justify-between font-bold mb-1">
+                        <span>Total Collected:</span>
+                        <span>€425.00</span>
                       </div>
 
                       {thermalSettings.eod_show_cash_summary && (
@@ -2379,11 +2399,11 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                           <div className="font-bold mb-1">CASH SUMMARY</div>
                           <div className="flex justify-between text-slate-600">
                             <span>Calculated:</span>
-                            <span>€250.00</span>
+                            <span>€320.00</span>
                           </div>
                           <div className="flex justify-between text-slate-600">
                             <span>Counted:</span>
-                            <span>€250.00</span>
+                            <span>€320.00</span>
                           </div>
                           <div className="flex justify-between font-bold">
                             <span>Difference:</span>
@@ -2398,11 +2418,11 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                           <div className="font-bold mb-1">PAYMENT TYPES</div>
                           <div className="flex justify-between text-slate-600">
                             <span>Cash:</span>
-                            <span>€100.00</span>
+                            <span>€120.00</span>
                           </div>
                           <div className="flex justify-between text-slate-600">
                             <span>Card:</span>
-                            <span>€285.00</span>
+                            <span>€305.00</span>
                           </div>
                         </>
                       )}
@@ -2410,25 +2430,45 @@ const GettingStarted: React.FC<GettingStartedProps> = ({ initialTab }) => {
                       {(thermalSettings.eod_show_total_cash || thermalSettings.eod_show_total_card_sale || thermalSettings.eod_show_total) && (
                         <>
                           <div className="border-t border-dashed border-slate-400 my-2"></div>
+                          <div className="font-bold mb-1">PAYMENT BREAKDOWN</div>
                           <div className="space-y-0.5">
                             {thermalSettings.eod_show_total_cash && (
-                              <div className="flex justify-between font-bold">
+                              <div className="flex justify-between">
                                 <span>Total Cash:</span>
-                                <span>€100.00</span>
+                                <span>€120.00</span>
                               </div>
                             )}
                             {thermalSettings.eod_show_total_card_sale && (
-                              <div className="flex justify-between font-bold">
-                                <span>Total Card Sale:</span>
-                                <span>€285.00</span>
+                              <div className="flex justify-between">
+                                <span>Total Card:</span>
+                                <span>€305.00</span>
                               </div>
                             )}
                             {thermalSettings.eod_show_total && (
                               <div className="flex justify-between font-extrabold text-blue-600">
-                                <span>Total:</span>
-                                <span>€385.00</span>
+                                <span>Total Tendered:</span>
+                                <span>€425.00</span>
                               </div>
                             )}
+                          </div>
+                        </>
+                      )}
+
+                      {thermalSettings.eod_show_cash_drawer && (
+                        <>
+                          <div className="border-t border-dashed border-slate-400 my-2"></div>
+                          <div className="font-bold mb-1">CASH DRAWER</div>
+                          <div className="flex justify-between text-slate-600">
+                            <span>Starting Bal:</span>
+                            <span>€200.00</span>
+                          </div>
+                          <div className="flex justify-between text-slate-600">
+                            <span>+ Cash Collected:</span>
+                            <span>€120.00</span>
+                          </div>
+                          <div className="flex justify-between font-bold">
+                            <span>Expected Cash in Till:</span>
+                            <span>€320.00</span>
                           </div>
                         </>
                       )}

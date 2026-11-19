@@ -7,6 +7,22 @@ import { refundInvoiceSchema, sendInvoiceEmailSchema } from '../validators/schem
 
 const router = Router();
 
+// ─── Wallet / Deposit accounting helpers ─────────────────────────────────────
+// A customer wallet deposit is an unearned prepayment (a liability), NOT revenue,
+// and is outside the scope of VAT at the time of top-up. These helpers enforce that.
+const businessError = (message: string, status = 400) => Object.assign(new Error(message), { status });
+const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+const isCreditNoteMethod = (p: any) => {
+  const m = String(p?.method || '').toLowerCase();
+  return Boolean(p?.credit_note_id || p?.credit_note_number || m.startsWith('credit note'));
+};
+const isWalletMethod = (p: any) => {
+  if (isCreditNoteMethod(p)) return false;
+  const m = String(p?.method || '').trim().toLowerCase();
+  return m === 'wallet' || m === 'customer wallet' || m === 'store credit';
+};
+const isDepositSkuCode = (skuCode?: string | null) => String(skuCode || '').toUpperCase().startsWith('DEPOSIT-WALLET-');
+
 router.get('/suggestions', async (req: any, res, next) => {
   try {
     const { q } = req.query;
@@ -658,7 +674,8 @@ const createInvoiceSchema = z.object({
 router.post('/', async (req: any, res, next) => {
   let data: z.infer<typeof createInvoiceSchema>;
   try { data = createInvoiceSchema.parse(req.body); } catch (e) { return next(e); }
-  const { customer_id, items, subtotal, tax_total, tax_rate, tax_type, discount_total, grand_total, payments, activities } = data;
+  const { customer_id, items, payments, activities } = data;
+  let { subtotal, tax_total, tax_rate, tax_type, discount_total, grand_total } = data;
   
   if (!items || !items.length) return res.status(400).json({ error: 'Cart is empty' });
 
@@ -671,11 +688,23 @@ router.post('/', async (req: any, res, next) => {
     let productInfoMap = new Map();
     if (skuIds.length > 0) {
       const [allProductInfo] = await conn.query(`
-        SELECT s.id as sku_id, s.cost_price, p.product_type, p.allow_overselling
+        SELECT s.id as sku_id, s.sku_code, s.cost_price, p.product_type, p.allow_overselling, p.name as product_name, p.business_id
         FROM product_skus s JOIN products p ON s.product_id=p.id 
         WHERE s.id IN (?)
       `, [skuIds]);
       productInfoMap = new Map((allProductInfo as any[]).map(p => [p.sku_id, p]));
+    }
+
+    // The server (not the client flag) decides what is a wallet deposit: only this
+    // business's own DEPOSIT-WALLET SKU can credit a customer wallet.
+    const ownDepositSku = `DEPOSIT-WALLET-${req.user.business_id}`.toUpperCase();
+    for (const item of items as any[]) {
+      const info = productInfoMap.get(item.sku_id || item.id);
+      const isOwnDepositSku = Boolean(info && String(info.sku_code || '').toUpperCase() === ownDepositSku);
+      // Legacy fallback: client-flagged deposit on a 'Wallet Deposit' service product of this business
+      const isLegacyDepositProduct = Boolean(item.is_deposit && info && info.product_type === 'service'
+        && info.product_name === 'Wallet Deposit' && Number(info.business_id) === Number(req.user.business_id));
+      item.is_deposit = isOwnDepositSku || isLegacyDepositProduct;
     }
 
     let finalCustomerId = customer_id;
@@ -687,9 +716,60 @@ router.post('/', async (req: any, res, next) => {
       finalCustomerId = (wRows as any[])[0]?.id || null;
     }
 
+    const hasDepositItem = (items || []).some((item: any) => item.is_deposit);
     const isDeposit = (items || []).length > 0 && (items || []).every((item: any) => item.is_deposit);
     const isRepair = (items || []).some((item: any) => item.is_repair_payment);
     const invoiceType = isRepair ? 'repair' : (isDeposit ? 'deposit' : 'sale');
+
+    // ─── Wallet deposit accounting rules ───────────────────────────────────
+    if (hasDepositItem) {
+      // A deposit (liability) must never be mixed with a sale (revenue) on one document,
+      // otherwise the deposit would be reported as sales and VAT would be miscalculated.
+      if (!isDeposit) {
+        throw businessError('Wallet deposits must be processed as a separate transaction. Please complete the sale first, then add the deposit on its own.');
+      }
+      // Deposits must belong to an identifiable named customer.
+      const [dcRows] = await conn.execute('SELECT id, name FROM customers WHERE id = ? AND business_id = ? AND deleted_at IS NULL', [finalCustomerId || 0, req.user.business_id]);
+      const depCust = (dcRows as any[])[0];
+      if (!depCust || depCust.name === 'Walk-in Customer') {
+        throw businessError('Please select a named customer before taking a wallet deposit.');
+      }
+      // A wallet cannot be topped up with wallet funds or credit notes (circular, no real money received).
+      if ((payments || []).some((p: any) => isWalletMethod(p) || isCreditNoteMethod(p))) {
+        throw businessError('Wallet deposits must be paid by Cash, Card or another real payment method (not Wallet or Credit Note).');
+      }
+      // Deposits are outside the scope of VAT at top-up and carry no discount: the document value equals the deposit amount.
+      const depositTotal = round2((items as any[]).reduce((s, it) => s + (Number(it.total) || 0), 0));
+      if (depositTotal <= 0) throw businessError('Deposit amount must be greater than zero.');
+      subtotal = depositTotal;
+      tax_total = 0;
+      tax_rate = 0;
+      tax_type = 'zero';
+      discount_total = 0;
+      grand_total = depositTotal;
+      // The wallet may only be credited with money actually received: full payment is required.
+      const paidForDeposit = (payments || []).reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0);
+      if (paidForDeposit < depositTotal - 0.009) {
+        throw businessError(`Wallet deposits must be paid in full (Deposit: €${depositTotal.toFixed(2)}, Paid: €${paidForDeposit.toFixed(2)}).`);
+      }
+    }
+
+    // ─── Wallet spend must be covered by the customer's actual balance ────
+    const walletSpendRequested = round2((payments || []).filter(isWalletMethod).reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0));
+    if (walletSpendRequested > 0) {
+      const [wbRows] = await conn.execute(
+        'SELECT name, wallet_balance FROM customers WHERE id = ? AND business_id = ? FOR UPDATE',
+        [finalCustomerId || 0, req.user.business_id]
+      );
+      const wCust = (wbRows as any[])[0];
+      if (!wCust || wCust.name === 'Walk-in Customer') {
+        throw businessError('Please select a named customer to pay with Wallet.');
+      }
+      const available = round2(Number(wCust.wallet_balance) || 0);
+      if (walletSpendRequested > available + 0.009) {
+        throw businessError(`Insufficient wallet balance. Available: €${available.toFixed(2)}, Requested: €${walletSpendRequested.toFixed(2)}.`);
+      }
+    }
 
     const branchPrefix = await getBranchPrefix(req.user.branch_id);
     const now = new Date();
@@ -720,9 +800,7 @@ router.post('/', async (req: any, res, next) => {
         const [cRows] = await conn.execute('SELECT id, name FROM customers WHERE id = ? AND business_id = ?', [finalCustomerId, req.user.business_id]);
         const cust = (cRows as any[])[0];
         if (!cust || cust.name === 'Walk-in Customer') {
-          await conn.rollback();
-          conn.release();
-          return res.status(400).json({ error: 'Walk-in customers cannot have an unpaid balance. Full payment is required.' });
+          throw businessError('Walk-in customers cannot have an unpaid balance. Full payment is required.');
         }
       }
     }
@@ -814,7 +892,8 @@ router.post('/', async (req: any, res, next) => {
       }
       
       if (item.is_deposit && finalCustomerId) {
-        await conn.execute('UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)+? WHERE id=?', [item.total, finalCustomerId]);
+        // Validated above: named customer, deposit-only invoice, paid in full by real money
+        await conn.execute('UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)+? WHERE id=? AND business_id=?', [round2(Number(item.total)), finalCustomerId, req.user.business_id]);
       }
     }
 
@@ -833,8 +912,8 @@ router.post('/', async (req: any, res, next) => {
 
     for (const p of settledPayments) {
       const mLower = (p.method || '').toLowerCase();
-      const isCnRedemption = Boolean(p.credit_note_id || p.credit_note_number || mLower.startsWith('credit note'));
-      const isWalletUse = !isCnRedemption && (p.method === 'Store Credit' || p.method === 'Wallet');
+      const isCnRedemption = isCreditNoteMethod(p);
+      const isWalletUse = isWalletMethod(p);
 
       if (isCnRedemption) {
         const cnLookupNumber = p.credit_note_number || (p.method.match(/CN-[A-Z0-9-]+/i)?.[0] ?? '');
@@ -910,9 +989,10 @@ router.post('/', async (req: any, res, next) => {
           [finalCustomerId, invoiceId, type, p.method, p.amount]
         );
         if (type === 'wallet_use' && finalCustomerId) {
+          // Balance was verified (and row-locked) above, so no silent clamping to zero
           await conn.execute(
-            'UPDATE customers SET wallet_balance = GREATEST(0, COALESCE(wallet_balance, 0) - ?) WHERE id = ?',
-            [p.amount, finalCustomerId]
+            'UPDATE customers SET wallet_balance = COALESCE(wallet_balance, 0) - ? WHERE id = ? AND business_id = ?',
+            [p.amount, finalCustomerId, req.user.business_id]
           );
           // FIFO-synchronize open credit_notes for this customer so wallet & CN balances match
           try {
@@ -1055,13 +1135,18 @@ router.post('/:id/refund', async (req: any, res, next) => {
     `, [req.params.id]);
 
     const currentItems = itemRows as any[];
-    if (currentItems.length === 0) throw new Error('No items found on this invoice');
+    const isDepositInvoice = invoice.type === 'deposit';
+    if (currentItems.length === 0 && !isDepositInvoice) throw businessError('No items found on this invoice');
 
     let totalRefundAmount = 0;
     const refundSummaries: string[] = [];
     const itemsToProcess: Array<{ id: number; sku_id: number; device_id: number | null; imei?: string; sku_code?: string; qty: number; unitPrice: number; cost: number; name: string }> = [];
 
-    if (Array.isArray(items) && items.length > 0 && !is_full_refund) {
+    if (isDepositInvoice && currentItems.length === 0) {
+      // Direct wallet deposit invoice (created via POST /api/customers/:id/payments without line items)
+      totalRefundAmount = round2(Number(invoice.grand_total) || 0);
+      refundSummaries.push(`Wallet Deposit (€${totalRefundAmount.toFixed(2)})`);
+    } else if (Array.isArray(items) && items.length > 0 && !is_full_refund) {
       // Partial item refund based on selection
       for (const reqItem of items) {
         const item = currentItems.find(ci => ci.id === reqItem.item_id);
@@ -1115,18 +1200,68 @@ router.post('/:id/refund', async (req: any, res, next) => {
       }
     }
 
-    if (itemsToProcess.length === 0 || totalRefundAmount <= 0) {
-      throw new Error('No returnable items selected for refund');
+    if ((!isDepositInvoice && itemsToProcess.length === 0) || totalRefundAmount <= 0) {
+      throw businessError('No returnable items selected for refund');
     }
 
-    // Process item updates & restocking
+    const methodLower = String(method || '').toLowerCase();
+    const isCreditNote = ['customer wallet', 'credit note', 'store credit', 'wallet'].some(k => methodLower.includes(k));
+    const targetCustomerId = customer_id ? Number(customer_id) : (invoice.customer_id || null);
+
+    // ─── Deposit refund accounting rules ───────────────────────────────────
+    const depositRefundAmount = round2(
+      isDepositInvoice
+        ? totalRefundAmount
+        : itemsToProcess
+            .filter(it => isDepositSkuCode(it.sku_code))
+            .reduce((sum, it) => sum + it.unitPrice * it.qty, 0)
+    );
+
+    if (depositRefundAmount > 0) {
+      if (isCreditNote) {
+        throw businessError('Cannot refund a wallet deposit to Credit Note or Customer Wallet. Refund via Cash, Card, or another physical method.');
+      }
+      const depositOwnerId = invoice.customer_id || targetCustomerId;
+      if (!depositOwnerId) {
+        throw businessError('Cannot refund wallet deposit: no customer linked to this deposit.');
+      }
+      const [dcRows] = await conn.execute(
+        'SELECT name, wallet_balance FROM customers WHERE id = ? AND business_id = ? FOR UPDATE',
+        [depositOwnerId, req.user.business_id]
+      );
+      const depCust = (dcRows as any[])[0];
+      if (!depCust) {
+        throw businessError('Customer for this deposit was not found.');
+      }
+      const availableWallet = round2(Number(depCust.wallet_balance) || 0);
+      if (availableWallet < depositRefundAmount - 0.009) {
+        throw businessError(
+          `Cannot refund €${depositRefundAmount.toFixed(2)} deposit: customer has already spent part of it (Current wallet balance: €${availableWallet.toFixed(2)}).`
+        );
+      }
+      await conn.execute(
+        'UPDATE customers SET wallet_balance = COALESCE(wallet_balance, 0) - ? WHERE id = ? AND business_id = ?',
+        [depositRefundAmount, depositOwnerId, req.user.business_id]
+      );
+      await conn.execute(
+        'INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [
+          depositOwnerId,
+          req.userId,
+          'Deposit Refunded',
+          `Wallet deposit refund of €${depositRefundAmount.toFixed(2)} via ${method} (Invoice ${invoice.invoice_number}).${notes ? ` Note: ${notes}` : ''}`
+        ]
+      );
+    }
+
+    // Process item updates & restocking (skip stock restocking for virtual deposit SKUs)
     for (const pItem of itemsToProcess) {
       await conn.execute(
         'UPDATE invoice_items SET refunded_quantity = COALESCE(refunded_quantity, 0) + ? WHERE id = ?',
         [pItem.qty, pItem.id]
       );
 
-      if (restock) {
+      if (restock && !isDepositSkuCode(pItem.sku_code)) {
         await conn.execute(`
           INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, ?)
           ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
@@ -1137,10 +1272,6 @@ router.post('/:id/refund', async (req: any, res, next) => {
         }
       }
     }
-
-    const methodLower = String(method || '').toLowerCase();
-    const isCreditNote = ['customer wallet', 'credit note', 'store credit', 'wallet'].some(k => methodLower.includes(k));
-    const targetCustomerId = customer_id ? Number(customer_id) : (invoice.customer_id || null);
 
     let createdCreditNote: any = null;
     let creditNoteInvoice: any = null;
@@ -1337,7 +1468,7 @@ router.post('/:id/refund', async (req: any, res, next) => {
     const totalQty = Number((updatedItems as any[])[0]?.total_qty || 0);
     const totalRefunded = Number((updatedItems as any[])[0]?.total_refunded || 0);
 
-    const isFullyRefunded = totalRefunded >= totalQty;
+    const isFullyRefunded = (isDepositInvoice && currentItems.length === 0) ? true : (totalRefunded >= totalQty);
     const newStatus = isFullyRefunded ? 'void' : 'partially_refunded';
     await conn.execute('UPDATE invoices SET status=? WHERE id=?', [newStatus, req.params.id]);
 

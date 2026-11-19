@@ -48,8 +48,7 @@ const customerSchema = z.object({
   zip_code: z.string().nullable().optional(),
   country: z.string().nullable().optional(),
   website: z.string().nullable().optional(),
-  alert_message: z.string().nullable().optional(),
-  wallet_balance: z.number().or(z.string().transform(Number)).nullable().optional()
+  alert_message: z.string().nullable().optional()
 });
 
 router.post('/', async (req: any, res, next) => {
@@ -94,7 +93,7 @@ router.put('/:id', async (req: any, res, next) => {
   let data: z.infer<typeof customerSchema>;
   try { data = customerSchema.parse(req.body); } catch (e) { return next(e); }
   const { phone, email, address, first_name, last_name, secondary_phone, fax, offers_email,
-    company, customer_type, address_line1, address_line2, city, state, zip_code, country, website, alert_message, wallet_balance } = data as any;
+    company, customer_type, address_line1, address_line2, city, state, zip_code, country, website, alert_message } = data as any;
   // Helper to strip literal "null" strings
   const stripNull = (v: any) => (v === null || v === undefined || v === 'null') ? '' : String(v).replace(/\bnull\b/gi, '').trim();
   // Always rebuild name from first_name + last_name to keep it clean
@@ -104,7 +103,7 @@ router.put('/:id', async (req: any, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const isSuper = req.user.role === 'superadmin';
+    const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
     const checkSql = isSuper 
       ? 'SELECT * FROM customers WHERE id=? AND business_id=?'
       : 'SELECT * FROM customers WHERE id=? AND business_id=? AND branch_id=?';
@@ -112,19 +111,20 @@ router.put('/:id', async (req: any, res, next) => {
     
     const [oldRows] = await conn.execute(checkSql, checkParams);
     const old = (oldRows as any[])[0];
-    if (!old) throw new Error('Customer not found or access denied');
+    if (!old) throw Object.assign(new Error('Customer not found or access denied'), { status: 404 });
 
+    // Wallet balance is NEVER modified via profile edit; it may only change via
+    // verified deposits, wallet spend, refunds, or admin wallet-adjustment.
     await conn.execute(`
       UPDATE customers SET name=?,phone=?,email=?,address=?,first_name=?,last_name=?,secondary_phone=?,fax=?,offers_email=?,
-        company=?,customer_type=?,address_line1=?,address_line2=?,city=?,state=?,zip_code=?,country=?,website=?,alert_message=?,wallet_balance=?
-      WHERE id=?`,
+        company=?,customer_type=?,address_line1=?,address_line2=?,city=?,state=?,zip_code=?,country=?,website=?,alert_message=?
+      WHERE id=? AND business_id=?`,
       [name, phone, email, address, first_name, last_name, secondary_phone, fax, offers_email ? 1 : 0,
-       company, customer_type, address_line1, address_line2, city, state, zip_code, country, website, alert_message, wallet_balance || 0, req.params.id]);
+       company, customer_type, address_line1, address_line2, city, state, zip_code, country, website, alert_message, req.params.id, req.user.business_id]);
     
     const changes: string[] = [];
     if (old.name !== name) changes.push(`Name: ${old.name} -> ${name}`);
     if (old.phone !== phone) changes.push(`Phone: ${old.phone} -> ${phone}`);
-    if (old.wallet_balance !== wallet_balance) changes.push(`Wallet: ${old.wallet_balance} -> ${wallet_balance}`);
     
     if (changes.length) {
       await conn.execute('INSERT INTO customer_activity (customer_id,user_id,activity,details) VALUES (?,?,?,?)',
@@ -211,27 +211,42 @@ router.get('/:id/activity', async (req: any, res, next) => {
 });
 
 const depositSchema = z.object({
-  amount: z.number().or(z.string().transform(Number)),
-  method: z.string().optional(),
-  note: z.string().optional()
+  amount: z.coerce.number().finite().positive('Deposit amount must be greater than zero').max(100000, 'Deposit amount exceeds limit'),
+  method: z.string().trim().min(1).max(50).optional(),
+  note: z.string().max(500).optional()
+});
+
+const walletAdjustmentSchema = z.object({
+  amount: z.coerce.number().finite().refine(v => Math.abs(v) >= 0.01, 'Adjustment amount must be non-zero'),
+  reason: z.string().trim().min(3, 'A reason is required for wallet adjustments').max(500)
 });
 
 router.post('/:id/payments', async (req: any, res, next) => {
   let data: z.infer<typeof depositSchema>;
   try { data = depositSchema.parse(req.body); } catch (e) { return next(e); }
   const { amount, method, note } = data;
-  const numAmount = Number(amount);
+  const numAmount = Math.round(Number(amount) * 100) / 100;
+  const effectiveMethod = (method || 'Cash').trim();
+  const methodLower = effectiveMethod.toLowerCase();
+  if (methodLower.includes('wallet') || methodLower.includes('store credit') || methodLower.includes('credit note')) {
+    return res.status(400).json({ error: 'Wallet deposits must be paid by Cash, Card, or another real payment method.' });
+  }
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    // Validate ownership
-    const isSuper = req.user.role === 'superadmin';
+    // Validate ownership and reject Walk-in Customer
+    const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
     const checkSql = isSuper 
-      ? 'SELECT id FROM customers WHERE id=? AND business_id=?'
-      : 'SELECT id FROM customers WHERE id=? AND business_id=? AND branch_id=?';
+      ? 'SELECT id, name FROM customers WHERE id=? AND business_id=? AND deleted_at IS NULL FOR UPDATE'
+      : 'SELECT id, name FROM customers WHERE id=? AND business_id=? AND branch_id=? AND deleted_at IS NULL FOR UPDATE';
     const checkParams = isSuper ? [req.params.id, req.user.business_id] : [req.params.id, req.user.business_id, req.user.branch_id];
     const [cRows] = await conn.execute(checkSql, checkParams);
-    if ((cRows as any[]).length === 0) throw new Error('Customer not found or access denied');
+    const cust = (cRows as any[])[0];
+    if (!cust) throw Object.assign(new Error('Customer not found or access denied'), { status: 404 });
+    if (cust.name === 'Walk-in Customer') {
+      throw Object.assign(new Error('Walk-in Customer cannot hold a wallet balance. Please select a named customer.'), { status: 400 });
+    }
 
     // Generate branch-YYMM-#### invoice for wallet deposit
     const branchPrefix = await getBranchPrefix(req.user.branch_id);
@@ -242,7 +257,7 @@ router.post('/:id/payments', async (req: any, res, next) => {
     const invoicePrefix = `${branchPrefix}-${yymm}`;
 
     const [lastDE] = await conn.execute(
-      'SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? AND business_id=? ORDER BY id DESC LIMIT 1',
+      'SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? AND business_id=? ORDER BY id DESC LIMIT 1 FOR UPDATE',
       [`${invoicePrefix}-%`, req.user.business_id]
     );
     let nextDENum = 1;
@@ -262,15 +277,73 @@ router.post('/:id/payments', async (req: any, res, next) => {
     const invoiceId = (invR as any).insertId;
 
     await conn.execute("INSERT INTO payments (customer_id, invoice_id, type, method, amount) VALUES (?,?,?,?,?)",
-      [req.params.id, invoiceId, 'deposit', method || 'Cash', numAmount]);
+      [req.params.id, invoiceId, 'deposit', effectiveMethod, numAmount]);
     
-    await conn.execute("UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)+? WHERE id=?", [numAmount, req.params.id]);
+    await conn.execute("UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)+? WHERE id=? AND business_id=?", [numAmount, req.params.id, req.user.business_id]);
     
     await conn.execute("INSERT INTO customer_activity (customer_id,user_id,activity,details) VALUES (?,?,?,?)",
-      [req.params.id, req.userId, 'Deposit Received', `Wallet deposit of €${numAmount.toFixed(2)} received via ${method}. Invoice: ${invoiceNumber}. ${note || ''}`]);
+      [req.params.id, req.userId, 'Deposit Received', `Wallet deposit of €${numAmount.toFixed(2)} received via ${effectiveMethod}. Invoice: ${invoiceNumber}.${note ? ` ${note}` : ''}`]);
     
     await conn.commit();
     res.json({ success: true, invoice_number: invoiceNumber });
+  } catch (e: any) { await conn.rollback(); next(e); }
+  finally { conn.release(); }
+});
+
+// Admin-only audited wallet balance correction (no physical cash/card till movement)
+router.post('/:id/wallet-adjustment', async (req: any, res, next) => {
+  const allowedRoles = ['admin', 'superadmin', 'developer'];
+  if (!allowedRoles.includes(String(req.user?.role || '').toLowerCase())) {
+    return res.status(403).json({ error: 'Only admins can perform manual wallet adjustments.' });
+  }
+  let data: z.infer<typeof walletAdjustmentSchema>;
+  try { data = walletAdjustmentSchema.parse(req.body); } catch (e) { return next(e); }
+  const delta = Math.round(Number(data.amount) * 100) / 100;
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
+    const checkSql = isSuper
+      ? 'SELECT id, name, wallet_balance FROM customers WHERE id=? AND business_id=? AND deleted_at IS NULL FOR UPDATE'
+      : 'SELECT id, name, wallet_balance FROM customers WHERE id=? AND business_id=? AND branch_id=? AND deleted_at IS NULL FOR UPDATE';
+    const checkParams = isSuper ? [req.params.id, req.user.business_id] : [req.params.id, req.user.business_id, req.user.branch_id];
+    const [rows] = await conn.execute(checkSql, checkParams);
+    const cust = (rows as any[])[0];
+    if (!cust) throw Object.assign(new Error('Customer not found or access denied'), { status: 404 });
+    if (cust.name === 'Walk-in Customer') {
+      throw Object.assign(new Error('Cannot adjust wallet balance for Walk-in Customer.'), { status: 400 });
+    }
+
+    const oldBalance = Math.round((Number(cust.wallet_balance) || 0) * 100) / 100;
+    const newBalance = Math.round((oldBalance + delta) * 100) / 100;
+    if (newBalance < 0) {
+      throw Object.assign(
+        new Error(`Adjustment would result in a negative wallet balance (Current: €${oldBalance.toFixed(2)}, Adjustment: €${delta.toFixed(2)}).`),
+        { status: 400 }
+      );
+    }
+
+    await conn.execute(
+      'UPDATE customers SET wallet_balance = ? WHERE id = ? AND business_id = ?',
+      [newBalance, req.params.id, req.user.business_id]
+    );
+
+    const sign = delta >= 0 ? '+' : '-';
+    const details = `Wallet adjusted ${sign}€${Math.abs(delta).toFixed(2)} (€${oldBalance.toFixed(2)} -> €${newBalance.toFixed(2)}). Reason: ${data.reason}`;
+    await conn.execute(
+      'INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+      [req.params.id, req.userId, 'Wallet Adjustment', details]
+    );
+    try {
+      await conn.execute(
+        'INSERT INTO activity_logs (business_id, branch_id, user_id, user_name, activity_type, description, reference_type, reference_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [req.user.business_id, req.user.branch_id || null, req.userId, req.user?.name || null, 'Wallet Adjustment', details, 'customer', Number(req.params.id)]
+      );
+    } catch {}
+
+    await conn.commit();
+    res.json({ success: true, old_balance: oldBalance, new_balance: newBalance, delta });
   } catch (e: any) { await conn.rollback(); next(e); }
   finally { conn.release(); }
 });
