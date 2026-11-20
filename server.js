@@ -824,6 +824,7 @@ async function initSchema() {
         eod_show_total_cash TINYINT(1) DEFAULT 1,
         eod_show_total_card_sale TINYINT(1) DEFAULT 1,
         eod_show_total TINYINT(1) DEFAULT 1,
+        eod_show_cash_drawer TINYINT(1) DEFAULT 1,
         eod_footer_type VARCHAR(50) DEFAULT 'branch',
         eod_footer_custom_text TEXT,
         footer_text TEXT,
@@ -866,6 +867,11 @@ async function initSchema() {
     }
     try {
       await conn.query("ALTER TABLE thermal_printer_settings ADD COLUMN eod_show_total TINYINT(1) DEFAULT 1 AFTER eod_show_total_card_sale");
+    } catch (e) {
+      if (!e.message?.includes("Duplicate column")) throw e;
+    }
+    try {
+      await conn.query("ALTER TABLE thermal_printer_settings ADD COLUMN eod_show_cash_drawer TINYINT(1) DEFAULT 1 AFTER eod_show_total");
     } catch (e) {
       if (!e.message?.includes("Duplicate column")) throw e;
     }
@@ -4431,7 +4437,7 @@ __export(customers_exports, {
 });
 import { Router as Router4 } from "express";
 import { z as z5 } from "zod";
-var router4, customerSchema, depositSchema, customers_default;
+var router4, customerSchema, depositSchema, walletAdjustmentSchema, customers_default;
 var init_customers = __esm({
   "src/routes/customers.ts"() {
     init_mysql();
@@ -4477,8 +4483,7 @@ var init_customers = __esm({
       zip_code: z5.string().nullable().optional(),
       country: z5.string().nullable().optional(),
       website: z5.string().nullable().optional(),
-      alert_message: z5.string().nullable().optional(),
-      wallet_balance: z5.number().or(z5.string().transform(Number)).nullable().optional()
+      alert_message: z5.string().nullable().optional()
     });
     router4.post("/", async (req, res, next) => {
       try {
@@ -4554,8 +4559,7 @@ var init_customers = __esm({
         zip_code,
         country,
         website,
-        alert_message,
-        wallet_balance
+        alert_message
       } = data;
       const stripNull = (v) => v === null || v === void 0 || v === "null" ? "" : String(v).replace(/\bnull\b/gi, "").trim();
       const derivedFirst = stripNull(first_name);
@@ -4564,17 +4568,17 @@ var init_customers = __esm({
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
-        const isSuper = req.user.role === "superadmin";
+        const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
         const checkSql = isSuper ? "SELECT * FROM customers WHERE id=? AND business_id=?" : "SELECT * FROM customers WHERE id=? AND business_id=? AND branch_id=?";
         const checkParams = isSuper ? [req.params.id, req.user.business_id] : [req.params.id, req.user.business_id, req.user.branch_id];
         const [oldRows] = await conn.execute(checkSql, checkParams);
         const old = oldRows[0];
-        if (!old) throw new Error("Customer not found or access denied");
+        if (!old) throw Object.assign(new Error("Customer not found or access denied"), { status: 404 });
         await conn.execute(
           `
       UPDATE customers SET name=?,phone=?,email=?,address=?,first_name=?,last_name=?,secondary_phone=?,fax=?,offers_email=?,
-        company=?,customer_type=?,address_line1=?,address_line2=?,city=?,state=?,zip_code=?,country=?,website=?,alert_message=?,wallet_balance=?
-      WHERE id=?`,
+        company=?,customer_type=?,address_line1=?,address_line2=?,city=?,state=?,zip_code=?,country=?,website=?,alert_message=?
+      WHERE id=? AND business_id=?`,
           [
             name,
             phone,
@@ -4595,14 +4599,13 @@ var init_customers = __esm({
             country,
             website,
             alert_message,
-            wallet_balance || 0,
-            req.params.id
+            req.params.id,
+            req.user.business_id
           ]
         );
         const changes = [];
         if (old.name !== name) changes.push(`Name: ${old.name} -> ${name}`);
         if (old.phone !== phone) changes.push(`Phone: ${old.phone} -> ${phone}`);
-        if (old.wallet_balance !== wallet_balance) changes.push(`Wallet: ${old.wallet_balance} -> ${wallet_balance}`);
         if (changes.length) {
           await conn.execute(
             "INSERT INTO customer_activity (customer_id,user_id,activity,details) VALUES (?,?,?,?)",
@@ -4697,9 +4700,13 @@ var init_customers = __esm({
       }
     });
     depositSchema = z5.object({
-      amount: z5.number().or(z5.string().transform(Number)),
-      method: z5.string().optional(),
-      note: z5.string().optional()
+      amount: z5.coerce.number().finite().positive("Deposit amount must be greater than zero").max(1e5, "Deposit amount exceeds limit"),
+      method: z5.string().trim().min(1).max(50).optional(),
+      note: z5.string().max(500).optional()
+    });
+    walletAdjustmentSchema = z5.object({
+      amount: z5.coerce.number().finite().refine((v) => Math.abs(v) >= 0.01, "Adjustment amount must be non-zero"),
+      reason: z5.string().trim().min(3, "A reason is required for wallet adjustments").max(500)
     });
     router4.post("/:id/payments", async (req, res, next) => {
       let data;
@@ -4709,15 +4716,24 @@ var init_customers = __esm({
         return next(e);
       }
       const { amount, method, note } = data;
-      const numAmount = Number(amount);
+      const numAmount = Math.round(Number(amount) * 100) / 100;
+      const effectiveMethod = (method || "Cash").trim();
+      const methodLower = effectiveMethod.toLowerCase();
+      if (methodLower.includes("wallet") || methodLower.includes("store credit") || methodLower.includes("credit note")) {
+        return res.status(400).json({ error: "Wallet deposits must be paid by Cash, Card, or another real payment method." });
+      }
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
-        const isSuper = req.user.role === "superadmin";
-        const checkSql = isSuper ? "SELECT id FROM customers WHERE id=? AND business_id=?" : "SELECT id FROM customers WHERE id=? AND business_id=? AND branch_id=?";
+        const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
+        const checkSql = isSuper ? "SELECT id, name FROM customers WHERE id=? AND business_id=? AND deleted_at IS NULL FOR UPDATE" : "SELECT id, name FROM customers WHERE id=? AND business_id=? AND branch_id=? AND deleted_at IS NULL FOR UPDATE";
         const checkParams = isSuper ? [req.params.id, req.user.business_id] : [req.params.id, req.user.business_id, req.user.branch_id];
         const [cRows] = await conn.execute(checkSql, checkParams);
-        if (cRows.length === 0) throw new Error("Customer not found or access denied");
+        const cust = cRows[0];
+        if (!cust) throw Object.assign(new Error("Customer not found or access denied"), { status: 404 });
+        if (cust.name === "Walk-in Customer") {
+          throw Object.assign(new Error("Walk-in Customer cannot hold a wallet balance. Please select a named customer."), { status: 400 });
+        }
         const branchPrefix = await getBranchPrefix(req.user.branch_id);
         const now = /* @__PURE__ */ new Date();
         const yy = String(now.getFullYear()).slice(-2);
@@ -4725,7 +4741,7 @@ var init_customers = __esm({
         const yymm = `${yy}${mm}`;
         const invoicePrefix = `${branchPrefix}-${yymm}`;
         const [lastDE] = await conn.execute(
-          "SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? AND business_id=? ORDER BY id DESC LIMIT 1",
+          "SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? AND business_id=? ORDER BY id DESC LIMIT 1 FOR UPDATE",
           [`${invoicePrefix}-%`, req.user.business_id]
         );
         let nextDENum = 1;
@@ -4744,15 +4760,73 @@ var init_customers = __esm({
         const invoiceId = invR.insertId;
         await conn.execute(
           "INSERT INTO payments (customer_id, invoice_id, type, method, amount) VALUES (?,?,?,?,?)",
-          [req.params.id, invoiceId, "deposit", method || "Cash", numAmount]
+          [req.params.id, invoiceId, "deposit", effectiveMethod, numAmount]
         );
-        await conn.execute("UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)+? WHERE id=?", [numAmount, req.params.id]);
+        await conn.execute("UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)+? WHERE id=? AND business_id=?", [numAmount, req.params.id, req.user.business_id]);
         await conn.execute(
           "INSERT INTO customer_activity (customer_id,user_id,activity,details) VALUES (?,?,?,?)",
-          [req.params.id, req.userId, "Deposit Received", `Wallet deposit of \u20AC${numAmount.toFixed(2)} received via ${method}. Invoice: ${invoiceNumber}. ${note || ""}`]
+          [req.params.id, req.userId, "Deposit Received", `Wallet deposit of \u20AC${numAmount.toFixed(2)} received via ${effectiveMethod}. Invoice: ${invoiceNumber}.${note ? ` ${note}` : ""}`]
         );
         await conn.commit();
         res.json({ success: true, invoice_number: invoiceNumber });
+      } catch (e) {
+        await conn.rollback();
+        next(e);
+      } finally {
+        conn.release();
+      }
+    });
+    router4.post("/:id/wallet-adjustment", async (req, res, next) => {
+      const allowedRoles = ["admin", "superadmin", "developer"];
+      if (!allowedRoles.includes(String(req.user?.role || "").toLowerCase())) {
+        return res.status(403).json({ error: "Only admins can perform manual wallet adjustments." });
+      }
+      let data;
+      try {
+        data = walletAdjustmentSchema.parse(req.body);
+      } catch (e) {
+        return next(e);
+      }
+      const delta = Math.round(Number(data.amount) * 100) / 100;
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
+        const checkSql = isSuper ? "SELECT id, name, wallet_balance FROM customers WHERE id=? AND business_id=? AND deleted_at IS NULL FOR UPDATE" : "SELECT id, name, wallet_balance FROM customers WHERE id=? AND business_id=? AND branch_id=? AND deleted_at IS NULL FOR UPDATE";
+        const checkParams = isSuper ? [req.params.id, req.user.business_id] : [req.params.id, req.user.business_id, req.user.branch_id];
+        const [rows] = await conn.execute(checkSql, checkParams);
+        const cust = rows[0];
+        if (!cust) throw Object.assign(new Error("Customer not found or access denied"), { status: 404 });
+        if (cust.name === "Walk-in Customer") {
+          throw Object.assign(new Error("Cannot adjust wallet balance for Walk-in Customer."), { status: 400 });
+        }
+        const oldBalance = Math.round((Number(cust.wallet_balance) || 0) * 100) / 100;
+        const newBalance = Math.round((oldBalance + delta) * 100) / 100;
+        if (newBalance < 0) {
+          throw Object.assign(
+            new Error(`Adjustment would result in a negative wallet balance (Current: \u20AC${oldBalance.toFixed(2)}, Adjustment: \u20AC${delta.toFixed(2)}).`),
+            { status: 400 }
+          );
+        }
+        await conn.execute(
+          "UPDATE customers SET wallet_balance = ? WHERE id = ? AND business_id = ?",
+          [newBalance, req.params.id, req.user.business_id]
+        );
+        const sign = delta >= 0 ? "+" : "-";
+        const details = `Wallet adjusted ${sign}\u20AC${Math.abs(delta).toFixed(2)} (\u20AC${oldBalance.toFixed(2)} -> \u20AC${newBalance.toFixed(2)}). Reason: ${data.reason}`;
+        await conn.execute(
+          "INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+          [req.params.id, req.userId, "Wallet Adjustment", details]
+        );
+        try {
+          await conn.execute(
+            "INSERT INTO activity_logs (business_id, branch_id, user_id, user_name, activity_type, description, reference_type, reference_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [req.user.business_id, req.user.branch_id || null, req.userId, req.user?.name || null, "Wallet Adjustment", details, "customer", Number(req.params.id)]
+          );
+        } catch {
+        }
+        await conn.commit();
+        res.json({ success: true, old_balance: oldBalance, new_balance: newBalance, delta });
       } catch (e) {
         await conn.rollback();
         next(e);
@@ -4771,7 +4845,7 @@ __export(invoices_exports, {
 });
 import { Router as Router5 } from "express";
 import { z as z6 } from "zod";
-var router5, createInvoiceSchema, invoices_default;
+var router5, businessError, round2, isCreditNoteMethod, isWalletMethod, isDepositSkuCode, createInvoiceSchema, invoices_default;
 var init_invoices = __esm({
   "src/routes/invoices.ts"() {
     init_mysql();
@@ -4779,6 +4853,18 @@ var init_invoices = __esm({
     init_security();
     init_schemas();
     router5 = Router5();
+    businessError = (message, status = 400) => Object.assign(new Error(message), { status });
+    round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+    isCreditNoteMethod = (p) => {
+      const m = String(p?.method || "").toLowerCase();
+      return Boolean(p?.credit_note_id || p?.credit_note_number || m.startsWith("credit note"));
+    };
+    isWalletMethod = (p) => {
+      if (isCreditNoteMethod(p)) return false;
+      const m = String(p?.method || "").trim().toLowerCase();
+      return m === "wallet" || m === "customer wallet" || m === "store credit";
+    };
+    isDepositSkuCode = (skuCode) => String(skuCode || "").toUpperCase().startsWith("DEPOSIT-WALLET-");
     router5.get("/suggestions", async (req, res, next) => {
       try {
         const { q } = req.query;
@@ -5386,7 +5472,8 @@ var init_invoices = __esm({
       } catch (e) {
         return next(e);
       }
-      const { customer_id, items, subtotal, tax_total, tax_rate, tax_type, discount_total, grand_total, payments, activities } = data;
+      const { customer_id, items, payments, activities } = data;
+      let { subtotal, tax_total, tax_rate, tax_type, discount_total, grand_total } = data;
       if (!items || !items.length) return res.status(400).json({ error: "Cart is empty" });
       const conn = await pool.getConnection();
       try {
@@ -5395,11 +5482,18 @@ var init_invoices = __esm({
         let productInfoMap = /* @__PURE__ */ new Map();
         if (skuIds.length > 0) {
           const [allProductInfo] = await conn.query(`
-        SELECT s.id as sku_id, s.cost_price, p.product_type, p.allow_overselling
+        SELECT s.id as sku_id, s.sku_code, s.cost_price, p.product_type, p.allow_overselling, p.name as product_name, p.business_id
         FROM product_skus s JOIN products p ON s.product_id=p.id 
         WHERE s.id IN (?)
       `, [skuIds]);
           productInfoMap = new Map(allProductInfo.map((p) => [p.sku_id, p]));
+        }
+        const ownDepositSku = `DEPOSIT-WALLET-${req.user.business_id}`.toUpperCase();
+        for (const item of items) {
+          const info = productInfoMap.get(item.sku_id || item.id);
+          const isOwnDepositSku = Boolean(info && String(info.sku_code || "").toUpperCase() === ownDepositSku);
+          const isLegacyDepositProduct = Boolean(item.is_deposit && info && info.product_type === "service" && info.product_name === "Wallet Deposit" && Number(info.business_id) === Number(req.user.business_id));
+          item.is_deposit = isOwnDepositSku || isLegacyDepositProduct;
         }
         let finalCustomerId = customer_id;
         if (!finalCustomerId) {
@@ -5409,9 +5503,50 @@ var init_invoices = __esm({
           );
           finalCustomerId = wRows[0]?.id || null;
         }
+        const hasDepositItem = (items || []).some((item) => item.is_deposit);
         const isDeposit = (items || []).length > 0 && (items || []).every((item) => item.is_deposit);
         const isRepair = (items || []).some((item) => item.is_repair_payment);
         const invoiceType = isRepair ? "repair" : isDeposit ? "deposit" : "sale";
+        if (hasDepositItem) {
+          if (!isDeposit) {
+            throw businessError("Wallet deposits must be processed as a separate transaction. Please complete the sale first, then add the deposit on its own.");
+          }
+          const [dcRows] = await conn.execute("SELECT id, name FROM customers WHERE id = ? AND business_id = ? AND deleted_at IS NULL", [finalCustomerId || 0, req.user.business_id]);
+          const depCust = dcRows[0];
+          if (!depCust || depCust.name === "Walk-in Customer") {
+            throw businessError("Please select a named customer before taking a wallet deposit.");
+          }
+          if ((payments || []).some((p) => isWalletMethod(p) || isCreditNoteMethod(p))) {
+            throw businessError("Wallet deposits must be paid by Cash, Card or another real payment method (not Wallet or Credit Note).");
+          }
+          const depositTotal = round2(items.reduce((s, it) => s + (Number(it.total) || 0), 0));
+          if (depositTotal <= 0) throw businessError("Deposit amount must be greater than zero.");
+          subtotal = depositTotal;
+          tax_total = 0;
+          tax_rate = 0;
+          tax_type = "zero";
+          discount_total = 0;
+          grand_total = depositTotal;
+          const paidForDeposit = (payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+          if (paidForDeposit < depositTotal - 9e-3) {
+            throw businessError(`Wallet deposits must be paid in full (Deposit: \u20AC${depositTotal.toFixed(2)}, Paid: \u20AC${paidForDeposit.toFixed(2)}).`);
+          }
+        }
+        const walletSpendRequested = round2((payments || []).filter(isWalletMethod).reduce((s, p) => s + (Number(p.amount) || 0), 0));
+        if (walletSpendRequested > 0) {
+          const [wbRows] = await conn.execute(
+            "SELECT name, wallet_balance FROM customers WHERE id = ? AND business_id = ? FOR UPDATE",
+            [finalCustomerId || 0, req.user.business_id]
+          );
+          const wCust = wbRows[0];
+          if (!wCust || wCust.name === "Walk-in Customer") {
+            throw businessError("Please select a named customer to pay with Wallet.");
+          }
+          const available = round2(Number(wCust.wallet_balance) || 0);
+          if (walletSpendRequested > available + 9e-3) {
+            throw businessError(`Insufficient wallet balance. Available: \u20AC${available.toFixed(2)}, Requested: \u20AC${walletSpendRequested.toFixed(2)}.`);
+          }
+        }
         const branchPrefix = await getBranchPrefix(req.user.branch_id);
         const now = /* @__PURE__ */ new Date();
         const yy = String(now.getFullYear()).slice(-2);
@@ -5440,9 +5575,7 @@ var init_invoices = __esm({
             const [cRows] = await conn.execute("SELECT id, name FROM customers WHERE id = ? AND business_id = ?", [finalCustomerId, req.user.business_id]);
             const cust = cRows[0];
             if (!cust || cust.name === "Walk-in Customer") {
-              await conn.rollback();
-              conn.release();
-              return res.status(400).json({ error: "Walk-in customers cannot have an unpaid balance. Full payment is required." });
+              throw businessError("Walk-in customers cannot have an unpaid balance. Full payment is required.");
             }
           }
         }
@@ -5531,7 +5664,7 @@ var init_invoices = __esm({
         `, [req.user.branch_id, skuId]);
           }
           if (item.is_deposit && finalCustomerId) {
-            await conn.execute("UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)+? WHERE id=?", [item.total, finalCustomerId]);
+            await conn.execute("UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)+? WHERE id=? AND business_id=?", [round2(Number(item.total)), finalCustomerId, req.user.business_id]);
           }
         }
         let excessChange = Math.max(0, rawTotalPaid - grandTotalNum);
@@ -5547,8 +5680,8 @@ var init_invoices = __esm({
         }).filter((p) => p.amount > 0);
         for (const p of settledPayments) {
           const mLower = (p.method || "").toLowerCase();
-          const isCnRedemption = Boolean(p.credit_note_id || p.credit_note_number || mLower.startsWith("credit note"));
-          const isWalletUse = !isCnRedemption && (p.method === "Store Credit" || p.method === "Wallet");
+          const isCnRedemption = isCreditNoteMethod(p);
+          const isWalletUse = isWalletMethod(p);
           if (isCnRedemption) {
             const cnLookupNumber = p.credit_note_number || (p.method.match(/CN-[A-Z0-9-]+/i)?.[0] ?? "");
             const [cnRows] = await conn.execute(
@@ -5614,8 +5747,8 @@ var init_invoices = __esm({
             );
             if (type === "wallet_use" && finalCustomerId) {
               await conn.execute(
-                "UPDATE customers SET wallet_balance = GREATEST(0, COALESCE(wallet_balance, 0) - ?) WHERE id = ?",
-                [p.amount, finalCustomerId]
+                "UPDATE customers SET wallet_balance = COALESCE(wallet_balance, 0) - ? WHERE id = ? AND business_id = ?",
+                [p.amount, finalCustomerId, req.user.business_id]
               );
               try {
                 const [openCns] = await conn.execute(
@@ -5752,11 +5885,15 @@ var init_invoices = __esm({
       WHERE ii.invoice_id = ?
     `, [req.params.id]);
         const currentItems = itemRows;
-        if (currentItems.length === 0) throw new Error("No items found on this invoice");
+        const isDepositInvoice = invoice.type === "deposit";
+        if (currentItems.length === 0 && !isDepositInvoice) throw businessError("No items found on this invoice");
         let totalRefundAmount = 0;
         const refundSummaries = [];
         const itemsToProcess = [];
-        if (Array.isArray(items) && items.length > 0 && !is_full_refund) {
+        if (isDepositInvoice && currentItems.length === 0) {
+          totalRefundAmount = round2(Number(invoice.grand_total) || 0);
+          refundSummaries.push(`Wallet Deposit (\u20AC${totalRefundAmount.toFixed(2)})`);
+        } else if (Array.isArray(items) && items.length > 0 && !is_full_refund) {
           for (const reqItem of items) {
             const item = currentItems.find((ci) => ci.id === reqItem.item_id);
             if (!item) continue;
@@ -5800,15 +5937,57 @@ var init_invoices = __esm({
             refundSummaries.push(`${returnableQty}x ${item.product_name} (\u20AC${itemRefundTotal.toFixed(2)})`);
           }
         }
-        if (itemsToProcess.length === 0 || totalRefundAmount <= 0) {
-          throw new Error("No returnable items selected for refund");
+        if (!isDepositInvoice && itemsToProcess.length === 0 || totalRefundAmount <= 0) {
+          throw businessError("No returnable items selected for refund");
+        }
+        const methodLower = String(method || "").toLowerCase();
+        const isCreditNote = ["customer wallet", "credit note", "store credit", "wallet"].some((k) => methodLower.includes(k));
+        const targetCustomerId = customer_id ? Number(customer_id) : invoice.customer_id || null;
+        const depositRefundAmount = round2(
+          isDepositInvoice ? totalRefundAmount : itemsToProcess.filter((it) => isDepositSkuCode(it.sku_code)).reduce((sum, it) => sum + it.unitPrice * it.qty, 0)
+        );
+        if (depositRefundAmount > 0) {
+          if (isCreditNote) {
+            throw businessError("Cannot refund a wallet deposit to Credit Note or Customer Wallet. Refund via Cash, Card, or another physical method.");
+          }
+          const depositOwnerId = invoice.customer_id || targetCustomerId;
+          if (!depositOwnerId) {
+            throw businessError("Cannot refund wallet deposit: no customer linked to this deposit.");
+          }
+          const [dcRows] = await conn.execute(
+            "SELECT name, wallet_balance FROM customers WHERE id = ? AND business_id = ? FOR UPDATE",
+            [depositOwnerId, req.user.business_id]
+          );
+          const depCust = dcRows[0];
+          if (!depCust) {
+            throw businessError("Customer for this deposit was not found.");
+          }
+          const availableWallet = round2(Number(depCust.wallet_balance) || 0);
+          if (availableWallet < depositRefundAmount - 9e-3) {
+            throw businessError(
+              `Cannot refund \u20AC${depositRefundAmount.toFixed(2)} deposit: customer has already spent part of it (Current wallet balance: \u20AC${availableWallet.toFixed(2)}).`
+            );
+          }
+          await conn.execute(
+            "UPDATE customers SET wallet_balance = COALESCE(wallet_balance, 0) - ? WHERE id = ? AND business_id = ?",
+            [depositRefundAmount, depositOwnerId, req.user.business_id]
+          );
+          await conn.execute(
+            "INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [
+              depositOwnerId,
+              req.userId,
+              "Deposit Refunded",
+              `Wallet deposit refund of \u20AC${depositRefundAmount.toFixed(2)} via ${method} (Invoice ${invoice.invoice_number}).${notes ? ` Note: ${notes}` : ""}`
+            ]
+          );
         }
         for (const pItem of itemsToProcess) {
           await conn.execute(
             "UPDATE invoice_items SET refunded_quantity = COALESCE(refunded_quantity, 0) + ? WHERE id = ?",
             [pItem.qty, pItem.id]
           );
-          if (restock) {
+          if (restock && !isDepositSkuCode(pItem.sku_code)) {
             await conn.execute(`
           INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, ?)
           ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
@@ -5818,9 +5997,6 @@ var init_invoices = __esm({
             }
           }
         }
-        const methodLower = String(method || "").toLowerCase();
-        const isCreditNote = ["customer wallet", "credit note", "store credit", "wallet"].some((k) => methodLower.includes(k));
-        const targetCustomerId = customer_id ? Number(customer_id) : invoice.customer_id || null;
         let createdCreditNote = null;
         let creditNoteInvoice = null;
         if (isCreditNote) {
@@ -5994,7 +6170,7 @@ var init_invoices = __esm({
         );
         const totalQty = Number(updatedItems[0]?.total_qty || 0);
         const totalRefunded = Number(updatedItems[0]?.total_refunded || 0);
-        const isFullyRefunded = totalRefunded >= totalQty;
+        const isFullyRefunded = isDepositInvoice && currentItems.length === 0 ? true : totalRefunded >= totalQty;
         const newStatus = isFullyRefunded ? "void" : "partially_refunded";
         await conn.execute("UPDATE invoices SET status=? WHERE id=?", [newStatus, req.params.id]);
         const activityLabel = isCreditNote ? `Credit Note Issued (${createdCreditNote?.credit_note_number})` : isFullyRefunded ? "Refund Created" : "Partial Refund";
@@ -6144,7 +6320,7 @@ __export(reports_exports, {
 });
 import { Router as Router6 } from "express";
 import { z as z7 } from "zod";
-var router6, endOfDaySchema, reports_default;
+var router6, getLocalDateStr, parseReportDate, round22, classifyPaymentMethod, isDepositRow, resolveEodBranchId, endOfDaySchema, reports_default;
 var init_reports = __esm({
   "src/routes/reports.ts"() {
     init_mysql();
@@ -6478,13 +6654,47 @@ var init_reports = __esm({
         next(e);
       }
     });
+    getLocalDateStr = (d = /* @__PURE__ */ new Date()) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
+    parseReportDate = (raw) => {
+      const s = typeof raw === "string" ? raw.trim() : "";
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      return getLocalDateStr();
+    };
+    round22 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+    classifyPaymentMethod = (method, type) => {
+      const t = String(type || "").toLowerCase();
+      const m = String(method || "").toLowerCase();
+      if (t === "wallet_use" || t === "credit_note_redeemed" || m.includes("wallet") || m.includes("store credit") || m.includes("credit note")) {
+        return "Wallet";
+      }
+      if (m.includes("cash")) return "Cash";
+      if (m.includes("card") || m.includes("debit") || m.includes("credit")) return "Card";
+      return "Other";
+    };
+    isDepositRow = (p) => {
+      const t = String(p?.type || "").toLowerCase();
+      const invType = String(p?.invoice_type || "").toLowerCase();
+      return t === "deposit" || t === "wallet_deposit" || invType === "deposit" || invType === "wallet";
+    };
+    resolveEodBranchId = (req) => {
+      const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
+      if (isSuper) {
+        const requested = Number(req.query?.branch_id ?? req.body?.branch_id);
+        if (Number.isInteger(requested) && requested > 0) return requested;
+        return req.user.branch_id ? Number(req.user.branch_id) : null;
+      }
+      return req.user.branch_id ? Number(req.user.branch_id) : null;
+    };
     router6.get("/eod-data", async (req, res, next) => {
-      const date = req.query.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+      const date = parseReportDate(req.query.date);
       try {
-        const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
-        const branchId = req.user.branch_id;
+        const branchId = resolveEodBranchId(req);
         const startDateTime = `${date} 00:00:00`;
-        const endDateTime = `${date} 23:59:59`;
         const invoicePayments = await query(`
       SELECT p.*, u.name as user_name, i.invoice_number, i.type as invoice_type, i.status as invoice_status, c.name as customer_name,
         COALESCE(
@@ -6508,38 +6718,38 @@ var init_reports = __esm({
       LEFT JOIN invoices i ON p.invoice_id=i.id
       LEFT JOIN users u ON i.user_id=u.id
       LEFT JOIN customers c ON p.customer_id=c.id
-      WHERE p.paid_at >= ? AND p.paid_at <= ? AND i.business_id=? 
+      WHERE p.paid_at >= ? AND p.paid_at < DATE_ADD(?, INTERVAL 1 DAY) AND i.business_id=? 
         AND NOT (i.type = 'credit_note' AND p.type = 'credit_note_issued')
-      ${!isSuper && branchId ? "AND (i.branch_id=? OR i.branch_id IS NULL)" : ""}
+      ${branchId ? "AND (i.branch_id=? OR i.branch_id IS NULL)" : ""}
       ORDER BY p.id ASC
-    `, !isSuper && branchId ? [startDateTime, endDateTime, req.user.business_id, branchId] : [startDateTime, endDateTime, req.user.business_id]);
+    `, branchId ? [startDateTime, startDateTime, req.user.business_id, branchId] : [startDateTime, startDateTime, req.user.business_id]);
         const otherMovements = await query(`
       SELECT p.*, 'System' as user_name, c.name as customer_name,
         COALESCE(p.type, 'Customer Deposit') as products_summary
       FROM payments p
       JOIN customers c ON p.customer_id=c.id
-      WHERE p.paid_at >= ? AND p.paid_at <= ? AND p.invoice_id IS NULL AND c.business_id=?
-      ${!isSuper && branchId ? "AND (c.branch_id=? OR c.branch_id IS NULL)" : ""}
+      WHERE p.paid_at >= ? AND p.paid_at < DATE_ADD(?, INTERVAL 1 DAY) AND p.invoice_id IS NULL AND c.business_id=?
+      ${branchId ? "AND (c.branch_id=? OR c.branch_id IS NULL)" : ""}
       ORDER BY p.id ASC
-    `, !isSuper && branchId ? [startDateTime, endDateTime, req.user.business_id, branchId] : [startDateTime, endDateTime, req.user.business_id]);
+    `, branchId ? [startDateTime, startDateTime, req.user.business_id, branchId] : [startDateTime, startDateTime, req.user.business_id]);
         const summary = await query(`
       SELECT p.method, p.type, SUM(p.amount) as total 
       FROM payments p
       LEFT JOIN invoices i ON p.invoice_id=i.id
       LEFT JOIN customers c ON p.customer_id=c.id
-      WHERE p.paid_at >= ? AND p.paid_at <= ? 
+      WHERE p.paid_at >= ? AND p.paid_at < DATE_ADD(?, INTERVAL 1 DAY) 
         AND NOT (i.type = 'credit_note' AND p.type = 'credit_note_issued')
         AND ((p.invoice_id IS NOT NULL AND i.business_id=?) OR (p.invoice_id IS NULL AND c.business_id=?))
-      ${!isSuper && branchId ? "AND ((p.invoice_id IS NOT NULL AND (i.branch_id=? OR i.branch_id IS NULL)) OR (p.invoice_id IS NULL AND (c.branch_id=? OR c.branch_id IS NULL)))" : ""}
+      ${branchId ? "AND ((p.invoice_id IS NOT NULL AND (i.branch_id=? OR i.branch_id IS NULL)) OR (p.invoice_id IS NULL AND (c.branch_id=? OR c.branch_id IS NULL)))" : ""}
       GROUP BY p.method, p.type
       ORDER BY p.method ASC
-    `, !isSuper && branchId ? [startDateTime, endDateTime, req.user.business_id, req.user.business_id, branchId, branchId] : [startDateTime, endDateTime, req.user.business_id, req.user.business_id]);
+    `, branchId ? [startDateTime, startDateTime, req.user.business_id, req.user.business_id, branchId, branchId] : [startDateTime, startDateTime, req.user.business_id, req.user.business_id]);
         const existingReport = await queryOne(`
       SELECT id, starting_balance, comments, cash_counted, difference 
       FROM closing_reports 
-      WHERE report_date=? AND business_id=? ${!isSuper && branchId ? "AND (branch_id=? OR branch_id IS NULL)" : ""}
+      WHERE report_date=? AND business_id=? ${branchId ? "AND (branch_id=? OR branch_id IS NULL)" : ""}
       ORDER BY id DESC LIMIT 1
-    `, !isSuper && branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
+    `, branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
         let savedPayments = [];
         if (existingReport?.id) {
           savedPayments = await query(
@@ -6563,15 +6773,14 @@ var init_reports = __esm({
     });
     router6.get("/starting-cash", async (req, res, next) => {
       try {
-        const date = req.query.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-        const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
-        const branchId = req.user.branch_id;
+        const date = parseReportDate(req.query.date);
+        const branchId = resolveEodBranchId(req);
         const report = await queryOne(`
       SELECT id, starting_balance, created_at 
       FROM closing_reports 
-      WHERE report_date=? AND business_id=? ${!isSuper && branchId ? "AND (branch_id=? OR branch_id IS NULL)" : ""}
+      WHERE report_date=? AND business_id=? ${branchId ? "AND (branch_id=? OR branch_id IS NULL)" : ""}
       ORDER BY id DESC LIMIT 1
-    `, !isSuper && branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
+    `, branchId ? [date, req.user.business_id, branchId] : [date, req.user.business_id]);
         const hasStartingCash = report !== null && report.starting_balance !== null && report.starting_balance !== void 0;
         res.json({
           hasStartingCash: !!hasStartingCash,
@@ -6585,11 +6794,15 @@ var init_reports = __esm({
     router6.post("/starting-cash", async (req, res, next) => {
       try {
         const { starting_balance, report_date } = req.body;
-        const date = report_date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-        const amount = Number(starting_balance) || 0;
-        const branchId = req.user.branch_id || 1;
+        const date = parseReportDate(report_date);
+        const rawAmount = Number(starting_balance);
+        if (!Number.isFinite(rawAmount) || rawAmount < 0) {
+          return res.status(400).json({ error: "Starting cash must be a non-negative number." });
+        }
+        const amount = round22(rawAmount);
+        const branchId = resolveEodBranchId(req) || 1;
         const existing = await queryOne(`
-      SELECT id FROM closing_reports 
+      SELECT id, starting_balance FROM closing_reports 
       WHERE report_date=? AND business_id=? AND branch_id=?
       ORDER BY id DESC LIMIT 1
     `, [date, req.user.business_id, branchId]);
@@ -6613,20 +6826,21 @@ var init_reports = __esm({
       }
     });
     endOfDaySchema = z7.object({
-      report_date: z7.string().optional(),
-      starting_balance: z7.number().or(z7.string().transform(Number)).optional(),
-      cash_counted: z7.number().or(z7.string().transform(Number)).optional(),
-      calculated_cash: z7.number().or(z7.string().transform(Number)).optional(),
-      difference: z7.number().or(z7.string().transform(Number)).optional(),
-      total_sales: z7.number().or(z7.string().transform(Number)).optional(),
-      total_deposits: z7.number().or(z7.string().transform(Number)).optional(),
-      total_cash_in_drawer: z7.number().or(z7.string().transform(Number)).optional(),
-      comments: z7.string().optional(),
+      report_date: z7.string().regex(/^\d{4}-\d{2}-\d{2}$/, "report_date must be YYYY-MM-DD").optional(),
+      branch_id: z7.coerce.number().int().positive().optional(),
+      starting_balance: z7.coerce.number().finite().min(0).default(0),
+      cash_counted: z7.coerce.number().finite().min(0).default(0),
+      calculated_cash: z7.coerce.number().finite().optional(),
+      difference: z7.coerce.number().finite().optional(),
+      total_sales: z7.coerce.number().finite().optional(),
+      total_deposits: z7.coerce.number().finite().optional(),
+      total_cash_in_drawer: z7.coerce.number().finite().optional(),
+      comments: z7.string().max(2e3).default(""),
       payment_summaries: z7.array(z7.object({
         payment_type: z7.string().optional(),
-        calculated: z7.number().or(z7.string().transform(Number)).optional(),
-        counted: z7.number().or(z7.string().transform(Number)).optional(),
-        difference: z7.number().or(z7.string().transform(Number)).optional()
+        calculated: z7.coerce.number().finite().optional(),
+        counted: z7.coerce.number().finite().optional(),
+        difference: z7.coerce.number().finite().optional()
       })).default([])
     });
     router6.post("/eod", async (req, res, next) => {
@@ -6636,28 +6850,83 @@ var init_reports = __esm({
       } catch (e) {
         return next(e);
       }
-      const {
-        report_date,
-        starting_balance,
-        cash_counted,
-        calculated_cash,
-        difference,
-        total_sales,
-        total_deposits,
-        total_cash_in_drawer,
-        comments,
-        payment_summaries
-      } = data;
+      const reportDate = parseReportDate(data.report_date);
+      const startingBalance = round22(data.starting_balance);
+      const cashCounted = round22(data.cash_counted);
+      const comments = data.comments || "";
+      const targetBranchId = resolveEodBranchId(req) || 1;
+      const startDateTime = `${reportDate} 00:00:00`;
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
+        const [invPayRows] = await conn.execute(`
+      SELECT p.amount, p.method, p.type, i.type as invoice_type
+      FROM payments p
+      JOIN invoices i ON p.invoice_id = i.id
+      WHERE p.paid_at >= ? AND p.paid_at < DATE_ADD(?, INTERVAL 1 DAY)
+        AND i.business_id = ?
+        AND (i.branch_id = ? OR i.branch_id IS NULL)
+        AND NOT (i.type = 'credit_note' AND p.type = 'credit_note_issued')
+    `, [startDateTime, startDateTime, req.user.business_id, targetBranchId]);
+        const [otherPayRows] = await conn.execute(`
+      SELECT p.amount, p.method, p.type, NULL as invoice_type
+      FROM payments p
+      JOIN customers c ON p.customer_id = c.id
+      WHERE p.paid_at >= ? AND p.paid_at < DATE_ADD(?, INTERVAL 1 DAY)
+        AND p.invoice_id IS NULL
+        AND c.business_id = ?
+        AND (c.branch_id = ? OR c.branch_id IS NULL)
+    `, [startDateTime, startDateTime, req.user.business_id, targetBranchId]);
+        const allDayPayments = [...invPayRows, ...otherPayRows];
+        let serverTotalSales = 0;
+        let serverTotalDeposits = 0;
+        let serverTotalCash = 0;
+        let serverTotalCard = 0;
+        let serverTotalWallet = 0;
+        let serverTotalOther = 0;
+        for (const p of allDayPayments) {
+          const amt = Number(p.amount) || 0;
+          if (isDepositRow(p)) {
+            serverTotalDeposits += amt;
+          } else {
+            serverTotalSales += amt;
+          }
+          const bucket = classifyPaymentMethod(p.method, p.type);
+          if (bucket === "Cash") serverTotalCash += amt;
+          else if (bucket === "Card") serverTotalCard += amt;
+          else if (bucket === "Wallet") serverTotalWallet += amt;
+          else serverTotalOther += amt;
+        }
+        serverTotalSales = round22(serverTotalSales);
+        serverTotalDeposits = round22(serverTotalDeposits);
+        serverTotalCash = round22(serverTotalCash);
+        serverTotalCard = round22(serverTotalCard);
+        serverTotalWallet = round22(serverTotalWallet);
+        serverTotalOther = round22(serverTotalOther);
+        const countedCashNet = round22(cashCounted - startingBalance);
+        const serverCashDiff = round22(countedCashNet - serverTotalCash);
+        const cardSummaryIn = data.payment_summaries.find((s) => s.payment_type === "Card" || s.payment_type === "Debit Card");
+        const otherSummaryIn = data.payment_summaries.find((s) => s.payment_type === "Other");
+        const cardCounted = round22(Number(cardSummaryIn?.counted) || 0);
+        const otherCounted = round22(Number(otherSummaryIn?.counted) || 0);
+        const serverSummaries = [
+          { payment_type: "Cash", calculated: serverTotalCash, counted: countedCashNet, difference: serverCashDiff },
+          { payment_type: "Card", calculated: serverTotalCard, counted: cardCounted, difference: round22(cardCounted - serverTotalCard) }
+        ];
+        if (serverTotalWallet !== 0) {
+          serverSummaries.push({ payment_type: "Wallet", calculated: serverTotalWallet, counted: serverTotalWallet, difference: 0 });
+        }
+        if (serverTotalOther !== 0 || otherCounted !== 0) {
+          serverSummaries.push({ payment_type: "Other", calculated: serverTotalOther, counted: otherCounted, difference: round22(otherCounted - serverTotalOther) });
+        }
         const [existingRows] = await conn.execute(
-          "SELECT id FROM closing_reports WHERE business_id=? AND branch_id=? AND report_date=? ORDER BY id DESC LIMIT 1",
-          [req.user.business_id, req.user.branch_id || 1, report_date]
+          "SELECT id, starting_balance, cash_counted, difference FROM closing_reports WHERE business_id=? AND branch_id=? AND report_date=? ORDER BY id DESC LIMIT 1 FOR UPDATE",
+          [req.user.business_id, targetBranchId, reportDate]
         );
         let reportId;
-        if (existingRows.length > 0) {
-          reportId = existingRows[0].id;
+        const prevReport = existingRows[0] || null;
+        if (prevReport) {
+          reportId = prevReport.id;
           await conn.execute(`
         UPDATE closing_reports 
         SET user_id=?, starting_balance=?, cash_counted=?, calculated_cash=?, difference=?,
@@ -6665,13 +6934,13 @@ var init_reports = __esm({
         WHERE id=?
       `, [
             req.userId,
-            starting_balance,
-            cash_counted,
-            calculated_cash,
-            difference,
-            total_sales,
-            total_deposits,
-            total_cash_in_drawer,
+            startingBalance,
+            cashCounted,
+            serverTotalCash,
+            serverCashDiff,
+            serverTotalSales,
+            serverTotalDeposits,
+            cashCounted,
             comments,
             reportId
           ]);
@@ -6685,29 +6954,47 @@ var init_reports = __esm({
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
               req.user.business_id,
-              req.user.branch_id || 1,
+              targetBranchId,
               req.userId,
-              report_date,
-              starting_balance,
-              cash_counted,
-              calculated_cash,
-              difference,
-              total_sales,
-              total_deposits,
-              total_cash_in_drawer,
+              reportDate,
+              startingBalance,
+              cashCounted,
+              serverTotalCash,
+              serverCashDiff,
+              serverTotalSales,
+              serverTotalDeposits,
+              cashCounted,
               comments
             ]
           );
           reportId = r.insertId;
         }
-        for (const s of payment_summaries) {
+        for (const s of serverSummaries) {
           await conn.execute(
             "INSERT INTO closing_report_payments (report_id,payment_type,calculated,counted,difference) VALUES (?,?,?,?,?)",
             [reportId, s.payment_type, s.calculated, s.counted, s.difference]
           );
         }
+        try {
+          const actionLabel = prevReport ? "EOD Report Updated" : "EOD Report Saved";
+          const auditDetails = `Date: ${reportDate} | Net Sales: \u20AC${serverTotalSales.toFixed(2)} | Deposits: \u20AC${serverTotalDeposits.toFixed(2)} | Cash Counted: \u20AC${cashCounted.toFixed(2)} (Float: \u20AC${startingBalance.toFixed(2)}, Diff: \u20AC${serverCashDiff.toFixed(2)})`;
+          await conn.execute(
+            "INSERT INTO activity_logs (business_id, branch_id, user_id, user_name, activity_type, description, reference_type, reference_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [req.user.business_id, targetBranchId, req.userId, req.user?.name || null, actionLabel, auditDetails, "closing_report", reportId]
+          );
+        } catch {
+        }
         await conn.commit();
-        res.json({ success: true, id: reportId });
+        res.json({
+          success: true,
+          id: reportId,
+          calculated: {
+            total_sales: serverTotalSales,
+            total_deposits: serverTotalDeposits,
+            calculated_cash: serverTotalCash,
+            difference: serverCashDiff
+          }
+        });
       } catch (e) {
         await conn.rollback();
         next(e);
@@ -6717,16 +7004,17 @@ var init_reports = __esm({
     });
     router6.get("/eod-list", async (req, res, next) => {
       try {
-        const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
-        const branchId = req.user.branch_id;
+        const branchId = resolveEodBranchId(req);
+        const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
         const sql = `
       SELECT r.*, DATE_FORMAT(r.report_date, '%Y-%m-%d') as report_date, COALESCE(u.name, 'Staff') as user_name
       FROM closing_reports r
       LEFT JOIN users u ON r.user_id = u.id 
-      WHERE r.business_id = ? ${!isSuper && branchId ? "AND (r.branch_id = ? OR r.branch_id IS NULL)" : ""}
+      WHERE r.business_id = ? ${branchId ? "AND (r.branch_id = ? OR r.branch_id IS NULL)" : ""}
       ORDER BY r.report_date DESC, r.id DESC
+      LIMIT ?
     `;
-        const params = !isSuper && branchId ? [req.user.business_id, branchId] : [req.user.business_id];
+        const params = branchId ? [req.user.business_id, branchId, limit] : [req.user.business_id, limit];
         res.json(await query(sql, params));
       } catch (e) {
         next(e);
@@ -7384,6 +7672,7 @@ var init_settings = __esm({
       eod_show_total_cash: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
       eod_show_total_card_sale: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
       eod_show_total: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
+      eod_show_cash_drawer: z8.union([z8.boolean(), z8.number()]).nullable().optional(),
       eod_footer_type: z8.string().nullable().optional(),
       eod_footer_custom_text: z8.string().nullable().optional(),
       footer_text: z8.string().nullable().optional()
@@ -7414,6 +7703,7 @@ var init_settings = __esm({
           m.eod_show_total_cash ? 1 : 0,
           m.eod_show_total_card_sale ? 1 : 0,
           m.eod_show_total ? 1 : 0,
+          m.eod_show_cash_drawer !== false && m.eod_show_cash_drawer !== 0 ? 1 : 0,
           m.eod_footer_type || "branch",
           m.eod_footer_custom_text || "",
           m.footer_text || "Thank you for your business!"
@@ -7438,87 +7728,105 @@ var init_settings = __esm({
           m.eod_show_total_cash ? 1 : 0,
           m.eod_show_total_card_sale ? 1 : 0,
           m.eod_show_total ? 1 : 0,
+          m.eod_show_cash_drawer !== false && m.eod_show_cash_drawer !== 0 ? 1 : 0,
           m.eod_footer_type || "branch",
           m.eod_footer_custom_text || "",
           m.footer_text || "Thank you for your business!"
         ];
-        if (existing?.id) {
-          try {
-            await execute(
-              `UPDATE thermal_printer_settings SET
-            font_family=?, font_size=?, show_logo=?, show_business_name=?, show_business_address=?,
-            show_business_phone=?, show_business_email=?, show_customer_info=?, show_invoice_number=?, show_date=?,
-            show_items_table=?, show_totals=?, show_footer=?, show_powered_by=?, show_vat_number=?,
-            eod_show_cash_summary=?, eod_show_payment_type=?, eod_show_total_cash=?, eod_show_total_card_sale=?, eod_show_total=?,
-            eod_footer_type=?, eod_footer_custom_text=?, footer_text=?
-          WHERE id=? AND business_id=?`,
-              [...commonValuesWithVat, existing.id, req.user.business_id]
-            );
-          } catch {
-            await execute(
-              `UPDATE thermal_printer_settings SET
-            font_family=?, font_size=?, show_logo=?, show_business_name=?, show_business_address=?,
-            show_business_phone=?, show_business_email=?, show_customer_info=?, show_invoice_number=?, show_date=?,
-            show_items_table=?, show_totals=?, show_footer=?, show_powered_by=?,
-            eod_show_cash_summary=?, eod_show_payment_type=?, eod_show_total_cash=?, eod_show_total_card_sale=?, eod_show_total=?,
-            eod_footer_type=?, eod_footer_custom_text=?, footer_text=?
-          WHERE id=? AND business_id=?`,
-              [...commonValuesWithoutVat, existing.id, req.user.business_id]
-            );
+        const runSave = async () => {
+          if (existing?.id) {
+            try {
+              await execute(
+                `UPDATE thermal_printer_settings SET
+              font_family=?, font_size=?, show_logo=?, show_business_name=?, show_business_address=?,
+              show_business_phone=?, show_business_email=?, show_customer_info=?, show_invoice_number=?, show_date=?,
+              show_items_table=?, show_totals=?, show_footer=?, show_powered_by=?, show_vat_number=?,
+              eod_show_cash_summary=?, eod_show_payment_type=?, eod_show_total_cash=?, eod_show_total_card_sale=?, eod_show_total=?,
+              eod_show_cash_drawer=?, eod_footer_type=?, eod_footer_custom_text=?, footer_text=?
+            WHERE id=? AND business_id=?`,
+                [...commonValuesWithVat, existing.id, req.user.business_id]
+              );
+            } catch (err) {
+              if (err?.message?.includes("eod_show_cash_drawer")) throw err;
+              await execute(
+                `UPDATE thermal_printer_settings SET
+              font_family=?, font_size=?, show_logo=?, show_business_name=?, show_business_address=?,
+              show_business_phone=?, show_business_email=?, show_customer_info=?, show_invoice_number=?, show_date=?,
+              show_items_table=?, show_totals=?, show_footer=?, show_powered_by=?,
+              eod_show_cash_summary=?, eod_show_payment_type=?, eod_show_total_cash=?, eod_show_total_card_sale=?, eod_show_total=?,
+              eod_show_cash_drawer=?, eod_footer_type=?, eod_footer_custom_text=?, footer_text=?
+            WHERE id=? AND business_id=?`,
+                [...commonValuesWithoutVat, existing.id, req.user.business_id]
+              );
+            }
+          } else {
+            try {
+              await execute(
+                `
+            INSERT INTO thermal_printer_settings
+              (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
+               show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
+               show_items_table,show_totals,show_footer,show_powered_by,show_vat_number,
+               eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
+               eod_show_cash_drawer,eod_footer_type,eod_footer_custom_text,
+               footer_text)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON DUPLICATE KEY UPDATE
+              branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
+              show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
+              show_business_address=VALUES(show_business_address),show_business_phone=VALUES(show_business_phone),
+              show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
+              show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
+              show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
+              show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),show_vat_number=VALUES(show_vat_number),
+              eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
+              eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
+              eod_show_total=VALUES(eod_show_total),eod_show_cash_drawer=VALUES(eod_show_cash_drawer),
+              eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
+              footer_text=VALUES(footer_text)`,
+                [req.user.business_id, branchId, ...commonValuesWithVat]
+              );
+            } catch (err) {
+              if (err?.message?.includes("eod_show_cash_drawer")) throw err;
+              await execute(
+                `
+            INSERT INTO thermal_printer_settings
+              (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
+               show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
+               show_items_table,show_totals,show_footer,show_powered_by,
+               eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
+               eod_show_cash_drawer,eod_footer_type,eod_footer_custom_text,
+               footer_text)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON DUPLICATE KEY UPDATE
+              branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
+              show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
+              show_business_address=VALUES(show_business_address),show_business_phone=VALUES(show_business_phone),
+              show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
+              show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
+              show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
+              show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),
+              eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
+              eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
+              eod_show_total=VALUES(eod_show_total),eod_show_cash_drawer=VALUES(eod_show_cash_drawer),
+              eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
+              footer_text=VALUES(footer_text)`,
+                [req.user.business_id, branchId, ...commonValuesWithoutVat]
+              );
+            }
           }
-        } else {
-          try {
-            await execute(
-              `
-          INSERT INTO thermal_printer_settings
-            (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
-             show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
-             show_items_table,show_totals,show_footer,show_powered_by,show_vat_number,
-             eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
-             eod_footer_type,eod_footer_custom_text,
-             footer_text)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-          ON DUPLICATE KEY UPDATE
-            branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
-            show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
-            show_business_address=VALUES(show_business_address),show_business_phone=VALUES(show_business_phone),
-            show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
-            show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
-            show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
-            show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),show_vat_number=VALUES(show_vat_number),
-            eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
-            eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
-            eod_show_total=VALUES(eod_show_total),
-            eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
-            footer_text=VALUES(footer_text)`,
-              [req.user.business_id, branchId, ...commonValuesWithVat]
-            );
-          } catch {
-            await execute(
-              `
-          INSERT INTO thermal_printer_settings
-            (business_id,branch_id,font_family,font_size,show_logo,show_business_name,show_business_address,
-             show_business_phone,show_business_email,show_customer_info,show_invoice_number,show_date,
-             show_items_table,show_totals,show_footer,show_powered_by,
-             eod_show_cash_summary,eod_show_payment_type,eod_show_total_cash,eod_show_total_card_sale,eod_show_total,
-             eod_footer_type,eod_footer_custom_text,
-             footer_text)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-          ON DUPLICATE KEY UPDATE
-            branch_id=VALUES(branch_id),font_family=VALUES(font_family),font_size=VALUES(font_size),
-            show_logo=VALUES(show_logo),show_business_name=VALUES(show_business_name),
-            show_business_address=VALUES(show_business_address),show_business_phone=VALUES(show_business_phone),
-            show_business_email=VALUES(show_business_email),show_customer_info=VALUES(show_customer_info),
-            show_invoice_number=VALUES(show_invoice_number),show_date=VALUES(show_date),
-            show_items_table=VALUES(show_items_table),show_totals=VALUES(show_totals),
-            show_footer=VALUES(show_footer),show_powered_by=VALUES(show_powered_by),
-            eod_show_cash_summary=VALUES(eod_show_cash_summary),eod_show_payment_type=VALUES(eod_show_payment_type),
-            eod_show_total_cash=VALUES(eod_show_total_cash),eod_show_total_card_sale=VALUES(eod_show_total_card_sale),
-            eod_show_total=VALUES(eod_show_total),
-            eod_footer_type=VALUES(eod_footer_type),eod_footer_custom_text=VALUES(eod_footer_custom_text),
-            footer_text=VALUES(footer_text)`,
-              [req.user.business_id, branchId, ...commonValuesWithoutVat]
-            );
+        };
+        try {
+          await runSave();
+        } catch (err) {
+          if (err?.message?.includes("eod_show_cash_drawer")) {
+            try {
+              await execute("ALTER TABLE thermal_printer_settings ADD COLUMN eod_show_cash_drawer TINYINT(1) DEFAULT 1 AFTER eod_show_total");
+            } catch {
+            }
+            await runSave();
+          } else {
+            throw err;
           }
         }
         res.json({ success: true });
@@ -10153,7 +10461,9 @@ async function startServer() {
       err?.code && typeof err.code === "string" && (err.code.startsWith("ER_") || ["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "PROTOCOL_CONNECTION_LOST"].includes(err.code))
     );
     const safeMessage = isDbError ? "Database operation failed" : err?.message || "Internal Server Error";
-    res.status(500).json({
+    const explicitStatus = Number(err?.status);
+    const status = explicitStatus >= 400 && explicitStatus < 500 ? explicitStatus : 500;
+    res.status(status).json({
       error: safeMessage,
       ...env.NODE_ENV !== "production" ? { details: err?.message, code: err?.code } : {}
     });
