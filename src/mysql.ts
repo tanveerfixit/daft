@@ -227,7 +227,7 @@ export async function getBranchPrefix(branchId?: number | null, fallback = 'SKU'
 
 // ─── Schema Initialisation ───────────────────────────────────────────────────
 
-export const CURRENT_SCHEMA_VERSION = '2026_11_ACTIVITY_LOGS_V2';
+export const CURRENT_SCHEMA_VERSION = '2026_11_DEVICE_SOLD_STATUS_V3';
 
 async function ensureIndex(conn: any, tableName: string, indexName: string, columns: string) {
   try {
@@ -1433,6 +1433,27 @@ export async function initSchema() {
     await ensureIndex(conn, 'product_activity', 'idx_prod_activity_sku_created', 'sku_id, created_at');
     await ensureIndex(conn, 'device_activity', 'idx_dev_activity_dev_created', 'device_id, created_at');
     await ensureIndex(conn, 'customer_activity', 'idx_cust_activity_cust_created', 'customer_id, created_at');
+
+    // Backfill devices stuck in 'in_stock' despite having an active (non-refunded) sale invoice item (never removes any device/IMEI/stock)
+    try {
+      const [healedRes]: any = await conn.query(`
+        UPDATE devices d
+        SET d.status = 'sold'
+        WHERE d.status IN ('in_stock', 'available')
+          AND EXISTS (
+            SELECT 1
+            FROM invoice_items ii
+            JOIN invoices inv ON ii.invoice_id = inv.id
+            WHERE ii.device_id = d.id
+              AND inv.status != 'refunded'
+              AND COALESCE(inv.type, 'sale') != 'credit_note'
+              AND COALESCE(ii.refunded_quantity, 0) < ii.quantity
+          )
+      `);
+      if (healedRes?.affectedRows > 0) {
+        console.log(`[MySQL] Migration: marked ${healedRes.affectedRows} already-sold device(s) as 'sold'`);
+      }
+    } catch (e: any) {}
 
     // Update cached schema version
     await conn.query(

@@ -27,26 +27,41 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
+
     // Fetch SKU info to get product name
-    fetch(`/api/products/${skuId}`)
-      .then(res => res.json())
+    fetch(`/api/products/${skuId}`, { signal: controller.signal })
+      .then(res => (res.ok ? res.json() : null))
       .then(data => {
-        setProductName(data.product_name || data.name);
+        if (data) setProductName(data.product_name || data.name || '');
+      })
+      .catch(err => {
+        if (err?.name !== 'AbortError') console.error('Failed to fetch product name:', err);
       });
 
     // Fetch all devices for this SKU
-    fetch(`/api/products/${skuId}/devices`)
-      .then(res => res.json())
+    fetch(`/api/products/${skuId}/devices`, { signal: controller.signal })
+      .then(res => (res.ok ? res.json() : []))
       .then(data => {
-        setDevices(data);
+        setDevices(Array.isArray(data) ? data : []);
         setLoading(false);
+      })
+      .catch(err => {
+        if (err?.name !== 'AbortError') {
+          console.error('Failed to fetch SKU devices:', err);
+          setDevices([]);
+          setLoading(false);
+        }
       });
+
+    return () => controller.abort();
   }, [skuId]);
 
   const filteredDevices = Array.isArray(devices) ? devices.filter(d => {
     const matchesStatus = statusFilter === 'all' || d.status === statusFilter;
-    const matchesSearch = d.imei.toLowerCase().includes(searchQuery.toLowerCase());
+    const imeiStr = (d.imei || '').toLowerCase();
+    const matchesSearch = !searchQuery.trim() || imeiStr.includes(searchQuery.trim().toLowerCase());
     return matchesStatus && matchesSearch;
   }) : [];
 
@@ -78,6 +93,7 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
             <option value="all">All Devices</option>
             <option value="in_stock">Available (In Stock)</option>
             <option value="sold">Sold</option>
+            <option value="transfer">In Transfer</option>
             <option value="repair">In Repair</option>
             <option value="returned">Returned</option>
           </select>
@@ -139,7 +155,7 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
                           device.status === 'sold' ? 'bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]' :
                           'bg-[var(--brand-warning)]/10 text-[var(--brand-warning)]'
                         }`}>
-                          {device.status.replace('_', ' ')}
+                          {(device.status || 'unknown').replace(/_/g, ' ')}
                         </span>
                       </td>
                       <td className="px-4 py-3 border-r border-[var(--border-base)] text-center text-xs text-[var(--text-muted)]">

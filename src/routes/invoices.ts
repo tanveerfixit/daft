@@ -604,9 +604,18 @@ router.get('/:id', async (req: any, res, next) => {
     `, [req.params.id]);
     const payments = await query('SELECT * FROM payments WHERE invoice_id=?', [req.params.id]) as any[];
     const activities = await query(`
-      SELECT a.*, u.name as user_name FROM invoice_activity a
+      SELECT 
+        a.id,
+        a.invoice_id,
+        a.user_id,
+        COALESCE(NULLIF(TRIM(a.activity), ''), 'Activity') as activity,
+        COALESCE(a.details, '') as details,
+        a.created_at,
+        COALESCE(NULLIF(NULLIF(TRIM(u.name), ''), 'null'), 'System') as user_name
+      FROM invoice_activity a
       LEFT JOIN users u ON a.user_id=u.id
-      WHERE a.invoice_id=? ORDER BY a.created_at DESC
+      WHERE a.invoice_id=?
+      ORDER BY a.created_at DESC
     `, [req.params.id]);
 
     let credit_notes: any[] = [];
@@ -870,11 +879,13 @@ router.post('/', async (req: any, res, next) => {
           ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)
         `, [effectiveBranchId, skuId, item.quantity]);
       } else if (item.device_id) {
-        const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
-        await conn.execute(
-          `UPDATE devices SET status='sold' WHERE id=? AND business_id=? AND branch_id=? ${!isSuper ? 'AND user_id=?' : ''}`,
-          !isSuper ? [item.device_id, req.user.business_id, effectiveBranchId, req.userId] : [item.device_id, req.user.business_id, effectiveBranchId]
+        const [devUpd]: any = await conn.execute(
+          `UPDATE devices SET status='sold' WHERE id=? AND business_id=? AND branch_id=? AND status IN ('in_stock', 'available')`,
+          [item.device_id, req.user.business_id, effectiveBranchId]
         );
+        if (!devUpd || devUpd.affectedRows === 0) {
+          throw businessError(`Device #${item.device_id} is no longer in stock at this branch.`);
+        }
         try {
           await conn.execute(
             'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
@@ -1039,11 +1050,19 @@ router.post('/', async (req: any, res, next) => {
       }
     });
     
-    for (const act of (activities || [])) {
-      const activityLabel = act.action || act.activity || 'Activity';
-      const activityDetails = act.details || 'No details provided';
-      await conn.execute('INSERT INTO invoice_activity (invoice_id,user_id,activity,details) VALUES (?,?,?,?)',
-        [invoiceId, req.userId, activityLabel, activityDetails]);
+    const validActivities = (activities || [])
+      .map((act: any) => ({
+        label: formatAuditValue(act.action || act.activity, { emptyLabel: 'Activity' }),
+        details: formatAuditValue(act.details, { emptyLabel: 'No details provided' })
+      }))
+      .filter((a: any) => a.label && a.details);
+    if (validActivities.length > 0) {
+      const placeholders = validActivities.map(() => '(?,?,?,?)').join(',');
+      const flatParams = validActivities.flatMap((a: any) => [invoiceId, req.userId, a.label, a.details]);
+      await conn.execute(
+        `INSERT INTO invoice_activity (invoice_id,user_id,activity,details) VALUES ${placeholders}`,
+        flatParams
+      );
     }
     // Handle repair payment items — update jobs table
     const repairItems = (items || []).filter((item: any) => item.is_repair_payment && item.repair_job_id);
@@ -1611,17 +1630,35 @@ router.post('/:id/send-email', async (req: any, res, next) => {
     // Dispatch email asynchronously so UI modal returns instantly
     sendInvoiceEmail(email.trim(), emailSubject, invoice, company, message, branch, thermalSettings)
       .then(async () => {
+        const msg = `Invoice emailed to ${email.trim()}`;
         await execute(
           'INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-          [invoice.id, req.userId, 'Invoice Emailed', `Invoice emailed to ${email.trim()}`]
+          [invoice.id, req.userId, ACTIVITY_TYPES.INVOICE_EMAILED, msg]
         ).catch(() => {});
+        await recordAudit(req, {
+          branch_id: invoice.branch_id ?? req.user.branch_id,
+          activity_type: ACTIVITY_TYPES.INVOICE_EMAILED,
+          description: `${invoice.invoice_number}: ${msg}`,
+          reference_type: 'invoice',
+          reference_id: invoice.id,
+          reference_link: `/invoices/${invoice.id}`
+        });
       })
-      .catch((err) => {
+      .catch(async (err) => {
         console.error('[send-email background] error:', err.message);
-        execute(
+        const msg = `Failed sending email to ${email.trim()}: ${err.message}`;
+        await execute(
           'INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-          [invoice.id, req.userId, 'Invoice Email Failed', `Failed sending email to ${email.trim()}: ${err.message}`]
+          [invoice.id, req.userId, ACTIVITY_TYPES.INVOICE_EMAIL_FAILED, msg]
         ).catch(() => {});
+        await recordAudit(req, {
+          branch_id: invoice.branch_id ?? req.user.branch_id,
+          activity_type: ACTIVITY_TYPES.INVOICE_EMAIL_FAILED,
+          description: `${invoice.invoice_number}: ${msg}`,
+          reference_type: 'invoice',
+          reference_id: invoice.id,
+          reference_link: `/invoices/${invoice.id}`
+        });
       });
 
     res.json({ success: true, message: `Invoice email successfully queued for ${email.trim()}` });
@@ -1631,29 +1668,50 @@ router.post('/:id/send-email', async (req: any, res, next) => {
   }
 });
 
+const invoiceActivitySchema = z.object({
+  activity: z.string().trim().max(100).optional(),
+  details: z.string().trim().min(1, 'Note details are required').max(1000)
+});
+
 router.post('/:id/activity', async (req: any, res, next) => {
   try {
-    const { activity = 'Note Added', details } = req.body;
-    if (!details || !String(details).trim()) {
-      return res.status(400).json({ error: 'Note details are required' });
-    }
+    const { activity, details } = invoiceActivitySchema.parse(req.body);
+    const actLabel = activity || ACTIVITY_TYPES.NOTE_ADDED;
     const isDeveloper = req.user.role === 'developer';
     const branchId = req.user.branch_id;
     const inv = await queryOne(
-      `SELECT id FROM invoices WHERE id=? AND business_id=? ${(!isDeveloper && branchId) ? 'AND branch_id=?' : ''}`,
+      `SELECT id, branch_id, invoice_number FROM invoices WHERE id=? AND business_id=? ${(!isDeveloper && branchId) ? 'AND branch_id=?' : ''}`,
       (!isDeveloper && branchId) ? [req.params.id, req.user.business_id, branchId] : [req.params.id, req.user.business_id]
-    );
+    ) as any;
     if (!inv) return res.status(404).json({ error: 'Invoice not found or access denied' });
 
     await execute(
       'INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-      [req.params.id, req.userId, activity, String(details).trim()]
+      [req.params.id, req.userId, actLabel, details]
     );
+    await recordAudit(req, {
+      branch_id: inv.branch_id ?? req.user.branch_id,
+      activity_type: actLabel,
+      description: inv.invoice_number ? `${inv.invoice_number}: ${details}` : details,
+      reference_type: 'invoice',
+      reference_id: Number(req.params.id),
+      reference_link: `/invoices/${req.params.id}`
+    });
 
-    const activities = await query(
-      'SELECT a.*, u.name as user_name FROM invoice_activity a LEFT JOIN users u ON a.user_id=u.id WHERE a.invoice_id=? ORDER BY a.created_at DESC',
-      [req.params.id]
-    );
+    const activities = await query(`
+      SELECT 
+        a.id,
+        a.invoice_id,
+        a.user_id,
+        COALESCE(NULLIF(TRIM(a.activity), ''), 'Activity') as activity,
+        COALESCE(a.details, '') as details,
+        a.created_at,
+        COALESCE(NULLIF(NULLIF(TRIM(u.name), ''), 'null'), 'System') as user_name
+      FROM invoice_activity a
+      LEFT JOIN users u ON a.user_id=u.id
+      WHERE a.invoice_id=?
+      ORDER BY a.created_at DESC
+    `, [req.params.id]);
 
     res.json({ success: true, activities });
   } catch (e: any) { next(e); }

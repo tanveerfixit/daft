@@ -1377,10 +1377,18 @@ router.post('/:id/activity', async (req: any, res, next) => {
 // GET /api/products/:skuId/devices
 router.get('/:skuId/devices', async (req: any, res, next) => {
   try {
-    const isSuper = req.user.role === 'superadmin';
+    const businessId = req.user.business_id;
+    const resolved = await resolveProductAndSkus(req.params.skuId, businessId);
+    if (!resolved) return res.json([]);
+
+    const { skuIds } = resolved;
+    if (skuIds.length === 0) return res.json([]);
+
+    const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
     const branchId = req.query.branch_id || req.user.branch_id;
+    const skuPlaceholders = skuIds.map(() => '?').join(',');
     let filterClause = '';
-    const params: any[] = [req.params.skuId, req.params.skuId, req.user.business_id];
+    const params: any[] = [...skuIds, businessId];
 
     if (!isSuper && branchId) {
       filterClause = 'AND d.branch_id = ?';
@@ -1391,17 +1399,27 @@ router.get('/:skuId/devices', async (req: any, res, next) => {
     }
 
     const devices = await query(`
-      SELECT d.id, d.business_id, d.branch_id, d.user_id, d.imei, d.color, d.gb, d.ram,
-             d.\`condition\`, d.status, d.cost_price, d.selling_price, d.created_at, inv.invoice_number,
+      SELECT d.id, d.business_id, d.branch_id, d.user_id,
+             COALESCE(NULLIF(TRIM(d.imei), ''), d.imei_serial, '') as imei,
+             d.color, d.gb, d.ram, d.\`condition\`, d.status, d.cost_price, d.selling_price, d.created_at,
+             (
+               SELECT inv.invoice_number
+               FROM invoice_items ii
+               JOIN invoices inv ON ii.invoice_id = inv.id
+               WHERE ii.device_id = d.id
+                 AND inv.status != 'refunded'
+                 AND COALESCE(inv.type, 'sale') != 'credit_note'
+                 AND COALESCE(ii.refunded_quantity, 0) < ii.quantity
+               ORDER BY inv.created_at DESC, ii.id DESC
+               LIMIT 1
+             ) as invoice_number,
              b.name as branch_name, u.name as user_name, p.name as product_name, s.sku_code
       FROM devices d
       LEFT JOIN product_skus s ON d.sku_id = s.id
       LEFT JOIN products p ON s.product_id = p.id
       LEFT JOIN branches b ON d.branch_id = b.id
       LEFT JOIN users u ON d.user_id = u.id
-      LEFT JOIN invoice_items ii ON d.id = ii.device_id
-      LEFT JOIN invoices inv ON ii.invoice_id = inv.id
-      WHERE (d.sku_id = ? OR s.product_id = ?)
+      WHERE d.sku_id IN (${skuPlaceholders})
         AND d.business_id = ?
         ${filterClause}
       ORDER BY d.created_at DESC

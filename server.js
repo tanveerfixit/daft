@@ -1468,6 +1468,26 @@ async function initSchema() {
     await ensureIndex(conn, "product_activity", "idx_prod_activity_sku_created", "sku_id, created_at");
     await ensureIndex(conn, "device_activity", "idx_dev_activity_dev_created", "device_id, created_at");
     await ensureIndex(conn, "customer_activity", "idx_cust_activity_cust_created", "customer_id, created_at");
+    try {
+      const [healedRes] = await conn.query(`
+        UPDATE devices d
+        SET d.status = 'sold'
+        WHERE d.status IN ('in_stock', 'available')
+          AND EXISTS (
+            SELECT 1
+            FROM invoice_items ii
+            JOIN invoices inv ON ii.invoice_id = inv.id
+            WHERE ii.device_id = d.id
+              AND inv.status != 'refunded'
+              AND COALESCE(inv.type, 'sale') != 'credit_note'
+              AND COALESCE(ii.refunded_quantity, 0) < ii.quantity
+          )
+      `);
+      if (healedRes?.affectedRows > 0) {
+        console.log(`[MySQL] Migration: marked ${healedRes.affectedRows} already-sold device(s) as 'sold'`);
+      }
+    } catch (e) {
+    }
     await conn.query(
       `INSERT INTO _schema_meta (key_name, value) VALUES ('schema_version', ?) 
        ON DUPLICATE KEY UPDATE value = ?`,
@@ -1717,7 +1737,7 @@ var init_mysql = __esm({
       }
     });
     connectionChecked = false;
-    CURRENT_SCHEMA_VERSION = "2026_11_ACTIVITY_LOGS_V2";
+    CURRENT_SCHEMA_VERSION = "2026_11_DEVICE_SOLD_STATUS_V3";
   }
 });
 
@@ -3347,6 +3367,9 @@ var init_activityLogger = __esm({
       DEVICE_UPDATED: "Device Updated",
       DEVICE_SOLD: "Device Sold",
       DEVICE_DELETED: "Device Deleted",
+      TRANSFER_DISPATCHED: "Transfer Dispatched",
+      TRANSFER_RECEIVED: "Transfer Received",
+      TRANSFER_CANCELLED: "Transfer Cancelled",
       NOTE_ADDED: "Note Added",
       // Repairs & EOD Reports
       REPAIR_JOB_CREATED: "Repair Job Created",
@@ -4597,10 +4620,16 @@ var init_products = __esm({
     });
     router3.get("/:skuId/devices", async (req, res, next) => {
       try {
-        const isSuper = req.user.role === "superadmin";
+        const businessId = req.user.business_id;
+        const resolved = await resolveProductAndSkus(req.params.skuId, businessId);
+        if (!resolved) return res.json([]);
+        const { skuIds } = resolved;
+        if (skuIds.length === 0) return res.json([]);
+        const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
         const branchId = req.query.branch_id || req.user.branch_id;
+        const skuPlaceholders = skuIds.map(() => "?").join(",");
         let filterClause = "";
-        const params = [req.params.skuId, req.params.skuId, req.user.business_id];
+        const params = [...skuIds, businessId];
         if (!isSuper && branchId) {
           filterClause = "AND d.branch_id = ?";
           params.push(Number(branchId));
@@ -4609,17 +4638,27 @@ var init_products = __esm({
           params.push(Number(branchId));
         }
         const devices = await query(`
-      SELECT d.id, d.business_id, d.branch_id, d.user_id, d.imei, d.color, d.gb, d.ram,
-             d.\`condition\`, d.status, d.cost_price, d.selling_price, d.created_at, inv.invoice_number,
+      SELECT d.id, d.business_id, d.branch_id, d.user_id,
+             COALESCE(NULLIF(TRIM(d.imei), ''), d.imei_serial, '') as imei,
+             d.color, d.gb, d.ram, d.\`condition\`, d.status, d.cost_price, d.selling_price, d.created_at,
+             (
+               SELECT inv.invoice_number
+               FROM invoice_items ii
+               JOIN invoices inv ON ii.invoice_id = inv.id
+               WHERE ii.device_id = d.id
+                 AND inv.status != 'refunded'
+                 AND COALESCE(inv.type, 'sale') != 'credit_note'
+                 AND COALESCE(ii.refunded_quantity, 0) < ii.quantity
+               ORDER BY inv.created_at DESC, ii.id DESC
+               LIMIT 1
+             ) as invoice_number,
              b.name as branch_name, u.name as user_name, p.name as product_name, s.sku_code
       FROM devices d
       LEFT JOIN product_skus s ON d.sku_id = s.id
       LEFT JOIN products p ON s.product_id = p.id
       LEFT JOIN branches b ON d.branch_id = b.id
       LEFT JOIN users u ON d.user_id = u.id
-      LEFT JOIN invoice_items ii ON d.id = ii.device_id
-      LEFT JOIN invoices inv ON ii.invoice_id = inv.id
-      WHERE (d.sku_id = ? OR s.product_id = ?)
+      WHERE d.sku_id IN (${skuPlaceholders})
         AND d.business_id = ?
         ${filterClause}
       ORDER BY d.created_at DESC
@@ -5176,7 +5215,7 @@ __export(invoices_exports, {
 });
 import { Router as Router5 } from "express";
 import { z as z6 } from "zod";
-var router5, businessError, round2, isCreditNoteMethod, isWalletMethod, isDepositSkuCode, createInvoiceSchema, invoices_default;
+var router5, businessError, round2, isCreditNoteMethod, isWalletMethod, isDepositSkuCode, createInvoiceSchema, invoiceActivitySchema, invoices_default;
 var init_invoices = __esm({
   "src/routes/invoices.ts"() {
     init_mysql();
@@ -5724,9 +5763,18 @@ var init_invoices = __esm({
     `, [req.params.id]);
         const payments = await query("SELECT * FROM payments WHERE invoice_id=?", [req.params.id]);
         const activities = await query(`
-      SELECT a.*, u.name as user_name FROM invoice_activity a
+      SELECT 
+        a.id,
+        a.invoice_id,
+        a.user_id,
+        COALESCE(NULLIF(TRIM(a.activity), ''), 'Activity') as activity,
+        COALESCE(a.details, '') as details,
+        a.created_at,
+        COALESCE(NULLIF(NULLIF(TRIM(u.name), ''), 'null'), 'System') as user_name
+      FROM invoice_activity a
       LEFT JOIN users u ON a.user_id=u.id
-      WHERE a.invoice_id=? ORDER BY a.created_at DESC
+      WHERE a.invoice_id=?
+      ORDER BY a.created_at DESC
     `, [req.params.id]);
         let credit_notes = [];
         let credit_note = null;
@@ -5972,11 +6020,13 @@ var init_invoices = __esm({
           ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)
         `, [effectiveBranchId, skuId, item.quantity]);
           } else if (item.device_id) {
-            const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
-            await conn.execute(
-              `UPDATE devices SET status='sold' WHERE id=? AND business_id=? AND branch_id=? ${!isSuper ? "AND user_id=?" : ""}`,
-              !isSuper ? [item.device_id, req.user.business_id, effectiveBranchId, req.userId] : [item.device_id, req.user.business_id, effectiveBranchId]
+            const [devUpd] = await conn.execute(
+              `UPDATE devices SET status='sold' WHERE id=? AND business_id=? AND branch_id=? AND status IN ('in_stock', 'available')`,
+              [item.device_id, req.user.business_id, effectiveBranchId]
             );
+            if (!devUpd || devUpd.affectedRows === 0) {
+              throw businessError(`Device #${item.device_id} is no longer in stock at this branch.`);
+            }
             try {
               await conn.execute(
                 "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
@@ -6121,12 +6171,16 @@ var init_invoices = __esm({
             customer_id: finalCustomerId
           }
         });
-        for (const act of activities || []) {
-          const activityLabel = act.action || act.activity || "Activity";
-          const activityDetails = act.details || "No details provided";
+        const validActivities = (activities || []).map((act) => ({
+          label: formatAuditValue(act.action || act.activity, { emptyLabel: "Activity" }),
+          details: formatAuditValue(act.details, { emptyLabel: "No details provided" })
+        })).filter((a) => a.label && a.details);
+        if (validActivities.length > 0) {
+          const placeholders = validActivities.map(() => "(?,?,?,?)").join(",");
+          const flatParams = validActivities.flatMap((a) => [invoiceId, req.userId, a.label, a.details]);
           await conn.execute(
-            "INSERT INTO invoice_activity (invoice_id,user_id,activity,details) VALUES (?,?,?,?)",
-            [invoiceId, req.userId, activityLabel, activityDetails]
+            `INSERT INTO invoice_activity (invoice_id,user_id,activity,details) VALUES ${placeholders}`,
+            flatParams
           );
         }
         const repairItems = (items || []).filter((item) => item.is_repair_payment && item.repair_job_id);
@@ -6610,17 +6664,35 @@ var init_invoices = __esm({
         };
         const emailSubject = subject || `Invoice ${invoice.invoice_number} from ${invoice.branch_name || company?.name || "PhoneLab"}`;
         sendInvoiceEmail(email.trim(), emailSubject, invoice, company, message, branch, thermalSettings).then(async () => {
+          const msg = `Invoice emailed to ${email.trim()}`;
           await execute(
             "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-            [invoice.id, req.userId, "Invoice Emailed", `Invoice emailed to ${email.trim()}`]
+            [invoice.id, req.userId, ACTIVITY_TYPES.INVOICE_EMAILED, msg]
           ).catch(() => {
           });
-        }).catch((err) => {
+          await recordAudit(req, {
+            branch_id: invoice.branch_id ?? req.user.branch_id,
+            activity_type: ACTIVITY_TYPES.INVOICE_EMAILED,
+            description: `${invoice.invoice_number}: ${msg}`,
+            reference_type: "invoice",
+            reference_id: invoice.id,
+            reference_link: `/invoices/${invoice.id}`
+          });
+        }).catch(async (err) => {
           console.error("[send-email background] error:", err.message);
-          execute(
+          const msg = `Failed sending email to ${email.trim()}: ${err.message}`;
+          await execute(
             "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-            [invoice.id, req.userId, "Invoice Email Failed", `Failed sending email to ${email.trim()}: ${err.message}`]
+            [invoice.id, req.userId, ACTIVITY_TYPES.INVOICE_EMAIL_FAILED, msg]
           ).catch(() => {
+          });
+          await recordAudit(req, {
+            branch_id: invoice.branch_id ?? req.user.branch_id,
+            activity_type: ACTIVITY_TYPES.INVOICE_EMAIL_FAILED,
+            description: `${invoice.invoice_number}: ${msg}`,
+            reference_type: "invoice",
+            reference_id: invoice.id,
+            reference_link: `/invoices/${invoice.id}`
           });
         });
         res.json({ success: true, message: `Invoice email successfully queued for ${email.trim()}` });
@@ -6629,27 +6701,47 @@ var init_invoices = __esm({
         res.status(400).json({ error: `Email Delivery Failed: ${e.message}` });
       }
     });
+    invoiceActivitySchema = z6.object({
+      activity: z6.string().trim().max(100).optional(),
+      details: z6.string().trim().min(1, "Note details are required").max(1e3)
+    });
     router5.post("/:id/activity", async (req, res, next) => {
       try {
-        const { activity = "Note Added", details } = req.body;
-        if (!details || !String(details).trim()) {
-          return res.status(400).json({ error: "Note details are required" });
-        }
+        const { activity, details } = invoiceActivitySchema.parse(req.body);
+        const actLabel = activity || ACTIVITY_TYPES.NOTE_ADDED;
         const isDeveloper = req.user.role === "developer";
         const branchId = req.user.branch_id;
         const inv = await queryOne(
-          `SELECT id FROM invoices WHERE id=? AND business_id=? ${!isDeveloper && branchId ? "AND branch_id=?" : ""}`,
+          `SELECT id, branch_id, invoice_number FROM invoices WHERE id=? AND business_id=? ${!isDeveloper && branchId ? "AND branch_id=?" : ""}`,
           !isDeveloper && branchId ? [req.params.id, req.user.business_id, branchId] : [req.params.id, req.user.business_id]
         );
         if (!inv) return res.status(404).json({ error: "Invoice not found or access denied" });
         await execute(
           "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-          [req.params.id, req.userId, activity, String(details).trim()]
+          [req.params.id, req.userId, actLabel, details]
         );
-        const activities = await query(
-          "SELECT a.*, u.name as user_name FROM invoice_activity a LEFT JOIN users u ON a.user_id=u.id WHERE a.invoice_id=? ORDER BY a.created_at DESC",
-          [req.params.id]
-        );
+        await recordAudit(req, {
+          branch_id: inv.branch_id ?? req.user.branch_id,
+          activity_type: actLabel,
+          description: inv.invoice_number ? `${inv.invoice_number}: ${details}` : details,
+          reference_type: "invoice",
+          reference_id: Number(req.params.id),
+          reference_link: `/invoices/${req.params.id}`
+        });
+        const activities = await query(`
+      SELECT 
+        a.id,
+        a.invoice_id,
+        a.user_id,
+        COALESCE(NULLIF(TRIM(a.activity), ''), 'Activity') as activity,
+        COALESCE(a.details, '') as details,
+        a.created_at,
+        COALESCE(NULLIF(NULLIF(TRIM(u.name), ''), 'null'), 'System') as user_name
+      FROM invoice_activity a
+      LEFT JOIN users u ON a.user_id=u.id
+      WHERE a.invoice_id=?
+      ORDER BY a.created_at DESC
+    `, [req.params.id]);
         res.json({ success: true, activities });
       } catch (e) {
         next(e);
@@ -8617,25 +8709,28 @@ async function dispatchSingleTransferItem(conn, item, sourceBusinessId, sourceBr
   let finalSkuId = rawSkuId;
   let finalDeviceId = rawDeviceId;
   let isSerialized = !!(imei?.trim() || serial_number?.trim() || rawDeviceId);
-  const cleanImei = imei?.trim() || null;
+  let cleanImei = imei?.trim() || null;
   const cleanSerial = serial_number?.trim() || null;
   let cleanProductName = product_name?.trim();
   let cleanSkuCode = sku_code?.trim();
+  let resolvedProductId = null;
   if (finalDeviceId) {
     const [dr] = await conn.execute(
       `SELECT d.*, s.sku_code, p.name as product_name, p.id as product_id 
        FROM devices d 
        JOIN product_skus s ON d.sku_id=s.id 
        JOIN products p ON s.product_id=p.id 
-       WHERE d.id=? AND d.business_id=?`,
-      [finalDeviceId, sourceBusinessId]
+       WHERE d.id=? AND d.business_id=? AND d.branch_id=? FOR UPDATE`,
+      [finalDeviceId, sourceBusinessId, sourceBranchId]
     );
     const dev = dr[0];
-    if (!dev) throw new Error(`Selected device (#${finalDeviceId}) not found`);
+    if (!dev) throw new Error(`Selected device (#${finalDeviceId}) not found at your branch`);
     if (dev.status !== "in_stock" && dev.status !== "available") {
       throw new Error(`Device (${dev.imei || dev.id}) is not available (current status: ${dev.status})`);
     }
     finalSkuId = dev.sku_id;
+    resolvedProductId = dev.product_id || null;
+    cleanImei = cleanImei || dev.imei || dev.imei_serial || null;
     cleanProductName = cleanProductName || dev.product_name;
     cleanSkuCode = cleanSkuCode || dev.sku_code;
     isSerialized = true;
@@ -8646,8 +8741,8 @@ async function dispatchSingleTransferItem(conn, item, sourceBusinessId, sourceBr
        FROM devices d 
        JOIN product_skus s ON d.sku_id=s.id 
        JOIN products p ON s.product_id=p.id 
-       WHERE (d.imei=? OR d.imei_serial=?) AND d.business_id=?`,
-      [cleanImei, cleanImei, sourceBusinessId]
+       WHERE (d.imei=? OR d.imei_serial=?) AND d.business_id=? AND d.branch_id=? FOR UPDATE`,
+      [cleanImei, cleanImei, sourceBusinessId, sourceBranchId]
     );
     if (existDev.length > 0) {
       const dev = existDev[0];
@@ -8656,6 +8751,8 @@ async function dispatchSingleTransferItem(conn, item, sourceBusinessId, sourceBr
       }
       finalDeviceId = dev.id;
       finalSkuId = dev.sku_id;
+      resolvedProductId = dev.product_id || null;
+      cleanImei = cleanImei || dev.imei || dev.imei_serial || null;
       cleanProductName = cleanProductName || dev.product_name;
       cleanSkuCode = cleanSkuCode || dev.sku_code;
       isSerialized = true;
@@ -8726,9 +8823,17 @@ async function dispatchSingleTransferItem(conn, item, sourceBusinessId, sourceBr
     }
   } else {
     if (finalSkuId) {
+      const [bsRows] = await conn.execute(
+        "SELECT quantity FROM branch_stock WHERE branch_id=? AND sku_id=? FOR UPDATE",
+        [sourceBranchId, finalSkuId]
+      );
+      const currentQty = Number(bsRows[0]?.quantity || 0);
+      if (currentQty < quantity) {
+        throw new Error(`Insufficient stock for "${cleanProductName || cleanSkuCode || `SKU #${finalSkuId}`}" (Available: ${currentQty}, Requested: ${quantity})`);
+      }
       await conn.execute(
-        "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE quantity=GREATEST(0, quantity - ?)",
-        [sourceBranchId, finalSkuId, quantity]
+        "UPDATE branch_stock SET quantity = quantity - ? WHERE branch_id=? AND sku_id=?",
+        [quantity, sourceBranchId, finalSkuId]
       );
     }
   }
@@ -8758,7 +8863,18 @@ async function dispatchSingleTransferItem(conn, item, sourceBusinessId, sourceBr
       [sourceBusinessId, sourceBranchId, finalSkuId, isSerialized ? 1 : quantity, cost_price || 0, transferId]
     );
   }
-  return transferId;
+  if (!resolvedProductId && finalSkuId) {
+    const [pRow] = await conn.execute("SELECT product_id FROM product_skus WHERE id=? LIMIT 1", [finalSkuId]);
+    resolvedProductId = pRow[0]?.product_id || null;
+  }
+  return {
+    transferId,
+    deviceId: finalDeviceId || null,
+    skuId: finalSkuId || null,
+    productId: resolvedProductId,
+    imei: cleanImei || cleanSerial || null,
+    productName: cleanProductName || product_name || cleanSkuCode || "Item"
+  };
 }
 var router8, addInventorySchema, batchAddDevicesSchema, updateDeviceSchema, deviceActivitySchema, transferItemSchema, transferSchema, createRepairSchema, updateRepairSchema, inventory_default;
 var init_inventory = __esm({
@@ -9827,15 +9943,23 @@ var init_inventory = __esm({
         const sql = `
       SELECT d.id, d.business_id, d.branch_id, d.user_id, d.sku_id, d.imei, d.imei_serial, d.color, d.gb, d.ram,
              d.\`condition\`, d.po_number, d.status, d.cost_price, d.selling_price, d.created_at,
-             COALESCE(p.name, 'Standard Mobile Device') as product_name, s.sku_code, inv.invoice_number,
+             COALESCE(p.name, 'Standard Mobile Device') as product_name, s.sku_code,
+             (
+               SELECT inv.invoice_number
+               FROM invoice_items ii
+               JOIN invoices inv ON ii.invoice_id = inv.id
+               WHERE ii.device_id = d.id
+                 AND inv.status != 'refunded'
+                 AND COALESCE(ii.refunded_quantity, 0) < ii.quantity
+               ORDER BY inv.created_at DESC, ii.id DESC
+               LIMIT 1
+             ) as invoice_number,
              b.name as branch_name, u.name as user_name
       FROM devices d
       LEFT JOIN product_skus s ON d.sku_id=s.id
       LEFT JOIN products p ON (d.product_id=p.id OR s.product_id=p.id)
       LEFT JOIN branches b ON d.branch_id=b.id
       LEFT JOIN users u ON d.user_id=u.id
-      LEFT JOIN invoice_items ii ON d.id=ii.device_id
-      LEFT JOIN invoices inv ON ii.invoice_id=inv.id
       WHERE d.business_id=? ${statusClause} ${filterClause}
       ORDER BY d.created_at DESC
     `;
@@ -10039,6 +10163,7 @@ var init_inventory = __esm({
       const { to_branch_id, notes, items } = data;
       const sourceBranchId = req.user.branch_id;
       const sourceBusinessId = req.user.business_id;
+      if (!sourceBranchId) return res.status(400).json({ error: "Active branch context is required to dispatch a transfer" });
       if (!to_branch_id) return res.status(400).json({ error: "Destination branch is required" });
       if (Number(to_branch_id) === Number(sourceBranchId)) {
         return res.status(400).json({ error: "Source and destination branches must be different" });
@@ -10055,7 +10180,7 @@ var init_inventory = __esm({
         if (!destBranch) throw new Error("Destination branch does not exist");
         const createdIds = [];
         for (const item of transferItems) {
-          const id = await dispatchSingleTransferItem(
+          const dispatched = await dispatchSingleTransferItem(
             conn,
             item,
             sourceBusinessId,
@@ -10064,7 +10189,28 @@ var init_inventory = __esm({
             req.userId,
             notes
           );
-          createdIds.push(id);
+          createdIds.push(dispatched.transferId);
+          const imeiTag = dispatched.imei ? ` [IMEI: ${dispatched.imei}]` : "";
+          const destLabel = destBranch.branch_name || destBranch.business_name;
+          const desc = `Transfer #${dispatched.transferId}: Dispatched ${dispatched.productName}${imeiTag} (Qty: ${item.quantity || 1}) to ${destLabel}`;
+          if (dispatched.deviceId) {
+            await conn.execute(
+              "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+              [dispatched.deviceId, req.userId, ACTIVITY_TYPES.TRANSFER_DISPATCHED, desc]
+            );
+          }
+          await recordAudit(req, {
+            conn,
+            branch_id: sourceBranchId,
+            device_id: dispatched.deviceId,
+            product_id: dispatched.productId,
+            activity_type: ACTIVITY_TYPES.TRANSFER_DISPATCHED,
+            description: desc,
+            reference_type: dispatched.deviceId ? "device" : "device_transfer",
+            reference_id: dispatched.deviceId || dispatched.transferId,
+            reference_link: dispatched.deviceId ? `/devices/${dispatched.deviceId}` : null,
+            metadata: { to_branch_id: Number(to_branch_id), quantity: item.quantity || 1, imei: dispatched.imei }
+          });
         }
         await conn.commit();
         res.json({
@@ -10163,7 +10309,8 @@ var init_inventory = __esm({
        LEFT JOIN devices d ON t.device_id=d.id
        LEFT JOIN product_skus s ON COALESCE(d.sku_id, t.sku_id)=s.id
        LEFT JOIN products p ON s.product_id=p.id
-       WHERE t.id=?`,
+       WHERE t.id=?
+       FOR UPDATE`,
           [req.params.id]
         );
         const transfer = tr[0];
@@ -10172,6 +10319,7 @@ var init_inventory = __esm({
         if (transfer.status === "cancelled") throw new Error("Cannot complete a cancelled transfer");
         const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
         if (!isSuper && Number(transfer.to_business_id) !== Number(req.user.business_id)) {
+          await conn.rollback();
           return res.status(403).json({ error: "Access denied: Only the destination business can receive this transfer." });
         }
         const destBusinessId = transfer.to_business_id;
@@ -10365,6 +10513,26 @@ var init_inventory = __esm({
             throw uErr;
           }
         }
+        const imeiTag = transfer.imei || transfer.imei_serial ? ` [IMEI: ${transfer.imei || transfer.imei_serial}]` : "";
+        const receiveDesc = `Transfer #${transfer.id}: Received ${resolvedProductName}${imeiTag} (Qty: ${transfer.quantity || 1})`;
+        if (transfer.device_id) {
+          await conn.execute(
+            "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [transfer.device_id, req.userId, ACTIVITY_TYPES.TRANSFER_RECEIVED, receiveDesc]
+          );
+        }
+        await recordAudit(req, {
+          conn,
+          business_id: destBusinessId,
+          branch_id: destBranchId,
+          device_id: transfer.device_id || null,
+          product_id: destProductId || null,
+          activity_type: ACTIVITY_TYPES.TRANSFER_RECEIVED,
+          description: receiveDesc,
+          reference_type: transfer.device_id ? "device" : "device_transfer",
+          reference_id: transfer.device_id || transfer.id,
+          reference_link: transfer.device_id ? `/devices/${transfer.device_id}` : null
+        });
         await conn.commit();
         res.json({ success: true, message: "Transfer received and inventory synchronized" });
       } catch (e) {
@@ -10380,11 +10548,15 @@ var init_inventory = __esm({
       try {
         await conn.beginTransaction();
         const [tr] = await conn.execute(
-          `SELECT t.*, fb.business_id as from_business_id, tb.business_id as to_business_id
+          `SELECT t.*, fb.business_id as from_business_id, tb.business_id as to_business_id,
+              d.imei, d.imei_serial, s.product_id as resolved_product_id
        FROM device_transfers t
        JOIN branches fb ON t.from_branch_id=fb.id
        JOIN branches tb ON t.to_branch_id=tb.id
-       WHERE t.id=?`,
+       LEFT JOIN devices d ON t.device_id=d.id
+       LEFT JOIN product_skus s ON COALESCE(d.sku_id, t.sku_id)=s.id
+       WHERE t.id=?
+       FOR UPDATE`,
           [req.params.id]
         );
         const transfer = tr[0];
@@ -10393,6 +10565,7 @@ var init_inventory = __esm({
         if (transfer.status === "cancelled") throw new Error("Transfer is already cancelled");
         const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
         if (!isSuper && Number(transfer.from_business_id) !== Number(req.user.business_id)) {
+          await conn.rollback();
           return res.status(403).json({ error: "Access denied: Only the dispatching business can cancel this transfer." });
         }
         await conn.execute("UPDATE device_transfers SET status='cancelled' WHERE id=?", [transfer.id]);
@@ -10410,6 +10583,26 @@ var init_inventory = __esm({
             [transfer.from_branch_id, transfer.sku_id, transfer.quantity || 1]
           );
         }
+        const cancelImeiTag = transfer.imei || transfer.imei_serial ? ` [IMEI: ${transfer.imei || transfer.imei_serial}]` : "";
+        const cancelDesc = `Transfer #${transfer.id}: Cancelled dispatch of ${transfer.product_name || "Item"}${cancelImeiTag} (Qty: ${transfer.quantity || 1})`;
+        if (transfer.device_id) {
+          await conn.execute(
+            "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [transfer.device_id, req.userId, ACTIVITY_TYPES.TRANSFER_CANCELLED, cancelDesc]
+          );
+        }
+        await recordAudit(req, {
+          conn,
+          business_id: transfer.from_business_id,
+          branch_id: transfer.from_branch_id,
+          device_id: transfer.device_id || null,
+          product_id: transfer.resolved_product_id || null,
+          activity_type: ACTIVITY_TYPES.TRANSFER_CANCELLED,
+          description: cancelDesc,
+          reference_type: transfer.device_id ? "device" : "device_transfer",
+          reference_id: transfer.device_id || transfer.id,
+          reference_link: transfer.device_id ? `/devices/${transfer.device_id}` : null
+        });
         await conn.commit();
         res.json({ success: true, message: "Transfer cancelled and stock restored to origin branch" });
       } catch (e) {
@@ -10423,7 +10616,11 @@ var init_inventory = __esm({
       try {
         const q = req.params.imei;
         const device = await queryOne(
-          "SELECT * FROM devices WHERE (imei=? OR imei_serial=?) AND business_id=?",
+          `SELECT d.*, COALESCE(p.name, 'Standard Mobile Device') as product_name, s.sku_code
+       FROM devices d
+       LEFT JOIN product_skus s ON d.sku_id = s.id
+       LEFT JOIN products p ON (d.product_id = p.id OR s.product_id = p.id)
+       WHERE (d.imei=? OR d.imei_serial=?) AND d.business_id=?`,
           [q, q, req.user.business_id]
         );
         if (!device) return res.status(404).json({ error: "No device found with this IMEI or Serial" });

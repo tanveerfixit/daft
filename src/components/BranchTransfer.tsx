@@ -70,6 +70,7 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
   const [listSearch, setListSearch] = useState('');
   const [selectedTransferIds, setSelectedTransferIds] = useState<number[]>([]);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
 
   // Lookup Tab State
   const [imeiLookup, setImeiLookup] = useState('');
@@ -422,7 +423,9 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
   };
 
   const completeTransfer = async (id: number) => {
+    if (actionLoadingId !== null) return;
     if (!confirm('Confirm receiving this transfer into your inventory? Product/SKU will be verified and added to your stock.')) return;
+    setActionLoadingId(id);
     try {
       const res = await fetch(`/api/transfers/${id}/complete`, { method: 'PUT', headers });
       const data = await res.json();
@@ -431,11 +434,15 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
       loadTransfers();
     } catch (err: any) {
       alert(`Error: ${err.message}`);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
   const cancelTransfer = async (id: number) => {
+    if (actionLoadingId !== null) return;
     if (!confirm('Cancel this transfer and restore stock back to your branch inventory?')) return;
+    setActionLoadingId(id);
     try {
       const res = await fetch(`/api/transfers/${id}/cancel`, { method: 'PUT', headers });
       const data = await res.json();
@@ -444,6 +451,8 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
       loadTransfers();
     } catch (err: any) {
       alert(`Error: ${err.message}`);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -578,26 +587,23 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
   const selectedOutgoingInTransit = selectedTransferObjects.filter(t => t.status === 'in_transit' && isOutgoing(t));
 
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 pb-2 pt-0 select-none w-full" style={{ fontSize: '15px' }}>
+    <div className="flex flex-col h-full bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-sans text-sm select-none w-full">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
-        <div className="flex items-center gap-3">
-          <h2 className="font-medium text-black dark:text-white" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>B2B & Branch Transfers</h2>
-          <span className="px-2 py-0.5 text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 rounded flex items-center gap-1">
-            <ShieldCheck size={13} /> Strict Isolation
-          </span>
-        </div>
+      <div className="sticky top-0 z-40 bg-white dark:bg-neutral-900 shrink-0 flex justify-between items-center px-5 py-3 border-b border-neutral-200 dark:border-neutral-800">
+        <h2 className="font-semibold text-xl tracking-tight text-neutral-900 dark:text-neutral-100">
+          B2B & Branch Transfers
+        </h2>
         <button
           onClick={() => { loadTransfers(); loadDestinations(); }}
-          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
+          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-2 px-4 text-sm flex items-center gap-2 transition-colors cursor-pointer"
         >
-          <RefreshCw size={14} />
+          <RefreshCw size={15} />
           <span>Refresh</span>
         </button>
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-1 px-4 bg-white dark:bg-black border-b border-neutral-200 dark:border-neutral-850 shrink-0">
+      <div className="flex bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 shrink-0 px-5 gap-1">
         {[
           { id: 'create', label: 'Fast & Bulk Transfer', icon: ArrowUpRight },
           { id: 'list', label: `Transfer History (${transfers.length})`, icon: Package },
@@ -609,394 +615,367 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
               setTab(t.id as any);
               if (t.id === 'list') loadTransfers();
             }}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold border-b-2 transition duration-150 cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
               tab === t.id
-                ? 'border-[var(--brand-primary)] text-[var(--brand-primary)] bg-neutral-100 dark:bg-neutral-900/60'
-                : 'border-transparent text-neutral-500 hover:text-black dark:hover:text-white hover:bg-neutral-50 dark:hover:bg-neutral-900'
+                ? 'border-[var(--brand-primary)] text-[var(--brand-primary)]'
+                : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
             }`}
           >
-            <t.icon size={15} />
+            <t.icon size={16} />
             {t.label}
           </button>
         ))}
       </div>
 
       {/* Main Body */}
-      <div className="flex-1 overflow-auto p-4 font-sans bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
+      <div className="flex-1 overflow-auto p-5">
         {/* TAB 1: FAST & BULK TRANSFER */}
         {tab === 'create' && (
-          <div className="max-w-3xl mx-auto space-y-5">
+          <div className="max-w-7xl mx-auto space-y-4">
             {msg.text && (
               <div
-                className={`px-4 py-3 text-sm border rounded-lg flex flex-wrap items-center justify-between gap-3  ${
+                className={`px-4 py-3 text-sm border flex flex-wrap items-center justify-between gap-3 ${
                   msg.type === 'success'
-                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20'
-                    : 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20'
+                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                    : 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30'
                 }`}
               >
                 <div className="flex items-center gap-2">
                   {msg.type === 'success' ? <Check size={16} /> : <AlertCircle size={16} />}
                   <span>{msg.text}</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   {msg.batchItems && msg.batchItems.length > 0 && (
                     <button
                       type="button"
                       onClick={() => handlePrintManifest(msg.batchItems)}
-                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded flex items-center gap-1.5 cursor-pointer"
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium flex items-center gap-1.5 cursor-pointer"
                     >
-                      <Printer size={13} /> Print Manifest ({msg.batchItems.length})
+                      <Printer size={14} /> Print Manifest ({msg.batchItems.length})
                     </button>
                   )}
-                  <button onClick={() => setMsg({ text: '', type: '' })} className="text-xs opacity-70 hover:opacity-100 px-1">✕</button>
+                  <button onClick={() => setMsg({ text: '', type: '' })} className="text-sm opacity-70 hover:opacity-100 px-1 cursor-pointer">✕</button>
                 </div>
               </div>
             )}
 
-            <form onSubmit={handleDispatchTransfer} className="space-y-5 bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850 p-6 rounded-lg">
-              {/* CURRENT LOGGED-IN BRANCH (FIXED ORIGIN) */}
-              <div className="p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-neutral-500 uppercase">Transfer From:</span>
-                  <span className="font-bold text-neutral-900 dark:text-neutral-100">
-                    {currentUser?.branch_name || currentUser?.business_name || 'Current Branch'}
-                  </span>
-                </div>
-                <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded font-semibold text-[11px]">
-                  Logged-in Branch
-                </span>
-              </div>
-
-              {/* STEP 1: DESTINATION BUSINESS & BRANCH (TRANSFER TO) */}
-              <div>
-                <label className="block text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <Building2 size={15} className="text-[var(--brand-primary)]" />
-                  1. Transfer To (Select Recipient Branch / Business) <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={toBranch}
-                  onChange={e => setToBranch(e.target.value)}
-                  required
-                  className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded px-3.5 py-2 text-sm focus:outline-none focus:border-neutral-400 text-neutral-900 dark:text-neutral-100 font-semibold"
-                >
-                  <option value="">-- Choose Recipient Branch to Transfer To --</option>
-                  {destinations
-                    .filter(d => d.branch_id !== currentUser?.branch_id && (d.branch_name || d.business_name || '').trim() !== '')
-                    .map(d => (
-                      <option key={`${d.business_id}-${d.branch_id}`} value={d.branch_id}>
-                        {(d.branch_name || d.business_name).trim()}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              {/* STEP 2: SEARCH & ADD MULTIPLE PRODUCTS OR IMEI DEVICES */}
-              <div className="space-y-3" ref={searchContainerRef}>
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <label className="text-xs font-bold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider flex items-center gap-1.5">
-                    <Search size={15} className="text-[var(--brand-primary)]" />
-                    2. Add Products or IMEI Devices (Single or Bulk) <span className="text-red-500">*</span>
+            <form onSubmit={handleDispatchTransfer} className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+              {/* LEFT COLUMN: ROUTE, SEARCH & DISPATCH */}
+              <div className="lg:col-span-5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-4 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5">
+                    Transfer From (Origin)
                   </label>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowBulkPaste(prev => !prev)}
-                    className={`text-xs font-semibold px-2.5 py-1 rounded border flex items-center gap-1.5 transition cursor-pointer ${
-                      showBulkPaste
-                        ? 'bg-[var(--brand-primary)] text-white border-[var(--brand-primary)]'
-                        : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-800 hover:border-neutral-400'
-                    }`}
-                  >
-                    <ClipboardList size={13} />
-                    {showBulkPaste ? 'Hide Bulk Paste' : 'Bulk Paste IMEIs / SKUs'}
-                  </button>
+                  <div className="px-3.5 py-2.5 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-sm font-medium text-neutral-900 dark:text-neutral-100 flex items-center justify-between">
+                    <span>{currentUser?.branch_name || currentUser?.business_name || 'Current Branch'}</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Active Branch</span>
+                  </div>
                 </div>
 
-                {/* BULK PASTE IMEIS / SKUS PANEL */}
-                {showBulkPaste && (
-                  <div className="p-3.5 bg-neutral-50 dark:bg-neutral-900/90 border border-neutral-200 dark:border-neutral-800 rounded-lg space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300">
-                        Paste or Scan Multiple IMEIs, Serial Numbers, or SKU Codes (one per line or comma-separated)
-                      </span>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5">
+                    Transfer To (Recipient Branch) <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={toBranch}
+                    onChange={e => setToBranch(e.target.value)}
+                    required
+                    className="w-full bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 px-3.5 py-2.5 text-sm focus:outline-none focus:border-[var(--brand-primary)] text-neutral-900 dark:text-neutral-100"
+                  >
+                    <option value="">-- Choose Recipient Branch --</option>
+                    {destinations
+                      .filter(d => d.branch_id !== currentUser?.branch_id && (d.branch_name || d.business_name || '').trim() !== '')
+                      .map(d => (
+                        <option key={`${d.business_id}-${d.branch_id}`} value={d.branch_id}>
+                          {(d.branch_name || d.business_name).trim()}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                {/* SEARCH & BULK PASTE */}
+                <div className="space-y-2.5" ref={searchContainerRef}>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                      Add Products or IMEIs <span className="text-red-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowBulkPaste(prev => !prev)}
+                      className={`text-xs font-medium px-2.5 py-1 border flex items-center gap-1.5 transition-colors cursor-pointer ${
+                        showBulkPaste
+                          ? 'bg-[var(--brand-primary)] text-white border-[var(--brand-primary)]'
+                          : 'bg-neutral-50 dark:bg-neutral-950 text-neutral-700 dark:text-neutral-300 border-neutral-300 dark:border-neutral-700 hover:border-neutral-500'
+                      }`}
+                    >
+                      <ClipboardList size={13} />
+                      {showBulkPaste ? 'Hide Bulk Paste' : 'Bulk Paste'}
+                    </button>
+                  </div>
+
+                  {showBulkPaste && (
+                    <div className="p-3 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-neutral-600 dark:text-neutral-300">
+                          Paste IMEIs, Serials, or SKUs (one per line or comma-separated)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => { setBulkPasteText(''); setShowBulkPaste(false); }}
+                          className="text-sm text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <textarea
+                        rows={4}
+                        value={bulkPasteText}
+                        onChange={e => setBulkPasteText(e.target.value)}
+                        placeholder="354891092837461&#10;354891092837462&#10;SKU-USBC-20W"
+                        className="w-full bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 p-2.5 text-sm font-mono text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-[var(--brand-primary)]"
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          disabled={bulkResolving || !bulkPasteText.trim()}
+                          onClick={handleBulkPasteResolve}
+                          className="px-3.5 py-2 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 text-white text-sm font-medium flex items-center gap-1.5 cursor-pointer"
+                        >
+                          {bulkResolving ? <Loader size={14} className="animate-spin" /> : <Plus size={15} />}
+                          Add Matching Items
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="relative">
+                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                    <input
+                      ref={searchInputRef}
+                      value={searchQuery}
+                      onChange={e => handleSearch(e.target.value)}
+                      onKeyDown={handleSearchKeyDown}
+                      autoComplete="off"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      placeholder="Search Product, SKU, or Scan IMEI..."
+                      className="w-full bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 pl-10 pr-9 py-2.5 text-sm focus:outline-none focus:border-[var(--brand-primary)] text-neutral-900 dark:text-neutral-100"
+                    />
+                    {searchQuery && (
                       <button
                         type="button"
-                        onClick={() => { setBulkPasteText(''); setShowBulkPaste(false); }}
-                        className="text-xs text-neutral-400 hover:text-neutral-600"
+                        onClick={() => { setSearchQuery(''); setSearchResults([]); searchInputRef.current?.focus(); }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer"
                       >
                         ✕
                       </button>
-                    </div>
-                    <textarea
-                      rows={3}
-                      value={bulkPasteText}
-                      onChange={e => setBulkPasteText(e.target.value)}
-                      placeholder="e.g.&#10;354891092837461&#10;354891092837462&#10;SKU-USBC-20W"
-                      className="w-full bg-white dark:bg-black border border-neutral-200 dark:border-neutral-800 rounded p-2.5 text-xs font-mono text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
+                    )}
+
+                    {/* Quick Search Dropdown Results */}
+                    {searchResults.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 overflow-hidden max-h-80 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800 z-30 shadow-lg">
+                        <div className="px-3.5 py-2 bg-neutral-50 dark:bg-neutral-800 flex items-center justify-between text-xs border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10">
+                          <span className="text-neutral-500 dark:text-neutral-400">
+                            {searchResults.length} matching item(s)
+                          </span>
+                          {searchResults.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={handleAddAllSearchResults}
+                              className="text-xs font-medium text-[var(--brand-primary)] hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Plus size={13} /> Add All ({searchResults.filter(i => !isItemQueued(i)).length})
+                            </button>
+                          )}
+                        </div>
+
+                        {searchResults.map((item, idx) => {
+                          const queued = isItemQueued(item);
+                          const isDevice = Boolean(item.imei || item.device_id || item.item_type === 'device');
+                          const isActiveRow = idx === activeResultIdx;
+
+                          return (
+                            <button
+                              key={`${item.item_type || 'dev'}-${item.id || item.sku_id}-${idx}`}
+                              type="button"
+                              onMouseEnter={() => setActiveResultIdx(idx)}
+                              onClick={() => handleAddItemToQueue(item, searchResults.length > 1)}
+                              className={`w-full text-left px-3.5 py-2.5 text-sm transition-colors flex items-center justify-between gap-3 cursor-pointer ${
+                                isActiveRow
+                                  ? 'bg-blue-50 dark:bg-blue-950/40 border-l-2 border-l-blue-600'
+                                  : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/50'
+                              }`}
+                            >
+                              <div className="min-w-0 flex-1 space-y-0.5">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                                    {item.product_name}
+                                  </span>
+                                  {isDevice ? (
+                                    <span className="text-xs font-mono text-blue-600 dark:text-blue-400">
+                                      IMEI: {item.imei || item.imei_serial}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-purple-600 dark:text-purple-400">
+                                      In Stock: {item.stock_quantity ?? 0}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-neutral-500 flex items-center gap-2 flex-wrap">
+                                  {item.sku_code && <span>SKU: {item.sku_code}</span>}
+                                  {item.imei_serial && item.imei && <span>Serial: {item.imei_serial}</span>}
+                                  {item.color && <span>• {item.color}</span>}
+                                  {item.gb && <span>• {item.gb}</span>}
+                                  {item.condition && <span>• {item.condition}</span>}
+                                </div>
+                              </div>
+
+                              <span className="text-xs font-medium text-[var(--brand-primary)] shrink-0">
+                                {queued && isDevice ? 'Queued' : (queued ? '+1' : '+ Add')}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {selectedItems.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5">
+                      Transfer Note (Optional)
+                    </label>
+                    <input
+                      value={notes}
+                      onChange={e => setNotes(e.target.value)}
+                      placeholder="e.g. Courier tracking ref, B2B batch order..."
+                      className="w-full bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 px-3.5 py-2 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-[var(--brand-primary)]"
                     />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        disabled={bulkResolving || !bulkPasteText.trim()}
-                        onClick={handleBulkPasteResolve}
-                        className="px-3.5 py-1.5 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 text-white text-xs font-bold rounded flex items-center gap-1.5 cursor-pointer"
-                      >
-                        {bulkResolving ? <Loader size={13} className="animate-spin" /> : <Plus size={14} />}
-                        Add All Matching Items to Queue
-                      </button>
-                    </div>
                   </div>
                 )}
 
-                {/* SEARCH INPUT */}
-                <div className="relative">
-                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-                  <input
-                    ref={searchInputRef}
-                    value={searchQuery}
-                    onChange={e => handleSearch(e.target.value)}
-                    onKeyDown={handleSearchKeyDown}
-                    autoComplete="off"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    placeholder="Search Product Name, SKU, or Scan IMEI (Press Enter to quick-add)..."
-                    className="w-full bg-[var(--bg-input)] border border-[var(--border-base)] rounded-lg pl-10 pr-9 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] text-[var(--text-main)] font-medium"
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => { setSearchQuery(''); setSearchResults([]); searchInputRef.current?.focus(); }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-muted)] hover:text-[var(--text-main)]"
-                    >
-                      ✕
-                    </button>
-                  )}
-
-                  {/* Quick Search Dropdown Results */}
-                  {searchResults.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--border-base)] rounded-xl overflow-hidden max-h-80 overflow-y-auto divide-y divide-[var(--border-base)] z-30">
-                      <div className="px-3.5 py-2 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-between text-xs border-b border-[var(--border-base)] sticky top-0 z-10">
-                        <span className="font-semibold text-[var(--text-muted)]">
-                          Found {searchResults.length} matching item(s) — Click to add to transfer queue
-                        </span>
-                        {searchResults.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={handleAddAllSearchResults}
-                            className="text-xs font-bold text-[var(--brand-primary)] hover:underline flex items-center gap-1 cursor-pointer"
-                          >
-                            <Plus size={12} /> Add All ({searchResults.filter(i => !isItemQueued(i)).length})
-                          </button>
-                        )}
-                      </div>
-
-                      {searchResults.map((item, idx) => {
-                        const queued = isItemQueued(item);
-                        const isDevice = Boolean(item.imei || item.device_id || item.item_type === 'device');
-                        const isActiveRow = idx === activeResultIdx;
-
-                        return (
-                          <button
-                            key={`${item.item_type || 'dev'}-${item.id || item.sku_id}-${idx}`}
-                            type="button"
-                            onMouseEnter={() => setActiveResultIdx(idx)}
-                            onClick={() => handleAddItemToQueue(item, searchResults.length > 1)}
-                            className={`w-full text-left px-4 py-2.5 text-sm transition flex items-center justify-between gap-3 group cursor-pointer ${
-                              isActiveRow
-                                ? 'bg-blue-50/95 dark:bg-blue-950/50 border-l-4 border-l-blue-600'
-                                : 'hover:bg-[var(--bg-hover)]'
-                            }`}
-                          >
-                            <div className="min-w-0 flex-1 space-y-0.5">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-bold text-[var(--text-main)] group-hover:text-[var(--brand-primary)]">
-                                  {item.product_name}
-                                </span>
-                                {isDevice ? (
-                                  <span className="text-xs font-mono px-2 py-0.5 bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 rounded font-bold">
-                                    IMEI: {item.imei || item.imei_serial}
-                                  </span>
-                                ) : (
-                                  <span className="text-xs font-mono px-2 py-0.5 bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20 rounded font-semibold">
-                                    Stock Product • In Stock: {item.stock_quantity ?? 0}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-xs text-[var(--text-muted)] flex items-center gap-2 flex-wrap">
-                                {item.sku_code && <span>SKU: {item.sku_code}</span>}
-                                {item.imei_serial && item.imei && <span>Serial: {item.imei_serial}</span>}
-                                {item.color && <span>• {item.color}</span>}
-                                {item.gb && <span>• {item.gb}</span>}
-                                {item.condition && <span>• {item.condition}</span>}
-                              </div>
-                            </div>
-
-                            <div className="shrink-0">
-                              {queued && isDevice ? (
-                                <span className="px-2.5 py-1 text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded flex items-center gap-1">
-                                  <Check size={12} /> Queued
-                                </span>
-                              ) : (
-                                <span className="px-2.5 py-1 text-xs font-bold bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] border border-[var(--brand-primary)]/20 rounded flex items-center gap-1 group-hover:bg-[var(--brand-primary)] group-hover:text-white transition">
-                                  <Plus size={12} /> {queued ? 'Add +1' : 'Add'}
-                                </span>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                <button
+                  type="submit"
+                  disabled={loading || !toBranch || selectedItems.length === 0}
+                  className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 text-white font-medium py-2.5 px-4 transition-colors flex items-center justify-center gap-2 text-sm cursor-pointer"
+                >
+                  {loading ? <Loader size={16} className="animate-spin" /> : <ArrowUpRight size={16} />}
+                  {selectedItems.length <= 1
+                    ? 'Dispatch B2B Transfer'
+                    : `Dispatch Bulk Transfer (${selectedItems.length} Products • ${totalQueueUnits} Units)`}
+                </button>
               </div>
 
-              {/* STEP 3: QUEUED ITEMS FOR TRANSFER */}
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
-                    <Layers size={14} className="text-[var(--brand-primary)]" />
-                    3. Transfer Queue ({selectedItems.length} {selectedItems.length === 1 ? 'Product' : 'Products'} • {totalQueueUnits} {totalQueueUnits === 1 ? 'Unit' : 'Units'})
+              {/* RIGHT COLUMN: TRANSFER QUEUE */}
+              <div className="lg:col-span-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex flex-col">
+                <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between bg-neutral-50/70 dark:bg-neutral-800/40">
+                  <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                    Transfer Queue ({selectedItems.length} {selectedItems.length === 1 ? 'Item' : 'Items'} • {totalQueueUnits} {totalQueueUnits === 1 ? 'Unit' : 'Units'})
                   </span>
                   {selectedItems.length > 0 && (
                     <button
                       type="button"
                       onClick={handleClearSelection}
-                      className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      className="text-xs font-medium text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer"
                     >
-                      <Trash2 size={12} /> Clear All
+                      <Trash2 size={13} /> Clear All
                     </button>
                   )}
                 </div>
 
                 {selectedItems.length === 0 ? (
-                  <div className="p-6 text-center border border-dashed border-neutral-300 dark:border-neutral-800 rounded-lg text-xs text-neutral-500">
-                    No items added yet. Search above by product name, SKU, or scan/paste multiple IMEIs to build your transfer list.
+                  <div className="p-10 text-center text-sm text-neutral-400">
+                    No items queued yet. Search by product name, SKU, or scan/paste IMEIs on the left.
                   </div>
                 ) : (
-                  <div className="border border-neutral-200 dark:border-neutral-800 rounded-lg overflow-hidden">
-                    <div className="max-h-80 overflow-y-auto divide-y divide-neutral-200 dark:divide-neutral-800">
-                      {selectedItems.map((item, index) => (
-                        <div
-                          key={item.queueKey}
-                          className="p-3 bg-white dark:bg-neutral-950 hover:bg-neutral-50/70 dark:hover:bg-neutral-900/50 flex items-center justify-between gap-3 text-xs"
-                        >
-                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                            <span className="w-5 h-5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-bold flex items-center justify-center shrink-0 mt-0.5 text-[11px]">
-                              {index + 1}
-                            </span>
-                            <div className="min-w-0 flex-1 space-y-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-bold text-sm text-neutral-900 dark:text-neutral-100">
-                                  {item.product_name}
+                  <div className="max-h-[420px] overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800">
+                    {selectedItems.map((item, index) => (
+                      <div
+                        key={item.queueKey}
+                        className="px-4 py-3 hover:bg-neutral-50/80 dark:hover:bg-neutral-800/30 flex items-center justify-between gap-3"
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <span className="text-sm text-neutral-400 tabular-nums w-6 shrink-0">{index + 1}.</span>
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm text-neutral-900 dark:text-neutral-100">
+                                {item.product_name}
+                              </span>
+                              {item.item_type === 'device' ? (
+                                <span className="text-xs font-mono text-blue-600 dark:text-blue-400">
+                                  IMEI: {item.imei || item.serial_number}
                                 </span>
-                                {item.item_type === 'device' ? (
-                                  <span className="px-2 py-0.5 font-mono font-bold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 rounded">
-                                    IMEI: {item.imei || item.serial_number}
-                                  </span>
-                                ) : (
-                                  <span className="px-2 py-0.5 font-semibold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20 rounded">
-                                    Stock SKU
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[11px] text-neutral-500 flex items-center gap-2 flex-wrap">
-                                {item.sku_code && <span className="font-mono">SKU: {item.sku_code}</span>}
-                                {item.serial_number && item.imei && <span className="font-mono">• Serial: {item.serial_number}</span>}
-                                {[item.color, item.gb, item.condition].filter(Boolean).length > 0 && (
-                                  <span>• {[item.color, item.gb, item.condition].filter(Boolean).join(' • ')}</span>
-                                )}
-                                {item.item_type === 'stock' && item.stock_quantity !== undefined && (
-                                  <span>• Branch Stock: {item.stock_quantity}</span>
-                                )}
-                              </div>
+                              ) : (
+                                <span className="text-xs text-purple-600 dark:text-purple-400">
+                                  Stock SKU
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-neutral-500 flex items-center gap-2 flex-wrap">
+                              {item.sku_code && <span className="font-mono">SKU: {item.sku_code}</span>}
+                              {item.serial_number && item.imei && <span className="font-mono">• Serial: {item.serial_number}</span>}
+                              {[item.color, item.gb, item.condition].filter(Boolean).length > 0 && (
+                                <span>• {[item.color, item.gb, item.condition].filter(Boolean).join(' • ')}</span>
+                              )}
+                              {item.item_type === 'stock' && item.stock_quantity !== undefined && (
+                                <span>• Branch Stock: {item.stock_quantity}</span>
+                              )}
                             </div>
                           </div>
-
-                          {/* Quantity Control & Remove */}
-                          <div className="flex items-center gap-2 shrink-0">
-                            {item.item_type === 'device' ? (
-                              <span className="px-2.5 py-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded font-bold text-neutral-700 dark:text-neutral-300">
-                                Qty: 1
-                              </span>
-                            ) : (
-                              <div className="flex items-center border border-neutral-200 dark:border-neutral-800 rounded overflow-hidden bg-white dark:bg-neutral-900">
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateQueueQuantity(item.queueKey, item.quantity - 1)}
-                                  className="px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 cursor-pointer"
-                                >
-                                  <Minus size={12} />
-                                </button>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  value={item.quantity}
-                                  onChange={e => handleUpdateQueueQuantity(item.queueKey, Number(e.target.value))}
-                                  className="w-12 text-center font-bold text-xs py-1 bg-transparent text-neutral-900 dark:text-neutral-100 focus:outline-none"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateQueueQuantity(item.queueKey, item.quantity + 1)}
-                                  className="px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 cursor-pointer"
-                                >
-                                  <Plus size={12} />
-                                </button>
-                              </div>
-                            )}
-
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveFromQueue(item.queueKey)}
-                              className="p-1.5 rounded text-neutral-400 hover:text-rose-500 hover:bg-rose-500/10 transition cursor-pointer"
-                              title="Remove from queue"
-                            >
-                              <X size={15} />
-                            </button>
-                          </div>
                         </div>
-                      ))}
-                    </div>
 
-                    <div className="px-3.5 py-2 bg-neutral-50 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between text-[11px] text-emerald-700 dark:text-emerald-300">
-                      <div className="flex items-center gap-1.5">
-                        <Sparkles size={13} className="shrink-0" />
-                        <span>Missing products/SKUs in the destination business will be automatically created upon receiving.</span>
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          {item.item_type === 'device' ? (
+                            <span className="px-2.5 py-1 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                              Qty: 1
+                            </span>
+                          ) : (
+                            <div className="flex items-center border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQueueQuantity(item.queueKey, item.quantity - 1)}
+                                className="px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 cursor-pointer"
+                              >
+                                <Minus size={13} />
+                              </button>
+                              <input
+                                type="number"
+                                min={1}
+                                value={item.quantity}
+                                onChange={e => handleUpdateQueueQuantity(item.queueKey, Number(e.target.value))}
+                                className="w-12 text-center text-sm py-1 bg-transparent text-neutral-900 dark:text-neutral-100 focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateQueueQuantity(item.queueKey, item.quantity + 1)}
+                                className="px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 cursor-pointer"
+                              >
+                                <Plus size={13} />
+                              </button>
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFromQueue(item.queueKey)}
+                            className="p-1.5 text-neutral-400 hover:text-rose-500 cursor-pointer"
+                            title="Remove from queue"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
                       </div>
-                      <span className="font-bold text-neutral-900 dark:text-neutral-100 shrink-0">
-                        Total: {selectedItems.length} item(s) / {totalQueueUnits} unit(s)
-                      </span>
-                    </div>
+                    ))}
                   </div>
                 )}
-              </div>
 
-              {/* OPTIONAL NOTES */}
-              {selectedItems.length > 0 && (
-                <div>
-                  <label className="block text-xs font-bold text-[var(--text-main)] uppercase tracking-wider mb-1">
-                    Transfer Note / Batch Reference (Optional)
-                  </label>
-                  <input
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    placeholder="e.g. Courier tracking ref, B2B batch order..."
-                    className="w-full bg-[var(--bg-input)] border border-[var(--border-base)] rounded-lg px-3.5 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
-                  />
+                <div className="px-4 py-2.5 bg-neutral-50 dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
+                  <span>Missing products/SKUs in the destination business are created automatically upon receiving.</span>
+                  <span className="font-medium text-neutral-900 dark:text-neutral-100 shrink-0 ml-3">
+                    {selectedItems.length} item(s) / {totalQueueUnits} unit(s)
+                  </span>
                 </div>
-              )}
-
-              {/* ACTION DISPATCH BUTTON */}
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={loading || !toBranch || selectedItems.length === 0}
-                  className="w-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 text-white font-bold py-3 px-6 rounded-xl transition flex items-center justify-center gap-2 text-sm cursor-pointer"
-                >
-                  {loading ? <Loader size={17} className="animate-spin" /> : <ArrowUpRight size={17} />}
-                  {selectedItems.length <= 1
-                    ? 'Dispatch B2B Transfer to Business'
-                    : `Dispatch Bulk Transfer (${selectedItems.length} Products • ${totalQueueUnits} Units)`}
-                </button>
               </div>
             </form>
           </div>
@@ -1004,23 +983,23 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
 
         {/* TAB 2: TRANSFER LIST */}
         {tab === 'list' && (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--bg-card)] border border-[var(--border-base)] p-3 rounded-lg">
+          <div className="max-w-7xl mx-auto space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-3">
               <div className="flex items-center gap-1.5 flex-wrap">
                 {[
-                  { id: 'all', label: 'All Transfers' },
-                  { id: 'outgoing', label: 'Outgoing (Sent)' },
-                  { id: 'incoming', label: 'Incoming (Received)' },
+                  { id: 'all', label: 'All' },
+                  { id: 'outgoing', label: 'Outgoing' },
+                  { id: 'incoming', label: 'Incoming' },
                   { id: 'in_transit', label: 'In Transit' },
                   { id: 'completed', label: 'Completed' },
                 ].map(flt => (
                   <button
                     key={flt.id}
                     onClick={() => setFilterDirection(flt.id as any)}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded transition cursor-pointer ${
+                    className={`px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer ${
                       filterDirection === flt.id
-                        ? 'bg-[var(--brand-primary)] text-white '
-                        : 'bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                        ? 'bg-[var(--brand-primary)] text-white'
+                        : 'bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white'
                     }`}
                   >
                     {flt.label}
@@ -1028,12 +1007,12 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
                 ))}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 {filteredTransfers.length > 0 && (
                   <button
                     type="button"
                     onClick={toggleSelectAllVisible}
-                    className="px-2.5 py-1.5 text-xs font-semibold bg-[var(--bg-hover)] border border-[var(--border-base)] rounded text-[var(--text-main)] hover:border-[var(--brand-primary)] transition cursor-pointer"
+                    className="px-3 py-1.5 text-sm font-medium bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 hover:border-neutral-400 cursor-pointer"
                   >
                     {filteredTransfers.every(t => selectedTransferIds.includes(t.id))
                       ? 'Unselect All'
@@ -1042,18 +1021,18 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
                 )}
 
                 <div className="relative w-72">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
                   <input
                     value={listSearch}
                     onChange={e => setListSearch(e.target.value)}
                     placeholder="Filter by Product, IMEI, Branch..."
-                    className="w-full bg-[var(--bg-input)] border border-[var(--border-base)] rounded pl-8 pr-7 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] text-[var(--text-main)]"
+                    className="w-full bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 pl-9 pr-8 py-1.5 text-sm focus:outline-none focus:border-[var(--brand-primary)] text-neutral-900 dark:text-neutral-100"
                   />
                   {listSearch && (
                     <button
                       type="button"
                       onClick={() => setListSearch('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-neutral-400 hover:text-neutral-700 cursor-pointer"
                     >
                       ✕
                     </button>
@@ -1064,15 +1043,15 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
 
             {/* BULK SELECTION ACTION BAR */}
             {selectedTransferObjects.length > 0 && (
-              <div className="bg-blue-500/10 border border-blue-500/30 px-4 py-2.5 rounded-lg flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="font-bold text-blue-700 dark:text-blue-300 flex items-center gap-2">
-                  <span>{selectedTransferObjects.length} transfer(s) selected</span>
+              <div className="bg-blue-500/10 border border-blue-500/30 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-sm">
+                <div className="font-medium text-blue-700 dark:text-blue-300 flex items-center gap-3">
+                  <span>{selectedTransferObjects.length} selected</span>
                   <button
                     type="button"
                     onClick={() => setSelectedTransferIds([])}
-                    className="underline font-normal opacity-80 hover:opacity-100 cursor-pointer"
+                    className="underline text-xs opacity-80 hover:opacity-100 cursor-pointer"
                   >
-                    Clear selection
+                    Clear
                   </button>
                 </div>
 
@@ -1080,9 +1059,9 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
                   <button
                     type="button"
                     onClick={() => handlePrintManifest(selectedTransferObjects)}
-                    className="px-3 py-1.5 font-semibold bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5 hover:bg-neutral-50 cursor-pointer"
+                    className="px-3 py-1.5 text-sm font-medium bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5 hover:bg-neutral-50 cursor-pointer"
                   >
-                    <Printer size={13} /> Print Combined Slip ({selectedTransferObjects.length})
+                    <Printer size={14} /> Print Combined Slip ({selectedTransferObjects.length})
                   </button>
 
                   {selectedIncomingInTransit.length > 0 && (
@@ -1090,9 +1069,9 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
                       type="button"
                       disabled={bulkActionLoading}
                       onClick={handleBulkCompleteSelected}
-                      className="px-3.5 py-1.5 font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                      className="px-3.5 py-1.5 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                     >
-                      <CheckCircle size={13} /> Receive & Accept Selected ({selectedIncomingInTransit.length})
+                      <CheckCircle size={14} /> Receive & Accept ({selectedIncomingInTransit.length})
                     </button>
                   )}
 
@@ -1101,9 +1080,9 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
                       type="button"
                       disabled={bulkActionLoading}
                       onClick={handleBulkCancelSelected}
-                      className="px-3 py-1.5 font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                      className="px-3 py-1.5 text-sm font-medium bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                     >
-                      <XCircle size={13} /> Cancel Selected ({selectedOutgoingInTransit.length})
+                      <XCircle size={14} /> Cancel ({selectedOutgoingInTransit.length})
                     </button>
                   )}
                 </div>
@@ -1111,14 +1090,13 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
             )}
 
             {filteredTransfers.length === 0 ? (
-              <div className="text-center py-16 text-[var(--text-muted)] bg-[var(--bg-card)] border border-[var(--border-base)] rounded-lg">
+              <div className="text-center py-12 text-neutral-400 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-sm">
                 No transfer records found.
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-800">
                 {filteredTransfers.map(t => {
                   const s = statusColors[t.status] || statusColors.pending;
-                  const Icon = s.icon;
                   const outgoing = isOutgoing(t);
                   const incoming = isIncoming(t);
                   const isChecked = selectedTransferIds.includes(t.id);
@@ -1126,74 +1104,61 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
                   return (
                     <div
                       key={t.id}
-                      className={`bg-[var(--bg-card)] border p-4 rounded-lg flex flex-wrap items-center justify-between gap-4  transition ${
+                      className={`px-4 py-3 flex flex-wrap items-center justify-between gap-4 transition-colors ${
                         isChecked
-                          ? 'border-[var(--brand-primary)] bg-blue-500/5'
-                          : 'border-[var(--border-base)] hover:border-[var(--brand-primary)]/40'
+                          ? 'bg-blue-50/70 dark:bg-blue-950/30'
+                          : 'hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40'
                       }`}
                     >
-                      <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => toggleSelectTransfer(t.id)}
-                          className="mt-2 w-4 h-4 rounded border-neutral-300 text-[var(--brand-primary)] focus:ring-[var(--brand-primary)] cursor-pointer shrink-0"
+                          className="mt-1.5 w-4 h-4 border-neutral-300 text-[var(--brand-primary)] cursor-pointer shrink-0"
                         />
-                        <div className={`p-2.5 rounded border ${s.bg} shrink-0 mt-0.5`}>
-                          <Icon size={18} className={s.text} />
-                        </div>
                         <div className="min-w-0 space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-[var(--text-main)] text-sm">
+                          <div className="flex items-center gap-2.5 flex-wrap text-sm">
+                            <span className="font-semibold text-neutral-900 dark:text-neutral-100">
                               {t.product_name || 'Stock Item'}
                             </span>
                             {outgoing && (
-                              <span className="text-[11px] font-bold px-2 py-0.5 bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 rounded flex items-center gap-1">
-                                <ArrowUpRight size={11} /> Outgoing
-                              </span>
+                              <span className="text-xs font-medium text-blue-600 dark:text-blue-400">Outgoing</span>
                             )}
                             {incoming && (
-                              <span className="text-[11px] font-bold px-2 py-0.5 bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20 rounded flex items-center gap-1">
-                                <ArrowDownLeft size={11} /> Incoming
-                              </span>
+                              <span className="text-xs font-medium text-purple-600 dark:text-purple-400">Incoming</span>
                             )}
                             {t.sku_code && (
-                              <span className="text-xs font-mono bg-[var(--bg-hover)] border border-[var(--border-base)] px-2 py-0.5 rounded text-[var(--text-muted)]">
-                                SKU: {t.sku_code}
-                              </span>
+                              <span className="text-xs font-mono text-neutral-500">SKU: {t.sku_code}</span>
                             )}
                             {t.imei && (
-                              <span className="text-xs font-mono bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded font-bold">
-                                IMEI: {t.imei}
-                              </span>
+                              <span className="text-xs font-mono text-blue-600 dark:text-blue-400">IMEI: {t.imei}</span>
                             )}
                             {t.imei_serial && !t.imei && (
-                              <span className="text-xs font-mono bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20 px-2 py-0.5 rounded font-bold">
-                                Serial: {t.imei_serial}
-                              </span>
+                              <span className="text-xs font-mono text-purple-600 dark:text-purple-400">Serial: {t.imei_serial}</span>
                             )}
-                            <span className={`text-xs px-2.5 py-0.5 rounded border font-semibold capitalize ${s.bg} ${s.text}`}>
-                              {t.status.replace('_', ' ')}
+                            <span className={`text-xs font-medium capitalize ${s.text}`}>
+                              • {t.status.replace('_', ' ')}
                             </span>
                           </div>
 
-                          <div className="text-xs text-[var(--text-muted)] flex items-center gap-1.5 flex-wrap">
-                            <span className="font-semibold text-[var(--text-main)]">
+                          <div className="text-sm text-neutral-600 dark:text-neutral-400 flex items-center gap-2 flex-wrap">
+                            <span className="text-neutral-800 dark:text-neutral-200 font-medium">
                               {t.from_branch_name || t.from_business_name}
                             </span>
-                            <ArrowRight size={12} className="text-[var(--brand-primary)]" />
-                            <span className="font-semibold text-[var(--text-main)]">
+                            <ArrowRight size={13} className="text-neutral-400" />
+                            <span className="text-neutral-800 dark:text-neutral-200 font-medium">
                               {t.to_branch_name || t.to_business_name}
                             </span>
-                            <span className="font-bold text-[var(--text-main)]">• Qty: {t.quantity || 1}</span>
-                            {t.color && <span>• Color: {t.color}</span>}
+                            <span>• Qty: {t.quantity || 1}</span>
+                            {t.color && <span>• {t.color}</span>}
                             {t.gb && <span>• {t.gb}</span>}
                             {t.condition && <span>• {t.condition}</span>}
                           </div>
 
-                          <div className="text-xs text-[var(--text-muted)] opacity-80">
-                            Transfer #{t.id} • Created {new Date(t.created_at).toLocaleString()}
-                            {t.initiated_by_name && ` by ${t.initiated_by_name}`}
+                          <div className="text-xs text-neutral-400">
+                            Transfer #{t.id} • {new Date(t.created_at).toLocaleString()}
+                            {t.initiated_by_name && ` • ${t.initiated_by_name}`}
                             {t.notes && <span className="italic ml-2">"{t.notes}"</span>}
                           </div>
                         </div>
@@ -1202,28 +1167,30 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           onClick={() => handlePrintManifest(t)}
-                          className="px-3 py-1.5 text-xs font-medium text-[var(--text-main)] bg-[var(--bg-hover)] border border-[var(--border-base)] rounded hover:bg-[var(--bg-hover)]/80 transition flex items-center gap-1.5 cursor-pointer"
+                          className="px-3 py-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-700 flex items-center gap-1.5 cursor-pointer"
                         >
-                          <Printer size={13} /> Print Slip
+                          <Printer size={14} /> Print
                         </button>
 
                         {t.status === 'in_transit' && (
                           <>
                             {incoming && (
                               <button
+                                disabled={actionLoadingId === t.id}
                                 onClick={() => completeTransfer(t.id)}
-                                className="px-3.5 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded transition flex items-center gap-1 cursor-pointer"
+                                className="px-3 py-1.5 text-sm font-medium bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white flex items-center gap-1.5 cursor-pointer"
                               >
-                                <CheckCircle size={13} /> Receive & Accept
+                                <CheckCircle size={14} /> {actionLoadingId === t.id ? 'Receiving...' : 'Receive'}
                               </button>
                             )}
 
                             {outgoing && (
                               <button
+                                disabled={actionLoadingId === t.id}
                                 onClick={() => cancelTransfer(t.id)}
-                                className="px-3 py-1.5 text-xs font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 rounded transition cursor-pointer"
+                                className="px-3 py-1.5 text-sm font-medium bg-rose-500/10 hover:bg-rose-500/20 disabled:opacity-50 text-rose-600 dark:text-rose-400 border border-rose-500/20 cursor-pointer"
                               >
-                                Cancel Dispatch
+                                {actionLoadingId === t.id ? 'Cancelling...' : 'Cancel'}
                               </button>
                             )}
                           </>
@@ -1239,19 +1206,19 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
 
         {/* TAB 3: IMEI / SERIAL LOOKUP */}
         {tab === 'lookup' && (
-          <div className="max-w-2xl mx-auto space-y-6">
+          <div className="max-w-4xl mx-auto space-y-4">
             <form onSubmit={doLookup} className="flex gap-2">
               <input
                 value={imeiLookup}
                 onChange={e => setImeiLookup(e.target.value)}
                 placeholder="Enter 15-digit IMEI or Serial number to track movement history..."
                 required
-                className="flex-1 bg-[var(--bg-input)] border border-[var(--border-base)] rounded-lg px-4 py-2.5 text-sm text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
+                className="flex-1 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 px-3.5 py-2.5 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-[var(--brand-primary)]"
               />
               <button
                 type="submit"
                 disabled={lookupLoading}
-                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white px-5 py-2.5 rounded-lg font-semibold transition flex items-center gap-2 text-sm disabled:opacity-60 cursor-pointer"
+                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white px-5 py-2.5 font-medium transition-colors flex items-center gap-2 text-sm disabled:opacity-60 cursor-pointer"
               >
                 {lookupLoading ? <Loader size={15} className="animate-spin" /> : <Search size={15} />}
                 Search
@@ -1259,66 +1226,56 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
             </form>
 
             {lookupResult?.error && (
-              <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-700 dark:text-rose-300 text-sm flex items-center gap-2">
+              <div className="p-3.5 bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-sm flex items-center gap-2">
                 <AlertCircle size={16} /> {lookupResult.error}
               </div>
             )}
 
             {lookupResult?.device && (
               <div className="space-y-4">
-                <div className="bg-[var(--bg-card)] border border-[var(--border-base)] p-5 rounded-xl space-y-2">
+                <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-[var(--text-main)]">
+                    <span className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
                       {lookupResult.device.product_name || lookupResult.device.imei}
                     </span>
-                    <span className="px-2.5 py-0.5 text-xs font-semibold rounded bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 capitalize">
-                      Status: {lookupResult.device.status}
+                    <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400 capitalize">
+                      {lookupResult.device.status}
                     </span>
                   </div>
-                  <div className="text-xs text-[var(--text-muted)] space-y-1">
-                    <div>
-                      <strong>IMEI:</strong> <span className="font-mono font-bold text-[var(--text-main)]">{lookupResult.device.imei}</span>
-                      {lookupResult.device.imei_serial && ` • Serial: ${lookupResult.device.imei_serial}`}
-                    </div>
-                    <div>
-                      <strong>Location:</strong> {lookupResult.currentBranch?.name || lookupResult.currentBranch?.business_name || 'Branch'}
-                    </div>
-                    <div>
-                      <strong>Specs:</strong> {lookupResult.device.color || 'N/A'} • {lookupResult.device.gb || 'N/A'} • {lookupResult.device.condition || 'N/A'}
-                    </div>
+                  <div className="text-sm text-neutral-600 dark:text-neutral-400 flex flex-wrap gap-x-5 gap-y-1">
+                    <span>IMEI: <strong className="font-mono text-neutral-900 dark:text-neutral-100">{lookupResult.device.imei}</strong></span>
+                    {lookupResult.device.imei_serial && <span>Serial: {lookupResult.device.imei_serial}</span>}
+                    <span>Location: {lookupResult.currentBranch?.name || lookupResult.currentBranch?.business_name || 'Branch'}</span>
+                    <span>Specs: {lookupResult.device.color || 'N/A'} • {lookupResult.device.gb || 'N/A'} • {lookupResult.device.condition || 'N/A'}</span>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wide mb-3">
+                  <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">
                     Movement & Transfer History ({lookupResult.transfers?.length || 0})
                   </h3>
                   {lookupResult.transfers?.length === 0 ? (
-                    <div className="text-sm text-[var(--text-muted)] p-4 bg-[var(--bg-card)] border border-[var(--border-base)] rounded-lg text-center">
+                    <div className="text-sm text-neutral-400 p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-center">
                       No transfers recorded for this device.
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-800">
                       {lookupResult.transfers.map((t: any) => {
                         const s = statusColors[t.status] || statusColors.pending;
-                        const Icon = s.icon;
                         return (
                           <div
                             key={t.id}
-                            className="bg-[var(--bg-card)] border border-[var(--border-base)] p-3 rounded-lg flex items-center gap-3 text-xs"
+                            className="px-4 py-3 flex items-center justify-between gap-3 text-sm"
                           >
-                            <Icon size={16} className={s.text} />
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-[var(--text-main)] flex items-center gap-1.5 flex-wrap">
+                            <div className="min-w-0">
+                              <div className="font-medium text-neutral-900 dark:text-neutral-100 flex items-center gap-2 flex-wrap">
                                 <span>{t.from_branch_name || t.from_business_name}</span>
-                                <ArrowRight size={11} className="text-[var(--brand-primary)]" />
+                                <ArrowRight size={13} className="text-neutral-400" />
                                 <span>{t.to_branch_name || t.to_business_name}</span>
-                                <span className={`ml-1 px-2 py-0.2 rounded border text-[10px] ${s.bg} ${s.text}`}>
-                                  {t.status}
-                                </span>
+                                <span className={`ml-1 capitalize ${s.text}`}>• {t.status}</span>
                               </div>
-                              <div className="text-[var(--text-muted)] mt-0.5">
-                                {new Date(t.created_at).toLocaleString()} • Handled by {t.initiated_by_name || 'Staff'}
+                              <div className="text-xs text-neutral-500 mt-0.5">
+                                {new Date(t.created_at).toLocaleString()} • {t.initiated_by_name || 'Staff'}
                               </div>
                             </div>
                           </div>

@@ -1150,15 +1150,23 @@ router.get('/devices', async (req: any, res, next) => {
     const sql = `
       SELECT d.id, d.business_id, d.branch_id, d.user_id, d.sku_id, d.imei, d.imei_serial, d.color, d.gb, d.ram,
              d.\`condition\`, d.po_number, d.status, d.cost_price, d.selling_price, d.created_at,
-             COALESCE(p.name, 'Standard Mobile Device') as product_name, s.sku_code, inv.invoice_number,
+             COALESCE(p.name, 'Standard Mobile Device') as product_name, s.sku_code,
+             (
+               SELECT inv.invoice_number
+               FROM invoice_items ii
+               JOIN invoices inv ON ii.invoice_id = inv.id
+               WHERE ii.device_id = d.id
+                 AND inv.status != 'refunded'
+                 AND COALESCE(ii.refunded_quantity, 0) < ii.quantity
+               ORDER BY inv.created_at DESC, ii.id DESC
+               LIMIT 1
+             ) as invoice_number,
              b.name as branch_name, u.name as user_name
       FROM devices d
       LEFT JOIN product_skus s ON d.sku_id=s.id
       LEFT JOIN products p ON (d.product_id=p.id OR s.product_id=p.id)
       LEFT JOIN branches b ON d.branch_id=b.id
       LEFT JOIN users u ON d.user_id=u.id
-      LEFT JOIN invoice_items ii ON d.id=ii.device_id
-      LEFT JOIN invoices inv ON ii.invoice_id=inv.id
       WHERE d.business_id=? ${statusClause} ${filterClause}
       ORDER BY d.created_at DESC
     `;
@@ -1381,7 +1389,14 @@ async function dispatchSingleTransferItem(
   toBranchId: number,
   userId: number,
   defaultNotes?: string | null
-): Promise<number> {
+): Promise<{
+  transferId: number;
+  deviceId: number | null;
+  skuId: number | null;
+  productId: number | null;
+  imei: string | null;
+  productName: string;
+}> {
   const {
     device_id: rawDeviceId,
     sku_id: rawSkuId,
@@ -1404,40 +1419,43 @@ async function dispatchSingleTransferItem(
   let finalSkuId = rawSkuId;
   let finalDeviceId = rawDeviceId;
   let isSerialized = !!(imei?.trim() || serial_number?.trim() || rawDeviceId);
-  const cleanImei = imei?.trim() || null;
+  let cleanImei = imei?.trim() || null;
   const cleanSerial = serial_number?.trim() || null;
   let cleanProductName = product_name?.trim();
   let cleanSkuCode = sku_code?.trim();
+  let resolvedProductId: number | null = null;
 
-  // 1. If device ID is provided, verify and reuse its existing SKU & product directly
+  // 1. If device ID is provided, verify and lock its existing SKU & product at source branch
   if (finalDeviceId) {
     const [dr] = await conn.execute(
       `SELECT d.*, s.sku_code, p.name as product_name, p.id as product_id 
        FROM devices d 
        JOIN product_skus s ON d.sku_id=s.id 
        JOIN products p ON s.product_id=p.id 
-       WHERE d.id=? AND d.business_id=?`,
-      [finalDeviceId, sourceBusinessId]
+       WHERE d.id=? AND d.business_id=? AND d.branch_id=? FOR UPDATE`,
+      [finalDeviceId, sourceBusinessId, sourceBranchId]
     );
     const dev = (dr as any[])[0];
-    if (!dev) throw new Error(`Selected device (#${finalDeviceId}) not found`);
+    if (!dev) throw new Error(`Selected device (#${finalDeviceId}) not found at your branch`);
     if (dev.status !== 'in_stock' && dev.status !== 'available') {
       throw new Error(`Device (${dev.imei || dev.id}) is not available (current status: ${dev.status})`);
     }
     finalSkuId = dev.sku_id;
+    resolvedProductId = dev.product_id || null;
+    cleanImei = cleanImei || dev.imei || dev.imei_serial || null;
     cleanProductName = cleanProductName || dev.product_name;
     cleanSkuCode = cleanSkuCode || dev.sku_code;
     isSerialized = true;
     await conn.execute("UPDATE devices SET status='transfer' WHERE id=?", [finalDeviceId]);
   } else if (cleanImei) {
-    // Check if device with this IMEI already exists in source business
+    // Check if device with this IMEI already exists in source business & branch
     const [existDev] = await conn.execute(
       `SELECT d.*, s.sku_code, p.name as product_name, p.id as product_id 
        FROM devices d 
        JOIN product_skus s ON d.sku_id=s.id 
        JOIN products p ON s.product_id=p.id 
-       WHERE (d.imei=? OR d.imei_serial=?) AND d.business_id=?`,
-      [cleanImei, cleanImei, sourceBusinessId]
+       WHERE (d.imei=? OR d.imei_serial=?) AND d.business_id=? AND d.branch_id=? FOR UPDATE`,
+      [cleanImei, cleanImei, sourceBusinessId, sourceBranchId]
     );
     if ((existDev as any[]).length > 0) {
       const dev = (existDev as any[])[0];
@@ -1446,6 +1464,8 @@ async function dispatchSingleTransferItem(
       }
       finalDeviceId = dev.id;
       finalSkuId = dev.sku_id;
+      resolvedProductId = dev.product_id || null;
+      cleanImei = cleanImei || dev.imei || dev.imei_serial || null;
       cleanProductName = cleanProductName || dev.product_name;
       cleanSkuCode = cleanSkuCode || dev.sku_code;
       isSerialized = true;
@@ -1516,11 +1536,19 @@ async function dispatchSingleTransferItem(
       );
     }
   } else {
-    // Non-serialized item
+    // Non-serialized item: verify and lock sufficient stock at origin branch
     if (finalSkuId) {
+      const [bsRows] = await conn.execute(
+        'SELECT quantity FROM branch_stock WHERE branch_id=? AND sku_id=? FOR UPDATE',
+        [sourceBranchId, finalSkuId]
+      );
+      const currentQty = Number((bsRows as any[])[0]?.quantity || 0);
+      if (currentQty < quantity) {
+        throw new Error(`Insufficient stock for "${cleanProductName || cleanSkuCode || `SKU #${finalSkuId}`}" (Available: ${currentQty}, Requested: ${quantity})`);
+      }
       await conn.execute(
-        'INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE quantity=GREATEST(0, quantity - ?)',
-        [sourceBranchId, finalSkuId, quantity]
+        'UPDATE branch_stock SET quantity = quantity - ? WHERE branch_id=? AND sku_id=?',
+        [quantity, sourceBranchId, finalSkuId]
       );
     }
   }
@@ -1556,7 +1584,19 @@ async function dispatchSingleTransferItem(
     );
   }
 
-  return transferId;
+  if (!resolvedProductId && finalSkuId) {
+    const [pRow] = await conn.execute('SELECT product_id FROM product_skus WHERE id=? LIMIT 1', [finalSkuId]);
+    resolvedProductId = (pRow as any[])[0]?.product_id || null;
+  }
+
+  return {
+    transferId,
+    deviceId: finalDeviceId || null,
+    skuId: finalSkuId || null,
+    productId: resolvedProductId,
+    imei: cleanImei || cleanSerial || null,
+    productName: cleanProductName || product_name || cleanSkuCode || 'Item'
+  };
 }
 
 // POST /api/transfers (Supports both single item AND bulk items array in one ACID transaction)
@@ -1568,6 +1608,7 @@ router.post('/transfers', async (req: any, res, next) => {
   const sourceBranchId = req.user.branch_id;
   const sourceBusinessId = req.user.business_id;
 
+  if (!sourceBranchId) return res.status(400).json({ error: 'Active branch context is required to dispatch a transfer' });
   if (!to_branch_id) return res.status(400).json({ error: 'Destination branch is required' });
   if (Number(to_branch_id) === Number(sourceBranchId)) {
     return res.status(400).json({ error: 'Source and destination branches must be different' });
@@ -1589,7 +1630,7 @@ router.post('/transfers', async (req: any, res, next) => {
 
     const createdIds: number[] = [];
     for (const item of transferItems) {
-      const id = await dispatchSingleTransferItem(
+      const dispatched = await dispatchSingleTransferItem(
         conn,
         item,
         sourceBusinessId,
@@ -1598,7 +1639,31 @@ router.post('/transfers', async (req: any, res, next) => {
         req.userId,
         notes
       );
-      createdIds.push(id);
+      createdIds.push(dispatched.transferId);
+
+      const imeiTag = dispatched.imei ? ` [IMEI: ${dispatched.imei}]` : '';
+      const destLabel = destBranch.branch_name || destBranch.business_name;
+      const desc = `Transfer #${dispatched.transferId}: Dispatched ${dispatched.productName}${imeiTag} (Qty: ${item.quantity || 1}) to ${destLabel}`;
+
+      if (dispatched.deviceId) {
+        await conn.execute(
+          'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+          [dispatched.deviceId, req.userId, ACTIVITY_TYPES.TRANSFER_DISPATCHED, desc]
+        );
+      }
+
+      await recordAudit(req, {
+        conn,
+        branch_id: sourceBranchId,
+        device_id: dispatched.deviceId,
+        product_id: dispatched.productId,
+        activity_type: ACTIVITY_TYPES.TRANSFER_DISPATCHED,
+        description: desc,
+        reference_type: dispatched.deviceId ? 'device' : 'device_transfer',
+        reference_id: dispatched.deviceId || dispatched.transferId,
+        reference_link: dispatched.deviceId ? `/devices/${dispatched.deviceId}` : null,
+        metadata: { to_branch_id: Number(to_branch_id), quantity: item.quantity || 1, imei: dispatched.imei }
+      });
     }
 
     await conn.commit();
@@ -1702,7 +1767,8 @@ router.put('/transfers/:id/complete', async (req: any, res, next) => {
        LEFT JOIN devices d ON t.device_id=d.id
        LEFT JOIN product_skus s ON COALESCE(d.sku_id, t.sku_id)=s.id
        LEFT JOIN products p ON s.product_id=p.id
-       WHERE t.id=?`,
+       WHERE t.id=?
+       FOR UPDATE`,
       [req.params.id]
     );
     const transfer = (tr as any[])[0];
@@ -1713,6 +1779,7 @@ router.put('/transfers/:id/complete', async (req: any, res, next) => {
     const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
     // STRICT ISOLATION: Only the destination receiving business can accept this transfer
     if (!isSuper && Number(transfer.to_business_id) !== Number(req.user.business_id)) {
+      await conn.rollback();
       return res.status(403).json({ error: 'Access denied: Only the destination business can receive this transfer.' });
     }
 
@@ -1936,6 +2003,28 @@ router.put('/transfers/:id/complete', async (req: any, res, next) => {
       }
     }
 
+    const imeiTag = (transfer.imei || transfer.imei_serial) ? ` [IMEI: ${transfer.imei || transfer.imei_serial}]` : '';
+    const receiveDesc = `Transfer #${transfer.id}: Received ${resolvedProductName}${imeiTag} (Qty: ${transfer.quantity || 1})`;
+
+    if (transfer.device_id) {
+      await conn.execute(
+        'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [transfer.device_id, req.userId, ACTIVITY_TYPES.TRANSFER_RECEIVED, receiveDesc]
+      );
+    }
+    await recordAudit(req, {
+      conn,
+      business_id: destBusinessId,
+      branch_id: destBranchId,
+      device_id: transfer.device_id || null,
+      product_id: destProductId || null,
+      activity_type: ACTIVITY_TYPES.TRANSFER_RECEIVED,
+      description: receiveDesc,
+      reference_type: transfer.device_id ? 'device' : 'device_transfer',
+      reference_id: transfer.device_id || transfer.id,
+      reference_link: transfer.device_id ? `/devices/${transfer.device_id}` : null
+    });
+
     await conn.commit();
     res.json({ success: true, message: 'Transfer received and inventory synchronized' });
   } catch (e: any) {
@@ -1953,11 +2042,15 @@ router.put('/transfers/:id/cancel', async (req: any, res, next) => {
   try {
     await conn.beginTransaction();
     const [tr] = await conn.execute(
-      `SELECT t.*, fb.business_id as from_business_id, tb.business_id as to_business_id
+      `SELECT t.*, fb.business_id as from_business_id, tb.business_id as to_business_id,
+              d.imei, d.imei_serial, s.product_id as resolved_product_id
        FROM device_transfers t
        JOIN branches fb ON t.from_branch_id=fb.id
        JOIN branches tb ON t.to_branch_id=tb.id
-       WHERE t.id=?`,
+       LEFT JOIN devices d ON t.device_id=d.id
+       LEFT JOIN product_skus s ON COALESCE(d.sku_id, t.sku_id)=s.id
+       WHERE t.id=?
+       FOR UPDATE`,
       [req.params.id]
     );
     const transfer = (tr as any[])[0];
@@ -1968,6 +2061,7 @@ router.put('/transfers/:id/cancel', async (req: any, res, next) => {
     const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
     // STRICT ISOLATION: Only the dispatching origin business can cancel the transfer
     if (!isSuper && Number(transfer.from_business_id) !== Number(req.user.business_id)) {
+      await conn.rollback();
       return res.status(403).json({ error: 'Access denied: Only the dispatching business can cancel this transfer.' });
     }
 
@@ -1988,6 +2082,28 @@ router.put('/transfers/:id/cancel', async (req: any, res, next) => {
       );
     }
 
+    const cancelImeiTag = (transfer.imei || transfer.imei_serial) ? ` [IMEI: ${transfer.imei || transfer.imei_serial}]` : '';
+    const cancelDesc = `Transfer #${transfer.id}: Cancelled dispatch of ${transfer.product_name || 'Item'}${cancelImeiTag} (Qty: ${transfer.quantity || 1})`;
+
+    if (transfer.device_id) {
+      await conn.execute(
+        'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [transfer.device_id, req.userId, ACTIVITY_TYPES.TRANSFER_CANCELLED, cancelDesc]
+      );
+    }
+    await recordAudit(req, {
+      conn,
+      business_id: transfer.from_business_id,
+      branch_id: transfer.from_branch_id,
+      device_id: transfer.device_id || null,
+      product_id: transfer.resolved_product_id || null,
+      activity_type: ACTIVITY_TYPES.TRANSFER_CANCELLED,
+      description: cancelDesc,
+      reference_type: transfer.device_id ? 'device' : 'device_transfer',
+      reference_id: transfer.device_id || transfer.id,
+      reference_link: transfer.device_id ? `/devices/${transfer.device_id}` : null
+    });
+
     await conn.commit();
     res.json({ success: true, message: 'Transfer cancelled and stock restored to origin branch' });
   } catch (e: any) {
@@ -2003,7 +2119,11 @@ router.get('/transfers/device/:imei', async (req: any, res, next) => {
   try {
     const q = req.params.imei;
     const device = await queryOne(
-      'SELECT * FROM devices WHERE (imei=? OR imei_serial=?) AND business_id=?',
+      `SELECT d.*, COALESCE(p.name, 'Standard Mobile Device') as product_name, s.sku_code
+       FROM devices d
+       LEFT JOIN product_skus s ON d.sku_id = s.id
+       LEFT JOIN products p ON (d.product_id = p.id OR s.product_id = p.id)
+       WHERE (d.imei=? OR d.imei_serial=?) AND d.business_id=?`,
       [q, q, (req as any).user.business_id]
     );
     if (!device) return res.status(404).json({ error: 'No device found with this IMEI or Serial' });

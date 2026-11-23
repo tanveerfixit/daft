@@ -34,6 +34,9 @@ export const ACTIVITY_TYPES = {
   DEVICE_UPDATED: 'Device Updated',
   DEVICE_SOLD: 'Device Sold',
   DEVICE_DELETED: 'Device Deleted',
+  TRANSFER_DISPATCHED: 'Transfer Dispatched',
+  TRANSFER_RECEIVED: 'Transfer Received',
+  TRANSFER_CANCELLED: 'Transfer Cancelled',
   NOTE_ADDED: 'Note Added',
 
   // Repairs & EOD Reports
