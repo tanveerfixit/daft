@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   FolderOpen, 
   Banknote, 
@@ -10,14 +10,42 @@ import {
   PieChart, 
   ArrowLeftRight, 
   Settings, 
-  LayoutGrid 
+  LayoutGrid
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface HomeMenuProps {
   onNavigate: (view: any) => void;
 }
 
 const HomeMenu: React.FC<HomeMenuProps> = ({ onNavigate }) => {
+  const { currentUser, token } = useAuth();
+  const [incomingCount, setIncomingCount] = useState(0);
+
+  const fetchIncoming = async () => {
+    const authToken = token || sessionStorage.getItem('epos_token');
+    if (!authToken || !currentUser?.business_id) return;
+    try {
+      const res = await fetch('/api/transfers/incoming-pending', {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIncomingCount(Array.isArray(data) ? data.length : 0);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    fetchIncoming();
+    const onRefresh = () => fetchIncoming();
+    window.addEventListener('focus', onRefresh);
+    window.addEventListener('epos:transfers-updated', onRefresh);
+    return () => {
+      window.removeEventListener('focus', onRefresh);
+      window.removeEventListener('epos:transfers-updated', onRefresh);
+    };
+  }, [currentUser?.id, currentUser?.business_id, currentUser?.branch_id, token]);
   const menuTiles = [
     { id: 'stock-take', label: 'Stock Take', icon: FolderOpen },
     { id: 'expenses', label: 'Expenses', icon: Banknote },
@@ -47,8 +75,13 @@ const HomeMenu: React.FC<HomeMenuProps> = ({ onNavigate }) => {
           <button
             key={tile.id}
             onClick={() => onNavigate(tile.id)}
-            className="flex flex-col items-center justify-center bg-[rgb(2,133,181)] text-white p-1.5 sm:p-2 rounded transition-all aspect-square group w-full border border-[rgb(2,133,181)] hover:-translate-y-1 hover:brightness-110 active:scale-[0.97] cursor-pointer"
+            className="relative flex flex-col items-center justify-center bg-[rgb(2,133,181)] text-white p-1.5 sm:p-2 rounded transition-all aspect-square group w-full border border-[rgb(2,133,181)] hover:-translate-y-1 hover:brightness-110 active:scale-[0.97] cursor-pointer"
           >
+            {tile.id === 'transfers' && incomingCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 min-w-[20px] h-[20px] px-1 bg-red-600 text-white text-[11px] font-bold rounded-full flex items-center justify-center">
+                {incomingCount}
+              </span>
+            )}
             <div className="mb-1 group-hover:scale-110 transition-all duration-200 flex items-center justify-center shrink-0">
               <tile.icon className="w-6 h-6 sm:w-7 sm:h-7 md:w-[30px] md:h-[30px] text-white" strokeWidth={1.5} />
             </div>

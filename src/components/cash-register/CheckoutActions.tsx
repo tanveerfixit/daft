@@ -35,17 +35,17 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-2.5 font-sans px-3 sm:px-0" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+    <div className="flex flex-col gap-2 font-sans px-3 sm:px-0">
       <button
         id="checkout-btn"
         type="button"
         onClick={handlePrimaryClick}
         disabled={isCartEmpty || isAwaitingTender}
-        className={`border rounded py-3.5 font-bold text-base  transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+        className={`border py-3 font-semibold text-base transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
           isPaymentComplete
             ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
             : isAwaitingTender
-              ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+              ? 'bg-amber-50 text-amber-800 border-amber-300'
               : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
         }`}
       >
@@ -61,7 +61,7 @@ export const CheckoutActions: React.FC<CheckoutActionsProps> = ({
         type="button"
         onClick={onClearCart}
         disabled={isCartEmpty}
-        className="bg-white border border-neutral-300 text-neutral-600 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50/50 rounded py-2 font-medium text-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        className="bg-white border border-neutral-300 text-neutral-600 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50/50 py-2 font-medium text-sm transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Clear Sale & Start Over
       </button>

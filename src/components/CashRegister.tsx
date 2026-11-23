@@ -91,6 +91,12 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const [activities, setActivities] = useState<Activity[]>(() => {
     return getScopedSessionStorage<Activity[]>('activities', currentUser, []) || [];
   });
+  const [posNotice, setPosNotice] = useState<{ text: string; type: 'warning' | 'info' } | null>(null);
+
+  const showNotice = (text: string, type: 'warning' | 'info' = 'warning') => {
+    setPosNotice({ text, type });
+    setTimeout(() => setPosNotice(prev => (prev?.text === text ? null : prev)), 4000);
+  };
   
   // Reload storage state if active business or branch changes
   useEffect(() => {
@@ -597,7 +603,8 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   const addToCart = (product: Product | any) => {
     // Accounting rule: do not mix regular sales with a wallet deposit in the same transaction
     if (!product?.is_deposit && cart.some(c => c.is_deposit)) {
-      alert('Cannot mix products with a Wallet Deposit. Please complete or remove the Wallet Deposit first.');
+      showNotice('Cannot mix products with a Wallet Deposit. Please complete or remove the Wallet Deposit first.');
+      focusSearchInput();
       return;
     }
 
@@ -1074,19 +1081,72 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
     }
   }, [remainingAmount]);
 
+  // POS Keyboard Shortcuts: F2 = Focus Scan/Search, F8 = Toggle Speed Grid, F9 = Checkout
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (showReviewModal || showDiscardConfirm) return;
+      if (e.key === 'F2') {
+        e.preventDefault();
+        focusSearchInput();
+      } else if (e.key === 'F8') {
+        e.preventDefault();
+        setShowSpeedGrid(prev => !prev);
+      } else if (e.key === 'F9') {
+        e.preventDefault();
+        if (cart.length === 0) return;
+        if (isPaymentComplete) {
+          handleCheckout();
+        } else if (addedPayments.length === 0) {
+          handleQuickCheckout();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [cart.length, isPaymentComplete, addedPayments.length, showReviewModal, showDiscardConfirm]);
+
   return (
-    <div className="flex flex-col h-full bg-[#f9fafb] text-[#333333] select-none w-full overflow-hidden" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
-      {/* Top Bar */}
-      <header className="flex items-center justify-between bg-[#f9fafb] px-3 sm:px-6 py-2.5 sm:py-4 shrink-0">
-        <h1 className="text-[#333333] font-normal text-lg sm:text-[22px]" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>Cash Register</h1>
+    <div className="flex flex-col h-full bg-neutral-50 text-neutral-900 select-none w-full overflow-hidden font-sans">
+      {/* Compact POS Header */}
+      <header className="flex items-center justify-between bg-white border-b border-neutral-200 px-4 py-2.5 shrink-0">
+        <div className="flex items-center gap-3">
+          <h1 className="text-neutral-900 font-semibold text-lg">Cash Register</h1>
+          {totalQty > 0 && (
+            <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 text-xs font-medium tabular-nums">
+              {totalQty} {totalQty === 1 ? 'item' : 'items'}
+            </span>
+          )}
+        </div>
+        <div className="hidden md:flex items-center gap-3 text-xs text-neutral-500">
+          <span><kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-300 text-neutral-700 font-mono">F2</kbd> Scan</span>
+          <span><kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-300 text-neutral-700 font-mono">F8</kbd> Quick Grid</span>
+          <span><kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-300 text-neutral-700 font-mono">F9</kbd> Pay</span>
+        </div>
       </header>
 
-      {/* Main Content */}
-      <main className="p-0 sm:p-4 grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-2.5 sm:gap-4 flex-1 overflow-y-auto pb-28 lg:pb-4">
-        {/* Left Column */}
-        <section className="flex flex-col gap-2.5 sm:gap-4 min-w-0">
+      {/* Non-blocking POS Notice */}
+      {posNotice && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between text-xs text-amber-800 shrink-0">
+          <div className="flex items-center gap-2 font-medium">
+            <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+            <span>{posNotice.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPosNotice(null)}
+            className="text-amber-700 hover:text-amber-900 cursor-pointer px-1"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Main POS Workspace */}
+      <main className="p-2 sm:p-3 grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-3 flex-1 min-h-0 overflow-y-auto lg:overflow-hidden pb-28 lg:pb-3">
+        {/* Left Column: Pinned Search, Scrollable Cart, Compact Activity Log */}
+        <section className="flex flex-col gap-3 min-w-0 lg:h-full lg:min-h-0">
           {/* Search / Scan bar */}
-          <div ref={searchContainerRef} className="relative z-20">
+          <div ref={searchContainerRef} className="relative z-20 shrink-0">
             <ProductSearchBar 
               inputRef={searchInputRef}
               searchQuery={searchQuery}
@@ -1135,22 +1195,26 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
           )}
 
           {/* Cart Table */}
-          <CartTable 
-            cart={cart}
-            onUpdateQuantity={updateQuantity}
-            onUpdatePrice={updatePrice}
-            onRemove={removeFromCart}
-            onOpenImeiSelector={handleOpenImeiSelector}
-            onEdit={handleEditItem}
-            onSelectProduct={onSelectProduct}
-          />
+          <div className="lg:flex-1 lg:min-h-0 flex flex-col">
+            <CartTable 
+              cart={cart}
+              onUpdateQuantity={updateQuantity}
+              onUpdatePrice={updatePrice}
+              onRemove={removeFromCart}
+              onOpenImeiSelector={handleOpenImeiSelector}
+              onEdit={handleEditItem}
+              onSelectProduct={onSelectProduct}
+            />
+          </div>
 
           {/* Activity Log */}
-          <ActivityLog activities={activities} />
+          <div className="shrink-0">
+            <ActivityLog activities={activities} />
+          </div>
         </section>
 
         {/* Right Column: Sidebar (Customer, Totals, Payment) */}
-        <div id="checkout-sidebar" className="w-full">
+        <div id="checkout-sidebar" className="w-full lg:h-full lg:overflow-y-auto lg:pr-0.5">
           <Sidebar 
             selectedCustomer={selectedCustomer}
             customerSearch={customerSearch}
@@ -1198,12 +1262,12 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
 
         {/* Mobile Sticky Quick Summary & Pay Button */}
         {cart.length > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-neutral-900 border-t border-neutral-300 dark:border-neutral-700 p-3 px-4 flex items-center justify-between z-40 lg:hidden font-sans">
+          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-300 p-3 px-4 flex items-center justify-between z-40 lg:hidden font-sans">
             <div className="flex flex-col">
               <span className="text-xs text-neutral-500 font-medium">
                 {totalQty} {totalQty === 1 ? 'item' : 'items'} in cart
               </span>
-              <span className="text-xl font-bold font-mono text-neutral-900 dark:text-white leading-tight">
+              <span className="text-xl font-bold tabular-nums text-neutral-900 leading-tight">
                 €{total.toFixed(2)}
               </span>
             </div>
@@ -1224,34 +1288,34 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
       {/* Discard Sale Confirmation Modal */}
       {showDiscardConfirm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[110] p-4 font-sans select-none">
-          <div className="bg-white dark:bg-neutral-900 border border-[#cccccc] dark:border-neutral-700 w-full max-w-sm overflow-hidden flex flex-col rounded animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white border border-neutral-300 w-full max-w-sm overflow-hidden flex flex-col">
             {/* Modal Header */}
-            <div className="px-4 py-2.5 border-b border-[#dfdfdf] dark:border-neutral-800 flex justify-between items-center bg-[#f2f2f2] dark:bg-neutral-800">
+            <div className="px-4 py-2.5 border-b border-neutral-200 flex justify-between items-center bg-neutral-100">
               <div className="flex items-center gap-2">
-                <AlertTriangle size={17} className="text-amber-600 dark:text-amber-400" />
-                <h3 className="text-sm font-semibold text-black dark:text-white">Discard Current Sale?</h3>
+                <AlertTriangle size={17} className="text-amber-600" />
+                <h3 className="text-sm font-semibold text-neutral-900">Discard Current Sale?</h3>
               </div>
               <button 
                 onClick={() => setShowDiscardConfirm(false)}
-                className="p-1 hover:bg-[#91c9f7] hover:text-black text-[#707070] dark:text-slate-300 rounded cursor-pointer transition-colors"
+                className="p-1 hover:bg-neutral-200 text-neutral-600 cursor-pointer transition-colors"
               >
                 <X size={16} />
               </button>
             </div>
             
             {/* Modal Body */}
-            <div className="p-4 bg-white dark:bg-neutral-900 space-y-2">
-              <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-normal">
+            <div className="p-4 bg-white space-y-2">
+              <p className="text-sm text-neutral-700 leading-normal">
                 Are you sure you want to clear the cart and reset this sale? All scanned items and attached customer details will be cleared.
               </p>
             </div>
 
             {/* Modal Footer Actions */}
-            <div className="px-4 py-2.5 bg-[#f2f2f2] dark:bg-neutral-800/60 border-t border-[#dfdfdf] dark:border-neutral-800 flex justify-end gap-2">
+            <div className="px-4 py-2.5 bg-neutral-100 border-t border-neutral-200 flex justify-end gap-2">
               <button 
                 type="button"
                 onClick={() => setShowDiscardConfirm(false)}
-                className="px-3.5 py-1.5 bg-white dark:bg-neutral-800 hover:bg-neutral-100 text-neutral-800 dark:text-slate-200 border border-[#cccccc] dark:border-neutral-700 text-sm font-medium rounded transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 bg-white hover:bg-neutral-100 text-neutral-800 border border-neutral-300 text-sm font-medium transition-colors cursor-pointer"
               >
                 Keep Sale
               </button>

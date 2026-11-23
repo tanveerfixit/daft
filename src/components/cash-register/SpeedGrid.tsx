@@ -7,7 +7,7 @@ interface SpeedGridProps {
   onClose?: () => void;
 }
 
-export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
+export const SpeedGrid: React.FC<SpeedGridProps> = React.memo(({ onAddProduct, onClose }) => {
   const [categories, setCategories] = useState<SpeedGridCategory[]>([]);
   const [activeCategoryIndex, setActiveCategoryIndex] = useState<number | null>(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,7 +41,7 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
       resetIdleTimer();
     };
 
-    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    const events = ['mousedown', 'keydown', 'touchstart'];
     events.forEach(ev => window.addEventListener(ev, handleUserActivity, { passive: true }));
 
     return () => {
@@ -133,6 +133,7 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
 
     if (!deviceModalItem) return;
 
+    const parsedPrice = parseFloat(devicePrice);
     const devicePayload = {
       id: deviceModalItem.sku_id,
       product_id: deviceModalItem.product_id,
@@ -140,7 +141,7 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
       name: deviceModel.trim(),
       product_name: deviceModel.trim(),
       imei: deviceImei.trim(),
-      selling_price: parseFloat(devicePrice) || Number(deviceModalItem.selling_price) || 0,
+      selling_price: Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : (Number(deviceModalItem.selling_price) || 0),
       cost_price: Number(deviceModalItem.cost_price) || 0,
       sku_code: deviceModalItem.sku_code || '',
       product_type: 'serialized',
@@ -165,24 +166,30 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
 
   if (isLoading) {
     return (
-      <div className="bg-white border border-[#d8d8d8] rounded p-2.5 flex items-center justify-center text-xs text-slate-400 gap-2">
-        <Loader2 size={13} className="animate-spin text-blue-600" />
-        <span>Loading...</span>
+      <div className="bg-white border border-neutral-200 p-3 flex items-center justify-center text-xs text-neutral-500 gap-2 font-sans">
+        <Loader2 size={14} className="animate-spin text-blue-600" />
+        <span>Loading Quick Grid...</span>
       </div>
     );
   }
 
   if (categories.length === 0) {
-    return null;
+    return (
+      <div className="bg-white border border-neutral-200 px-3 py-2.5 flex items-center justify-between text-xs text-neutral-500 font-sans">
+        <span>No Quick Grid categories configured yet. Add them in Setup → Speed Grid.</span>
+        {onClose && (
+          <button type="button" onClick={onClose} className="text-neutral-400 hover:text-neutral-700 cursor-pointer px-1">
+            ✕
+          </button>
+        )}
+      </div>
+    );
   }
 
   return (
-    <div 
-      className="bg-white border-y sm:border border-[#d8d8d8] rounded-none sm:rounded p-2.5 space-y-2.5 transition-all"
-      style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
-    >
-      {/* 8 Categories Bar - Clean Text Buttons (Always visible) */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+    <div className="bg-white border border-neutral-200 p-2.5 space-y-2.5 font-sans">
+      {/* 8 Categories Bar */}
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-thin">
         {categories.slice(0, 8).map((cat, idx) => {
           const isActive = activeCategoryIndex === idx;
           return (
@@ -193,10 +200,10 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
                 setActiveCategoryIndex(prev => prev === idx ? null : idx);
                 resetIdleTimer();
               }}
-              className={`px-3 py-1.5 rounded text-xs font-semibold whitespace-nowrap transition-all border cursor-pointer select-none ${
+              className={`px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors border cursor-pointer select-none ${
                 isActive
-                  ? 'bg-blue-600 border-blue-600 text-white '
-                  : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-700 hover:border-slate-400'
+                  ? 'bg-blue-600 border-blue-600 text-white'
+                  : 'bg-white hover:bg-neutral-100 border-neutral-300 text-neutral-700 hover:border-neutral-400'
               }`}
             >
               {cat.name}
@@ -205,10 +212,10 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
         })}
       </div>
 
-      {/* Product Items - Clean Compact Text-Only Buttons (Auto-closes after 30s idle) */}
+      {/* Product Items */}
       {activeCategory && (
         items.length === 0 ? (
-          <div className="py-4 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded">
+          <div className="py-4 text-center text-xs text-neutral-400 border border-dashed border-neutral-200">
             No products assigned to "{activeCategory.name}".
           </div>
         ) : (
@@ -223,17 +230,17 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
                     handleTileClick(item);
                     resetIdleTimer();
                   }}
-                  className="bg-slate-50 hover:bg-blue-50 active:bg-blue-100 border border-slate-200 hover:border-blue-400 px-2.5 py-2 rounded text-left transition-colors cursor-pointer select-none flex items-center justify-between gap-1.5 min-h-[38px] group"
+                  className="bg-neutral-50 hover:bg-blue-50 active:bg-blue-100 border border-neutral-200 hover:border-blue-400 px-2.5 py-2 text-left transition-colors cursor-pointer select-none flex items-center justify-between gap-1.5 min-h-[38px] group"
                 >
-                  <span className="text-xs font-medium text-slate-800 group-hover:text-blue-950 truncate">
+                  <span className="text-[13px] font-medium text-neutral-800 group-hover:text-blue-950 truncate">
                     {displayName}
                   </span>
                   {Number(item.selling_price || 0) > 0 ? (
-                    <span className="text-xs font-bold text-emerald-700 shrink-0">
+                    <span className="text-xs font-semibold tabular-nums text-emerald-700 shrink-0">
                       €{Number(item.selling_price).toFixed(2)}
                     </span>
                   ) : (
-                    <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 group-hover:bg-blue-100 px-1.5 py-0.5 rounded shrink-0">
+                    <span className="text-[11px] font-medium text-blue-600 bg-blue-50 group-hover:bg-blue-100 px-1.5 py-0.5 shrink-0">
                       + IMEI
                     </span>
                   )}
@@ -246,27 +253,27 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
 
       {/* Required Device Input Modal (Model & IMEI) */}
       {deviceModalItem && (
-        <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 font-sans">
-          <div className="bg-white rounded-lg border border-slate-300 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-[120] bg-black/50 flex items-center justify-center p-4 font-sans">
+          <div className="bg-white border border-neutral-300 w-full max-w-md overflow-hidden">
             {/* Modal Header */}
-            <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
+            <div className="px-4 py-2.5 bg-neutral-100 border-b border-neutral-200 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Smartphone size={18} className="text-blue-600" />
-                <h3 className="text-sm font-bold text-slate-800">Add Device to Sale</h3>
+                <Smartphone size={17} className="text-blue-600" />
+                <h3 className="text-sm font-semibold text-neutral-900">Add Device to Sale</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setDeviceModalItem(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded"
+                className="text-neutral-400 hover:text-neutral-700 p-1 cursor-pointer"
               >
-                <X size={18} />
+                <X size={17} />
               </button>
             </div>
 
             {/* Modal Form */}
             <form onSubmit={handleConfirmDevice} className="p-4 space-y-3.5">
               {deviceError && (
-                <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded flex items-center gap-2 font-medium">
+                <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 font-medium">
                   <AlertCircle size={14} className="shrink-0" />
                   <span>{deviceError}</span>
                 </div>
@@ -274,7 +281,7 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
 
               {/* 1. Model Name (Required) */}
               <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700">
+                <label className="block text-xs font-medium text-neutral-700">
                   Device Model <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -286,13 +293,13 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
                     if (deviceError) setDeviceError('');
                   }}
                   placeholder="e.g. iPhone 13 128GB Blue"
-                  className="w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900 focus:border-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 border border-neutral-300 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none"
                 />
               </div>
 
               {/* 2. IMEI / Serial Number (Required) */}
               <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700">
+                <label className="block text-xs font-medium text-neutral-700">
                   IMEI / Serial Number <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -305,13 +312,13 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
                     if (deviceError) setDeviceError('');
                   }}
                   placeholder="Scan or type 15-digit IMEI..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded text-sm font-mono font-bold tracking-wide text-slate-900 focus:border-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 border border-neutral-300 text-sm font-mono font-semibold tracking-wide text-neutral-900 focus:border-blue-500 focus:outline-none"
                 />
               </div>
 
               {/* 3. Selling Price */}
               <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700">
+                <label className="block text-xs font-medium text-neutral-700">
                   Selling Price (€)
                 </label>
                 <input
@@ -320,22 +327,22 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
                   value={devicePrice}
                   onChange={(e) => setDevicePrice(e.target.value)}
                   placeholder="0.00"
-                  className="w-full px-3 py-2 border border-slate-300 rounded text-sm font-mono font-bold text-slate-900 focus:border-blue-500 focus:outline-none"
+                  className="w-full px-3 py-2 border border-neutral-300 text-sm tabular-nums font-semibold text-neutral-900 focus:border-blue-500 focus:outline-none"
                 />
               </div>
 
               {/* Modal Buttons */}
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-neutral-200">
                 <button
                   type="button"
                   onClick={() => setDeviceModalItem(null)}
-                  className="px-4 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded cursor-pointer transition-colors"
+                  className="px-4 py-2 border border-neutral-300 hover:bg-neutral-100 text-neutral-700 text-xs font-medium cursor-pointer transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded cursor-pointer transition-colors"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium cursor-pointer transition-colors"
                 >
                   Add Device to Cart
                 </button>
@@ -346,4 +353,4 @@ export const SpeedGrid: React.FC<SpeedGridProps> = ({ onAddProduct }) => {
       )}
     </div>
   );
-};
+});

@@ -6,8 +6,24 @@ import {
   Info, 
   CheckCheck, 
   ChevronRight,
-  Megaphone
+  Megaphone,
+  Truck,
+  CheckCircle,
+  Loader
 } from 'lucide-react';
+
+export interface IncomingTransferNotif {
+  id: number;
+  product_name: string;
+  sku_code?: string;
+  imei?: string;
+  imei_serial?: string;
+  quantity: number;
+  from_branch_name?: string;
+  from_business_name?: string;
+  initiated_by_name?: string;
+  created_at: string;
+}
 
 export interface Announcement {
   id: string;
@@ -25,6 +41,9 @@ import { useAuth } from '../context/AuthContext';
 export default function NotificationBell() {
   const { currentUser, token } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [incomingTransfers, setIncomingTransfers] = useState<IncomingTransferNotif[]>([]);
+  const [acceptingTransferId, setAcceptingTransferId] = useState<number | null>(null);
+  const [transferError, setTransferError] = useState('');
   const [readIds, setReadIds] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -142,7 +161,66 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const fetchIncomingTransfers = async () => {
+    const authToken = token || sessionStorage.getItem('epos_token');
+    if (!authToken || !currentUser?.business_id) {
+      setIncomingTransfers([]);
+      return;
+    }
+    try {
+      const res = await fetch('/api/transfers/incoming-pending', {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIncomingTransfers(Array.isArray(data) ? data : []);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    fetchIncomingTransfers();
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchIncomingTransfers();
+    }, 45000);
+    const handleRefresh = () => fetchIncomingTransfers();
+    window.addEventListener('focus', handleRefresh);
+    window.addEventListener('epos:transfers-updated', handleRefresh);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleRefresh);
+      window.removeEventListener('epos:transfers-updated', handleRefresh);
+    };
+  }, [currentUser?.id, currentUser?.business_id, currentUser?.branch_id, token]);
+
+  const handleAcceptTransfer = async (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    if (acceptingTransferId !== null) return;
+    const authToken = token || sessionStorage.getItem('epos_token');
+    if (!authToken) return;
+    setAcceptingTransferId(id);
+    setTransferError('');
+    try {
+      const res = await fetch(`/api/transfers/${id}/complete`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to accept transfer');
+      setIncomingTransfers(prev => prev.filter(t => t.id !== id));
+      window.dispatchEvent(new Event('epos:transfers-updated'));
+    } catch (err: any) {
+      setTransferError(err.message || 'Failed to accept transfer');
+    } finally {
+      setAcceptingTransferId(null);
+    }
+  };
+
   const unreadCount = announcements.filter(a => !readIds.includes(String(a.id))).length;
+  const totalBadgeCount = unreadCount + incomingTransfers.length;
 
   const markAllAsRead = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -229,9 +307,9 @@ export default function NotificationBell() {
         title="What's New & System Updates"
       >
         <Bell size={22} />
-        {unreadCount > 0 && (
+        {totalBadgeCount > 0 && (
           <span className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-600 rounded-full ring-2 ring-white dark:ring-neutral-900 animate-in fade-in zoom-in-75 duration-200">
-            {unreadCount}
+            {totalBadgeCount}
           </span>
         )}
       </button>
@@ -243,10 +321,10 @@ export default function NotificationBell() {
           {/* Header */}
           <div className="px-4 py-3 bg-[var(--bg-header)] dark:bg-neutral-800/80 border-b border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-sm text-neutral-900 dark:text-white">What's New</span>
-              {unreadCount > 0 && (
+              <span className="font-bold text-sm text-neutral-900 dark:text-white">Notifications</span>
+              {totalBadgeCount > 0 && (
                 <span className="px-1.5 py-0.2 bg-red-600 text-white text-[10px] font-bold rounded-full">
-                  {unreadCount} new
+                  {totalBadgeCount} new
                 </span>
               )}
             </div>
@@ -262,6 +340,49 @@ export default function NotificationBell() {
               </button>
             )}
           </div>
+
+          {/* Incoming Transfers Section */}
+          {incomingTransfers.length > 0 && (
+            <div className="border-b border-neutral-200 dark:border-neutral-800 bg-blue-50/40 dark:bg-blue-950/20">
+              <div className="px-3.5 py-2 border-b border-blue-200/60 dark:border-blue-900/50 flex items-center justify-between">
+                <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+                  <Truck size={13} />
+                  Incoming Transfers ({incomingTransfers.length})
+                </span>
+              </div>
+              {transferError && (
+                <div className="px-3.5 py-1.5 text-xs text-rose-600 dark:text-rose-400 bg-rose-500/10 border-b border-rose-500/20">
+                  {transferError}
+                </div>
+              )}
+              <div className="max-h-56 overflow-y-auto divide-y divide-blue-100 dark:divide-blue-900/40">
+                {incomingTransfers.map(t => (
+                  <div key={t.id} className="px-3.5 py-2.5 flex items-center justify-between gap-2.5 text-xs">
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="font-semibold text-neutral-900 dark:text-neutral-100 truncate">
+                        {t.product_name}
+                      </div>
+                      <div className="text-neutral-600 dark:text-neutral-400 flex flex-wrap gap-x-2">
+                        {t.imei && <span className="font-mono text-blue-600 dark:text-blue-400">IMEI: {t.imei}</span>}
+                        {!t.imei && t.imei_serial && <span className="font-mono text-purple-600 dark:text-purple-400">Serial: {t.imei_serial}</span>}
+                        {!t.imei && !t.imei_serial && <span>Qty: {t.quantity || 1}</span>}
+                        <span>From: {t.from_branch_name || t.from_business_name || 'Branch'}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={acceptingTransferId === t.id}
+                      onClick={(e) => handleAcceptTransfer(e, t.id)}
+                      className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium text-xs flex items-center gap-1 shrink-0 cursor-pointer rounded"
+                    >
+                      {acceptingTransferId === t.id ? <Loader size={12} className="animate-spin" /> : <CheckCircle size={12} />}
+                      Accept
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Category Filter Chips */}
           {announcements.length > 0 && (

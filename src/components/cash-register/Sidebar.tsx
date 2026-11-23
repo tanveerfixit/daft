@@ -44,7 +44,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = (props) => {
   return (
-    <aside className="flex flex-col gap-4 text-[18px] w-full lg:w-[400px] shrink-0" style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+    <aside className="flex flex-col gap-3 text-base w-full lg:w-[400px] shrink-0 font-sans">
       {/* Customer Search */}
       <CustomerSelector 
         selectedCustomer={props.selectedCustomer}

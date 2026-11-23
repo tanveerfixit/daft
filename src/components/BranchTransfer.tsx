@@ -100,8 +100,15 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
         loadTransfers();
       }
     };
+    const handleTransfersUpdated = () => {
+      if (isActive) loadTransfers();
+    };
     window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+    window.addEventListener('epos:transfers-updated', handleTransfersUpdated);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('epos:transfers-updated', handleTransfersUpdated);
+    };
   }, [isActive]);
 
   // Close search dropdown when clicking outside

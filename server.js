@@ -10227,6 +10227,44 @@ var init_inventory = __esm({
         conn.release();
       }
     });
+    router8.get("/transfers/incoming-pending", async (req, res, next) => {
+      try {
+        const businessId = req.user.business_id;
+        const branchId = req.user.branch_id;
+        if (!businessId) return res.json([]);
+        const params = [businessId];
+        let branchClause = "";
+        if (branchId) {
+          branchClause = "AND t.to_branch_id = ?";
+          params.push(Number(branchId));
+        }
+        const rows = await query(`
+      SELECT t.id, t.quantity, t.notes, t.created_at, t.device_id,
+             fb.name as from_branch_name, fbz.name as from_business_name,
+             tb.name as to_branch_name,
+             d.imei, d.imei_serial,
+             COALESCE(t.product_name, p.name, 'Stock Item') as product_name,
+             COALESCE(t.sku_code, s.sku_code, '') as sku_code,
+             u.name as initiated_by_name
+      FROM device_transfers t
+      JOIN branches tb ON t.to_branch_id = tb.id
+      LEFT JOIN branches fb ON t.from_branch_id = fb.id
+      LEFT JOIN businesses fbz ON fb.business_id = fbz.id
+      LEFT JOIN devices d ON t.device_id = d.id
+      LEFT JOIN product_skus s ON COALESCE(d.sku_id, t.sku_id) = s.id
+      LEFT JOIN products p ON s.product_id = p.id
+      LEFT JOIN users u ON t.initiated_by = u.id
+      WHERE t.status = 'in_transit'
+        AND tb.business_id = ?
+        ${branchClause}
+      ORDER BY t.created_at DESC
+      LIMIT 25
+    `, params);
+        res.json(rows);
+      } catch (e) {
+        next(e);
+      }
+    });
     router8.get("/transfers", async (req, res, next) => {
       try {
         const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
