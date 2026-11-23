@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool, query, queryOne, execute, getBranchPrefix } from '../mysql.js';
 import { z } from 'zod';
+import { ACTIVITY_TYPES, diffFields, recordAudit } from '../utils/activityLogger.js';
 
 const router = Router();
 
@@ -82,7 +83,16 @@ router.post('/', async (req: any, res, next) => {
       'SELECT * FROM customers WHERE id = ?',
       [r.insertId]
     );
-    res.json((newCustomer as any[])[0]);
+    const created = (newCustomer as any[])[0];
+    await recordAudit(req, {
+      branch_id: branchId,
+      activity_type: ACTIVITY_TYPES.CUSTOMER_CREATED,
+      description: `Customer "${fullName}" created${b.phone ? ` (${b.phone})` : ''}`,
+      reference_type: 'customer',
+      reference_id: r.insertId,
+      reference_link: `/customers/${r.insertId}`
+    });
+    res.json(created);
   } catch (e: any) {
     console.error('[POST /api/customers] Error:', e.message);
     next(e);
@@ -122,13 +132,29 @@ router.put('/:id', async (req: any, res, next) => {
       [name, phone, email, address, first_name, last_name, secondary_phone, fax, offers_email ? 1 : 0,
        company, customer_type, address_line1, address_line2, city, state, zip_code, country, website, alert_message, req.params.id, req.user.business_id]);
     
-    const changes: string[] = [];
-    if (old.name !== name) changes.push(`Name: ${old.name} -> ${name}`);
-    if (old.phone !== phone) changes.push(`Phone: ${old.phone} -> ${phone}`);
-    
-    if (changes.length) {
+    const custDiff = diffFields(
+      old,
+      { name, phone, email },
+      [
+        { key: 'name', label: 'Name' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'email', label: 'Email' }
+      ]
+    );
+
+    if (custDiff.changes.length) {
       await conn.execute('INSERT INTO customer_activity (customer_id,user_id,activity,details) VALUES (?,?,?,?)',
-        [req.params.id, req.userId, 'Profile Updated', changes.join(', ')]);
+        [req.params.id, req.userId, ACTIVITY_TYPES.CUSTOMER_UPDATED, custDiff.summary]);
+      await recordAudit(req, {
+        conn,
+        branch_id: old.branch_id ?? req.user.branch_id,
+        activity_type: ACTIVITY_TYPES.CUSTOMER_UPDATED,
+        description: `Customer "${old.name || name}" updated: ${custDiff.summary}`,
+        reference_type: 'customer',
+        reference_id: Number(req.params.id),
+        reference_link: `/customers/${req.params.id}`,
+        metadata: { diff: custDiff.diff }
+      });
     }
     await conn.commit();
     res.json({ success: true });
@@ -145,6 +171,12 @@ router.delete('/:id', async (req: any, res, next) => {
     const params = isSuper ? [req.params.id, req.user.business_id] : [req.params.id, req.user.business_id, req.user.branch_id];
     const r = await execute(sql, params);
     if (r.affectedRows === 0) return res.status(404).json({ error: 'Customer not found or access denied' });
+    await recordAudit(req, {
+      activity_type: ACTIVITY_TYPES.CUSTOMER_DELETED,
+      description: `Customer #${req.params.id} deleted`,
+      reference_type: 'customer',
+      reference_id: Number(req.params.id)
+    });
     res.json({ success: true });
   } catch (e: any) { next(e); }
 });
@@ -333,14 +365,18 @@ router.post('/:id/wallet-adjustment', async (req: any, res, next) => {
     const details = `Wallet adjusted ${sign}€${Math.abs(delta).toFixed(2)} (€${oldBalance.toFixed(2)} -> €${newBalance.toFixed(2)}). Reason: ${data.reason}`;
     await conn.execute(
       'INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-      [req.params.id, req.userId, 'Wallet Adjustment', details]
+      [req.params.id, req.userId, ACTIVITY_TYPES.WALLET_ADJUSTMENT, details]
     );
-    try {
-      await conn.execute(
-        'INSERT INTO activity_logs (business_id, branch_id, user_id, user_name, activity_type, description, reference_type, reference_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [req.user.business_id, req.user.branch_id || null, req.userId, req.user?.name || null, 'Wallet Adjustment', details, 'customer', Number(req.params.id)]
-      );
-    } catch {}
+    await recordAudit(req, {
+      conn,
+      activity_type: ACTIVITY_TYPES.WALLET_ADJUSTMENT,
+      description: details,
+      reference_type: 'customer',
+      reference_id: Number(req.params.id),
+      reference_link: `/customers/${req.params.id}`,
+      metadata: { old_balance: oldBalance, new_balance: newBalance, delta, reason: data.reason },
+      strict: true
+    });
 
     await conn.commit();
     res.json({ success: true, old_balance: oldBalance, new_balance: newBalance, delta });

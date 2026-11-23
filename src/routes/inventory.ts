@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool, query, queryOne, execute, getBranchPrefix } from '../mysql.js';
 import { z } from 'zod';
 import { sanitizeCsvCell } from '../middleware/security.js';
+import { ACTIVITY_TYPES, diffFields, recordAudit } from '../utils/activityLogger.js';
 
 const router = Router();
 
@@ -131,10 +132,18 @@ router.post('/add', async (req: any, res, next) => {
           'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
           [sku_id, req.userId, 'Device Created', `Device with IMEI ${cleanImei} added to inventory`]
         );
-        await conn.execute(
-          'INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [req.user.business_id, activeBranchId, insertedDevId, productInfo.product_id, req.userId, req.user?.name || 'System', 'Device Created', `IMEI: ${cleanImei} (${productInfo.product_name}) added to inventory`, 'device', insertedDevId, `/devices/${insertedDevId}`]
-        );
+        await recordAudit(req, {
+          conn,
+          branch_id: activeBranchId,
+          device_id: insertedDevId,
+          product_id: productInfo.product_id,
+          activity_type: ACTIVITY_TYPES.DEVICE_CREATED,
+          description: `IMEI: ${cleanImei} (${productInfo.product_name}) added to inventory`,
+          reference_type: 'device',
+          reference_id: insertedDevId,
+          reference_link: `/devices/${insertedDevId}`,
+          metadata: { imei: cleanImei, po_number: finalPoNumber, sku_id }
+        });
         await conn.execute(
           'INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,1) ON DUPLICATE KEY UPDATE quantity=quantity+1',
           [activeBranchId, sku_id]
@@ -297,10 +306,18 @@ router.post('/batch-add-devices', async (req: any, res, next) => {
         'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
         [item.sku_id, req.userId, 'Device Created', `Device with IMEI ${cleanImei} added to inventory`]
       );
-      await conn.execute(
-        'INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [req.user.business_id, activeBranchId, insertedDevId, skuInfo.product_id, req.userId, req.user?.name || 'System', 'Device Created', `IMEI: ${cleanImei} (${skuInfo.product_name}) added to inventory`, 'device', insertedDevId, `/devices/${insertedDevId}`]
-      );
+      await recordAudit(req, {
+        conn,
+        branch_id: activeBranchId,
+        device_id: insertedDevId,
+        product_id: skuInfo.product_id,
+        activity_type: ACTIVITY_TYPES.DEVICE_CREATED,
+        description: `IMEI: ${cleanImei} (${skuInfo.product_name}) added to inventory`,
+        reference_type: 'device',
+        reference_id: insertedDevId,
+        reference_link: `/devices/${insertedDevId}`,
+        metadata: { imei: cleanImei, po_number: finalPoNumber, sku_id: item.sku_id }
+      });
       await conn.execute(
         'INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,1) ON DUPLICATE KEY UPDATE quantity=quantity+1',
         [activeBranchId, item.sku_id]
@@ -893,28 +910,46 @@ router.put('/devices/:id', async (req: any, res, next) => {
       WHERE id=? AND business_id=?${updateBranchClause}
     `, updateParams);
 
-    // Log attribute changes
-    if (color !== undefined && String(color ?? '') !== String(old.color ?? '')) changes.push(`Color: ${old.color || 'none'} -> ${color}`);
-    if (gb !== undefined && String(gb ?? '') !== String(old.gb ?? '')) changes.push(`GB: ${old.gb || 'none'} -> ${gb}`);
-    if (ram !== undefined && String(ram ?? '') !== String(old.ram ?? '')) changes.push(`RAM: ${old.ram || 'none'} -> ${ram}`);
-    if (condition !== undefined && String(condition ?? '') !== String(old.condition ?? '')) changes.push(`Condition: ${old.condition || 'none'} -> ${condition}`);
-    if (cost_price !== undefined && Number(cost_price || 0) !== Number(old.cost_price || 0)) changes.push(`Cost: ${old.cost_price} -> ${cost_price}`);
-    if (selling_price !== undefined && Number(selling_price || 0) !== Number(old.selling_price || 0)) changes.push(`Selling: ${old.selling_price} -> ${selling_price}`);
-    if (unlocked !== undefined && String(unlocked ?? '') !== String(old.unlocked ?? '')) changes.push(`Unlocked: ${old.unlocked || 'none'} -> ${unlocked}`);
-    if (imei_status !== undefined && String(imei_status ?? '') !== String(old.imei_status ?? '')) changes.push(`IMEI Status: ${old.imei_status || 'none'} -> ${imei_status}`);
-    if (carrier !== undefined && String(carrier ?? '') !== String(old.carrier ?? '')) changes.push(`Carrier: ${old.carrier || 'none'} -> ${carrier}`);
+    // Log attribute changes safely (never interpolate literal "null")
+    const attrDiff = diffFields(
+      old,
+      { color, gb, ram, condition, cost_price, selling_price, unlocked, imei_status, carrier },
+      [
+        { key: 'color', label: 'Color' },
+        { key: 'gb', label: 'GB' },
+        { key: 'ram', label: 'RAM' },
+        { key: 'condition', label: 'Condition' },
+        { key: 'cost_price', label: 'Cost', currency: true },
+        { key: 'selling_price', label: 'Selling', currency: true },
+        { key: 'unlocked', label: 'Unlocked' },
+        { key: 'imei_status', label: 'IMEI Status' },
+        { key: 'carrier', label: 'Carrier' }
+      ]
+    );
+    const allChanges = [...changes, ...attrDiff.changes];
 
     const userId = req.user?.id || req.userId || 1;
 
-    if (changes.length > 0) {
+    if (allChanges.length > 0) {
       const imeiTag = old.imei || old.imei_serial || 'N/A';
-      const changeDesc = `[IMEI: ${imeiTag}] ${changes.join(', ')}`;
+      const changeDesc = `[IMEI: ${imeiTag}] ${allChanges.join(', ')}`;
       await conn.execute('INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-        [req.params.id, userId, 'Device Updated', changeDesc]);
+        [req.params.id, userId, ACTIVITY_TYPES.DEVICE_UPDATED, changeDesc]);
       await conn.execute('INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-        [targetSkuId, userId, 'Device Updated', changeDesc]);
-      await conn.execute('INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [req.user.business_id, old.branch_id || req.user.branch_id, req.params.id, old.product_id, userId, req.user?.name || 'System', 'Device Updated', changeDesc, 'device', req.params.id, `/devices/${req.params.id}`]);
+        [targetSkuId, userId, ACTIVITY_TYPES.DEVICE_UPDATED, changeDesc]);
+      await recordAudit(req, {
+        conn,
+        branch_id: old.branch_id || req.user.branch_id,
+        device_id: Number(req.params.id),
+        product_id: old.product_id,
+        user_id: userId,
+        activity_type: ACTIVITY_TYPES.DEVICE_UPDATED,
+        description: changeDesc,
+        reference_type: 'device',
+        reference_id: Number(req.params.id),
+        reference_link: `/devices/${req.params.id}`,
+        metadata: Object.keys(attrDiff.diff).length > 0 ? { diff: attrDiff.diff } : null
+      });
     }
 
     await conn.commit();
@@ -941,23 +976,43 @@ router.get('/devices/:id/activity', async (req: any, res, next) => {
     const dev = await queryOne(`SELECT id FROM devices WHERE id=? AND business_id=?${branchClause}`, checkParams);
     if (!dev) return res.status(404).json({ error: 'Device not found or access denied' });
 
+    const deviceId = Number(req.params.id);
     const activities = await query(`
-      SELECT 'device' as source, a.id, a.user_id, a.activity, a.details, a.created_at, COALESCE(u.name, 'System') as user_name 
-      FROM device_activity a
-      LEFT JOIN users u ON a.user_id=u.id
-      WHERE a.device_id=?
-      UNION ALL
-      SELECT 'product' as source, pa.id, pa.user_id, pa.activity, pa.details, pa.created_at, COALESCE(u.name, 'System') as user_name
-      FROM product_activity pa
-      LEFT JOIN users u ON pa.user_id=u.id
-      WHERE pa.sku_id = (SELECT sku_id FROM devices WHERE id=?)
-      UNION ALL
-      SELECT 'log' as source, al.id, al.user_id, al.activity_type as activity, al.description as details, al.created_at, COALESCE(al.user_name, u.name, 'System') as user_name
+      SELECT 
+        'log' as source,
+        al.id,
+        al.user_id,
+        COALESCE(NULLIF(TRIM(al.activity_type), ''), 'Activity') as activity,
+        COALESCE(al.description, '') as details,
+        al.created_at,
+        COALESCE(NULLIF(NULLIF(TRIM(al.user_name), ''), 'null'), u.name, 'System') as user_name
       FROM activity_logs al
-      LEFT JOIN users u ON al.user_id=u.id
-      WHERE al.device_id=? OR al.product_id = (SELECT sku_id FROM devices WHERE id=?)
+      LEFT JOIN users u ON al.user_id = u.id
+      WHERE al.device_id = ? AND al.business_id = ?
+
+      UNION ALL
+
+      SELECT 
+        'device' as source,
+        a.id,
+        a.user_id,
+        COALESCE(NULLIF(TRIM(a.activity), ''), 'Activity') as activity,
+        COALESCE(a.details, '') as details,
+        a.created_at,
+        COALESCE(u.name, 'System') as user_name
+      FROM device_activity a
+      LEFT JOIN users u ON a.user_id = u.id
+      WHERE a.device_id = ?
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al2
+          WHERE al2.device_id = a.device_id
+            AND al2.business_id = ?
+            AND al2.activity_type = a.activity
+            AND ABS(TIMESTAMPDIFF(SECOND, al2.created_at, a.created_at)) <= 2
+        )
+
       ORDER BY created_at DESC
-    `, [req.params.id, req.params.id, req.params.id, req.params.id]);
+    `, [deviceId, req.user.business_id, deviceId, req.user.business_id]);
     res.json(activities);
   } catch (e: any) { next(e); }
 });
@@ -983,9 +1038,16 @@ router.post('/devices/:id/activity', async (req: any, res, next) => {
     if (!device) return res.status(404).json({ error: 'Device not found or access denied' });
     
     await execute('INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-      [req.params.id, req.userId, activity || 'Note Added', details || '']);
-    await execute('INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [req.user.business_id, device.branch_id || req.user.branch_id, req.params.id, req.userId, req.user?.name || 'System', activity || 'Note Added', details || '', 'device', req.params.id, `/devices/${req.params.id}`]);
+      [req.params.id, req.userId, activity || ACTIVITY_TYPES.NOTE_ADDED, details || '']);
+    await recordAudit(req, {
+      branch_id: device.branch_id || req.user.branch_id,
+      device_id: Number(req.params.id),
+      activity_type: activity || ACTIVITY_TYPES.NOTE_ADDED,
+      description: details || '',
+      reference_type: 'device',
+      reference_id: Number(req.params.id),
+      reference_link: `/devices/${req.params.id}`
+    });
     res.json({ success: true });
   } catch (e: any) { next(e); }
 });
@@ -1027,10 +1089,18 @@ router.delete('/devices/:id', async (req: any, res, next) => {
     );
 
     // Log to activity_logs
-    await conn.execute(
-      'INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [req.user.business_id, dev.branch_id || req.user.branch_id, dev.id, dev.product_id, req.userId, req.user?.name || 'System', 'Device Deleted', deleteMsg, 'product', dev.product_id, `/products/${dev.product_id}`]
-    );
+    await recordAudit(req, {
+      conn,
+      branch_id: dev.branch_id || req.user.branch_id,
+      device_id: dev.id,
+      product_id: dev.product_id,
+      activity_type: ACTIVITY_TYPES.DEVICE_DELETED,
+      description: deleteMsg,
+      reference_type: 'product',
+      reference_id: dev.product_id,
+      reference_link: dev.product_id ? `/products/${dev.product_id}` : null,
+      metadata: { imei: cleanImei, previous_status: dev.status }
+    });
 
     // Decrement stock if in_stock
     if (dev.status === 'in_stock') {

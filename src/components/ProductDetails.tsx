@@ -41,6 +41,10 @@ export default function ProductDetails({
 }) {
   const [product, setProduct] = useState<ProductWithStock | null>(null);
   const [activities, setActivities] = useState<ProductActivity[]>([]);
+  const [activityFilter, setActivityFilter] = useState('all');
+  const [showNoteInput, setShowNoteInput] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>('info');
   const [isEditing, setIsEditing] = useState(false);
@@ -153,6 +157,37 @@ export default function ProductDetails({
   const totalStock = Array.isArray(product.stock) 
     ? product.stock.reduce((acc, s) => acc + s.quantity, 0) 
     : (product.total_stock || 0);
+
+  const handleAddNote = async () => {
+    const trimmed = noteText.trim();
+    if (!trimmed || savingNote) return;
+    setSavingNote(true);
+    try {
+      const res = await fetch(`/api/products/${productId}/activity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activity: 'Note Added', details: trimmed })
+      });
+      if (res.ok) {
+        setNoteText('');
+        setShowNoteInput(false);
+        const actsRes = await fetch(`/api/products/${productId}/activity`);
+        if (actsRes.ok) setActivities(await actsRes.json());
+      }
+    } catch (err) {
+      console.error('Failed to add product note:', err);
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const activityTypeOptions = Array.from(
+    new Set(activities.map(a => a.activity || (a as any).activity_type || 'Activity').filter(Boolean))
+  ).sort();
+
+  const filteredActivities = activityFilter === 'all'
+    ? activities
+    : activities.filter(a => (a.activity || (a as any).activity_type || 'Activity') === activityFilter);
 
   return (
     <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm p-3 md:p-5 select-none w-full overflow-auto font-sans">
@@ -415,14 +450,54 @@ export default function ProductDetails({
             <div className="p-2.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 flex justify-between items-center rounded-t shrink-0">
               <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Activity Log</h3>
               <div className="flex gap-2 items-center">
-                <select className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 px-2 py-0.5 text-xs text-neutral-900 dark:text-neutral-100 outline-none cursor-pointer rounded">
-                  <option>All Activities</option>
+                <select
+                  value={activityFilter}
+                  onChange={(e) => setActivityFilter(e.target.value)}
+                  className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 px-2 py-0.5 text-xs text-neutral-900 dark:text-neutral-100 outline-none cursor-pointer rounded"
+                >
+                  <option value="all">All Activities</option>
+                  {activityTypeOptions.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
                 </select>
-                <button className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-0.5 px-3 text-xs rounded transition-all cursor-pointer font-sans active:scale-[0.98]">
+                <button
+                  type="button"
+                  onClick={() => setShowNoteInput(prev => !prev)}
+                  className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-0.5 px-3 text-xs rounded transition-all cursor-pointer font-sans active:scale-[0.98]"
+                >
                   + Add Note
                 </button>
               </div>
             </div>
+
+            {showNoteInput && (
+              <div className="p-2.5 bg-neutral-50 dark:bg-neutral-900/70 border-x border-b border-neutral-300 dark:border-neutral-700 flex items-center gap-2 font-sans">
+                <input
+                  type="text"
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddNote()}
+                  placeholder="Enter product note..."
+                  className="flex-1 bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 px-2.5 py-1 text-xs text-neutral-900 dark:text-neutral-100 rounded outline-none focus:border-blue-500"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleAddNote}
+                  disabled={savingNote || !noteText.trim()}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-3 py-1 text-xs font-medium rounded cursor-pointer"
+                >
+                  {savingNote ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowNoteInput(false); setNoteText(''); }}
+                  className="px-2 py-1 text-xs text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
 
             {/* Activity Log Table */}
             <div className="overflow-auto bg-white dark:bg-neutral-900 border-x border-b border-neutral-300 dark:border-neutral-700 max-h-96">
@@ -437,16 +512,16 @@ export default function ProductDetails({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                  {activities.length === 0 ? (
+                  {filteredActivities.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-6 text-center text-neutral-500 italic text-xs">
                         No activities recorded for this product
                       </td>
                     </tr>
                   ) : (
-                    activities.map((activity) => (
+                    filteredActivities.map((activity, idx) => (
                       <tr 
-                        key={activity.id} 
+                        key={`${(activity as any).source || 'act'}_${activity.id}_${idx}`} 
                         className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-colors text-neutral-900 dark:text-neutral-100 text-xs"
                       >
                         <td className="py-1 px-2 border-r border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">
@@ -455,7 +530,9 @@ export default function ProductDetails({
                         <td className="py-1 px-2 border-r border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">
                           {new Date(activity.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase()}
                         </td>
-                        <td className="py-1 px-2 border-r border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{activity.user_name || 'System'}</td>
+                        <td className="py-1 px-2 border-r border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">
+                          {activity.user_name && activity.user_name.toLowerCase() !== 'null' ? activity.user_name : 'System'}
+                        </td>
                         <td className="py-1 px-2 border-r border-neutral-200 dark:border-neutral-800 font-semibold">{activity.activity || (activity as any).activity_type || 'Activity'}</td>
                         <td className="py-1 px-2">{activity.details}</td>
                       </tr>
@@ -468,10 +545,9 @@ export default function ProductDetails({
             {/* Activity Log Footer */}
             <div className="p-2 bg-white dark:bg-neutral-900 border-x border-b border-neutral-300 dark:border-neutral-700 rounded-b flex justify-between items-center text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
               <div className="flex items-center gap-2">
-                <select className="bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 px-1.5 py-0.5 text-xs outline-none cursor-pointer rounded">
-                  <option>20</option>
-                </select>
-                <span className="font-normal text-xs">1-{activities.length}/{activities.length}</span>
+                <span className="font-normal text-xs">
+                  {filteredActivities.length > 0 ? `1-${filteredActivities.length} of ${filteredActivities.length}` : '0 of 0'}
+                </span>
               </div>
               
               <div className="flex items-center gap-1">

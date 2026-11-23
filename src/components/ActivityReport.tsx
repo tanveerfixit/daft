@@ -63,79 +63,104 @@ export const ActivityReport: React.FC = () => {
   const [users, setUsers] = useState<UserOption[]>([]);
   const [activityTypes, setActivityTypes] = useState<string[]>([]);
 
+  const buildFilterParams = () => {
+    let start = '';
+    let end = '';
+    const today = new Date();
+
+    if (dateRange === 'today') {
+      const str = getLocalDateString(today);
+      start = str;
+      end = str;
+    } else if (dateRange === 'yesterday') {
+      const yest = new Date();
+      yest.setDate(yest.getDate() - 1);
+      const str = getLocalDateString(yest);
+      start = str;
+      end = str;
+    } else if (dateRange === 'weekly') {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      start = getLocalDateString(sevenDaysAgo);
+      end = getLocalDateString(today);
+    } else if (dateRange === 'monthly') {
+      start = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+      end = getLocalDateString(today);
+    } else if (dateRange === 'custom') {
+      start = customStart;
+      end = customEnd;
+    }
+
+    const params = new URLSearchParams();
+    if (dateRange === 'all') {
+      params.append('all_dates', '1');
+    } else {
+      if (start) params.append('start_date', start);
+      if (end) params.append('end_date', end);
+    }
+    if (selectedActivity !== 'all') params.append('activity_type', selectedActivity);
+    if (selectedUser !== 'all') params.append('user_id', selectedUser);
+    if (searchTerm.trim()) params.append('search', searchTerm.trim());
+    return params;
+  };
+
+  const metaLoadedRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const prevSearchRef = useRef(searchTerm);
+
   const fetchLogs = async (targetPage = page, targetLimit = limit) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     try {
-      let start = '';
-      let end = '';
-      const today = new Date();
-
-      if (dateRange === 'today') {
-        const str = getLocalDateString(today);
-        start = str;
-        end = str;
-      } else if (dateRange === 'yesterday') {
-        const yest = new Date();
-        yest.setDate(yest.getDate() - 1);
-        const str = getLocalDateString(yest);
-        start = str;
-        end = str;
-      } else if (dateRange === 'weekly') {
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        start = getLocalDateString(sevenDaysAgo);
-        end = getLocalDateString(today);
-      } else if (dateRange === 'monthly') {
-        start = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
-        end = getLocalDateString(today);
-      } else if (dateRange === 'custom') {
-        start = customStart;
-        end = customEnd;
-      }
-
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const token = sessionStorage.getItem('epos_token');
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const params = new URLSearchParams();
+      const params = buildFilterParams();
       params.append('page', String(targetPage));
       params.append('limit', String(targetLimit));
+      if (metaLoadedRef.current) params.append('include_meta', '0');
 
-      if (start) params.append('start_date', start);
-      if (end) params.append('end_date', end);
-      if (selectedActivity !== 'all') params.append('activity_type', selectedActivity);
-      if (selectedUser !== 'all') params.append('user_id', selectedUser);
-      if (searchTerm.trim()) params.append('search', searchTerm.trim());
-
-      const res = await fetch(`/api/reports/activity-logs?${params.toString()}`, { headers });
+      const res = await fetch(`/api/reports/activity-logs?${params.toString()}`, {
+        headers,
+        signal: controller.signal
+      });
       if (res.ok) {
         const data = await res.json();
         setLogs(data.logs || []);
         setTotal(data.total || 0);
-        setUsers(data.users || []);
+        if (data.users) setUsers(data.users);
         if (data.activityTypes && data.activityTypes.length > 0) {
           setActivityTypes(data.activityTypes);
         }
+        metaLoadedRef.current = true;
       }
-    } catch (error) {
-      console.error('Error fetching activity logs:', error);
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') {
+        console.error('Error fetching activity logs:', error);
+      }
     } finally {
-      setLoading(false);
+      if (abortRef.current === controller) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchLogs(1, limit);
-      setPage(1);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
+    const searchChanged = prevSearchRef.current !== searchTerm;
+    prevSearchRef.current = searchTerm;
+    const delay = searchChanged && searchTerm.trim() !== '' ? 300 : 0;
 
-  useEffect(() => {
-    fetchLogs(1, limit);
-    setPage(1);
-  }, [dateRange, customStart, customEnd, selectedActivity, selectedUser]);
+    const timer = setTimeout(() => {
+      setPage(1);
+      fetchLogs(1, limit);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [dateRange, customStart, customEnd, selectedActivity, selectedUser, searchTerm]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -224,19 +249,42 @@ export const ActivityReport: React.FC = () => {
     return <span>{text}</span>;
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
+    if (total === 0 && logs.length === 0) return;
+    try {
+      const headers: Record<string, string> = {};
+      const token = sessionStorage.getItem('epos_token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const params = buildFilterParams();
+      const res = await fetch(`/api/reports/activity-logs/export?${params.toString()}`, { headers });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `Activity_Report_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        return;
+      }
+    } catch (err) {
+      console.error('Server CSV export failed, falling back to current page:', err);
+    }
+
     if (logs.length === 0) return;
-    const headers = ['Date', 'Time', 'User', 'Activity', 'Details', 'IP Address'];
+    const csvHeaders = ['Date', 'Time', 'User', 'Activity', 'Details', 'IP Address'];
     const rows = logs.map(log => [
       formatDate(log.created_at),
       formatTime(log.created_at),
-      `"${(log.user_name || '').replace(/"/g, '""')}"`,
+      `"${(log.user_name || 'System').replace(/"/g, '""')}"`,
       `"${(log.activity_type || '').replace(/"/g, '""')}"`,
       `"${(log.details || '').replace(/"/g, '""')}"`,
       `"${(log.ip_address || '').replace(/"/g, '""')}"`
     ]);
 
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const csvContent = [csvHeaders.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -245,50 +293,48 @@ export const ActivityReport: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
-    <div 
-      className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-2 pb-2 pt-0 select-none w-full"
-      style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}
-    >
-      {/* Header matching InvoiceList */}
-      <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
+    <div className="flex flex-col h-full bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-3 pb-3 pt-1 select-none w-full font-sans">
+      {/* Header */}
+      <div className="sticky top-0 z-40 bg-white dark:bg-neutral-900 shrink-0 flex justify-between items-center px-4 py-3 border border-neutral-200 dark:border-neutral-800 rounded-t-md">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate(`/${branchSlug}/home`)}
             className="p-1 text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer"
             title="Back to Home Menu"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={18} />
           </button>
-          <h2 className="font-medium text-black dark:text-white" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '24px' }}>Activity Report</h2>
+          <h2 className="font-medium text-lg text-neutral-900 dark:text-neutral-100">Activity Report</h2>
         </div>
         <div className="flex items-center gap-2">
           <button 
             onClick={handleExportCSV}
-            className="bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-black dark:text-white font-medium py-1.5 px-3 rounded text-sm flex items-center gap-1.5 transition-all cursor-pointer"
+            className="bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 font-normal py-1.5 px-3 rounded text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-neutral-200 dark:border-neutral-700"
           >
             <Download size={14} />
             <span>Export CSV</span>
           </button>
           <button 
             onClick={() => navigate(`/${branchSlug}/register`)}
-            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
+            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-3.5 rounded text-xs flex items-center gap-2 transition-colors cursor-pointer"
           >
             <span>Cash Register</span>
           </button>
         </div>
       </div>
 
-      {/* Filters & Search matching InvoiceList bar */}
-      <div className="p-2 flex flex-wrap gap-2 items-center bg-white dark:bg-black border-b border-neutral-200 dark:border-neutral-850 shrink-0">
+      {/* Filters & Search */}
+      <div className="px-4 py-2.5 flex flex-wrap gap-2 items-center bg-white dark:bg-neutral-900 border-x border-b border-neutral-200 dark:border-neutral-800 shrink-0">
         <div className="flex items-center gap-2">
           {/* Date Range Preset */}
           <select 
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value as any)}
-            className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 font-normal text-sm cursor-pointer"
+            className="bg-white text-neutral-800 border border-neutral-200 dark:bg-neutral-950 dark:text-neutral-200 dark:border-neutral-800 rounded px-2.5 py-1 outline-none focus:border-neutral-400 h-8 font-normal text-xs cursor-pointer"
           >
             <option value="today">Today</option>
             <option value="yesterday">Yesterday</option>
@@ -304,14 +350,14 @@ export const ActivityReport: React.FC = () => {
                 type="date"
                 value={customStart}
                 onChange={(e) => setCustomStart(e.target.value)}
-                className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 text-sm font-normal"
+                className="bg-white text-neutral-800 border border-neutral-200 dark:bg-neutral-950 dark:text-neutral-200 dark:border-neutral-800 rounded px-2.5 py-1 outline-none focus:border-neutral-400 h-8 text-xs font-normal"
               />
-              <span className="text-neutral-500 dark:text-neutral-400 text-xs">to</span>
+              <span className="text-neutral-400 text-xs">to</span>
               <input 
                 type="date"
                 value={customEnd}
                 onChange={(e) => setCustomEnd(e.target.value)}
-                className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none focus:border-neutral-400 focus:bg-neutral-50 dark:focus:bg-neutral-900 h-8 text-sm font-normal"
+                className="bg-white text-neutral-800 border border-neutral-200 dark:bg-neutral-950 dark:text-neutral-200 dark:border-neutral-800 rounded px-2.5 py-1 outline-none focus:border-neutral-400 h-8 text-xs font-normal"
               />
             </div>
           )}
@@ -321,23 +367,10 @@ export const ActivityReport: React.FC = () => {
         <select 
           value={selectedActivity}
           onChange={(e) => setSelectedActivity(e.target.value)}
-          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none w-52 h-8 text-sm font-normal cursor-pointer"
+          className="bg-white text-neutral-800 border border-neutral-200 dark:bg-neutral-950 dark:text-neutral-200 dark:border-neutral-800 rounded px-2.5 py-1 outline-none w-48 h-8 text-xs font-normal cursor-pointer"
         >
           <option value="all">All Activities</option>
-          <option value="User Login">User Login</option>
-          <option value="Payment Receipt">Payment Receipt</option>
-          <option value="Sales Invoice Created">Sales Invoice Created</option>
-          <option value="Track Edits">Track Edits</option>
-          <option value="Price Updated">Price Updated</option>
-          <option value="Discount Applied">Discount Applied</option>
-          <option value="Product Created">Product Created</option>
-          <option value="Customer Created">Customer Created</option>
-          <option value="Device Updated">Device Updated</option>
-          {activityTypes.filter(t => ![
-            'User Login', 'Payment Receipt', 'Sales Invoice Created', 
-            'Track Edits', 'Price Updated', 'Discount Applied', 
-            'Product Created', 'Customer Created', 'Device Updated'
-          ].includes(t)).map(t => (
+          {activityTypes.map(t => (
             <option key={t} value={t}>{t}</option>
           ))}
         </select>
@@ -346,7 +379,7 @@ export const ActivityReport: React.FC = () => {
         <select 
           value={selectedUser}
           onChange={(e) => setSelectedUser(e.target.value)}
-          className="bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:border-neutral-800 rounded-none px-2.5 py-1 outline-none w-40 h-8 text-sm font-normal cursor-pointer"
+          className="bg-white text-neutral-800 border border-neutral-200 dark:bg-neutral-950 dark:text-neutral-200 dark:border-neutral-800 rounded px-2.5 py-1 outline-none w-40 h-8 text-xs font-normal cursor-pointer"
         >
           <option value="all">All Users</option>
           {users.map(u => (
@@ -354,26 +387,27 @@ export const ActivityReport: React.FC = () => {
           ))}
         </select>
 
-        {(dateRange !== 'all' || selectedActivity !== 'all' || selectedUser !== 'all' || searchTerm) && (
+        {(dateRange !== 'today' || selectedActivity !== 'all' || selectedUser !== 'all' || searchTerm.trim() !== '') && (
           <button
             type="button"
             onClick={() => {
-              setDateRange('all');
+              const todayStr = getLocalDateString();
+              setDateRange('today');
               setSelectedActivity('all');
               setSelectedUser('all');
               setSearchTerm('');
-              setCustomStart(getLocalDateString());
-              setCustomEnd(getLocalDateString());
+              setCustomStart(todayStr);
+              setCustomEnd(todayStr);
             }}
-            className="text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 border border-red-200 dark:border-red-900/60 px-2 py-1 rounded transition-colors cursor-pointer"
-            title="Reset all date and category filters"
+            className="text-xs font-medium text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 border border-red-200 dark:border-red-900/60 px-2.5 py-1 rounded transition-colors cursor-pointer"
+            title="Reset filters to Today"
           >
-            Reset Filters
+            Reset
           </button>
         )}
 
         {/* Search Input Bar */}
-        <form onSubmit={handleSearchSubmit} className="relative flex-1 max-w-md ml-auto">
+        <form onSubmit={handleSearchSubmit} className="relative flex-1 max-w-sm ml-auto">
           <input
             ref={searchInputRef}
             type="text"
@@ -388,7 +422,7 @@ export const ActivityReport: React.FC = () => {
                 setSearchTerm('');
               }
             }}
-            className="w-full pl-3 pr-16 py-1 bg-white border border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-none text-sm font-normal outline-none focus:border-neutral-400 h-8"
+            className="w-full pl-3 pr-14 py-1 bg-white border border-neutral-200 dark:bg-neutral-950 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 rounded text-xs font-normal outline-none focus:border-neutral-400 h-8"
           />
           <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
             {searchTerm && (
@@ -401,38 +435,38 @@ export const ActivityReport: React.FC = () => {
                 className="p-0.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded cursor-pointer"
                 title="Clear Search"
               >
-                <X size={14} />
+                <X size={13} />
               </button>
             )}
             <button type="submit" className="cursor-pointer">
-              <Search size={16} className="text-neutral-500 dark:text-neutral-400" />
+              <Search size={14} className="text-neutral-400" />
             </button>
           </div>
         </form>
       </div>
 
-      {/* Table Content matching InvoiceList table */}
-      <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-200 dark:border-neutral-850">
-        <table className="w-full text-left border-collapse bg-white dark:bg-black text-[15px]">
-          <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-            <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
-              <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 w-24 text-center">Date</th>
-              <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 w-24 text-center">Time</th>
-              <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 w-44 text-center">User</th>
-              <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 w-56 text-center">Activity</th>
-              <th className="px-2 py-1.5 text-center">Details</th>
+      {/* Table Content */}
+      <div className="flex-1 overflow-auto bg-white dark:bg-neutral-900 border-x border-neutral-200 dark:border-neutral-800">
+        <table className="w-full text-left border-collapse text-[13px]">
+          <thead>
+            <tr className="bg-neutral-50 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-neutral-800 text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
+              <th className="px-3 py-2.5 w-24">Date</th>
+              <th className="px-3 py-2.5 w-24">Time</th>
+              <th className="px-3 py-2.5 w-40">User</th>
+              <th className="px-3 py-2.5 w-48">Activity</th>
+              <th className="px-3 py-2.5">Details</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900">
+          <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/70">
             {loading ? (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-neutral-500 italic text-sm">
-                  Loading activity logs... Please wait
+                <td colSpan={5} className="py-10 text-center text-neutral-400 text-sm">
+                  Loading activity logs...
                 </td>
               </tr>
             ) : logs.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-neutral-500 italic text-sm">
+                <td colSpan={5} className="py-10 text-center text-neutral-400 text-sm">
                   No activity logs found for this period.
                 </td>
               </tr>
@@ -440,21 +474,21 @@ export const ActivityReport: React.FC = () => {
               logs.map((item, idx) => (
                 <tr 
                   key={item.log_id || idx}
-                  className="bg-white dark:bg-black hover:bg-neutral-200/70 dark:hover:bg-neutral-800 transition-colors text-[15px]"
+                  className="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40 transition-colors"
                 >
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
+                  <td className="px-3 py-2 text-neutral-500 dark:text-neutral-400 whitespace-nowrap tabular-nums">
                     {formatDate(item.created_at)}
                   </td>
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
+                  <td className="px-3 py-2 text-neutral-500 dark:text-neutral-400 whitespace-nowrap tabular-nums">
                     {formatTime(item.created_at)}
                   </td>
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 whitespace-nowrap">
-                    {item.user_name || 'System'}
+                  <td className="px-3 py-2 text-neutral-700 dark:text-neutral-300 whitespace-nowrap">
+                    {item.user_name && item.user_name.toLowerCase() !== 'null' ? item.user_name : 'System'}
                   </td>
-                  <td className="px-1.5 py-0.5 border-r border-neutral-200 dark:border-neutral-850 text-neutral-900 dark:text-neutral-100 font-semibold whitespace-nowrap">
+                  <td className="px-3 py-2 text-neutral-900 dark:text-neutral-100 font-medium whitespace-nowrap">
                     {item.activity_type || (item as any).activity || 'Activity'}
                   </td>
-                  <td className="px-1.5 py-0.5 text-neutral-900 dark:text-neutral-100 font-normal">
+                  <td className="px-3 py-2 text-neutral-700 dark:text-neutral-300 leading-relaxed">
                     {renderDetailsCell(item)}
                   </td>
                 </tr>
@@ -464,8 +498,8 @@ export const ActivityReport: React.FC = () => {
         </table>
       </div>
 
-      {/* Footer Pagination matching InvoiceList & ProductList */}
-      <div className="p-2 bg-white dark:bg-black border-t border-neutral-200 dark:border-neutral-850 flex justify-between items-center text-xs text-neutral-600 dark:text-neutral-400 shrink-0">
+      {/* Footer Pagination */}
+      <div className="px-4 py-2.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-b-md flex justify-between items-center text-xs text-neutral-500 dark:text-neutral-400 shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-neutral-500">Show:</span>

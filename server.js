@@ -1226,6 +1226,10 @@ async function initSchema() {
     } catch (e) {
     }
     try {
+      await conn.query("ALTER TABLE activity_logs MODIFY COLUMN user_id INT NULL");
+    } catch (e) {
+    }
+    try {
       await conn.query("ALTER TABLE activity_logs ADD COLUMN business_id INT NULL AFTER id");
     } catch (e) {
     }
@@ -1247,6 +1251,14 @@ async function initSchema() {
     }
     try {
       await conn.query("ALTER TABLE activity_logs ADD COLUMN ip_address VARCHAR(50) NULL AFTER reference_link");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE activity_logs ADD COLUMN user_agent VARCHAR(500) NULL AFTER ip_address");
+    } catch (e) {
+    }
+    try {
+      await conn.query("ALTER TABLE activity_logs ADD COLUMN metadata JSON NULL AFTER user_agent");
     } catch (e) {
     }
     try {
@@ -1449,6 +1461,9 @@ async function initSchema() {
     await ensureIndex(conn, "closing_reports", "idx_closing_biz_branch_date", "business_id, branch_id, report_date");
     await ensureIndex(conn, "inventory_movements", "idx_inv_mov_biz_branch_type_date", "business_id, branch_id, movement_type, created_at");
     await ensureIndex(conn, "activity_logs", "idx_activity_logs_biz_created", "business_id, created_at");
+    await ensureIndex(conn, "activity_logs", "idx_activity_logs_biz_branch_created", "business_id, branch_id, created_at");
+    await ensureIndex(conn, "activity_logs", "idx_activity_logs_biz_type_created", "business_id, activity_type, created_at");
+    await ensureIndex(conn, "activity_logs", "idx_activity_logs_biz_user_created", "business_id, user_id, created_at");
     await ensureIndex(conn, "invoice_activity", "idx_inv_activity_inv_created", "invoice_id, created_at");
     await ensureIndex(conn, "product_activity", "idx_prod_activity_sku_created", "sku_id, created_at");
     await ensureIndex(conn, "device_activity", "idx_dev_activity_dev_created", "device_id, created_at");
@@ -1623,8 +1638,11 @@ async function ensureSuperAdmin() {
   console.log("[MySQL] Superadmin and developer roles ensured.");
 }
 async function logActivity({
+  conn,
   business_id,
   branch_id,
+  device_id,
+  product_id,
   user_id,
   user_name,
   activity_type,
@@ -1633,29 +1651,43 @@ async function logActivity({
   reference_id,
   reference_link,
   ip_address,
-  user_agent
+  user_agent,
+  metadata,
+  strict = false
 }) {
   try {
-    await execute(
-      `INSERT INTO activity_logs 
-        (business_id, branch_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link, ip_address, user_agent, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [
-        business_id ?? null,
-        branch_id ?? null,
-        user_id ?? null,
-        user_name ?? null,
-        activity_type,
-        description,
-        reference_type ?? null,
-        reference_id ?? null,
-        reference_link ?? null,
-        ip_address ?? null,
-        user_agent ?? null
-      ]
-    );
+    const cleanType = activity_type && String(activity_type).trim() || "General Activity";
+    const cleanDesc = description !== void 0 && description !== null ? String(description).trim() : "";
+    const cleanUser = user_name && String(user_name).trim() && String(user_name).trim().toLowerCase() !== "null" ? String(user_name).trim() : null;
+    const cleanUa = user_agent ? String(user_agent).slice(0, 500) : null;
+    const metaJson = metadata ? JSON.stringify(metadata) : null;
+    const sql = `INSERT INTO activity_logs 
+        (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link, ip_address, user_agent, metadata, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+    const params = [
+      business_id ?? null,
+      branch_id ?? null,
+      device_id ?? null,
+      product_id ?? null,
+      user_id ?? null,
+      cleanUser,
+      cleanType,
+      cleanDesc,
+      reference_type ?? null,
+      reference_id ?? null,
+      reference_link ?? null,
+      ip_address ?? null,
+      cleanUa,
+      metaJson
+    ];
+    if (conn) {
+      await conn.execute(sql, params);
+    } else {
+      await execute(sql, params);
+    }
   } catch (err) {
     console.error("[ActivityLog] Failed to record activity:", err.message);
+    if (strict) throw err;
   }
 }
 var resolveDbHost, businessTzCache, currentHost, activePool, pool, connectionChecked, CURRENT_SCHEMA_VERSION;
@@ -1685,7 +1717,7 @@ var init_mysql = __esm({
       }
     });
     connectionChecked = false;
-    CURRENT_SCHEMA_VERSION = "2026_11_CREDIT_NOTES_V1";
+    CURRENT_SCHEMA_VERSION = "2026_11_ACTIVITY_LOGS_V2";
   }
 });
 
@@ -2498,7 +2530,21 @@ var init_auth = __esm({
           }
         }
         const valid = await bcrypt.compare(password, user.password_hash);
-        if (!valid) return res.status(401).json({ error: "Invalid email or password" });
+        if (!valid) {
+          const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
+          const ipAddress = (typeof rawIp === "string" ? rawIp.split(",")[0].trim() : String(rawIp)).replace(/^::ffff:/, "");
+          await logActivity({
+            business_id: user.business_id,
+            branch_id: user.branch_id,
+            user_id: user.id,
+            user_name: user.name,
+            activity_type: "User Login Failed",
+            description: `Failed login attempt for ${user.email} from IP ${ipAddress || "127.0.0.1"}`,
+            ip_address: ipAddress || "127.0.0.1",
+            user_agent: req.headers["user-agent"] || null
+          });
+          return res.status(401).json({ error: "Invalid email or password" });
+        }
         const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "12h" });
         await execute("UPDATE users SET last_login=NOW() WHERE id=?", [user.id]);
         const branch = await queryOne("SELECT * FROM branches WHERE id=?", [user.branch_id]);
@@ -3189,6 +3235,128 @@ var init_public = __esm({
   }
 });
 
+// src/utils/activityLogger.ts
+function formatAuditValue(val, options) {
+  const empty = options?.emptyLabel ?? "none";
+  if (val === null || val === void 0) return empty;
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (!trimmed || trimmed.toLowerCase() === "null" || trimmed.toLowerCase() === "undefined") {
+      return empty;
+    }
+    if (options?.currency) {
+      const num = Number(trimmed);
+      return Number.isFinite(num) ? `\u20AC${num.toFixed(2)}` : trimmed;
+    }
+    return trimmed;
+  }
+  if (typeof val === "number") {
+    if (!Number.isFinite(val)) return empty;
+    return options?.currency ? `\u20AC${val.toFixed(2)}` : String(val);
+  }
+  return String(val);
+}
+function diffFields(before, after, specs) {
+  const changes = [];
+  const diff = {};
+  for (const spec of specs) {
+    const nextVal = after[spec.key];
+    if (nextVal === void 0) continue;
+    const prevVal = before ? before[spec.key] : void 0;
+    if (spec.numeric || spec.currency) {
+      const prevNum = prevVal === null || prevVal === void 0 || prevVal === "" ? null : Number(prevVal);
+      const nextNum = nextVal === null || nextVal === void 0 || nextVal === "" ? null : Number(nextVal);
+      if (prevNum === nextNum) continue;
+      if (prevNum !== null && nextNum !== null && Math.abs(prevNum - nextNum) < 1e-4) continue;
+      const fromStr = formatAuditValue(prevNum, { currency: spec.currency, emptyLabel: spec.emptyLabel });
+      const toStr = formatAuditValue(nextNum, { currency: spec.currency, emptyLabel: spec.emptyLabel });
+      changes.push(`${spec.label}: ${fromStr} -> ${toStr}`);
+      diff[spec.key] = { from: prevNum, to: nextNum };
+    } else {
+      const prevStr = prevVal === null || prevVal === void 0 ? "" : String(prevVal).trim();
+      const nextStr = nextVal === null || nextVal === void 0 ? "" : String(nextVal).trim();
+      if (prevStr === nextStr) continue;
+      const fromStr = formatAuditValue(prevVal, { emptyLabel: spec.emptyLabel });
+      const toStr = formatAuditValue(nextVal, { emptyLabel: spec.emptyLabel });
+      changes.push(`${spec.label}: ${fromStr} -> ${toStr}`);
+      diff[spec.key] = { from: prevVal ?? null, to: nextVal ?? null };
+    }
+  }
+  return {
+    changes,
+    diff,
+    summary: changes.join(", ")
+  };
+}
+function getReqAuditContext(req) {
+  const forwarded = req?.headers?.["x-forwarded-for"];
+  const ip = (typeof forwarded === "string" ? forwarded.split(",")[0].trim() : null) || req?.ip || req?.socket?.remoteAddress || null;
+  const rawName = req?.user?.name;
+  const userName = rawName && String(rawName).trim() && String(rawName).trim().toLowerCase() !== "null" ? String(rawName).trim() : null;
+  return {
+    business_id: req?.user?.business_id ?? null,
+    branch_id: req?.user?.branch_id ?? null,
+    user_id: req?.user?.id ?? req?.userId ?? null,
+    user_name: userName,
+    ip_address: ip,
+    user_agent: req?.headers?.["user-agent"] ? String(req.headers["user-agent"]).slice(0, 500) : null
+  };
+}
+async function recordAudit(req, params) {
+  const ctx = getReqAuditContext(req);
+  await logActivity({
+    ...ctx,
+    ...params,
+    business_id: params.business_id !== void 0 ? params.business_id : ctx.business_id,
+    branch_id: params.branch_id !== void 0 ? params.branch_id : ctx.branch_id,
+    user_id: params.user_id !== void 0 ? params.user_id : ctx.user_id,
+    user_name: params.user_name !== void 0 ? params.user_name : ctx.user_name
+  });
+}
+var ACTIVITY_TYPES, STANDARD_ACTIVITY_TYPES;
+var init_activityLogger = __esm({
+  "src/utils/activityLogger.ts"() {
+    init_mysql();
+    ACTIVITY_TYPES = {
+      // Auth & Security
+      USER_LOGIN: "User Login",
+      USER_LOGIN_FAILED: "User Login Failed",
+      USER_CREATED: "User Created",
+      USER_UPDATED: "User Updated",
+      // Invoices & Payments
+      INVOICE_CREATED: "Invoice Created",
+      INVOICE_EMAILED: "Invoice Emailed",
+      INVOICE_EMAIL_FAILED: "Invoice Email Failed",
+      REFUND_CREATED: "Refund Created",
+      PARTIAL_REFUND: "Partial Refund",
+      CREDIT_NOTE_ISSUED: "Credit Note Issued",
+      CREDIT_NOTE_REDEEMED: "Credit Note Redeemed",
+      PAYMENT_METHOD_UPDATED: "Payment Method Updated",
+      // Customers & Wallet
+      CUSTOMER_CREATED: "Customer Created",
+      CUSTOMER_UPDATED: "Customer Updated",
+      CUSTOMER_DELETED: "Customer Deleted",
+      DEPOSIT_RECEIVED: "Deposit Received",
+      DEPOSIT_REFUNDED: "Deposit Refunded",
+      WALLET_ADJUSTMENT: "Wallet Adjustment",
+      // Products & Stock
+      PRODUCT_CREATED: "Product Created",
+      PRODUCT_UPDATED: "Product Updated",
+      // Devices / Serialized Inventory
+      DEVICE_CREATED: "Device Created",
+      DEVICE_UPDATED: "Device Updated",
+      DEVICE_SOLD: "Device Sold",
+      DEVICE_DELETED: "Device Deleted",
+      NOTE_ADDED: "Note Added",
+      // Repairs & EOD Reports
+      REPAIR_JOB_CREATED: "Repair Job Created",
+      EOD_REPORT_SAVED: "EOD Report Saved",
+      EOD_REPORT_UPDATED: "EOD Report Updated"
+    };
+    STANDARD_ACTIVITY_TYPES = Object.values(ACTIVITY_TYPES);
+  }
+});
+
 // src/routes/products.ts
 var products_exports = {};
 __export(products_exports, {
@@ -3307,12 +3475,30 @@ async function syncNewProductToOtherBusinesses(conn, sourceBusinessId, params) {
     console.warn("[AutoSyncProduct] Non-fatal warning syncing product across businesses:", syncErr?.message);
   }
 }
-var router3, createProductSchema, quickAddSchema, products_default;
+async function resolveProductAndSkus(idParam, businessId) {
+  const numId = Number(idParam);
+  if (!Number.isFinite(numId) || numId <= 0) return null;
+  const skuRow = await queryOne(
+    "SELECT s.id as sku_id, p.id as product_id FROM product_skus s JOIN products p ON s.product_id = p.id WHERE s.id = ? AND p.business_id = ?",
+    [numId, businessId]
+  );
+  const productId = skuRow ? Number(skuRow.product_id) : (await queryOne("SELECT id FROM products WHERE id = ? AND business_id = ?", [numId, businessId]))?.id ?? null;
+  if (!productId) return null;
+  const skuRows = await query("SELECT id FROM product_skus WHERE product_id = ?", [productId]);
+  const skuIds = skuRows.map((r) => Number(r.id));
+  return {
+    productId: Number(productId),
+    skuIds,
+    primarySkuId: skuRow ? Number(skuRow.sku_id) : skuIds[0] ?? null
+  };
+}
+var router3, createProductSchema, quickAddSchema, productActivitySchema, products_default;
 var init_products = __esm({
   "src/routes/products.ts"() {
     init_mysql();
     init_security();
     init_schemas();
+    init_activityLogger();
     router3 = Router3();
     router3.get("/", async (req, res, next) => {
       try {
@@ -4000,23 +4186,45 @@ var init_products = __esm({
             }
           }
         }
-        const changes = [];
-        if (cleanNewName !== sku.product_name) changes.push(`Name: ${sku.product_name} -> ${cleanNewName}`);
-        if (selling_price != sku.selling_price) changes.push(`Price: ${sku.selling_price} -> ${selling_price}`);
-        if (cost_price != sku.cost_price) changes.push(`Cost: ${sku.cost_price} -> ${cost_price}`);
-        if (sku_code !== sku.sku_code) changes.push(`SKU: ${sku.sku_code} -> ${sku_code}`);
+        const prodDiff = diffFields(
+          {
+            name: sku.product_name,
+            selling_price: sku.selling_price,
+            cost_price: sku.cost_price,
+            sku_code: sku.sku_code
+          },
+          {
+            name: cleanNewName,
+            selling_price,
+            cost_price,
+            sku_code
+          },
+          [
+            { key: "name", label: "Name" },
+            { key: "selling_price", label: "Price", currency: true },
+            { key: "cost_price", label: "Cost", currency: true },
+            { key: "sku_code", label: "SKU" }
+          ]
+        );
+        const changes = [...prodDiff.changes];
         if (cascade_device_price && updatedDevicesCount > 0) {
           changes.push(`Cascaded price to ${updatedDevicesCount} in-stock IMEI unit(s)`);
         }
         const detailMsg = changes.length > 0 ? changes.join(", ") : "Details updated";
         await conn.execute(
           "INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)",
-          [skuId, req.userId, "Product Updated", detailMsg]
+          [skuId, req.userId, ACTIVITY_TYPES.PRODUCT_UPDATED, detailMsg]
         );
-        await conn.execute(
-          "INSERT INTO activity_logs (business_id, branch_id, product_id, user_id, user_name, activity_type, description) VALUES (?,?,?,?,?,?,?)",
-          [req.user.business_id, req.user.branch_id, sku.product_id, req.userId, req.user?.name || null, "Product Updated", detailMsg]
-        );
+        await recordAudit(req, {
+          conn,
+          product_id: sku.product_id,
+          activity_type: ACTIVITY_TYPES.PRODUCT_UPDATED,
+          description: detailMsg,
+          reference_type: "product",
+          reference_id: sku.product_id,
+          reference_link: `/products/${sku.product_id}`,
+          metadata: Object.keys(prodDiff.diff).length > 0 ? { diff: prodDiff.diff, cascaded_devices: updatedDevicesCount } : null
+        });
         await conn.commit();
         res.json({ success: true, updated_devices_count: updatedDevicesCount });
       } catch (e) {
@@ -4112,12 +4320,19 @@ var init_products = __esm({
         const skuId = sr.insertId;
         await conn.execute(
           "INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)",
-          [skuId, req.userId, "Product Created", `Product "${name}" created with SKU ${finalSku}`]
+          [skuId, req.userId, ACTIVITY_TYPES.PRODUCT_CREATED, `Product "${name}" created with SKU ${finalSku}`]
         );
-        await conn.execute(
-          "INSERT INTO activity_logs (business_id, branch_id, product_id, user_id, user_name, activity_type, description) VALUES (?,?,?,?,?,?,?)",
-          [businessId, req.user.branch_id, productId, req.userId, req.user?.name || null, "Product Created", `Product "${name}" created with SKU ${finalSku}`]
-        );
+        await recordAudit(req, {
+          conn,
+          business_id: businessId,
+          product_id: productId,
+          activity_type: ACTIVITY_TYPES.PRODUCT_CREATED,
+          description: `Product "${name}" created with SKU ${finalSku}`,
+          reference_type: "product",
+          reference_id: productId,
+          reference_link: `/products/${productId}`,
+          metadata: { sku: finalSku, selling_price, cost_price }
+        });
         await syncNewProductToOtherBusinesses(conn, businessId, {
           name,
           category_id,
@@ -4197,12 +4412,20 @@ var init_products = __esm({
         const skuId = sr.insertId;
         await conn.execute(
           "INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)",
-          [skuId, req.userId, "Product Created", `Product "${name}" quick-added with SKU ${finalSku}`]
+          [skuId, req.userId, ACTIVITY_TYPES.PRODUCT_CREATED, `Product "${name}" quick-added with SKU ${finalSku}`]
         );
-        await conn.execute(
-          "INSERT INTO activity_logs (business_id, branch_id, product_id, user_id, user_name, activity_type, description) VALUES (?,?,?,?,?,?,?)",
-          [businessId, activeBranchId, productId, req.userId, req.user?.name || null, "Product Created", `Product "${name}" quick-added with SKU ${finalSku}`]
-        );
+        await recordAudit(req, {
+          conn,
+          business_id: businessId,
+          branch_id: activeBranchId,
+          product_id: productId,
+          activity_type: ACTIVITY_TYPES.PRODUCT_CREATED,
+          description: `Product "${name}" quick-added with SKU ${finalSku}`,
+          reference_type: "product",
+          reference_id: productId,
+          reference_link: `/products/${productId}`,
+          metadata: { sku: finalSku, stock_qty: stockQty }
+        });
         if (stockQty > 0) {
           await conn.execute(
             "INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,?) ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)",
@@ -4256,45 +4479,118 @@ var init_products = __esm({
     });
     router3.get("/:id/activity", async (req, res, next) => {
       try {
+        const businessId = req.user.business_id;
+        const resolved = await resolveProductAndSkus(req.params.id, businessId);
+        if (!resolved) return res.status(404).json({ error: "Product not found" });
+        const { productId, skuIds } = resolved;
+        const skuPlaceholders = skuIds.length > 0 ? skuIds.map(() => "?").join(",") : "NULL";
         const acts = await query(`
-      SELECT 'product' as source, a.id, a.user_id, a.activity, a.details, a.created_at, COALESCE(u.name, 'System') as user_name 
-      FROM product_activity a
-      LEFT JOIN users u ON a.user_id = u.id
-      JOIN product_skus s ON a.sku_id = s.id
-      JOIN products p ON s.product_id = p.id
-      WHERE (a.sku_id = ? OR s.product_id = ?) AND p.business_id = ?
-      
-      UNION ALL
-
-      SELECT 'device' as source, da.id, da.user_id, da.activity, da.details, da.created_at, COALESCE(u.name, 'System') as user_name
-      FROM device_activity da
-      JOIN devices d ON da.device_id = d.id
-      JOIN product_skus s ON d.sku_id = s.id
-      JOIN products p ON s.product_id = p.id
-      LEFT JOIN users u ON da.user_id = u.id
-      WHERE (s.id = ? OR p.id = ?) AND p.business_id = ?
-
-      UNION ALL
-
-      SELECT 'log' as source, al.id, al.user_id, al.activity_type as activity, al.description as details, al.created_at, COALESCE(al.user_name, u.name, 'System') as user_name
+      SELECT 
+        'log' as source,
+        al.id,
+        al.user_id,
+        COALESCE(NULLIF(TRIM(al.activity_type), ''), 'Activity') as activity,
+        COALESCE(al.description, '') as details,
+        al.created_at,
+        COALESCE(NULLIF(NULLIF(TRIM(al.user_name), ''), 'null'), u.name, 'System') as user_name
       FROM activity_logs al
       LEFT JOIN users u ON al.user_id = u.id
-      WHERE (al.product_id = ? OR al.product_id = (SELECT product_id FROM product_skus WHERE id=?))
+      WHERE al.product_id = ?
         AND COALESCE(al.business_id, u.business_id) = ?
+
+      UNION ALL
+
+      SELECT 
+        'product' as source,
+        a.id,
+        a.user_id,
+        COALESCE(NULLIF(TRIM(a.activity), ''), 'Activity') as activity,
+        COALESCE(a.details, '') as details,
+        a.created_at,
+        COALESCE(u.name, 'System') as user_name
+      FROM product_activity a
+      LEFT JOIN users u ON a.user_id = u.id
+      WHERE a.sku_id IN (${skuPlaceholders})
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al2
+          WHERE al2.product_id = ?
+            AND al2.business_id = ?
+            AND al2.activity_type = a.activity
+            AND ABS(TIMESTAMPDIFF(SECOND, al2.created_at, a.created_at)) <= 2
+        )
+
+      UNION ALL
+
+      SELECT 
+        'device' as source,
+        da.id,
+        da.user_id,
+        COALESCE(NULLIF(TRIM(da.activity), ''), 'Activity') as activity,
+        COALESCE(da.details, '') as details,
+        da.created_at,
+        COALESCE(u.name, 'System') as user_name
+      FROM device_activity da
+      JOIN devices d ON da.device_id = d.id
+      LEFT JOIN users u ON da.user_id = u.id
+      WHERE d.business_id = ?
+        AND d.sku_id IN (${skuPlaceholders})
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al3
+          WHERE (al3.device_id = da.device_id OR al3.product_id = ?)
+            AND al3.business_id = ?
+            AND al3.activity_type = da.activity
+            AND ABS(TIMESTAMPDIFF(SECOND, al3.created_at, da.created_at)) <= 2
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM product_activity pa2
+          WHERE pa2.sku_id = d.sku_id
+            AND pa2.activity = da.activity
+            AND ABS(TIMESTAMPDIFF(SECOND, pa2.created_at, da.created_at)) <= 2
+        )
 
       ORDER BY created_at DESC
     `, [
-          req.params.id,
-          req.params.id,
-          req.user.business_id,
-          req.params.id,
-          req.params.id,
-          req.user.business_id,
-          req.params.id,
-          req.params.id,
-          req.user.business_id
+          productId,
+          businessId,
+          ...skuIds,
+          productId,
+          businessId,
+          businessId,
+          ...skuIds,
+          productId,
+          businessId
         ]);
         res.json(acts);
+      } catch (e) {
+        next(e);
+      }
+    });
+    productActivitySchema = z4.object({
+      activity: z4.string().trim().max(100).optional(),
+      details: z4.string().trim().min(1, "Note details are required").max(1e3)
+    });
+    router3.post("/:id/activity", async (req, res, next) => {
+      try {
+        const { activity, details } = productActivitySchema.parse(req.body);
+        const businessId = req.user.business_id;
+        const resolved = await resolveProductAndSkus(req.params.id, businessId);
+        if (!resolved) return res.status(404).json({ error: "Product not found" });
+        const actLabel = activity || ACTIVITY_TYPES.NOTE_ADDED;
+        if (resolved.primarySkuId) {
+          await execute(
+            "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [resolved.primarySkuId, req.userId, actLabel, details]
+          );
+        }
+        await recordAudit(req, {
+          product_id: resolved.productId,
+          activity_type: actLabel,
+          description: details,
+          reference_type: "product",
+          reference_id: resolved.productId,
+          reference_link: `/products/${resolved.productId}`
+        });
+        res.json({ success: true });
       } catch (e) {
         next(e);
       }
@@ -4441,6 +4737,7 @@ var router4, customerSchema, depositSchema, walletAdjustmentSchema, customers_de
 var init_customers = __esm({
   "src/routes/customers.ts"() {
     init_mysql();
+    init_activityLogger();
     router4 = Router4();
     router4.get("/", async (req, res, next) => {
       try {
@@ -4528,7 +4825,16 @@ var init_customers = __esm({
           "SELECT * FROM customers WHERE id = ?",
           [r.insertId]
         );
-        res.json(newCustomer[0]);
+        const created = newCustomer[0];
+        await recordAudit(req, {
+          branch_id: branchId,
+          activity_type: ACTIVITY_TYPES.CUSTOMER_CREATED,
+          description: `Customer "${fullName}" created${b.phone ? ` (${b.phone})` : ""}`,
+          reference_type: "customer",
+          reference_id: r.insertId,
+          reference_link: `/customers/${r.insertId}`
+        });
+        res.json(created);
       } catch (e) {
         console.error("[POST /api/customers] Error:", e.message);
         next(e);
@@ -4603,14 +4909,30 @@ var init_customers = __esm({
             req.user.business_id
           ]
         );
-        const changes = [];
-        if (old.name !== name) changes.push(`Name: ${old.name} -> ${name}`);
-        if (old.phone !== phone) changes.push(`Phone: ${old.phone} -> ${phone}`);
-        if (changes.length) {
+        const custDiff = diffFields(
+          old,
+          { name, phone, email },
+          [
+            { key: "name", label: "Name" },
+            { key: "phone", label: "Phone" },
+            { key: "email", label: "Email" }
+          ]
+        );
+        if (custDiff.changes.length) {
           await conn.execute(
             "INSERT INTO customer_activity (customer_id,user_id,activity,details) VALUES (?,?,?,?)",
-            [req.params.id, req.userId, "Profile Updated", changes.join(", ")]
+            [req.params.id, req.userId, ACTIVITY_TYPES.CUSTOMER_UPDATED, custDiff.summary]
           );
+          await recordAudit(req, {
+            conn,
+            branch_id: old.branch_id ?? req.user.branch_id,
+            activity_type: ACTIVITY_TYPES.CUSTOMER_UPDATED,
+            description: `Customer "${old.name || name}" updated: ${custDiff.summary}`,
+            reference_type: "customer",
+            reference_id: Number(req.params.id),
+            reference_link: `/customers/${req.params.id}`,
+            metadata: { diff: custDiff.diff }
+          });
         }
         await conn.commit();
         res.json({ success: true });
@@ -4628,6 +4950,12 @@ var init_customers = __esm({
         const params = isSuper ? [req.params.id, req.user.business_id] : [req.params.id, req.user.business_id, req.user.branch_id];
         const r = await execute(sql, params);
         if (r.affectedRows === 0) return res.status(404).json({ error: "Customer not found or access denied" });
+        await recordAudit(req, {
+          activity_type: ACTIVITY_TYPES.CUSTOMER_DELETED,
+          description: `Customer #${req.params.id} deleted`,
+          reference_type: "customer",
+          reference_id: Number(req.params.id)
+        });
         res.json({ success: true });
       } catch (e) {
         next(e);
@@ -4816,15 +5144,18 @@ var init_customers = __esm({
         const details = `Wallet adjusted ${sign}\u20AC${Math.abs(delta).toFixed(2)} (\u20AC${oldBalance.toFixed(2)} -> \u20AC${newBalance.toFixed(2)}). Reason: ${data.reason}`;
         await conn.execute(
           "INSERT INTO customer_activity (customer_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-          [req.params.id, req.userId, "Wallet Adjustment", details]
+          [req.params.id, req.userId, ACTIVITY_TYPES.WALLET_ADJUSTMENT, details]
         );
-        try {
-          await conn.execute(
-            "INSERT INTO activity_logs (business_id, branch_id, user_id, user_name, activity_type, description, reference_type, reference_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            [req.user.business_id, req.user.branch_id || null, req.userId, req.user?.name || null, "Wallet Adjustment", details, "customer", Number(req.params.id)]
-          );
-        } catch {
-        }
+        await recordAudit(req, {
+          conn,
+          activity_type: ACTIVITY_TYPES.WALLET_ADJUSTMENT,
+          description: details,
+          reference_type: "customer",
+          reference_id: Number(req.params.id),
+          reference_link: `/customers/${req.params.id}`,
+          metadata: { old_balance: oldBalance, new_balance: newBalance, delta, reason: data.reason },
+          strict: true
+        });
         await conn.commit();
         res.json({ success: true, old_balance: oldBalance, new_balance: newBalance, delta });
       } catch (e) {
@@ -4852,6 +5183,7 @@ var init_invoices = __esm({
     init_mailer();
     init_security();
     init_schemas();
+    init_activityLogger();
     router5 = Router5();
     businessError = (message, status = 400) => Object.assign(new Error(message), { status });
     round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -5455,7 +5787,7 @@ var init_invoices = __esm({
       })).min(1, "Cart is empty"),
       payments: z6.array(z6.object({
         method: z6.string(),
-        amount: z6.number().or(z6.string().transform(Number)),
+        amount: z6.number().or(z6.string().transform(Number)).refine((v) => Number.isFinite(v) && v > 0, "Payment amount must be greater than zero"),
         credit_note_id: z6.number().optional(),
         credit_note_number: z6.string().optional()
       })).optional(),
@@ -5579,16 +5911,17 @@ var init_invoices = __esm({
             }
           }
         }
+        const effectiveBranchId = req.user.branch_id || 1;
         let invR;
         try {
           [invR] = await conn.execute(
             "INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,type,subtotal,tax_total,tax_rate,tax_type,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, invoiceType, subtotal, tax_total, Number(tax_rate) || 0, tax_type || "excluded", discount_total, grand_total, totalPaid, dueAmount, status]
+            [req.user.business_id, effectiveBranchId, req.userId, finalCustomerId, invoiceNumber, invoiceType, subtotal, tax_total, Number(tax_rate) || 0, tax_type || "excluded", discount_total, grand_total, totalPaid, dueAmount, status]
           );
         } catch (dbErr) {
           [invR] = await conn.execute(
             "INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,type,subtotal,tax_total,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, invoiceType, subtotal, tax_total, discount_total, grand_total, totalPaid, dueAmount, status]
+            [req.user.business_id, effectiveBranchId, req.userId, finalCustomerId, invoiceNumber, invoiceType, subtotal, tax_total, discount_total, grand_total, totalPaid, dueAmount, status]
           );
         }
         const invoiceId = invR.insertId;
@@ -5637,12 +5970,12 @@ var init_invoices = __esm({
             await conn.execute(`
           INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,-?)
           ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)
-        `, [req.user.branch_id, skuId, item.quantity]);
+        `, [effectiveBranchId, skuId, item.quantity]);
           } else if (item.device_id) {
-            const isSuper = req.user.role === "superadmin";
+            const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
             await conn.execute(
               `UPDATE devices SET status='sold' WHERE id=? AND business_id=? AND branch_id=? ${!isSuper ? "AND user_id=?" : ""}`,
-              !isSuper ? [item.device_id, req.user.business_id, req.user.branch_id, req.userId] : [item.device_id, req.user.business_id, req.user.branch_id]
+              !isSuper ? [item.device_id, req.user.business_id, effectiveBranchId, req.userId] : [item.device_id, req.user.business_id, effectiveBranchId]
             );
             try {
               await conn.execute(
@@ -5651,21 +5984,31 @@ var init_invoices = __esm({
               );
             } catch (e) {
             }
-            try {
-              await conn.execute(
-                "INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                [req.user.business_id, req.user.branch_id, item.device_id, req.userId, req.user?.name || null, "Device Sold", "Product delivered to customer", invoiceNumber]
-              );
-            } catch (e) {
-            }
+            await recordAudit(req, {
+              conn,
+              branch_id: effectiveBranchId,
+              device_id: item.device_id,
+              activity_type: ACTIVITY_TYPES.DEVICE_SOLD,
+              description: `Sold on Invoice ${invoiceNumber}`,
+              reference_type: "invoice",
+              reference_id: invoiceId,
+              reference_link: `/invoices/${invoiceId}`,
+              metadata: { invoice_number: invoiceNumber, device_id: item.device_id }
+            });
             await conn.execute(`
           INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,-1)
           ON DUPLICATE KEY UPDATE quantity=quantity-1
-        `, [req.user.branch_id, skuId]);
+        `, [effectiveBranchId, skuId]);
           }
           if (item.is_deposit && finalCustomerId) {
             await conn.execute("UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)+? WHERE id=? AND business_id=?", [round2(Number(item.total)), finalCustomerId, req.user.business_id]);
           }
+        }
+        const nonCashPaid = round2(
+          (payments || []).filter((p) => !String(p.method || "").toLowerCase().includes("cash")).reduce((s, p) => s + (Number(p.amount) || 0), 0)
+        );
+        if (nonCashPaid > grandTotalNum + 0.01) {
+          throw businessError(`Non-cash payment (\u20AC${nonCashPaid.toFixed(2)}) cannot exceed the invoice total (\u20AC${grandTotalNum.toFixed(2)}).`);
         }
         let excessChange = Math.max(0, rawTotalPaid - grandTotalNum);
         const settledPayments = (payments || []).map((p) => {
@@ -5750,32 +6093,6 @@ var init_invoices = __esm({
                 "UPDATE customers SET wallet_balance = COALESCE(wallet_balance, 0) - ? WHERE id = ? AND business_id = ?",
                 [p.amount, finalCustomerId, req.user.business_id]
               );
-              try {
-                const [openCns] = await conn.execute(
-                  `SELECT id, credit_note_number, remaining_amount, refund_invoice_id 
-               FROM credit_notes 
-               WHERE business_id = ? AND customer_id = ? AND status IN ('active', 'partially_used') AND remaining_amount > 0
-               ORDER BY id ASC`,
-                  [req.user.business_id, finalCustomerId]
-                );
-                let toDeduct = p.amount;
-                for (const ocn of openCns) {
-                  if (toDeduct <= 5e-3) break;
-                  const availCn = Number(ocn.remaining_amount) || 0;
-                  const used = Math.min(availCn, toDeduct);
-                  const nextRem = Math.max(0, Number((availCn - used).toFixed(2)));
-                  const nextSt = nextRem <= 9e-3 ? "redeemed" : "partially_used";
-                  await conn.execute("UPDATE credit_notes SET remaining_amount = ?, status = ? WHERE id = ?", [nextRem, nextSt, ocn.id]);
-                  if (ocn.refund_invoice_id) {
-                    await conn.execute(
-                      "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-                      [ocn.refund_invoice_id, req.userId, "Credit Note Redeemed", `\u20AC${used.toFixed(2)} redeemed via Customer Wallet on Invoice ${invoiceNumber}. Remaining: \u20AC${nextRem.toFixed(2)}`]
-                    );
-                  }
-                  toDeduct -= used;
-                }
-              } catch {
-              }
             }
           }
         }
@@ -5788,8 +6105,22 @@ var init_invoices = __esm({
         }
         await conn.execute(
           "INSERT INTO invoice_activity (invoice_id,user_id,activity,details) VALUES (?,?,?,?)",
-          [invoiceId, req.userId, "Invoice Created", logDetails]
+          [invoiceId, req.userId, ACTIVITY_TYPES.INVOICE_CREATED, logDetails]
         );
+        await recordAudit(req, {
+          conn,
+          branch_id: effectiveBranchId,
+          activity_type: ACTIVITY_TYPES.INVOICE_CREATED,
+          description: logDetails,
+          reference_type: "invoice",
+          reference_id: invoiceId,
+          reference_link: `/invoices/${invoiceId}`,
+          metadata: {
+            invoice_number: invoiceNumber,
+            grand_total: Number(grand_total) || 0,
+            customer_id: finalCustomerId
+          }
+        });
         for (const act of activities || []) {
           const activityLabel = act.action || act.activity || "Activity";
           const activityDetails = act.details || "No details provided";
@@ -5939,6 +6270,20 @@ var init_invoices = __esm({
         }
         if (!isDepositInvoice && itemsToProcess.length === 0 || totalRefundAmount <= 0) {
           throw businessError("No returnable items selected for refund");
+        }
+        const [prevRefRows] = await conn.execute(
+          `SELECT COALESCE(SUM(ABS(amount)), 0) as already_refunded
+       FROM payments
+       WHERE invoice_id = ? AND type IN ('refund', 'credit_note_issued') AND amount < 0`,
+          [req.params.id]
+        );
+        const alreadyRefunded = round2(Number(prevRefRows[0]?.already_refunded) || 0);
+        const invoicePaidAmount = round2(Number(invoice.paid_amount) || 0);
+        const maxRefundable = Math.max(0, round2(invoicePaidAmount - alreadyRefunded));
+        if (round2(totalRefundAmount) > maxRefundable + 0.01) {
+          throw businessError(
+            `Cannot refund \u20AC${totalRefundAmount.toFixed(2)}: only \u20AC${maxRefundable.toFixed(2)} is refundable from paid amount (\u20AC${invoicePaidAmount.toFixed(2)} paid, \u20AC${alreadyRefunded.toFixed(2)} already refunded).`
+          );
         }
         const methodLower = String(method || "").toLowerCase();
         const isCreditNote = ["customer wallet", "credit note", "store credit", "wallet"].some((k) => methodLower.includes(k));
@@ -6172,13 +6517,28 @@ var init_invoices = __esm({
         const totalRefunded = Number(updatedItems[0]?.total_refunded || 0);
         const isFullyRefunded = isDepositInvoice && currentItems.length === 0 ? true : totalRefunded >= totalQty;
         const newStatus = isFullyRefunded ? "void" : "partially_refunded";
-        await conn.execute("UPDATE invoices SET status=? WHERE id=?", [newStatus, req.params.id]);
+        const nextDueAmount = isFullyRefunded ? 0 : Math.max(0, round2(Number(invoice.due_amount) || 0));
+        await conn.execute("UPDATE invoices SET status=?, due_amount=? WHERE id=?", [newStatus, nextDueAmount, req.params.id]);
         const activityLabel = isCreditNote ? `Credit Note Issued (${createdCreditNote?.credit_note_number})` : isFullyRefunded ? "Refund Created" : "Partial Refund";
         const detailMsg = `${activityLabel} via ${isCreditNote ? "Credit Note / Store Credit" : method} for \u20AC${totalRefundAmount.toFixed(2)} [${refundSummaries.join(", ")}]. ${restock ? "Restocked to inventory." : "No restock."}${notes ? ` Note: ${notes}` : ""}`;
         await conn.execute(
           "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
           [req.params.id, req.userId, activityLabel, detailMsg]
         );
+        await recordAudit(req, {
+          conn,
+          branch_id: invoice.branch_id ?? req.user.branch_id,
+          activity_type: isCreditNote ? ACTIVITY_TYPES.CREDIT_NOTE_ISSUED : isFullyRefunded ? ACTIVITY_TYPES.REFUND_CREATED : ACTIVITY_TYPES.PARTIAL_REFUND,
+          description: detailMsg,
+          reference_type: "invoice",
+          reference_id: Number(req.params.id),
+          reference_link: `/invoices/${req.params.id}`,
+          metadata: {
+            refund_amount: totalRefundAmount,
+            method: isCreditNote ? "Credit Note" : method,
+            restock: Boolean(restock)
+          }
+        });
         await conn.commit();
         res.json({
           success: true,
@@ -6297,14 +6657,52 @@ var init_invoices = __esm({
     });
     router5.put("/payments/:id", async (req, res, next) => {
       try {
-        const { method } = req.body;
-        if (!method) return res.status(400).json({ error: "Method is required" });
-        const r = await execute(
-          "UPDATE payments p LEFT JOIN invoices i ON p.invoice_id=i.id LEFT JOIN customers c ON p.customer_id=c.id SET p.method=? WHERE p.id=? AND (i.business_id=? OR c.business_id=?)",
-          [method, req.params.id, req.user.business_id, req.user.business_id]
+        const rawMethod = String(req.body?.method || "").trim();
+        const allowedMethods = ["Cash", "Card", "Debit Card", "Credit Card", "Other"];
+        const matchedMethod = allowedMethods.find((m) => m.toLowerCase() === rawMethod.toLowerCase());
+        if (!matchedMethod) {
+          return res.status(400).json({
+            error: "Payment method can only be switched between Cash, Card, Debit Card, Credit Card, and Other."
+          });
+        }
+        const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
+        const branchId = req.user.branch_id;
+        const existing = await queryOne(
+          `SELECT p.*, i.business_id as inv_biz, i.branch_id as inv_branch, i.invoice_number
+       FROM payments p
+       LEFT JOIN invoices i ON p.invoice_id = i.id
+       LEFT JOIN customers c ON p.customer_id = c.id
+       WHERE p.id = ? AND (i.business_id = ? OR c.business_id = ?)
+       ${!isSuper && branchId ? "AND (i.branch_id = ? OR i.branch_id IS NULL)" : ""}`,
+          !isSuper && branchId ? [req.params.id, req.user.business_id, req.user.business_id, branchId] : [req.params.id, req.user.business_id, req.user.business_id]
         );
-        if (r.affectedRows === 0) return res.status(404).json({ error: "Payment not found or access denied" });
-        res.json({ success: true });
+        if (!existing) return res.status(404).json({ error: "Payment not found or access denied" });
+        const pType = String(existing.type || "").toLowerCase();
+        if (pType === "wallet_use" || pType === "credit_note_redeemed" || pType === "credit_note_issued") {
+          return res.status(400).json({ error: "Cannot change payment method on Wallet or Credit Note entries." });
+        }
+        await execute("UPDATE payments SET method = ? WHERE id = ?", [matchedMethod, req.params.id]);
+        if (existing.invoice_id) {
+          const prevMethod = formatAuditValue(existing.method);
+          const pmDetails = `Payment #${req.params.id} (\u20AC${Number(existing.amount || 0).toFixed(2)}) changed from ${prevMethod} to ${matchedMethod}`;
+          try {
+            await execute(
+              "INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+              [existing.invoice_id, req.userId, ACTIVITY_TYPES.PAYMENT_METHOD_UPDATED, pmDetails]
+            );
+          } catch {
+          }
+          await recordAudit(req, {
+            branch_id: existing.inv_branch ?? req.user.branch_id,
+            activity_type: ACTIVITY_TYPES.PAYMENT_METHOD_UPDATED,
+            description: pmDetails,
+            reference_type: "invoice",
+            reference_id: existing.invoice_id,
+            reference_link: `/invoices/${existing.invoice_id}`,
+            metadata: { payment_id: Number(req.params.id), from: existing.method ?? null, to: matchedMethod }
+          });
+        }
+        res.json({ success: true, method: matchedMethod });
       } catch (e) {
         next(e);
       }
@@ -6320,10 +6718,248 @@ __export(reports_exports, {
 });
 import { Router as Router6 } from "express";
 import { z as z7 } from "zod";
+function buildActivityLogsQuery(req) {
+  const businessId = req.user.business_id;
+  const isSuper = req.user.role === "superadmin" || req.user.role === "developer";
+  const effectiveBranchId = isSuper ? req.query.branch_id && req.query.branch_id !== "all" ? Number(req.query.branch_id) : null : req.user.branch_id ? Number(req.user.branch_id) : null;
+  const { activity_type, user_id, start_date, end_date, search, all_dates } = req.query;
+  const todayStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const effectiveStart = start_date || (!end_date && all_dates !== "1" ? todayStr : null);
+  const dateStart = effectiveStart ? String(effectiveStart).includes(" ") ? String(effectiveStart) : `${effectiveStart} 00:00:00` : null;
+  const dateEnd = end_date ? String(end_date).includes(" ") ? String(end_date) : `${end_date} 23:59:59` : null;
+  const buildSubquery = (table) => {
+    const p = [];
+    let sql = "";
+    if (table === "al") {
+      let where = "(al.business_id = ? OR (al.business_id IS NULL AND u.business_id = ?))";
+      p.push(businessId, businessId);
+      if (effectiveBranchId) {
+        where += " AND (al.branch_id = ? OR al.branch_id IS NULL)";
+        p.push(effectiveBranchId);
+      }
+      if (dateStart) {
+        where += " AND al.created_at >= ?";
+        p.push(dateStart);
+      }
+      if (dateEnd) {
+        where += " AND al.created_at <= ?";
+        p.push(dateEnd);
+      }
+      if (user_id && user_id !== "all") {
+        where += " AND al.user_id = ?";
+        p.push(Number(user_id));
+      }
+      sql = `
+        SELECT 
+          CONCAT('al_', al.id) as log_id,
+          COALESCE(al.business_id, u.business_id) as business_id,
+          al.branch_id,
+          al.user_id,
+          COALESCE(NULLIF(NULLIF(TRIM(al.user_name), ''), 'null'), u.name, 'System') as user_name,
+          COALESCE(NULLIF(TRIM(al.activity_type), ''), 'General Activity') as activity_type,
+          COALESCE(al.description, '') as details,
+          COALESCE(al.reference_type, IF(al.device_id IS NOT NULL, 'device', IF(al.product_id IS NOT NULL, 'product', NULL))) as reference_type,
+          COALESCE(al.reference_id, al.device_id, al.product_id) as reference_id,
+          COALESCE(al.reference_link, IF(al.device_id IS NOT NULL, CONCAT('/devices/', al.device_id), IF(al.product_id IS NOT NULL, CONCAT('/products/', al.product_id), NULL))) as reference_link,
+          al.ip_address,
+          al.metadata,
+          al.created_at
+        FROM activity_logs al
+        LEFT JOIN users u ON al.user_id = u.id
+        WHERE ${where}
+      `;
+    } else if (table === "ia") {
+      let where = "i.business_id = ?";
+      p.push(businessId);
+      if (effectiveBranchId) {
+        where += " AND i.branch_id = ?";
+        p.push(effectiveBranchId);
+      }
+      if (dateStart) {
+        where += " AND ia.created_at >= ?";
+        p.push(dateStart);
+      }
+      if (dateEnd) {
+        where += " AND ia.created_at <= ?";
+        p.push(dateEnd);
+      }
+      if (user_id && user_id !== "all") {
+        where += " AND ia.user_id = ?";
+        p.push(Number(user_id));
+      }
+      sql = `
+        SELECT 
+          CONCAT('inv_', ia.id) as log_id,
+          i.business_id as business_id,
+          i.branch_id,
+          ia.user_id,
+          COALESCE(u.name, 'System') as user_name,
+          COALESCE(NULLIF(TRIM(ia.activity), ''), 'Invoice Activity') as activity_type,
+          COALESCE(ia.details, '') as details,
+          'invoice' as reference_type,
+          ia.invoice_id as reference_id,
+          CONCAT('/invoices/', ia.invoice_id) as reference_link,
+          NULL as ip_address,
+          NULL as metadata,
+          ia.created_at
+        FROM invoice_activity ia
+        JOIN invoices i ON ia.invoice_id = i.id
+        LEFT JOIN users u ON ia.user_id = u.id
+        WHERE ${where}
+      `;
+    } else if (table === "ca") {
+      let where = "c.business_id = ?";
+      p.push(businessId);
+      if (effectiveBranchId) {
+        where += " AND (c.branch_id = ? OR c.branch_id IS NULL)";
+        p.push(effectiveBranchId);
+      }
+      if (dateStart) {
+        where += " AND ca.created_at >= ?";
+        p.push(dateStart);
+      }
+      if (dateEnd) {
+        where += " AND ca.created_at <= ?";
+        p.push(dateEnd);
+      }
+      if (user_id && user_id !== "all") {
+        where += " AND ca.user_id = ?";
+        p.push(Number(user_id));
+      }
+      sql = `
+        SELECT 
+          CONCAT('cust_', ca.id) as log_id,
+          c.business_id as business_id,
+          c.branch_id,
+          ca.user_id,
+          COALESCE(u.name, 'System') as user_name,
+          COALESCE(NULLIF(TRIM(ca.activity), ''), 'Customer Activity') as activity_type,
+          COALESCE(ca.details, '') as details,
+          'customer' as reference_type,
+          ca.customer_id as reference_id,
+          CONCAT('/customers/', ca.customer_id) as reference_link,
+          NULL as ip_address,
+          NULL as metadata,
+          ca.created_at
+        FROM customer_activity ca
+        JOIN customers c ON ca.customer_id = c.id
+        LEFT JOIN users u ON ca.user_id = u.id
+        WHERE ${where}
+      `;
+    } else if (table === "pa") {
+      let where = "(p.business_id = ? OR (p.business_id IS NULL AND u.business_id = ?))";
+      p.push(businessId, businessId);
+      if (dateStart) {
+        where += " AND pa.created_at >= ?";
+        p.push(dateStart);
+      }
+      if (dateEnd) {
+        where += " AND pa.created_at <= ?";
+        p.push(dateEnd);
+      }
+      if (user_id && user_id !== "all") {
+        where += " AND pa.user_id = ?";
+        p.push(Number(user_id));
+      }
+      sql = `
+        SELECT 
+          CONCAT('prod_', pa.id) as log_id,
+          COALESCE(p.business_id, u.business_id) as business_id,
+          NULL as branch_id,
+          pa.user_id,
+          COALESCE(u.name, 'System') as user_name,
+          COALESCE(NULLIF(TRIM(pa.activity), ''), 'Product Activity') as activity_type,
+          COALESCE(pa.details, '') as details,
+          'product' as reference_type,
+          COALESCE(p.id, pa.sku_id) as reference_id,
+          CONCAT('/products/', COALESCE(p.id, pa.sku_id)) as reference_link,
+          NULL as ip_address,
+          NULL as metadata,
+          pa.created_at
+        FROM product_activity pa
+        LEFT JOIN product_skus ps ON pa.sku_id = ps.id
+        LEFT JOIN products p ON ps.product_id = p.id
+        LEFT JOIN users u ON pa.user_id = u.id
+        WHERE ${where}
+      `;
+    } else {
+      let where = "d.business_id = ?";
+      p.push(businessId);
+      if (effectiveBranchId) {
+        where += " AND d.branch_id = ?";
+        p.push(effectiveBranchId);
+      }
+      if (dateStart) {
+        where += " AND da.created_at >= ?";
+        p.push(dateStart);
+      }
+      if (dateEnd) {
+        where += " AND da.created_at <= ?";
+        p.push(dateEnd);
+      }
+      if (user_id && user_id !== "all") {
+        where += " AND da.user_id = ?";
+        p.push(Number(user_id));
+      }
+      sql = `
+        SELECT 
+          CONCAT('dev_', da.id) as log_id,
+          d.business_id as business_id,
+          d.branch_id,
+          da.user_id,
+          COALESCE(u.name, 'System') as user_name,
+          COALESCE(NULLIF(TRIM(da.activity), ''), 'Device Activity') as activity_type,
+          COALESCE(da.details, '') as details,
+          'device' as reference_type,
+          d.id as reference_id,
+          CONCAT('/devices/', d.id) as reference_link,
+          NULL as ip_address,
+          NULL as metadata,
+          da.created_at
+        FROM device_activity da
+        JOIN devices d ON da.device_id = d.id
+        LEFT JOIN users u ON da.user_id = u.id
+        WHERE ${where}
+      `;
+    }
+    return { sql, params: p };
+  };
+  const qAL = buildSubquery("al");
+  const qIA = buildSubquery("ia");
+  const qCA = buildSubquery("ca");
+  const qPA = buildSubquery("pa");
+  const qDA = buildSubquery("da");
+  const unifiedSql = `
+    ${qAL.sql}
+    UNION ALL
+    ${qIA.sql}
+    UNION ALL
+    ${qCA.sql}
+    UNION ALL
+    ${qPA.sql}
+    UNION ALL
+    ${qDA.sql}
+  `;
+  const subParams = [...qAL.params, ...qIA.params, ...qCA.params, ...qPA.params, ...qDA.params];
+  const filterClauses = [];
+  const filterParams = [];
+  if (activity_type && activity_type !== "all") {
+    filterClauses.push("feed.activity_type = ?");
+    filterParams.push(activity_type);
+  }
+  if (search) {
+    filterClauses.push("(feed.details LIKE ? OR feed.activity_type LIKE ? OR feed.user_name LIKE ?)");
+    filterParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+  }
+  const whereSql = filterClauses.length > 0 ? `WHERE ${filterClauses.join(" AND ")}` : "";
+  return { businessId, unifiedSql, subParams, filterParams, whereSql };
+}
 var router6, getLocalDateStr, parseReportDate, round22, classifyPaymentMethod, isDepositRow, resolveEodBranchId, endOfDaySchema, reports_default;
 var init_reports = __esm({
   "src/routes/reports.ts"() {
     init_mysql();
+    init_security();
+    init_activityLogger();
     router6 = Router6();
     router6.get("/dashboard-stats", async (req, res, next) => {
       const { startDate, endDate } = req.query;
@@ -6669,6 +7305,9 @@ var init_reports = __esm({
     classifyPaymentMethod = (method, type) => {
       const t = String(type || "").toLowerCase();
       const m = String(method || "").toLowerCase();
+      if (t === "credit_note_issued") {
+        return "CreditNoteIssued";
+      }
       if (t === "wallet_use" || t === "credit_note_redeemed" || m.includes("wallet") || m.includes("store credit") || m.includes("credit note")) {
         return "Wallet";
       }
@@ -6895,7 +7534,7 @@ var init_reports = __esm({
           if (bucket === "Cash") serverTotalCash += amt;
           else if (bucket === "Card") serverTotalCard += amt;
           else if (bucket === "Wallet") serverTotalWallet += amt;
-          else serverTotalOther += amt;
+          else if (bucket === "Other") serverTotalOther += amt;
         }
         serverTotalSales = round22(serverTotalSales);
         serverTotalDeposits = round22(serverTotalDeposits);
@@ -6975,15 +7614,24 @@ var init_reports = __esm({
             [reportId, s.payment_type, s.calculated, s.counted, s.difference]
           );
         }
-        try {
-          const actionLabel = prevReport ? "EOD Report Updated" : "EOD Report Saved";
-          const auditDetails = `Date: ${reportDate} | Net Sales: \u20AC${serverTotalSales.toFixed(2)} | Deposits: \u20AC${serverTotalDeposits.toFixed(2)} | Cash Counted: \u20AC${cashCounted.toFixed(2)} (Float: \u20AC${startingBalance.toFixed(2)}, Diff: \u20AC${serverCashDiff.toFixed(2)})`;
-          await conn.execute(
-            "INSERT INTO activity_logs (business_id, branch_id, user_id, user_name, activity_type, description, reference_type, reference_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            [req.user.business_id, targetBranchId, req.userId, req.user?.name || null, actionLabel, auditDetails, "closing_report", reportId]
-          );
-        } catch {
-        }
+        const actionLabel = prevReport ? ACTIVITY_TYPES.EOD_REPORT_UPDATED : ACTIVITY_TYPES.EOD_REPORT_SAVED;
+        const auditDetails = `Date: ${reportDate} | Net Sales: \u20AC${serverTotalSales.toFixed(2)} | Deposits: \u20AC${serverTotalDeposits.toFixed(2)} | Cash Counted: \u20AC${cashCounted.toFixed(2)} (Float: \u20AC${startingBalance.toFixed(2)}, Diff: \u20AC${serverCashDiff.toFixed(2)})`;
+        await recordAudit(req, {
+          conn,
+          branch_id: targetBranchId,
+          activity_type: actionLabel,
+          description: auditDetails,
+          reference_type: "closing_report",
+          reference_id: reportId,
+          metadata: {
+            report_date: reportDate,
+            total_sales: serverTotalSales,
+            total_deposits: serverTotalDeposits,
+            cash_counted: cashCounted,
+            difference: serverCashDiff
+          },
+          strict: true
+        });
         await conn.commit();
         res.json({
           success: true,
@@ -7022,243 +7670,70 @@ var init_reports = __esm({
     });
     router6.get("/activity-logs", async (req, res, next) => {
       try {
-        const businessId = req.user.business_id;
-        const { activity_type, user_id, start_date, end_date, search, page = 1, limit = 50 } = req.query;
+        const { page = 1, limit = 50, include_meta } = req.query;
         const limitNum = Math.min(200, Math.max(1, Number(limit)));
         const pageNum = Math.max(1, Number(page));
         const offset = (pageNum - 1) * limitNum;
-        const users = await query(
-          "SELECT id, name FROM users WHERE business_id=? AND deleted_at IS NULL ORDER BY name ASC",
-          [businessId]
-        );
-        const typeRows = await query(
-          `SELECT DISTINCT activity_type FROM activity_logs WHERE business_id=? AND activity_type IS NOT NULL AND activity_type != '' ORDER BY activity_type ASC`,
-          [businessId]
-        );
-        const standardTypes = ["Invoice Created", "Invoice Updated", "Payment Added", "Customer Created", "Customer Updated", "Product Created", "Stock Adjusted", "Device Checked In", "Status Changed"];
-        const customTypes = typeRows.map((r) => r.activity_type).filter(Boolean);
-        const activityTypes = Array.from(/* @__PURE__ */ new Set([...customTypes, ...standardTypes])).sort();
-        const dateStart = start_date ? String(start_date).includes(" ") ? String(start_date) : `${start_date} 00:00:00` : null;
-        const dateEnd = end_date ? String(end_date).includes(" ") ? String(end_date) : `${end_date} 23:59:59` : null;
-        const buildSubquery = (table) => {
-          const p = [];
-          let sql = "";
-          if (table === "al") {
-            let where = "(al.business_id = ? OR (al.business_id IS NULL AND u.business_id = ?))";
-            p.push(businessId, businessId);
-            if (dateStart) {
-              where += " AND al.created_at >= ?";
-              p.push(dateStart);
-            }
-            if (dateEnd) {
-              where += " AND al.created_at <= ?";
-              p.push(dateEnd);
-            }
-            if (user_id && user_id !== "all") {
-              where += " AND al.user_id = ?";
-              p.push(Number(user_id));
-            }
-            sql = `
-          SELECT 
-            CONCAT('al_', al.id) as log_id,
-            COALESCE(al.business_id, u.business_id) as business_id,
-            al.user_id,
-            COALESCE(al.user_name, u.name, 'System') as user_name,
-            COALESCE(al.activity_type, 'General Activity') as activity_type,
-            COALESCE(al.description, '') as details,
-            COALESCE(al.reference_type, IF(al.device_id IS NOT NULL, 'device', IF(al.product_id IS NOT NULL, 'product', NULL))) as reference_type,
-            COALESCE(al.reference_id, al.device_id, al.product_id) as reference_id,
-            COALESCE(al.reference_link, IF(al.device_id IS NOT NULL, CONCAT('/devices/', al.device_id), IF(al.product_id IS NOT NULL, CONCAT('/products/', al.product_id), NULL))) as reference_link,
-            al.ip_address,
-            al.created_at
-          FROM activity_logs al
-          LEFT JOIN users u ON al.user_id = u.id
-          WHERE ${where}
-        `;
-          } else if (table === "ia") {
-            let where = "i.business_id = ?";
-            p.push(businessId);
-            if (dateStart) {
-              where += " AND ia.created_at >= ?";
-              p.push(dateStart);
-            }
-            if (dateEnd) {
-              where += " AND ia.created_at <= ?";
-              p.push(dateEnd);
-            }
-            if (user_id && user_id !== "all") {
-              where += " AND ia.user_id = ?";
-              p.push(Number(user_id));
-            }
-            sql = `
-          SELECT 
-            CONCAT('inv_', ia.id) as log_id,
-            i.business_id as business_id,
-            ia.user_id,
-            COALESCE(u.name, 'System') as user_name,
-            ia.activity as activity_type,
-            ia.details,
-            'invoice' as reference_type,
-            ia.invoice_id as reference_id,
-            CONCAT('/invoices/', ia.invoice_id) as reference_link,
-            NULL as ip_address,
-            ia.created_at
-          FROM invoice_activity ia
-          JOIN invoices i ON ia.invoice_id = i.id
-          LEFT JOIN users u ON ia.user_id = u.id
-          WHERE ${where}
-        `;
-          } else if (table === "ca") {
-            let where = "c.business_id = ?";
-            p.push(businessId);
-            if (dateStart) {
-              where += " AND ca.created_at >= ?";
-              p.push(dateStart);
-            }
-            if (dateEnd) {
-              where += " AND ca.created_at <= ?";
-              p.push(dateEnd);
-            }
-            if (user_id && user_id !== "all") {
-              where += " AND ca.user_id = ?";
-              p.push(Number(user_id));
-            }
-            sql = `
-          SELECT 
-            CONCAT('cust_', ca.id) as log_id,
-            c.business_id as business_id,
-            ca.user_id,
-            COALESCE(u.name, 'System') as user_name,
-            ca.activity as activity_type,
-            ca.details,
-            'customer' as reference_type,
-            ca.customer_id as reference_id,
-            CONCAT('/customers/', ca.customer_id) as reference_link,
-            NULL as ip_address,
-            ca.created_at
-          FROM customer_activity ca
-          JOIN customers c ON ca.customer_id = c.id
-          LEFT JOIN users u ON ca.user_id = u.id
-          WHERE ${where}
-        `;
-          } else if (table === "pa") {
-            let where = "(p.business_id = ? OR (p.business_id IS NULL AND u.business_id = ?))";
-            p.push(businessId, businessId);
-            if (dateStart) {
-              where += " AND pa.created_at >= ?";
-              p.push(dateStart);
-            }
-            if (dateEnd) {
-              where += " AND pa.created_at <= ?";
-              p.push(dateEnd);
-            }
-            if (user_id && user_id !== "all") {
-              where += " AND pa.user_id = ?";
-              p.push(Number(user_id));
-            }
-            sql = `
-          SELECT 
-            CONCAT('prod_', pa.id) as log_id,
-            COALESCE(p.business_id, u.business_id) as business_id,
-            pa.user_id,
-            COALESCE(u.name, 'System') as user_name,
-            pa.activity as activity_type,
-            pa.details,
-            'product' as reference_type,
-            COALESCE(p.id, pa.sku_id) as reference_id,
-            CONCAT('/products/', COALESCE(p.id, pa.sku_id)) as reference_link,
-            NULL as ip_address,
-            pa.created_at
-          FROM product_activity pa
-          LEFT JOIN product_skus ps ON pa.sku_id = ps.id
-          LEFT JOIN products p ON ps.product_id = p.id
-          LEFT JOIN users u ON pa.user_id = u.id
-          WHERE ${where}
-        `;
-          } else if (table === "da") {
-            let where = "d.business_id = ?";
-            p.push(businessId);
-            if (dateStart) {
-              where += " AND da.created_at >= ?";
-              p.push(dateStart);
-            }
-            if (dateEnd) {
-              where += " AND da.created_at <= ?";
-              p.push(dateEnd);
-            }
-            if (user_id && user_id !== "all") {
-              where += " AND da.user_id = ?";
-              p.push(Number(user_id));
-            }
-            sql = `
-          SELECT 
-            CONCAT('dev_', da.id) as log_id,
-            d.business_id as business_id,
-            da.user_id,
-            COALESCE(u.name, 'System') as user_name,
-            da.activity as activity_type,
-            da.details,
-            'device' as reference_type,
-            d.id as reference_id,
-            CONCAT('/devices/', d.id) as reference_link,
-            NULL as ip_address,
-            da.created_at
-          FROM device_activity da
-          JOIN devices d ON da.device_id = d.id
-          LEFT JOIN users u ON da.user_id = u.id
-          WHERE ${where}
-        `;
-          }
-          return { sql, params: p };
-        };
-        const qAL = buildSubquery("al");
-        const qIA = buildSubquery("ia");
-        const qCA = buildSubquery("ca");
-        const qPA = buildSubquery("pa");
-        const qDA = buildSubquery("da");
-        const unifiedSql = `
-      ${qAL.sql}
-      UNION ALL
-      ${qIA.sql}
-      UNION ALL
-      ${qCA.sql}
-      UNION ALL
-      ${qPA.sql}
-      UNION ALL
-      ${qDA.sql}
-    `;
-        const subParams = [...qAL.params, ...qIA.params, ...qCA.params, ...qPA.params, ...qDA.params];
-        let filterClauses = [];
-        let filterParams = [];
-        if (activity_type && activity_type !== "all") {
-          filterClauses.push("feed.activity_type = ?");
-          filterParams.push(activity_type);
+        const shouldIncludeMeta = include_meta !== "0";
+        const { businessId, unifiedSql, subParams, filterParams, whereSql } = buildActivityLogsQuery(req);
+        let users;
+        let activityTypes;
+        if (shouldIncludeMeta) {
+          const [userRows, typeRows] = await Promise.all([
+            query("SELECT id, name FROM users WHERE business_id=? AND deleted_at IS NULL ORDER BY name ASC", [businessId]),
+            query(`SELECT DISTINCT activity_type FROM activity_logs WHERE business_id=? AND activity_type IS NOT NULL AND activity_type != '' ORDER BY activity_type ASC`, [businessId])
+          ]);
+          users = userRows;
+          const customTypes = typeRows.map((r) => r.activity_type).filter(Boolean);
+          activityTypes = Array.from(/* @__PURE__ */ new Set([...customTypes, ...STANDARD_ACTIVITY_TYPES])).sort();
         }
-        if (search) {
-          filterClauses.push("(feed.details LIKE ? OR feed.activity_type LIKE ? OR feed.user_name LIKE ?)");
-          filterParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
-        }
-        const whereSql = filterClauses.length > 0 ? `WHERE ${filterClauses.join(" AND ")}` : "";
-        const countSql = `
-      SELECT COUNT(*) as total FROM (${unifiedSql}) feed ${whereSql}
-    `;
-        const countResult = await queryOne(countSql, [...subParams, ...filterParams]);
-        const total = countResult?.total || 0;
+        const countSql = `SELECT COUNT(*) as total FROM (${unifiedSql}) feed ${whereSql}`;
         const dataSql = `
       SELECT feed.* FROM (${unifiedSql}) feed 
       ${whereSql}
       ORDER BY feed.created_at DESC
       LIMIT ? OFFSET ?
     `;
-        const logs = await query(dataSql, [...subParams, ...filterParams, limitNum, offset]);
+        const [countResult, logs] = await Promise.all([
+          queryOne(countSql, [...subParams, ...filterParams]),
+          query(dataSql, [...subParams, ...filterParams, limitNum, offset])
+        ]);
+        const total = countResult?.total || 0;
         res.json({
           logs,
           total,
           page: pageNum,
           limit: limitNum,
-          users,
-          activityTypes
+          ...users !== void 0 ? { users } : {},
+          ...activityTypes !== void 0 ? { activityTypes } : {}
         });
+      } catch (e) {
+        next(e);
+      }
+    });
+    router6.get("/activity-logs/export", async (req, res, next) => {
+      try {
+        const { unifiedSql, subParams, filterParams, whereSql } = buildActivityLogsQuery(req);
+        const exportSql = `
+      SELECT feed.* FROM (${unifiedSql}) feed
+      ${whereSql}
+      ORDER BY feed.created_at DESC
+      LIMIT 10000
+    `;
+        const rows = await query(exportSql, [...subParams, ...filterParams]);
+        const headers = ["DateTime", "User", "Activity", "Details", "Reference", "IP Address"];
+        const csvRows = rows.map((r) => [
+          sanitizeCsvCell(r.created_at ? new Date(r.created_at).toISOString() : ""),
+          sanitizeCsvCell(r.user_name || "System"),
+          sanitizeCsvCell(r.activity_type || "General Activity"),
+          sanitizeCsvCell(r.details || ""),
+          sanitizeCsvCell(r.reference_link || ""),
+          sanitizeCsvCell(r.ip_address || "")
+        ]);
+        const csv = [headers.join(","), ...csvRows.map((cols) => cols.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n");
+        res.setHeader("Content-Type", "text/csv; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="Activity_Report_${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.csv"`);
+        res.send(csv);
       } catch (e) {
         next(e);
       }
@@ -8290,6 +8765,7 @@ var init_inventory = __esm({
   "src/routes/inventory.ts"() {
     init_mysql();
     init_security();
+    init_activityLogger();
     router8 = Router8();
     addInventorySchema = z9.object({
       sku_id: z9.number().or(z9.string().transform(Number)),
@@ -8417,10 +8893,18 @@ var init_inventory = __esm({
               "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
               [sku_id, req.userId, "Device Created", `Device with IMEI ${cleanImei} added to inventory`]
             );
-            await conn.execute(
-              "INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-              [req.user.business_id, activeBranchId, insertedDevId, productInfo.product_id, req.userId, req.user?.name || "System", "Device Created", `IMEI: ${cleanImei} (${productInfo.product_name}) added to inventory`, "device", insertedDevId, `/devices/${insertedDevId}`]
-            );
+            await recordAudit(req, {
+              conn,
+              branch_id: activeBranchId,
+              device_id: insertedDevId,
+              product_id: productInfo.product_id,
+              activity_type: ACTIVITY_TYPES.DEVICE_CREATED,
+              description: `IMEI: ${cleanImei} (${productInfo.product_name}) added to inventory`,
+              reference_type: "device",
+              reference_id: insertedDevId,
+              reference_link: `/devices/${insertedDevId}`,
+              metadata: { imei: cleanImei, po_number: finalPoNumber, sku_id }
+            });
             await conn.execute(
               "INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,1) ON DUPLICATE KEY UPDATE quantity=quantity+1",
               [activeBranchId, sku_id]
@@ -8572,10 +9056,18 @@ var init_inventory = __esm({
             "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
             [item.sku_id, req.userId, "Device Created", `Device with IMEI ${cleanImei} added to inventory`]
           );
-          await conn.execute(
-            "INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [req.user.business_id, activeBranchId, insertedDevId, skuInfo.product_id, req.userId, req.user?.name || "System", "Device Created", `IMEI: ${cleanImei} (${skuInfo.product_name}) added to inventory`, "device", insertedDevId, `/devices/${insertedDevId}`]
-          );
+          await recordAudit(req, {
+            conn,
+            branch_id: activeBranchId,
+            device_id: insertedDevId,
+            product_id: skuInfo.product_id,
+            activity_type: ACTIVITY_TYPES.DEVICE_CREATED,
+            description: `IMEI: ${cleanImei} (${skuInfo.product_name}) added to inventory`,
+            reference_type: "device",
+            reference_id: insertedDevId,
+            reference_link: `/devices/${insertedDevId}`,
+            metadata: { imei: cleanImei, po_number: finalPoNumber, sku_id: item.sku_id }
+          });
           await conn.execute(
             "INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,1) ON DUPLICATE KEY UPDATE quantity=quantity+1",
             [activeBranchId, item.sku_id]
@@ -9113,31 +9605,47 @@ var init_inventory = __esm({
         unlocked=?, imei_status=?, carrier=?
       WHERE id=? AND business_id=?${updateBranchClause}
     `, updateParams);
-        if (color !== void 0 && String(color ?? "") !== String(old.color ?? "")) changes.push(`Color: ${old.color || "none"} -> ${color}`);
-        if (gb !== void 0 && String(gb ?? "") !== String(old.gb ?? "")) changes.push(`GB: ${old.gb || "none"} -> ${gb}`);
-        if (ram !== void 0 && String(ram ?? "") !== String(old.ram ?? "")) changes.push(`RAM: ${old.ram || "none"} -> ${ram}`);
-        if (condition !== void 0 && String(condition ?? "") !== String(old.condition ?? "")) changes.push(`Condition: ${old.condition || "none"} -> ${condition}`);
-        if (cost_price !== void 0 && Number(cost_price || 0) !== Number(old.cost_price || 0)) changes.push(`Cost: ${old.cost_price} -> ${cost_price}`);
-        if (selling_price !== void 0 && Number(selling_price || 0) !== Number(old.selling_price || 0)) changes.push(`Selling: ${old.selling_price} -> ${selling_price}`);
-        if (unlocked !== void 0 && String(unlocked ?? "") !== String(old.unlocked ?? "")) changes.push(`Unlocked: ${old.unlocked || "none"} -> ${unlocked}`);
-        if (imei_status !== void 0 && String(imei_status ?? "") !== String(old.imei_status ?? "")) changes.push(`IMEI Status: ${old.imei_status || "none"} -> ${imei_status}`);
-        if (carrier !== void 0 && String(carrier ?? "") !== String(old.carrier ?? "")) changes.push(`Carrier: ${old.carrier || "none"} -> ${carrier}`);
+        const attrDiff = diffFields(
+          old,
+          { color, gb, ram, condition, cost_price, selling_price, unlocked, imei_status, carrier },
+          [
+            { key: "color", label: "Color" },
+            { key: "gb", label: "GB" },
+            { key: "ram", label: "RAM" },
+            { key: "condition", label: "Condition" },
+            { key: "cost_price", label: "Cost", currency: true },
+            { key: "selling_price", label: "Selling", currency: true },
+            { key: "unlocked", label: "Unlocked" },
+            { key: "imei_status", label: "IMEI Status" },
+            { key: "carrier", label: "Carrier" }
+          ]
+        );
+        const allChanges = [...changes, ...attrDiff.changes];
         const userId = req.user?.id || req.userId || 1;
-        if (changes.length > 0) {
+        if (allChanges.length > 0) {
           const imeiTag = old.imei || old.imei_serial || "N/A";
-          const changeDesc = `[IMEI: ${imeiTag}] ${changes.join(", ")}`;
+          const changeDesc = `[IMEI: ${imeiTag}] ${allChanges.join(", ")}`;
           await conn.execute(
             "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-            [req.params.id, userId, "Device Updated", changeDesc]
+            [req.params.id, userId, ACTIVITY_TYPES.DEVICE_UPDATED, changeDesc]
           );
           await conn.execute(
             "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-            [targetSkuId, userId, "Device Updated", changeDesc]
+            [targetSkuId, userId, ACTIVITY_TYPES.DEVICE_UPDATED, changeDesc]
           );
-          await conn.execute(
-            "INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [req.user.business_id, old.branch_id || req.user.branch_id, req.params.id, old.product_id, userId, req.user?.name || "System", "Device Updated", changeDesc, "device", req.params.id, `/devices/${req.params.id}`]
-          );
+          await recordAudit(req, {
+            conn,
+            branch_id: old.branch_id || req.user.branch_id,
+            device_id: Number(req.params.id),
+            product_id: old.product_id,
+            user_id: userId,
+            activity_type: ACTIVITY_TYPES.DEVICE_UPDATED,
+            description: changeDesc,
+            reference_type: "device",
+            reference_id: Number(req.params.id),
+            reference_link: `/devices/${req.params.id}`,
+            metadata: Object.keys(attrDiff.diff).length > 0 ? { diff: attrDiff.diff } : null
+          });
         }
         await conn.commit();
         res.json({ success: true, sku_id: targetSkuId, product_name: newModelName });
@@ -9160,23 +9668,43 @@ var init_inventory = __esm({
         }
         const dev = await queryOne(`SELECT id FROM devices WHERE id=? AND business_id=?${branchClause}`, checkParams);
         if (!dev) return res.status(404).json({ error: "Device not found or access denied" });
+        const deviceId = Number(req.params.id);
         const activities = await query(`
-      SELECT 'device' as source, a.id, a.user_id, a.activity, a.details, a.created_at, COALESCE(u.name, 'System') as user_name 
-      FROM device_activity a
-      LEFT JOIN users u ON a.user_id=u.id
-      WHERE a.device_id=?
-      UNION ALL
-      SELECT 'product' as source, pa.id, pa.user_id, pa.activity, pa.details, pa.created_at, COALESCE(u.name, 'System') as user_name
-      FROM product_activity pa
-      LEFT JOIN users u ON pa.user_id=u.id
-      WHERE pa.sku_id = (SELECT sku_id FROM devices WHERE id=?)
-      UNION ALL
-      SELECT 'log' as source, al.id, al.user_id, al.activity_type as activity, al.description as details, al.created_at, COALESCE(al.user_name, u.name, 'System') as user_name
+      SELECT 
+        'log' as source,
+        al.id,
+        al.user_id,
+        COALESCE(NULLIF(TRIM(al.activity_type), ''), 'Activity') as activity,
+        COALESCE(al.description, '') as details,
+        al.created_at,
+        COALESCE(NULLIF(NULLIF(TRIM(al.user_name), ''), 'null'), u.name, 'System') as user_name
       FROM activity_logs al
-      LEFT JOIN users u ON al.user_id=u.id
-      WHERE al.device_id=? OR al.product_id = (SELECT sku_id FROM devices WHERE id=?)
+      LEFT JOIN users u ON al.user_id = u.id
+      WHERE al.device_id = ? AND al.business_id = ?
+
+      UNION ALL
+
+      SELECT 
+        'device' as source,
+        a.id,
+        a.user_id,
+        COALESCE(NULLIF(TRIM(a.activity), ''), 'Activity') as activity,
+        COALESCE(a.details, '') as details,
+        a.created_at,
+        COALESCE(u.name, 'System') as user_name
+      FROM device_activity a
+      LEFT JOIN users u ON a.user_id = u.id
+      WHERE a.device_id = ?
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al2
+          WHERE al2.device_id = a.device_id
+            AND al2.business_id = ?
+            AND al2.activity_type = a.activity
+            AND ABS(TIMESTAMPDIFF(SECOND, al2.created_at, a.created_at)) <= 2
+        )
+
       ORDER BY created_at DESC
-    `, [req.params.id, req.params.id, req.params.id, req.params.id]);
+    `, [deviceId, req.user.business_id, deviceId, req.user.business_id]);
         res.json(activities);
       } catch (e) {
         next(e);
@@ -9201,12 +9729,17 @@ var init_inventory = __esm({
         if (!device) return res.status(404).json({ error: "Device not found or access denied" });
         await execute(
           "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-          [req.params.id, req.userId, activity || "Note Added", details || ""]
+          [req.params.id, req.userId, activity || ACTIVITY_TYPES.NOTE_ADDED, details || ""]
         );
-        await execute(
-          "INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-          [req.user.business_id, device.branch_id || req.user.branch_id, req.params.id, req.userId, req.user?.name || "System", activity || "Note Added", details || "", "device", req.params.id, `/devices/${req.params.id}`]
-        );
+        await recordAudit(req, {
+          branch_id: device.branch_id || req.user.branch_id,
+          device_id: Number(req.params.id),
+          activity_type: activity || ACTIVITY_TYPES.NOTE_ADDED,
+          description: details || "",
+          reference_type: "device",
+          reference_id: Number(req.params.id),
+          reference_link: `/devices/${req.params.id}`
+        });
         res.json({ success: true });
       } catch (e) {
         next(e);
@@ -9242,10 +9775,18 @@ var init_inventory = __esm({
           "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
           [dev.sku_id, req.userId, "Device Deleted", deleteMsg]
         );
-        await conn.execute(
-          "INSERT INTO activity_logs (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-          [req.user.business_id, dev.branch_id || req.user.branch_id, dev.id, dev.product_id, req.userId, req.user?.name || "System", "Device Deleted", deleteMsg, "product", dev.product_id, `/products/${dev.product_id}`]
-        );
+        await recordAudit(req, {
+          conn,
+          branch_id: dev.branch_id || req.user.branch_id,
+          device_id: dev.id,
+          product_id: dev.product_id,
+          activity_type: ACTIVITY_TYPES.DEVICE_DELETED,
+          description: deleteMsg,
+          reference_type: "product",
+          reference_id: dev.product_id,
+          reference_link: dev.product_id ? `/products/${dev.product_id}` : null,
+          metadata: { imei: cleanImei, previous_status: dev.status }
+        });
         if (dev.status === "in_stock") {
           await conn.execute(
             "INSERT INTO branch_stock (branch_id, sku_id, quantity) VALUES (?, ?, -1) ON DUPLICATE KEY UPDATE quantity = GREATEST(0, quantity - 1)",

@@ -227,7 +227,7 @@ export async function getBranchPrefix(branchId?: number | null, fallback = 'SKU'
 
 // ─── Schema Initialisation ───────────────────────────────────────────────────
 
-export const CURRENT_SCHEMA_VERSION = '2026_11_CREDIT_NOTES_V1';
+export const CURRENT_SCHEMA_VERSION = '2026_11_ACTIVITY_LOGS_V2';
 
 async function ensureIndex(conn: any, tableName: string, indexName: string, columns: string) {
   try {
@@ -1222,13 +1222,16 @@ export async function initSchema() {
       console.log('[MySQL] Migration: dropped global unique constraint on product_skus.sku_code');
     } catch (e: any) {}
 
-    // 7. Ensure activity_logs has multi-tenant & audit columns (business_id, branch_id, user_name, ip_address, user_agent, reference fields)
+    // 7. Ensure activity_logs has multi-tenant & audit columns (business_id, branch_id, user_name, ip_address, user_agent, metadata, reference fields)
+    try { await conn.query('ALTER TABLE activity_logs MODIFY COLUMN user_id INT NULL'); } catch (e: any) {}
     try { await conn.query('ALTER TABLE activity_logs ADD COLUMN business_id INT NULL AFTER id'); } catch (e: any) {}
     try { await conn.query('ALTER TABLE activity_logs ADD COLUMN branch_id INT NULL AFTER business_id'); } catch (e: any) {}
     try { await conn.query('ALTER TABLE activity_logs ADD COLUMN user_name VARCHAR(100) NULL AFTER user_id'); } catch (e: any) {}
     try { await conn.query('ALTER TABLE activity_logs ADD COLUMN reference_type VARCHAR(50) NULL AFTER description'); } catch (e: any) {}
     try { await conn.query('ALTER TABLE activity_logs ADD COLUMN reference_id INT NULL AFTER reference_type'); } catch (e: any) {}
     try { await conn.query('ALTER TABLE activity_logs ADD COLUMN ip_address VARCHAR(50) NULL AFTER reference_link'); } catch (e: any) {}
+    try { await conn.query('ALTER TABLE activity_logs ADD COLUMN user_agent VARCHAR(500) NULL AFTER ip_address'); } catch (e: any) {}
+    try { await conn.query('ALTER TABLE activity_logs ADD COLUMN metadata JSON NULL AFTER user_agent'); } catch (e: any) {}
 
     // Backfill historical activity_logs business_id from user, device, or product
     try {
@@ -1423,6 +1426,9 @@ export async function initSchema() {
     await ensureIndex(conn, 'closing_reports', 'idx_closing_biz_branch_date', 'business_id, branch_id, report_date');
     await ensureIndex(conn, 'inventory_movements', 'idx_inv_mov_biz_branch_type_date', 'business_id, branch_id, movement_type, created_at');
     await ensureIndex(conn, 'activity_logs', 'idx_activity_logs_biz_created', 'business_id, created_at');
+    await ensureIndex(conn, 'activity_logs', 'idx_activity_logs_biz_branch_created', 'business_id, branch_id, created_at');
+    await ensureIndex(conn, 'activity_logs', 'idx_activity_logs_biz_type_created', 'business_id, activity_type, created_at');
+    await ensureIndex(conn, 'activity_logs', 'idx_activity_logs_biz_user_created', 'business_id, user_id, created_at');
     await ensureIndex(conn, 'invoice_activity', 'idx_inv_activity_inv_created', 'invoice_id, created_at');
     await ensureIndex(conn, 'product_activity', 'idx_prod_activity_sku_created', 'sku_id, created_at');
     await ensureIndex(conn, 'device_activity', 'idx_dev_activity_dev_created', 'device_id, created_at');
@@ -1644,21 +1650,12 @@ export async function ensureSuperAdmin() {
 
 // ─── Universal Activity Logger ────────────────────────────────────────────────
 
-export async function logActivity({
-  business_id,
-  branch_id,
-  user_id,
-  user_name,
-  activity_type,
-  description,
-  reference_type,
-  reference_id,
-  reference_link,
-  ip_address,
-  user_agent
-}: {
+export interface LogActivityParams {
+  conn?: any;
   business_id?: number | null;
   branch_id?: number | null;
+  device_id?: number | null;
+  product_id?: number | null;
   user_id?: number | null;
   user_name?: string | null;
   activity_type: string;
@@ -1668,28 +1665,65 @@ export async function logActivity({
   reference_link?: string | null;
   ip_address?: string | null;
   user_agent?: string | null;
-}) {
+  metadata?: Record<string, any> | null;
+  strict?: boolean;
+}
+
+export async function logActivity({
+  conn,
+  business_id,
+  branch_id,
+  device_id,
+  product_id,
+  user_id,
+  user_name,
+  activity_type,
+  description,
+  reference_type,
+  reference_id,
+  reference_link,
+  ip_address,
+  user_agent,
+  metadata,
+  strict = false
+}: LogActivityParams) {
   try {
-    await execute(
-      `INSERT INTO activity_logs 
-        (business_id, branch_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link, ip_address, user_agent, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [
-        business_id ?? null,
-        branch_id ?? null,
-        user_id ?? null,
-        user_name ?? null,
-        activity_type,
-        description,
-        reference_type ?? null,
-        reference_id ?? null,
-        reference_link ?? null,
-        ip_address ?? null,
-        user_agent ?? null
-      ]
-    );
+    const cleanType = (activity_type && String(activity_type).trim()) || 'General Activity';
+    const cleanDesc = description !== undefined && description !== null ? String(description).trim() : '';
+    const cleanUser = user_name && String(user_name).trim() && String(user_name).trim().toLowerCase() !== 'null'
+      ? String(user_name).trim()
+      : null;
+    const cleanUa = user_agent ? String(user_agent).slice(0, 500) : null;
+    const metaJson = metadata ? JSON.stringify(metadata) : null;
+
+    const sql = `INSERT INTO activity_logs 
+        (business_id, branch_id, device_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link, ip_address, user_agent, metadata, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+    const params = [
+      business_id ?? null,
+      branch_id ?? null,
+      device_id ?? null,
+      product_id ?? null,
+      user_id ?? null,
+      cleanUser,
+      cleanType,
+      cleanDesc,
+      reference_type ?? null,
+      reference_id ?? null,
+      reference_link ?? null,
+      ip_address ?? null,
+      cleanUa,
+      metaJson
+    ];
+
+    if (conn) {
+      await conn.execute(sql, params);
+    } else {
+      await execute(sql, params);
+    }
   } catch (err: any) {
     console.error('[ActivityLog] Failed to record activity:', err.message);
+    if (strict) throw err;
   }
 }
 

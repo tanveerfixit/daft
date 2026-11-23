@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { pool, query, queryOne, execute } from '../mysql.js';
 import { z } from 'zod';
+import { sanitizeCsvCell } from '../middleware/security.js';
+import { ACTIVITY_TYPES, STANDARD_ACTIVITY_TYPES, recordAudit } from '../utils/activityLogger.js';
 
 const router = Router();
 
@@ -390,9 +392,12 @@ const parseReportDate = (raw?: unknown): string => {
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
-const classifyPaymentMethod = (method?: string, type?: string): 'Cash' | 'Card' | 'Wallet' | 'Other' => {
+const classifyPaymentMethod = (method?: string, type?: string): 'Cash' | 'Card' | 'Wallet' | 'CreditNoteIssued' | 'Other' => {
   const t = String(type || '').toLowerCase();
   const m = String(method || '').toLowerCase();
+  if (t === 'credit_note_issued') {
+    return 'CreditNoteIssued';
+  }
   if (t === 'wallet_use' || t === 'credit_note_redeemed' || m.includes('wallet') || m.includes('store credit') || m.includes('credit note')) {
     return 'Wallet';
   }
@@ -641,7 +646,7 @@ router.post('/eod', async (req: any, res, next) => {
       if (bucket === 'Cash') serverTotalCash += amt;
       else if (bucket === 'Card') serverTotalCard += amt;
       else if (bucket === 'Wallet') serverTotalWallet += amt;
-      else serverTotalOther += amt;
+      else if (bucket === 'Other') serverTotalOther += amt;
     }
 
     serverTotalSales = round2(serverTotalSales);
@@ -707,14 +712,24 @@ router.post('/eod', async (req: any, res, next) => {
     }
 
     // Write audit trail entry so every EOD save/re-save is traceable
-    try {
-      const actionLabel = prevReport ? 'EOD Report Updated' : 'EOD Report Saved';
-      const auditDetails = `Date: ${reportDate} | Net Sales: €${serverTotalSales.toFixed(2)} | Deposits: €${serverTotalDeposits.toFixed(2)} | Cash Counted: €${cashCounted.toFixed(2)} (Float: €${startingBalance.toFixed(2)}, Diff: €${serverCashDiff.toFixed(2)})`;
-      await conn.execute(
-        'INSERT INTO activity_logs (business_id, branch_id, user_id, user_name, activity_type, description, reference_type, reference_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [req.user.business_id, targetBranchId, req.userId, req.user?.name || null, actionLabel, auditDetails, 'closing_report', reportId]
-      );
-    } catch {}
+    const actionLabel = prevReport ? ACTIVITY_TYPES.EOD_REPORT_UPDATED : ACTIVITY_TYPES.EOD_REPORT_SAVED;
+    const auditDetails = `Date: ${reportDate} | Net Sales: €${serverTotalSales.toFixed(2)} | Deposits: €${serverTotalDeposits.toFixed(2)} | Cash Counted: €${cashCounted.toFixed(2)} (Float: €${startingBalance.toFixed(2)}, Diff: €${serverCashDiff.toFixed(2)})`;
+    await recordAudit(req, {
+      conn,
+      branch_id: targetBranchId,
+      activity_type: actionLabel,
+      description: auditDetails,
+      reference_type: 'closing_report',
+      reference_id: reportId,
+      metadata: {
+        report_date: reportDate,
+        total_sales: serverTotalSales,
+        total_deposits: serverTotalDeposits,
+        cash_counted: cashCounted,
+        difference: serverCashDiff
+      },
+      strict: true
+    });
 
     await conn.commit();
     res.json({
@@ -749,223 +764,272 @@ router.get('/eod-list', async (req: any, res, next) => {
   } catch (e: any) { next(e); }
 });
 
+function buildActivityLogsQuery(req: any) {
+  const businessId = req.user.business_id;
+  const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
+  const effectiveBranchId = isSuper
+    ? (req.query.branch_id && req.query.branch_id !== 'all' ? Number(req.query.branch_id) : null)
+    : (req.user.branch_id ? Number(req.user.branch_id) : null);
+
+  const { activity_type, user_id, start_date, end_date, search, all_dates } = req.query;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const effectiveStart = start_date || (!end_date && all_dates !== '1' ? todayStr : null);
+  const dateStart = effectiveStart ? (String(effectiveStart).includes(' ') ? String(effectiveStart) : `${effectiveStart} 00:00:00`) : null;
+  const dateEnd = end_date ? (String(end_date).includes(' ') ? String(end_date) : `${end_date} 23:59:59`) : null;
+
+  const buildSubquery = (table: 'al' | 'ia' | 'ca' | 'pa' | 'da'): { sql: string; params: any[] } => {
+    const p: any[] = [];
+    let sql = '';
+    if (table === 'al') {
+      let where = '(al.business_id = ? OR (al.business_id IS NULL AND u.business_id = ?))';
+      p.push(businessId, businessId);
+      if (effectiveBranchId) { where += ' AND (al.branch_id = ? OR al.branch_id IS NULL)'; p.push(effectiveBranchId); }
+      if (dateStart) { where += ' AND al.created_at >= ?'; p.push(dateStart); }
+      if (dateEnd) { where += ' AND al.created_at <= ?'; p.push(dateEnd); }
+      if (user_id && user_id !== 'all') { where += ' AND al.user_id = ?'; p.push(Number(user_id)); }
+      sql = `
+        SELECT 
+          CONCAT('al_', al.id) as log_id,
+          COALESCE(al.business_id, u.business_id) as business_id,
+          al.branch_id,
+          al.user_id,
+          COALESCE(NULLIF(NULLIF(TRIM(al.user_name), ''), 'null'), u.name, 'System') as user_name,
+          COALESCE(NULLIF(TRIM(al.activity_type), ''), 'General Activity') as activity_type,
+          COALESCE(al.description, '') as details,
+          COALESCE(al.reference_type, IF(al.device_id IS NOT NULL, 'device', IF(al.product_id IS NOT NULL, 'product', NULL))) as reference_type,
+          COALESCE(al.reference_id, al.device_id, al.product_id) as reference_id,
+          COALESCE(al.reference_link, IF(al.device_id IS NOT NULL, CONCAT('/devices/', al.device_id), IF(al.product_id IS NOT NULL, CONCAT('/products/', al.product_id), NULL))) as reference_link,
+          al.ip_address,
+          al.metadata,
+          al.created_at
+        FROM activity_logs al
+        LEFT JOIN users u ON al.user_id = u.id
+        WHERE ${where}
+      `;
+    } else if (table === 'ia') {
+      let where = 'i.business_id = ?';
+      p.push(businessId);
+      if (effectiveBranchId) { where += ' AND i.branch_id = ?'; p.push(effectiveBranchId); }
+      if (dateStart) { where += ' AND ia.created_at >= ?'; p.push(dateStart); }
+      if (dateEnd) { where += ' AND ia.created_at <= ?'; p.push(dateEnd); }
+      if (user_id && user_id !== 'all') { where += ' AND ia.user_id = ?'; p.push(Number(user_id)); }
+      sql = `
+        SELECT 
+          CONCAT('inv_', ia.id) as log_id,
+          i.business_id as business_id,
+          i.branch_id,
+          ia.user_id,
+          COALESCE(u.name, 'System') as user_name,
+          COALESCE(NULLIF(TRIM(ia.activity), ''), 'Invoice Activity') as activity_type,
+          COALESCE(ia.details, '') as details,
+          'invoice' as reference_type,
+          ia.invoice_id as reference_id,
+          CONCAT('/invoices/', ia.invoice_id) as reference_link,
+          NULL as ip_address,
+          NULL as metadata,
+          ia.created_at
+        FROM invoice_activity ia
+        JOIN invoices i ON ia.invoice_id = i.id
+        LEFT JOIN users u ON ia.user_id = u.id
+        WHERE ${where}
+      `;
+    } else if (table === 'ca') {
+      let where = 'c.business_id = ?';
+      p.push(businessId);
+      if (effectiveBranchId) { where += ' AND (c.branch_id = ? OR c.branch_id IS NULL)'; p.push(effectiveBranchId); }
+      if (dateStart) { where += ' AND ca.created_at >= ?'; p.push(dateStart); }
+      if (dateEnd) { where += ' AND ca.created_at <= ?'; p.push(dateEnd); }
+      if (user_id && user_id !== 'all') { where += ' AND ca.user_id = ?'; p.push(Number(user_id)); }
+      sql = `
+        SELECT 
+          CONCAT('cust_', ca.id) as log_id,
+          c.business_id as business_id,
+          c.branch_id,
+          ca.user_id,
+          COALESCE(u.name, 'System') as user_name,
+          COALESCE(NULLIF(TRIM(ca.activity), ''), 'Customer Activity') as activity_type,
+          COALESCE(ca.details, '') as details,
+          'customer' as reference_type,
+          ca.customer_id as reference_id,
+          CONCAT('/customers/', ca.customer_id) as reference_link,
+          NULL as ip_address,
+          NULL as metadata,
+          ca.created_at
+        FROM customer_activity ca
+        JOIN customers c ON ca.customer_id = c.id
+        LEFT JOIN users u ON ca.user_id = u.id
+        WHERE ${where}
+      `;
+    } else if (table === 'pa') {
+      let where = '(p.business_id = ? OR (p.business_id IS NULL AND u.business_id = ?))';
+      p.push(businessId, businessId);
+      if (dateStart) { where += ' AND pa.created_at >= ?'; p.push(dateStart); }
+      if (dateEnd) { where += ' AND pa.created_at <= ?'; p.push(dateEnd); }
+      if (user_id && user_id !== 'all') { where += ' AND pa.user_id = ?'; p.push(Number(user_id)); }
+      sql = `
+        SELECT 
+          CONCAT('prod_', pa.id) as log_id,
+          COALESCE(p.business_id, u.business_id) as business_id,
+          NULL as branch_id,
+          pa.user_id,
+          COALESCE(u.name, 'System') as user_name,
+          COALESCE(NULLIF(TRIM(pa.activity), ''), 'Product Activity') as activity_type,
+          COALESCE(pa.details, '') as details,
+          'product' as reference_type,
+          COALESCE(p.id, pa.sku_id) as reference_id,
+          CONCAT('/products/', COALESCE(p.id, pa.sku_id)) as reference_link,
+          NULL as ip_address,
+          NULL as metadata,
+          pa.created_at
+        FROM product_activity pa
+        LEFT JOIN product_skus ps ON pa.sku_id = ps.id
+        LEFT JOIN products p ON ps.product_id = p.id
+        LEFT JOIN users u ON pa.user_id = u.id
+        WHERE ${where}
+      `;
+    } else {
+      let where = 'd.business_id = ?';
+      p.push(businessId);
+      if (effectiveBranchId) { where += ' AND d.branch_id = ?'; p.push(effectiveBranchId); }
+      if (dateStart) { where += ' AND da.created_at >= ?'; p.push(dateStart); }
+      if (dateEnd) { where += ' AND da.created_at <= ?'; p.push(dateEnd); }
+      if (user_id && user_id !== 'all') { where += ' AND da.user_id = ?'; p.push(Number(user_id)); }
+      sql = `
+        SELECT 
+          CONCAT('dev_', da.id) as log_id,
+          d.business_id as business_id,
+          d.branch_id,
+          da.user_id,
+          COALESCE(u.name, 'System') as user_name,
+          COALESCE(NULLIF(TRIM(da.activity), ''), 'Device Activity') as activity_type,
+          COALESCE(da.details, '') as details,
+          'device' as reference_type,
+          d.id as reference_id,
+          CONCAT('/devices/', d.id) as reference_link,
+          NULL as ip_address,
+          NULL as metadata,
+          da.created_at
+        FROM device_activity da
+        JOIN devices d ON da.device_id = d.id
+        LEFT JOIN users u ON da.user_id = u.id
+        WHERE ${where}
+      `;
+    }
+    return { sql, params: p };
+  };
+
+  const qAL = buildSubquery('al');
+  const qIA = buildSubquery('ia');
+  const qCA = buildSubquery('ca');
+  const qPA = buildSubquery('pa');
+  const qDA = buildSubquery('da');
+
+  const unifiedSql = `
+    ${qAL.sql}
+    UNION ALL
+    ${qIA.sql}
+    UNION ALL
+    ${qCA.sql}
+    UNION ALL
+    ${qPA.sql}
+    UNION ALL
+    ${qDA.sql}
+  `;
+  const subParams = [...qAL.params, ...qIA.params, ...qCA.params, ...qPA.params, ...qDA.params];
+
+  const filterClauses: string[] = [];
+  const filterParams: any[] = [];
+
+  if (activity_type && activity_type !== 'all') {
+    filterClauses.push('feed.activity_type = ?');
+    filterParams.push(activity_type);
+  }
+  if (search) {
+    filterClauses.push('(feed.details LIKE ? OR feed.activity_type LIKE ? OR feed.user_name LIKE ?)');
+    filterParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+  }
+
+  const whereSql = filterClauses.length > 0 ? `WHERE ${filterClauses.join(' AND ')}` : '';
+  return { businessId, unifiedSql, subParams, filterParams, whereSql };
+}
+
 // GET /api/reports/activity-logs
 router.get('/activity-logs', async (req: any, res, next) => {
   try {
-    const businessId = req.user.business_id;
-    const { activity_type, user_id, start_date, end_date, search, page = 1, limit = 50 } = req.query;
-
+    const { page = 1, limit = 50, include_meta } = req.query;
     const limitNum = Math.min(200, Math.max(1, Number(limit)));
     const pageNum = Math.max(1, Number(page));
     const offset = (pageNum - 1) * limitNum;
+    const shouldIncludeMeta = include_meta !== '0';
 
-    // Fetch team users for filter dropdown
-    const users = await query(
-      'SELECT id, name FROM users WHERE business_id=? AND deleted_at IS NULL ORDER BY name ASC',
-      [businessId]
-    );
+    const { businessId, unifiedSql, subParams, filterParams, whereSql } = buildActivityLogsQuery(req);
 
-    // Fast distinct activity types from activity_logs + core categories
-    const typeRows = await query(
-      `SELECT DISTINCT activity_type FROM activity_logs WHERE business_id=? AND activity_type IS NOT NULL AND activity_type != '' ORDER BY activity_type ASC`,
-      [businessId]
-    ) as any[];
-    const standardTypes = ['Invoice Created', 'Invoice Updated', 'Payment Added', 'Customer Created', 'Customer Updated', 'Product Created', 'Stock Adjusted', 'Device Checked In', 'Status Changed'];
-    const customTypes = typeRows.map(r => r.activity_type).filter(Boolean);
-    const activityTypes = Array.from(new Set([...customTypes, ...standardTypes])).sort();
-
-    // Push date / user / search filters into each subquery
-    const dateStart = start_date ? (String(start_date).includes(' ') ? String(start_date) : `${start_date} 00:00:00`) : null;
-    const dateEnd = end_date ? (String(end_date).includes(' ') ? String(end_date) : `${end_date} 23:59:59`) : null;
-
-    // Helper to build parameterized subqueries
-    const buildSubquery = (
-      table: 'al' | 'ia' | 'ca' | 'pa' | 'da'
-    ): { sql: string; params: any[] } => {
-      const p: any[] = [];
-      let sql = '';
-      if (table === 'al') {
-        let where = '(al.business_id = ? OR (al.business_id IS NULL AND u.business_id = ?))';
-        p.push(businessId, businessId);
-        if (dateStart) { where += ' AND al.created_at >= ?'; p.push(dateStart); }
-        if (dateEnd) { where += ' AND al.created_at <= ?'; p.push(dateEnd); }
-        if (user_id && user_id !== 'all') { where += ' AND al.user_id = ?'; p.push(Number(user_id)); }
-        sql = `
-          SELECT 
-            CONCAT('al_', al.id) as log_id,
-            COALESCE(al.business_id, u.business_id) as business_id,
-            al.user_id,
-            COALESCE(al.user_name, u.name, 'System') as user_name,
-            COALESCE(al.activity_type, 'General Activity') as activity_type,
-            COALESCE(al.description, '') as details,
-            COALESCE(al.reference_type, IF(al.device_id IS NOT NULL, 'device', IF(al.product_id IS NOT NULL, 'product', NULL))) as reference_type,
-            COALESCE(al.reference_id, al.device_id, al.product_id) as reference_id,
-            COALESCE(al.reference_link, IF(al.device_id IS NOT NULL, CONCAT('/devices/', al.device_id), IF(al.product_id IS NOT NULL, CONCAT('/products/', al.product_id), NULL))) as reference_link,
-            al.ip_address,
-            al.created_at
-          FROM activity_logs al
-          LEFT JOIN users u ON al.user_id = u.id
-          WHERE ${where}
-        `;
-      } else if (table === 'ia') {
-        let where = 'i.business_id = ?';
-        p.push(businessId);
-        if (dateStart) { where += ' AND ia.created_at >= ?'; p.push(dateStart); }
-        if (dateEnd) { where += ' AND ia.created_at <= ?'; p.push(dateEnd); }
-        if (user_id && user_id !== 'all') { where += ' AND ia.user_id = ?'; p.push(Number(user_id)); }
-        sql = `
-          SELECT 
-            CONCAT('inv_', ia.id) as log_id,
-            i.business_id as business_id,
-            ia.user_id,
-            COALESCE(u.name, 'System') as user_name,
-            ia.activity as activity_type,
-            ia.details,
-            'invoice' as reference_type,
-            ia.invoice_id as reference_id,
-            CONCAT('/invoices/', ia.invoice_id) as reference_link,
-            NULL as ip_address,
-            ia.created_at
-          FROM invoice_activity ia
-          JOIN invoices i ON ia.invoice_id = i.id
-          LEFT JOIN users u ON ia.user_id = u.id
-          WHERE ${where}
-        `;
-      } else if (table === 'ca') {
-        let where = 'c.business_id = ?';
-        p.push(businessId);
-        if (dateStart) { where += ' AND ca.created_at >= ?'; p.push(dateStart); }
-        if (dateEnd) { where += ' AND ca.created_at <= ?'; p.push(dateEnd); }
-        if (user_id && user_id !== 'all') { where += ' AND ca.user_id = ?'; p.push(Number(user_id)); }
-        sql = `
-          SELECT 
-            CONCAT('cust_', ca.id) as log_id,
-            c.business_id as business_id,
-            ca.user_id,
-            COALESCE(u.name, 'System') as user_name,
-            ca.activity as activity_type,
-            ca.details,
-            'customer' as reference_type,
-            ca.customer_id as reference_id,
-            CONCAT('/customers/', ca.customer_id) as reference_link,
-            NULL as ip_address,
-            ca.created_at
-          FROM customer_activity ca
-          JOIN customers c ON ca.customer_id = c.id
-          LEFT JOIN users u ON ca.user_id = u.id
-          WHERE ${where}
-        `;
-      } else if (table === 'pa') {
-        let where = '(p.business_id = ? OR (p.business_id IS NULL AND u.business_id = ?))';
-        p.push(businessId, businessId);
-        if (dateStart) { where += ' AND pa.created_at >= ?'; p.push(dateStart); }
-        if (dateEnd) { where += ' AND pa.created_at <= ?'; p.push(dateEnd); }
-        if (user_id && user_id !== 'all') { where += ' AND pa.user_id = ?'; p.push(Number(user_id)); }
-        sql = `
-          SELECT 
-            CONCAT('prod_', pa.id) as log_id,
-            COALESCE(p.business_id, u.business_id) as business_id,
-            pa.user_id,
-            COALESCE(u.name, 'System') as user_name,
-            pa.activity as activity_type,
-            pa.details,
-            'product' as reference_type,
-            COALESCE(p.id, pa.sku_id) as reference_id,
-            CONCAT('/products/', COALESCE(p.id, pa.sku_id)) as reference_link,
-            NULL as ip_address,
-            pa.created_at
-          FROM product_activity pa
-          LEFT JOIN product_skus ps ON pa.sku_id = ps.id
-          LEFT JOIN products p ON ps.product_id = p.id
-          LEFT JOIN users u ON pa.user_id = u.id
-          WHERE ${where}
-        `;
-      } else if (table === 'da') {
-        let where = 'd.business_id = ?';
-        p.push(businessId);
-        if (dateStart) { where += ' AND da.created_at >= ?'; p.push(dateStart); }
-        if (dateEnd) { where += ' AND da.created_at <= ?'; p.push(dateEnd); }
-        if (user_id && user_id !== 'all') { where += ' AND da.user_id = ?'; p.push(Number(user_id)); }
-        sql = `
-          SELECT 
-            CONCAT('dev_', da.id) as log_id,
-            d.business_id as business_id,
-            da.user_id,
-            COALESCE(u.name, 'System') as user_name,
-            da.activity as activity_type,
-            da.details,
-            'device' as reference_type,
-            d.id as reference_id,
-            CONCAT('/devices/', d.id) as reference_link,
-            NULL as ip_address,
-            da.created_at
-          FROM device_activity da
-          JOIN devices d ON da.device_id = d.id
-          LEFT JOIN users u ON da.user_id = u.id
-          WHERE ${where}
-        `;
-      }
-      return { sql, params: p };
-    };
-
-    const qAL = buildSubquery('al');
-    const qIA = buildSubquery('ia');
-    const qCA = buildSubquery('ca');
-    const qPA = buildSubquery('pa');
-    const qDA = buildSubquery('da');
-
-    const unifiedSql = `
-      ${qAL.sql}
-      UNION ALL
-      ${qIA.sql}
-      UNION ALL
-      ${qCA.sql}
-      UNION ALL
-      ${qPA.sql}
-      UNION ALL
-      ${qDA.sql}
-    `;
-    const subParams = [...qAL.params, ...qIA.params, ...qCA.params, ...qPA.params, ...qDA.params];
-
-    let filterClauses: string[] = [];
-    let filterParams: any[] = [];
-
-    if (activity_type && activity_type !== 'all') {
-      filterClauses.push('feed.activity_type = ?');
-      filterParams.push(activity_type);
+    // Only load filter dropdown metadata on initial load (include_meta !== '0') to avoid redundant queries
+    let users: any[] | undefined;
+    let activityTypes: string[] | undefined;
+    if (shouldIncludeMeta) {
+      const [userRows, typeRows] = await Promise.all([
+        query('SELECT id, name FROM users WHERE business_id=? AND deleted_at IS NULL ORDER BY name ASC', [businessId]),
+        query(`SELECT DISTINCT activity_type FROM activity_logs WHERE business_id=? AND activity_type IS NOT NULL AND activity_type != '' ORDER BY activity_type ASC`, [businessId])
+      ]);
+      users = userRows as any[];
+      const customTypes = (typeRows as any[]).map(r => r.activity_type).filter(Boolean);
+      activityTypes = Array.from(new Set([...customTypes, ...STANDARD_ACTIVITY_TYPES])).sort();
     }
 
-    if (search) {
-      filterClauses.push('(feed.details LIKE ? OR feed.activity_type LIKE ? OR feed.user_name LIKE ?)');
-      filterParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
-    }
-
-    const whereSql = filterClauses.length > 0 ? `WHERE ${filterClauses.join(' AND ')}` : '';
-
-    // Total Count
-    const countSql = `
-      SELECT COUNT(*) as total FROM (${unifiedSql}) feed ${whereSql}
-    `;
-    const countResult = await queryOne(countSql, [...subParams, ...filterParams]) as any;
-    const total = countResult?.total || 0;
-
-    // Paginated Rows
+    // Total Count & Paginated Rows in parallel
+    const countSql = `SELECT COUNT(*) as total FROM (${unifiedSql}) feed ${whereSql}`;
     const dataSql = `
       SELECT feed.* FROM (${unifiedSql}) feed 
       ${whereSql}
       ORDER BY feed.created_at DESC
       LIMIT ? OFFSET ?
     `;
-    const logs = await query(dataSql, [...subParams, ...filterParams, limitNum, offset]);
+    const [countResult, logs] = await Promise.all([
+      queryOne(countSql, [...subParams, ...filterParams]) as Promise<any>,
+      query(dataSql, [...subParams, ...filterParams, limitNum, offset])
+    ]);
+    const total = countResult?.total || 0;
 
     res.json({
       logs,
       total,
       page: pageNum,
       limit: limitNum,
-      users,
-      activityTypes
+      ...(users !== undefined ? { users } : {}),
+      ...(activityTypes !== undefined ? { activityTypes } : {})
     });
+  } catch (e: any) {
+    next(e);
+  }
+});
+
+// GET /api/reports/activity-logs/export (Full filtered CSV export, capped at 10,000 rows)
+router.get('/activity-logs/export', async (req: any, res, next) => {
+  try {
+    const { unifiedSql, subParams, filterParams, whereSql } = buildActivityLogsQuery(req);
+    const exportSql = `
+      SELECT feed.* FROM (${unifiedSql}) feed
+      ${whereSql}
+      ORDER BY feed.created_at DESC
+      LIMIT 10000
+    `;
+    const rows = (await query(exportSql, [...subParams, ...filterParams])) as any[];
+
+    const headers = ['DateTime', 'User', 'Activity', 'Details', 'Reference', 'IP Address'];
+    const csvRows = rows.map(r => [
+      sanitizeCsvCell(r.created_at ? new Date(r.created_at).toISOString() : ''),
+      sanitizeCsvCell(r.user_name || 'System'),
+      sanitizeCsvCell(r.activity_type || 'General Activity'),
+      sanitizeCsvCell(r.details || ''),
+      sanitizeCsvCell(r.reference_link || ''),
+      sanitizeCsvCell(r.ip_address || '')
+    ]);
+
+    const csv = [headers.join(','), ...csvRows.map(cols => cols.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="Activity_Report_${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send(csv);
   } catch (e: any) {
     next(e);
   }

@@ -68,14 +68,20 @@ const isDepositPayment = (p: Payment | any) => {
   return t === 'deposit' || t === 'wallet_deposit' || invType === 'deposit' || invType === 'wallet';
 };
 
+const isCreditNoteIssuedPayment = (p: Payment | any) => {
+  return String(p?.type || '').toLowerCase() === 'credit_note_issued';
+};
+
 const isWalletOrCreditNotePayment = (p: Payment | any) => {
   const t = String(p.type || '').toLowerCase();
+  if (t === 'credit_note_issued') return false;
   const m = String(p.method || '').toLowerCase();
   if (t === 'wallet_use' || t === 'credit_note_redeemed') return true;
   return m.includes('wallet') || m.includes('store credit') || m.includes('credit note');
 };
 
 const getBasePaymentMethod = (method: string, payment?: any) => {
+  if (payment && isCreditNoteIssuedPayment(payment)) return 'Credit Note Issued';
   if (payment && isWalletOrCreditNotePayment(payment)) return 'Wallet';
   const m = (method || '').toLowerCase();
   if (m.includes('wallet') || m.includes('store credit') || m.includes('credit note')) return 'Wallet';
@@ -130,8 +136,11 @@ const EndOfDayThermal: React.FC<PrintProps> = ({
   const totalOther = allPayments
     .filter(p => isOtherPayment(p.method, p))
     .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const totalCreditNotesIssued = allPayments
+    .filter(p => isCreditNoteIssuedPayment(p))
+    .reduce((sum, p) => sum + Math.abs(Number(p.amount) || 0), 0);
 
-  const cashCardSales = totalSales - totalWalletRedeemed;
+  const cashCardSales = totalSales + totalCreditNotesIssued - totalWalletRedeemed;
   const totalRealMoneyIn = totalCash + totalCard + totalOther;
   const expectedCashInTill = startingBalance + totalCash;
 
@@ -205,16 +214,24 @@ const EndOfDayThermal: React.FC<PrintProps> = ({
       <div className="eod-row font-bold text-[14px]">
         <span>TODAY&apos;S SALES</span>
       </div>
-      {totalWalletRedeemed > 0.005 && (
+      {(totalWalletRedeemed > 0.005 || totalCreditNotesIssued > 0.005) && (
         <>
           <div className="eod-row">
             <span>Cash &amp; Card Sales:</span>
             <span className="font-semibold">€{cashCardSales.toFixed(2)}</span>
           </div>
-          <div className="eod-row">
-            <span>Paid by Wallet:</span>
-            <span className="font-semibold">€{totalWalletRedeemed.toFixed(2)}</span>
-          </div>
+          {totalWalletRedeemed > 0.005 && (
+            <div className="eod-row">
+              <span>Paid by Wallet:</span>
+              <span className="font-semibold">€{totalWalletRedeemed.toFixed(2)}</span>
+            </div>
+          )}
+          {totalCreditNotesIssued > 0.005 && (
+            <div className="eod-row">
+              <span>Credit Notes Issued:</span>
+              <span className="font-semibold">-€{totalCreditNotesIssued.toFixed(2)}</span>
+            </div>
+          )}
         </>
       )}
       <div className="eod-row font-bold pt-0.5">
@@ -226,7 +243,7 @@ const EndOfDayThermal: React.FC<PrintProps> = ({
         <>
           <div className="eod-divider"></div>
           <div className="eod-row font-bold text-[14px]">
-            <span>NEW DEPOSITS</span>
+            <span>{totalDeposits < -0.005 ? 'DEPOSIT REFUNDS' : 'NEW DEPOSITS'}</span>
           </div>
           <div className="eod-row">
             <span>Wallet Deposits:</span>

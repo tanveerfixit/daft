@@ -305,7 +305,21 @@ router.post('/login', authRateLimiter, async (req: any, res, next) => {
     }
 
     const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
+    if (!valid) {
+      const rawIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+      const ipAddress = (typeof rawIp === 'string' ? rawIp.split(',')[0].trim() : String(rawIp)).replace(/^::ffff:/, '');
+      await logActivity({
+        business_id: user.business_id,
+        branch_id: user.branch_id,
+        user_id: user.id,
+        user_name: user.name,
+        activity_type: 'User Login Failed',
+        description: `Failed login attempt for ${user.email} from IP ${ipAddress || '127.0.0.1'}`,
+        ip_address: ipAddress || '127.0.0.1',
+        user_agent: req.headers['user-agent'] || null
+      });
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
 
     // JWT Generation (12h session aligned with business work shift)
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '12h' });

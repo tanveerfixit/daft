@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { sendInvoiceEmail } from '../services/mailer.js';
 import { sanitizeCsvCell } from '../middleware/security.js';
 import { refundInvoiceSchema, sendInvoiceEmailSchema } from '../validators/schemas.js';
+import { ACTIVITY_TYPES, formatAuditValue, recordAudit } from '../utils/activityLogger.js';
 
 const router = Router();
 
@@ -660,7 +661,7 @@ const createInvoiceSchema = z.object({
   })).min(1, "Cart is empty"),
   payments: z.array(z.object({
     method: z.string(),
-    amount: z.number().or(z.string().transform(Number)),
+    amount: z.number().or(z.string().transform(Number)).refine(v => Number.isFinite(v) && v > 0, 'Payment amount must be greater than zero'),
     credit_note_id: z.number().optional(),
     credit_note_number: z.string().optional()
   })).optional(),
@@ -805,16 +806,17 @@ router.post('/', async (req: any, res, next) => {
       }
     }
     
+    const effectiveBranchId = req.user.branch_id || 1;
     let invR: any;
     try {
       [invR] = await conn.execute(
         'INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,type,subtotal,tax_total,tax_rate,tax_type,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, invoiceType, subtotal, tax_total, Number(tax_rate) || 0, tax_type || 'excluded', discount_total, grand_total, totalPaid, dueAmount, status]
+        [req.user.business_id, effectiveBranchId, req.userId, finalCustomerId, invoiceNumber, invoiceType, subtotal, tax_total, Number(tax_rate) || 0, tax_type || 'excluded', discount_total, grand_total, totalPaid, dueAmount, status]
       );
     } catch (dbErr: any) {
       [invR] = await conn.execute(
         'INSERT INTO invoices (business_id,branch_id,user_id,customer_id,invoice_number,type,subtotal,tax_total,discount_total,grand_total,paid_amount,due_amount,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        [req.user.business_id, req.user.branch_id, req.userId, finalCustomerId, invoiceNumber, invoiceType, subtotal, tax_total, discount_total, grand_total, totalPaid, dueAmount, status]
+        [req.user.business_id, effectiveBranchId, req.userId, finalCustomerId, invoiceNumber, invoiceType, subtotal, tax_total, discount_total, grand_total, totalPaid, dueAmount, status]
       );
     }
     const invoiceId = (invR as any).insertId;
@@ -866,12 +868,12 @@ router.post('/', async (req: any, res, next) => {
         await conn.execute(`
           INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,-?)
           ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)
-        `, [req.user.branch_id, skuId, item.quantity]);
+        `, [effectiveBranchId, skuId, item.quantity]);
       } else if (item.device_id) {
-        const isSuper = req.user.role === 'superadmin';
+        const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
         await conn.execute(
           `UPDATE devices SET status='sold' WHERE id=? AND business_id=? AND branch_id=? ${!isSuper ? 'AND user_id=?' : ''}`,
-          !isSuper ? [item.device_id, req.user.business_id, req.user.branch_id, req.userId] : [item.device_id, req.user.business_id, req.user.branch_id]
+          !isSuper ? [item.device_id, req.user.business_id, effectiveBranchId, req.userId] : [item.device_id, req.user.business_id, effectiveBranchId]
         );
         try {
           await conn.execute(
@@ -879,22 +881,37 @@ router.post('/', async (req: any, res, next) => {
             [item.device_id, req.userId, 'Device Sold', `Sold on Invoice: ${invoiceNumber}`]
           );
         } catch (e: any) {}
-        try {
-          await conn.execute(
-            'INSERT INTO activity_logs (business_id, branch_id, device_id, user_id, user_name, activity_type, description, reference_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [req.user.business_id, req.user.branch_id, item.device_id, req.userId, req.user?.name || null, 'Device Sold', 'Product delivered to customer', invoiceNumber]
-          );
-        } catch (e: any) {}
+        await recordAudit(req, {
+          conn,
+          branch_id: effectiveBranchId,
+          device_id: item.device_id,
+          activity_type: ACTIVITY_TYPES.DEVICE_SOLD,
+          description: `Sold on Invoice ${invoiceNumber}`,
+          reference_type: 'invoice',
+          reference_id: invoiceId,
+          reference_link: `/invoices/${invoiceId}`,
+          metadata: { invoice_number: invoiceNumber, device_id: item.device_id }
+        });
         await conn.execute(`
           INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,-1)
           ON DUPLICATE KEY UPDATE quantity=quantity-1
-        `, [req.user.branch_id, skuId]);
+        `, [effectiveBranchId, skuId]);
       }
       
       if (item.is_deposit && finalCustomerId) {
         // Validated above: named customer, deposit-only invoice, paid in full by real money
         await conn.execute('UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)+? WHERE id=? AND business_id=?', [round2(Number(item.total)), finalCustomerId, req.user.business_id]);
       }
+    }
+
+    // Non-cash tenders (Card/Wallet/Credit Note) cannot exceed the invoice total (only Cash can give change)
+    const nonCashPaid = round2(
+      (payments || [])
+        .filter((p: any) => !String(p.method || '').toLowerCase().includes('cash'))
+        .reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0)
+    );
+    if (nonCashPaid > grandTotalNum + 0.01) {
+      throw businessError(`Non-cash payment (€${nonCashPaid.toFixed(2)}) cannot exceed the invoice total (€${grandTotalNum.toFixed(2)}).`);
     }
 
     // Standard POS settlement: adjust excess cash tender for change given
@@ -994,32 +1011,6 @@ router.post('/', async (req: any, res, next) => {
             'UPDATE customers SET wallet_balance = COALESCE(wallet_balance, 0) - ? WHERE id = ? AND business_id = ?',
             [p.amount, finalCustomerId, req.user.business_id]
           );
-          // FIFO-synchronize open credit_notes for this customer so wallet & CN balances match
-          try {
-            const [openCns] = await conn.execute(
-              `SELECT id, credit_note_number, remaining_amount, refund_invoice_id 
-               FROM credit_notes 
-               WHERE business_id = ? AND customer_id = ? AND status IN ('active', 'partially_used') AND remaining_amount > 0
-               ORDER BY id ASC`,
-              [req.user.business_id, finalCustomerId]
-            );
-            let toDeduct = p.amount;
-            for (const ocn of (openCns as any[])) {
-              if (toDeduct <= 0.005) break;
-              const availCn = Number(ocn.remaining_amount) || 0;
-              const used = Math.min(availCn, toDeduct);
-              const nextRem = Math.max(0, Number((availCn - used).toFixed(2)));
-              const nextSt = nextRem <= 0.009 ? 'redeemed' : 'partially_used';
-              await conn.execute('UPDATE credit_notes SET remaining_amount = ?, status = ? WHERE id = ?', [nextRem, nextSt, ocn.id]);
-              if (ocn.refund_invoice_id) {
-                await conn.execute(
-                  'INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-                  [ocn.refund_invoice_id, req.userId, 'Credit Note Redeemed', `€${used.toFixed(2)} redeemed via Customer Wallet on Invoice ${invoiceNumber}. Remaining: €${nextRem.toFixed(2)}`]
-                );
-              }
-              toDeduct -= used;
-            }
-          } catch {}
         }
       }
     }
@@ -1031,7 +1022,22 @@ router.post('/', async (req: any, res, next) => {
     }
     
     await conn.execute('INSERT INTO invoice_activity (invoice_id,user_id,activity,details) VALUES (?,?,?,?)',
-      [invoiceId, req.userId, 'Invoice Created', logDetails]);
+      [invoiceId, req.userId, ACTIVITY_TYPES.INVOICE_CREATED, logDetails]);
+
+    await recordAudit(req, {
+      conn,
+      branch_id: effectiveBranchId,
+      activity_type: ACTIVITY_TYPES.INVOICE_CREATED,
+      description: logDetails,
+      reference_type: 'invoice',
+      reference_id: invoiceId,
+      reference_link: `/invoices/${invoiceId}`,
+      metadata: {
+        invoice_number: invoiceNumber,
+        grand_total: Number(grand_total) || 0,
+        customer_id: finalCustomerId
+      }
+    });
     
     for (const act of (activities || [])) {
       const activityLabel = act.action || act.activity || 'Activity';
@@ -1202,6 +1208,22 @@ router.post('/:id/refund', async (req: any, res, next) => {
 
     if ((!isDepositInvoice && itemsToProcess.length === 0) || totalRefundAmount <= 0) {
       throw businessError('No returnable items selected for refund');
+    }
+
+    // Prevent over-refunding partial or unpaid credit invoices beyond what was actually paid
+    const [prevRefRows] = await conn.execute(
+      `SELECT COALESCE(SUM(ABS(amount)), 0) as already_refunded
+       FROM payments
+       WHERE invoice_id = ? AND type IN ('refund', 'credit_note_issued') AND amount < 0`,
+      [req.params.id]
+    );
+    const alreadyRefunded = round2(Number((prevRefRows as any[])[0]?.already_refunded) || 0);
+    const invoicePaidAmount = round2(Number(invoice.paid_amount) || 0);
+    const maxRefundable = Math.max(0, round2(invoicePaidAmount - alreadyRefunded));
+    if (round2(totalRefundAmount) > maxRefundable + 0.01) {
+      throw businessError(
+        `Cannot refund €${totalRefundAmount.toFixed(2)}: only €${maxRefundable.toFixed(2)} is refundable from paid amount (€${invoicePaidAmount.toFixed(2)} paid, €${alreadyRefunded.toFixed(2)} already refunded).`
+      );
     }
 
     const methodLower = String(method || '').toLowerCase();
@@ -1470,7 +1492,8 @@ router.post('/:id/refund', async (req: any, res, next) => {
 
     const isFullyRefunded = (isDepositInvoice && currentItems.length === 0) ? true : (totalRefunded >= totalQty);
     const newStatus = isFullyRefunded ? 'void' : 'partially_refunded';
-    await conn.execute('UPDATE invoices SET status=? WHERE id=?', [newStatus, req.params.id]);
+    const nextDueAmount = isFullyRefunded ? 0 : Math.max(0, round2(Number(invoice.due_amount) || 0));
+    await conn.execute('UPDATE invoices SET status=?, due_amount=? WHERE id=?', [newStatus, nextDueAmount, req.params.id]);
 
     // Record activity audit trail on original invoice
     const activityLabel = isCreditNote
@@ -1482,6 +1505,23 @@ router.post('/:id/refund', async (req: any, res, next) => {
       'INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
       [req.params.id, req.userId, activityLabel, detailMsg]
     );
+
+    await recordAudit(req, {
+      conn,
+      branch_id: invoice.branch_id ?? req.user.branch_id,
+      activity_type: isCreditNote
+        ? ACTIVITY_TYPES.CREDIT_NOTE_ISSUED
+        : (isFullyRefunded ? ACTIVITY_TYPES.REFUND_CREATED : ACTIVITY_TYPES.PARTIAL_REFUND),
+      description: detailMsg,
+      reference_type: 'invoice',
+      reference_id: Number(req.params.id),
+      reference_link: `/invoices/${req.params.id}`,
+      metadata: {
+        refund_amount: totalRefundAmount,
+        method: isCreditNote ? 'Credit Note' : method,
+        restock: Boolean(restock)
+      }
+    });
 
     await conn.commit();
     res.json({ 
@@ -1621,14 +1661,59 @@ router.post('/:id/activity', async (req: any, res, next) => {
 
 router.put('/payments/:id', async (req: any, res, next) => {
   try {
-    const { method } = req.body;
-    if (!method) return res.status(400).json({ error: 'Method is required' });
-    const r = await execute(
-      'UPDATE payments p LEFT JOIN invoices i ON p.invoice_id=i.id LEFT JOIN customers c ON p.customer_id=c.id SET p.method=? WHERE p.id=? AND (i.business_id=? OR c.business_id=?)',
-      [method, req.params.id, req.user.business_id, req.user.business_id]
+    const rawMethod = String(req.body?.method || '').trim();
+    const allowedMethods = ['Cash', 'Card', 'Debit Card', 'Credit Card', 'Other'];
+    const matchedMethod = allowedMethods.find(m => m.toLowerCase() === rawMethod.toLowerCase());
+    if (!matchedMethod) {
+      return res.status(400).json({
+        error: 'Payment method can only be switched between Cash, Card, Debit Card, Credit Card, and Other.'
+      });
+    }
+
+    const isSuper = req.user.role === 'superadmin' || req.user.role === 'developer';
+    const branchId = req.user.branch_id;
+    const existing: any = await queryOne(
+      `SELECT p.*, i.business_id as inv_biz, i.branch_id as inv_branch, i.invoice_number
+       FROM payments p
+       LEFT JOIN invoices i ON p.invoice_id = i.id
+       LEFT JOIN customers c ON p.customer_id = c.id
+       WHERE p.id = ? AND (i.business_id = ? OR c.business_id = ?)
+       ${(!isSuper && branchId) ? 'AND (i.branch_id = ? OR i.branch_id IS NULL)' : ''}`,
+      (!isSuper && branchId)
+        ? [req.params.id, req.user.business_id, req.user.business_id, branchId]
+        : [req.params.id, req.user.business_id, req.user.business_id]
     );
-    if (r.affectedRows === 0) return res.status(404).json({ error: 'Payment not found or access denied' });
-    res.json({ success: true });
+
+    if (!existing) return res.status(404).json({ error: 'Payment not found or access denied' });
+
+    const pType = String(existing.type || '').toLowerCase();
+    if (pType === 'wallet_use' || pType === 'credit_note_redeemed' || pType === 'credit_note_issued') {
+      return res.status(400).json({ error: 'Cannot change payment method on Wallet or Credit Note entries.' });
+    }
+
+    await execute('UPDATE payments SET method = ? WHERE id = ?', [matchedMethod, req.params.id]);
+
+    if (existing.invoice_id) {
+      const prevMethod = formatAuditValue(existing.method);
+      const pmDetails = `Payment #${req.params.id} (€${Number(existing.amount || 0).toFixed(2)}) changed from ${prevMethod} to ${matchedMethod}`;
+      try {
+        await execute(
+          'INSERT INTO invoice_activity (invoice_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+          [existing.invoice_id, req.userId, ACTIVITY_TYPES.PAYMENT_METHOD_UPDATED, pmDetails]
+        );
+      } catch {}
+      await recordAudit(req, {
+        branch_id: existing.inv_branch ?? req.user.branch_id,
+        activity_type: ACTIVITY_TYPES.PAYMENT_METHOD_UPDATED,
+        description: pmDetails,
+        reference_type: 'invoice',
+        reference_id: existing.invoice_id,
+        reference_link: `/invoices/${existing.invoice_id}`,
+        metadata: { payment_id: Number(req.params.id), from: existing.method ?? null, to: matchedMethod }
+      });
+    }
+
+    res.json({ success: true, method: matchedMethod });
   } catch (e: any) { next(e); }
 });
 

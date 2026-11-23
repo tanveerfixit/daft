@@ -658,11 +658,11 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
                   </thead>
                   <tbody className="divide-y divide-neutral-200 dark:divide-neutral-900">
                     {activities.length > 0 ? (
-                      activities.map((act) => (
-                        <tr key={act.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-neutral-900 dark:text-neutral-100 text-[15px]">
+                      activities.map((act, idx) => (
+                        <tr key={`${(act as any).source || 'act'}_${act.id}_${idx}`} className="hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-neutral-900 dark:text-neutral-100 text-[15px]">
                           <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{new Date(act.created_at).toLocaleDateString('en-GB')}</td>
                           <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{new Date(act.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</td>
-                          <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{act.user_name || 'System'}</td>
+                          <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{act.user_name && act.user_name.toLowerCase() !== 'null' ? act.user_name : 'System'}</td>
                           <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 font-semibold">{act.activity || (act as any).activity_type || 'Activity'}</td>
                           <td className="py-0.5 px-1.5">{act.details}</td>
                         </tr>

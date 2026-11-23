@@ -3,6 +3,7 @@ import { pool, query, queryOne, execute, getBranchPrefix } from '../mysql.js';
 import { z } from 'zod';
 import { sanitizeCsvCell } from '../middleware/security.js';
 import { updateProductSchema } from '../validators/schemas.js';
+import { ACTIVITY_TYPES, diffFields, recordAudit } from '../utils/activityLogger.js';
 
 const router = Router();
 
@@ -950,11 +951,27 @@ router.put('/:id', async (req: any, res, next) => {
       }
     }
     
-    const changes: string[] = [];
-    if (cleanNewName !== sku.product_name) changes.push(`Name: ${sku.product_name} -> ${cleanNewName}`);
-    if (selling_price != sku.selling_price) changes.push(`Price: ${sku.selling_price} -> ${selling_price}`);
-    if (cost_price != sku.cost_price) changes.push(`Cost: ${sku.cost_price} -> ${cost_price}`);
-    if (sku_code !== sku.sku_code) changes.push(`SKU: ${sku.sku_code} -> ${sku_code}`);
+    const prodDiff = diffFields(
+      {
+        name: sku.product_name,
+        selling_price: sku.selling_price,
+        cost_price: sku.cost_price,
+        sku_code: sku.sku_code
+      },
+      {
+        name: cleanNewName,
+        selling_price,
+        cost_price,
+        sku_code
+      },
+      [
+        { key: 'name', label: 'Name' },
+        { key: 'selling_price', label: 'Price', currency: true },
+        { key: 'cost_price', label: 'Cost', currency: true },
+        { key: 'sku_code', label: 'SKU' }
+      ]
+    );
+    const changes = [...prodDiff.changes];
     if (cascade_device_price && updatedDevicesCount > 0) {
       changes.push(`Cascaded price to ${updatedDevicesCount} in-stock IMEI unit(s)`);
     }
@@ -962,10 +979,18 @@ router.put('/:id', async (req: any, res, next) => {
     const detailMsg = changes.length > 0 ? changes.join(', ') : 'Details updated';
 
     await conn.execute('INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)',
-      [skuId, req.userId, 'Product Updated', detailMsg]);
+      [skuId, req.userId, ACTIVITY_TYPES.PRODUCT_UPDATED, detailMsg]);
     
-    await conn.execute('INSERT INTO activity_logs (business_id, branch_id, product_id, user_id, user_name, activity_type, description) VALUES (?,?,?,?,?,?,?)',
-      [req.user.business_id, req.user.branch_id, sku.product_id, req.userId, req.user?.name || null, 'Product Updated', detailMsg]);
+    await recordAudit(req, {
+      conn,
+      product_id: sku.product_id,
+      activity_type: ACTIVITY_TYPES.PRODUCT_UPDATED,
+      description: detailMsg,
+      reference_type: 'product',
+      reference_id: sku.product_id,
+      reference_link: `/products/${sku.product_id}`,
+      metadata: Object.keys(prodDiff.diff).length > 0 ? { diff: prodDiff.diff, cascaded_devices: updatedDevicesCount } : null
+    });
 
     await conn.commit();
     res.json({ success: true, updated_devices_count: updatedDevicesCount });
@@ -1036,9 +1061,18 @@ router.post('/', async (req: any, res, next) => {
     );
     const skuId = (sr as any).insertId;
     await conn.execute('INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)',
-      [skuId, req.userId, 'Product Created', `Product "${name}" created with SKU ${finalSku}`]);
-    await conn.execute('INSERT INTO activity_logs (business_id, branch_id, product_id, user_id, user_name, activity_type, description) VALUES (?,?,?,?,?,?,?)',
-      [businessId, req.user.branch_id, productId, req.userId, req.user?.name || null, 'Product Created', `Product "${name}" created with SKU ${finalSku}`]);
+      [skuId, req.userId, ACTIVITY_TYPES.PRODUCT_CREATED, `Product "${name}" created with SKU ${finalSku}`]);
+    await recordAudit(req, {
+      conn,
+      business_id: businessId,
+      product_id: productId,
+      activity_type: ACTIVITY_TYPES.PRODUCT_CREATED,
+      description: `Product "${name}" created with SKU ${finalSku}`,
+      reference_type: 'product',
+      reference_id: productId,
+      reference_link: `/products/${productId}`,
+      metadata: { sku: finalSku, selling_price, cost_price }
+    });
 
     // Auto-sync this new product name to all other businesses with 0 stock
     await syncNewProductToOtherBusinesses(conn, businessId, {
@@ -1125,9 +1159,19 @@ router.post('/quick-add', async (req: any, res, next) => {
     const skuId = (sr as any).insertId;
 
     await conn.execute('INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)',
-      [skuId, req.userId, 'Product Created', `Product "${name}" quick-added with SKU ${finalSku}`]);
-    await conn.execute('INSERT INTO activity_logs (business_id, branch_id, product_id, user_id, user_name, activity_type, description) VALUES (?,?,?,?,?,?,?)',
-      [businessId, activeBranchId, productId, req.userId, req.user?.name || null, 'Product Created', `Product "${name}" quick-added with SKU ${finalSku}`]);
+      [skuId, req.userId, ACTIVITY_TYPES.PRODUCT_CREATED, `Product "${name}" quick-added with SKU ${finalSku}`]);
+    await recordAudit(req, {
+      conn,
+      business_id: businessId,
+      branch_id: activeBranchId,
+      product_id: productId,
+      activity_type: ACTIVITY_TYPES.PRODUCT_CREATED,
+      description: `Product "${name}" quick-added with SKU ${finalSku}`,
+      reference_type: 'product',
+      reference_id: productId,
+      reference_link: `/products/${productId}`,
+      metadata: { sku: finalSku, stock_qty: stockQty }
+    });
 
     // 3. Add Stock if quantity > 0
     if (stockQty > 0) {
@@ -1188,42 +1232,145 @@ router.delete('/:id', async (req: any, res, next) => {
   } catch (e: any) { next(e); }
 });
 
+// Helper to resolve :id (either sku_id or product_id) safely within the business
+async function resolveProductAndSkus(idParam: string | number, businessId: number): Promise<{ productId: number; skuIds: number[]; primarySkuId: number | null } | null> {
+  const numId = Number(idParam);
+  if (!Number.isFinite(numId) || numId <= 0) return null;
+
+  const skuRow = await queryOne(
+    'SELECT s.id as sku_id, p.id as product_id FROM product_skus s JOIN products p ON s.product_id = p.id WHERE s.id = ? AND p.business_id = ?',
+    [numId, businessId]
+  ) as any;
+
+  const productId = skuRow
+    ? Number(skuRow.product_id)
+    : ((await queryOne('SELECT id FROM products WHERE id = ? AND business_id = ?', [numId, businessId]) as any)?.id ?? null);
+
+  if (!productId) return null;
+
+  const skuRows = await query('SELECT id FROM product_skus WHERE product_id = ?', [productId]) as any[];
+  const skuIds = skuRows.map(r => Number(r.id));
+  return {
+    productId: Number(productId),
+    skuIds,
+    primarySkuId: skuRow ? Number(skuRow.sku_id) : (skuIds[0] ?? null)
+  };
+}
+
 // GET /api/products/:id/activity
 router.get('/:id/activity', async (req: any, res, next) => {
   try {
+    const businessId = req.user.business_id;
+    const resolved = await resolveProductAndSkus(req.params.id, businessId);
+    if (!resolved) return res.status(404).json({ error: 'Product not found' });
+
+    const { productId, skuIds } = resolved;
+    const skuPlaceholders = skuIds.length > 0 ? skuIds.map(() => '?').join(',') : 'NULL';
+
     const acts = await query(`
-      SELECT 'product' as source, a.id, a.user_id, a.activity, a.details, a.created_at, COALESCE(u.name, 'System') as user_name 
-      FROM product_activity a
-      LEFT JOIN users u ON a.user_id = u.id
-      JOIN product_skus s ON a.sku_id = s.id
-      JOIN products p ON s.product_id = p.id
-      WHERE (a.sku_id = ? OR s.product_id = ?) AND p.business_id = ?
-      
-      UNION ALL
-
-      SELECT 'device' as source, da.id, da.user_id, da.activity, da.details, da.created_at, COALESCE(u.name, 'System') as user_name
-      FROM device_activity da
-      JOIN devices d ON da.device_id = d.id
-      JOIN product_skus s ON d.sku_id = s.id
-      JOIN products p ON s.product_id = p.id
-      LEFT JOIN users u ON da.user_id = u.id
-      WHERE (s.id = ? OR p.id = ?) AND p.business_id = ?
-
-      UNION ALL
-
-      SELECT 'log' as source, al.id, al.user_id, al.activity_type as activity, al.description as details, al.created_at, COALESCE(al.user_name, u.name, 'System') as user_name
+      SELECT 
+        'log' as source,
+        al.id,
+        al.user_id,
+        COALESCE(NULLIF(TRIM(al.activity_type), ''), 'Activity') as activity,
+        COALESCE(al.description, '') as details,
+        al.created_at,
+        COALESCE(NULLIF(NULLIF(TRIM(al.user_name), ''), 'null'), u.name, 'System') as user_name
       FROM activity_logs al
       LEFT JOIN users u ON al.user_id = u.id
-      WHERE (al.product_id = ? OR al.product_id = (SELECT product_id FROM product_skus WHERE id=?))
+      WHERE al.product_id = ?
         AND COALESCE(al.business_id, u.business_id) = ?
+
+      UNION ALL
+
+      SELECT 
+        'product' as source,
+        a.id,
+        a.user_id,
+        COALESCE(NULLIF(TRIM(a.activity), ''), 'Activity') as activity,
+        COALESCE(a.details, '') as details,
+        a.created_at,
+        COALESCE(u.name, 'System') as user_name
+      FROM product_activity a
+      LEFT JOIN users u ON a.user_id = u.id
+      WHERE a.sku_id IN (${skuPlaceholders})
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al2
+          WHERE al2.product_id = ?
+            AND al2.business_id = ?
+            AND al2.activity_type = a.activity
+            AND ABS(TIMESTAMPDIFF(SECOND, al2.created_at, a.created_at)) <= 2
+        )
+
+      UNION ALL
+
+      SELECT 
+        'device' as source,
+        da.id,
+        da.user_id,
+        COALESCE(NULLIF(TRIM(da.activity), ''), 'Activity') as activity,
+        COALESCE(da.details, '') as details,
+        da.created_at,
+        COALESCE(u.name, 'System') as user_name
+      FROM device_activity da
+      JOIN devices d ON da.device_id = d.id
+      LEFT JOIN users u ON da.user_id = u.id
+      WHERE d.business_id = ?
+        AND d.sku_id IN (${skuPlaceholders})
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al3
+          WHERE (al3.device_id = da.device_id OR al3.product_id = ?)
+            AND al3.business_id = ?
+            AND al3.activity_type = da.activity
+            AND ABS(TIMESTAMPDIFF(SECOND, al3.created_at, da.created_at)) <= 2
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM product_activity pa2
+          WHERE pa2.sku_id = d.sku_id
+            AND pa2.activity = da.activity
+            AND ABS(TIMESTAMPDIFF(SECOND, pa2.created_at, da.created_at)) <= 2
+        )
 
       ORDER BY created_at DESC
     `, [
-      req.params.id, req.params.id, req.user.business_id,
-      req.params.id, req.params.id, req.user.business_id,
-      req.params.id, req.params.id, req.user.business_id
+      productId, businessId,
+      ...skuIds, productId, businessId,
+      businessId, ...skuIds, productId, businessId
     ]);
     res.json(acts);
+  } catch (e: any) { next(e); }
+});
+
+const productActivitySchema = z.object({
+  activity: z.string().trim().max(100).optional(),
+  details: z.string().trim().min(1, 'Note details are required').max(1000)
+});
+
+// POST /api/products/:id/activity (Add Note)
+router.post('/:id/activity', async (req: any, res, next) => {
+  try {
+    const { activity, details } = productActivitySchema.parse(req.body);
+    const businessId = req.user.business_id;
+    const resolved = await resolveProductAndSkus(req.params.id, businessId);
+    if (!resolved) return res.status(404).json({ error: 'Product not found' });
+
+    const actLabel = activity || ACTIVITY_TYPES.NOTE_ADDED;
+    if (resolved.primarySkuId) {
+      await execute(
+        'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [resolved.primarySkuId, req.userId, actLabel, details]
+      );
+    }
+    await recordAudit(req, {
+      product_id: resolved.productId,
+      activity_type: actLabel,
+      description: details,
+      reference_type: 'product',
+      reference_id: resolved.productId,
+      reference_link: `/products/${resolved.productId}`
+    });
+
+    res.json({ success: true });
   } catch (e: any) { next(e); }
 });
 
