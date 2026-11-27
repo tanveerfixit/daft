@@ -14,7 +14,8 @@ import {
   X,
   Search,
   ChevronDown,
-  Check
+  Check,
+  Copy
 } from 'lucide-react';
 import { invalidateCache } from '../../utils/cache';
 
@@ -28,6 +29,9 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
   const [activeTab, setActiveTab] = useState<'info' | 'activity'>('info');
   const [device, setDevice] = useState<any>(null);
   const [activities, setActivities] = useState<any[]>([]);
+  const [activityFilter, setActivityFilter] = useState('all');
+  const [activitySearch, setActivitySearch] = useState('');
+  const [copiedImei, setCopiedImei] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -424,260 +428,351 @@ export default function DeviceDetailView({ deviceId, onBack, onOpenPrinterSettin
   if (isLoading) return <div className="p-8 text-center text-neutral-500 font-mono text-xs uppercase tracking-widest animate-pulse">*** LOADING DEVICE DETAILS... PLEASE WAIT ***</div>;
   if (!device) return <div className="p-8 text-center text-red-500 font-mono text-xs uppercase font-bold">*** DEVICE NOT FOUND ***</div>;
 
+  const activityTypeOptions = Array.from(
+    new Set(activities.map(a => a.activity || a.activity_type || 'Activity').filter(Boolean))
+  ).sort();
+
+  const filteredActivities = activities.filter(act => {
+    const label = act.activity || act.activity_type || 'Activity';
+    if (activityFilter !== 'all' && label !== activityFilter) return false;
+    if (activitySearch.trim()) {
+      const q = activitySearch.trim().toLowerCase();
+      const hay = `${label} ${act.details || ''} ${act.user_name || ''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const handleCopyImei = () => {
+    if (!device?.imei) return;
+    navigator.clipboard?.writeText(String(device.imei)).then(() => {
+      setCopiedImei(true);
+      setTimeout(() => setCopiedImei(false), 1500);
+    }).catch(() => {});
+  };
+
+  const formatStatusLabel = (status: string) => {
+    const s = String(status || 'in_stock').toLowerCase();
+    if (s === 'in_stock' || s === 'available') return 'In Stock';
+    if (s === 'sold') return 'Sold';
+    if (s === 'in_transfer') return 'In Transfer';
+    return status;
+  };
+
   return (
-    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-mono text-sm px-2 pb-2 pt-0 select-none w-full overflow-auto" style={{ fontSize: '15px' }}>
-      {/* Top Header */}
-      <div className="sticky top-0 z-40 bg-white dark:bg-black border-b border-neutral-300 dark:border-neutral-800 shrink-0 flex justify-between items-center px-4 py-3 mb-2">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-medium text-black dark:text-white">Device Details</h2>
-          <span className="text-xs font-medium px-2.5 py-0.5 rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 font-mono">
-            {device.imei}
-          </span>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm p-3 md:p-5 select-none w-full overflow-auto font-sans">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageChange}
+        className="hidden"
+      />
+
+      {/* ─── Top Device Summary Card ─────────────────────────────────────────── */}
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md p-4 mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+        {/* Left: Compact Photo + Model Title + IMEI + Status */}
+        <div className="flex items-start sm:items-center gap-4">
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="relative w-16 h-16 md:w-20 md:h-20 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg flex items-center justify-center shrink-0 cursor-pointer group overflow-hidden"
+            title={device.image_url ? 'Change Photo' : 'Upload Photo'}
+          >
+            {device.image_url ? (
+              <img
+                src={device.image_url}
+                alt={device.product_name}
+                className="w-full h-full object-contain p-1"
+              />
+            ) : (
+              <Smartphone size={32} className="text-neutral-600 dark:text-neutral-400" strokeWidth={1.6} />
+            )}
+            <div className="absolute bottom-1 right-1 p-1 bg-white dark:bg-neutral-900 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 group-hover:text-black dark:group-hover:text-white transition-colors">
+              <Camera size={11} />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <h1 className="text-xl md:text-2xl font-bold text-neutral-900 dark:text-white leading-tight">
+              {device.product_name}
+            </h1>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <button
+                type="button"
+                onClick={handleCopyImei}
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 font-mono hover:border-neutral-400 transition-colors cursor-pointer"
+                title="Copy IMEI / Serial"
+              >
+                <span>{device.imei}</span>
+                {copiedImei ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} className="text-neutral-400" />}
+              </button>
+
+              <span className="text-neutral-300 dark:text-neutral-700">•</span>
+              <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                {formatStatusLabel(device.status)}
+              </span>
+
+              {device.branch_name && (
+                <>
+                  <span className="text-neutral-300 dark:text-neutral-700">•</span>
+                  <span className="text-neutral-600 dark:text-neutral-400">{device.branch_name}</span>
+                </>
+              )}
+            </div>
+
+            <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+              PO: <span className="font-mono text-neutral-700 dark:text-neutral-300">{device.po_number || 'Internal'}</span>
+              {device.sku_code && (
+                <>
+                  <span className="mx-2 text-neutral-300 dark:text-neutral-700">•</span>
+                  SKU: <span className="font-mono text-neutral-700 dark:text-neutral-300">{device.sku_code}</span>
+                </>
+              )}
+            </div>
+          </div>
         </div>
-        <button 
-          onClick={onBack}
-          className="bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
+
+        {/* Right: Selling Price & Action Buttons */}
+        <div className="flex flex-col items-start md:items-end justify-between self-stretch md:self-auto gap-3">
+          <div className="text-left md:text-right">
+            <div className="text-xs font-bold uppercase tracking-wider text-[var(--brand-primary)] dark:text-blue-400">
+              SELLING PRICE
+            </div>
+            <div className="text-3xl md:text-4xl font-extrabold text-neutral-900 dark:text-white leading-none mt-1 tabular-nums">
+              €{Number(device.selling_price || device.price || 0).toFixed(2)}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 mt-auto md:mt-1">
+            <button
+              onClick={handleEditClick}
+              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-3.5 rounded text-sm inline-flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
+            >
+              <Edit2 size={14} />
+              <span>Edit</span>
+            </button>
+            <button
+              onClick={handlePrintLabel}
+              className="bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-600 font-medium py-1.5 px-3.5 rounded text-sm inline-flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
+            >
+              <Printer size={14} />
+              <span>Print Label</span>
+            </button>
+            <button
+              onClick={onBack}
+              className="bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-600 font-medium py-1.5 px-3.5 rounded text-sm inline-flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
+            >
+              <ChevronLeft size={14} />
+              <span>Inventory</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Navigation Tabs ─────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-1 border-b border-neutral-300 dark:border-neutral-800 shrink-0">
+        <button
+          onClick={() => setActiveTab('info')}
+          className={`px-5 py-2.5 text-sm font-semibold rounded-t-md border-t border-x transition-colors cursor-pointer ${
+            activeTab === 'info'
+              ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white border-neutral-300 dark:border-neutral-800 -mb-px'
+              : 'bg-neutral-200/60 dark:bg-neutral-900/40 text-neutral-600 dark:text-neutral-400 border-transparent hover:text-neutral-900 dark:hover:text-neutral-200'
+          }`}
         >
-          <span>Back to Inventory</span>
+          Device Information
+        </button>
+        <button
+          onClick={() => setActiveTab('activity')}
+          className={`px-5 py-2.5 text-sm font-semibold rounded-t-md border-t border-x transition-colors cursor-pointer ${
+            activeTab === 'activity'
+              ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white border-neutral-300 dark:border-neutral-800 -mb-px'
+              : 'bg-neutral-200/60 dark:bg-neutral-900/40 text-neutral-600 dark:text-neutral-400 border-transparent hover:text-neutral-900 dark:hover:text-neutral-200'
+          }`}
+        >
+          Activity Log ({activities.length})
         </button>
       </div>
 
-      {/* Main Container */}
-      <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded-none overflow-hidden flex flex-col flex-1">
-        {/* Tabs Header */}
-        <div className="flex bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 shrink-0">
-          <button 
-            onClick={() => setActiveTab('info')}
-            className={`px-4 py-1 text-xs uppercase font-mono font-bold transition-all border-r border-neutral-300 dark:border-neutral-800 cursor-pointer ${activeTab === 'info' ? 'bg-white dark:bg-black text-black dark:text-white' : 'text-neutral-500 hover:text-black dark:hover:text-white'}`}
-          >
-            Device Information
-          </button>
-          <button 
-            onClick={() => setActiveTab('activity')}
-            className={`px-4 py-1 text-xs uppercase font-mono font-bold transition-all border-r border-neutral-300 dark:border-neutral-800 cursor-pointer ${activeTab === 'activity' ? 'bg-white dark:bg-black text-black dark:text-white' : 'text-neutral-500 hover:text-black dark:hover:text-white'}`}
-          >
-            Activity Log
-          </button>
-        </div>
-
-        {/* Card Body */}
-        <div className="p-4 flex-1 overflow-auto">
-          {activeTab === 'info' ? (
-            <div className="flex flex-col md:flex-row gap-5 items-start">
-              {/* Left Column: Device Photo / SVG Icon with Change Button */}
-              <div className="w-52 shrink-0 flex flex-col items-center justify-center p-4 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg self-stretch min-h-[240px]">
-                {device.image_url ? (
-                  <img 
-                    src={device.image_url} 
-                    alt={device.product_name} 
-                    className="w-36 h-44 object-contain rounded mb-2"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-neutral-400 dark:text-neutral-500 py-4">
-                    <Smartphone size={72} strokeWidth={1.2} className="text-neutral-600 dark:text-neutral-400" />
-                    <span className="text-xs mt-2 text-neutral-500 dark:text-neutral-400 font-sans">Device Photo</span>
+      {/* ─── Main Tab Content Area ───────────────────────────────────────────── */}
+      <div className="bg-white dark:bg-neutral-900 border-x border-b border-neutral-300 dark:border-neutral-800 rounded-b-md p-6 flex-1 overflow-auto">
+        {activeTab === 'info' ? (
+          <div className="max-w-4xl">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Left Column: Hardware & Identity */}
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 pb-2 mb-3 border-b border-neutral-200 dark:border-neutral-800">
+                  Hardware &amp; Identity
+                </h3>
+                <dl className="divide-y divide-neutral-100 dark:divide-neutral-800/70 text-[15px]">
+                  <div className="py-2.5 flex justify-between gap-4">
+                    <dt className="text-neutral-500 dark:text-neutral-400">IMEI / Serial</dt>
+                    <dd className="font-mono font-semibold text-neutral-900 dark:text-white">{device.imei}</dd>
                   </div>
-                )}
+                  <div className="py-2.5 flex justify-between gap-4">
+                    <dt className="text-neutral-500 dark:text-neutral-400">Storage / RAM</dt>
+                    <dd className="font-medium text-neutral-900 dark:text-neutral-100">
+                      {device.gb || '-'} {device.ram ? `/ ${device.ram}` : ''}
+                    </dd>
+                  </div>
+                  <div className="py-2.5 flex justify-between gap-4">
+                    <dt className="text-neutral-500 dark:text-neutral-400">Condition</dt>
+                    <dd className="font-medium text-neutral-900 dark:text-neutral-100">{device.condition || 'New'}</dd>
+                  </div>
+                  <div className="py-2.5 flex justify-between gap-4">
+                    <dt className="text-neutral-500 dark:text-neutral-400">Color</dt>
+                    <dd className="font-medium text-neutral-900 dark:text-neutral-100">{device.color || '-'}</dd>
+                  </div>
+                  <div className="py-2.5 flex justify-between gap-4">
+                    <dt className="text-neutral-500 dark:text-neutral-400">Network / Carrier</dt>
+                    <dd className="font-medium text-neutral-900 dark:text-neutral-100">
+                      {device.carrier || device.unlocked || 'Unlocked'}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
 
-                <input 
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="hidden"
-                />
+              {/* Right Column: Pricing & Inventory */}
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 pb-2 mb-3 border-b border-neutral-200 dark:border-neutral-800">
+                  Pricing &amp; Inventory
+                </h3>
+                <dl className="divide-y divide-neutral-100 dark:divide-neutral-800/70 text-[15px]">
+                  <div className="py-2.5 flex justify-between gap-4">
+                    <dt className="text-neutral-500 dark:text-neutral-400">Cost Price</dt>
+                    <dd className="font-medium text-neutral-900 dark:text-neutral-100 tabular-nums">
+                      €{Number(device.cost_price || 0).toFixed(2)}
+                    </dd>
+                  </div>
+                  <div className="py-2.5 flex justify-between gap-4">
+                    <dt className="text-neutral-500 dark:text-neutral-400">Selling Price</dt>
+                    <dd className="font-semibold text-neutral-900 dark:text-white tabular-nums">
+                      €{Number(device.selling_price || device.price || 0).toFixed(2)}
+                    </dd>
+                  </div>
+                  <div className="py-2.5 flex justify-between gap-4">
+                    <dt className="text-neutral-500 dark:text-neutral-400">Branch</dt>
+                    <dd className="font-medium text-neutral-900 dark:text-neutral-100">{device.branch_name || 'Main Branch'}</dd>
+                  </div>
+                  <div className="py-2.5 flex justify-between gap-4">
+                    <dt className="text-neutral-500 dark:text-neutral-400">Purchase Order</dt>
+                    <dd className="font-mono font-medium text-neutral-900 dark:text-neutral-100">{device.po_number || 'Internal'}</dd>
+                  </div>
+                  <div className="py-2.5 flex justify-between gap-4">
+                    <dt className="text-neutral-500 dark:text-neutral-400">Added By / Date</dt>
+                    <dd className="font-medium text-neutral-700 dark:text-neutral-300 tabular-nums text-right">
+                      {device.user_name || 'System'} • {new Date(device.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
 
-                <button 
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="mt-2 text-xs bg-white dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 py-1.5 px-3 rounded-md font-sans font-medium flex items-center gap-1.5 cursor-pointer transition-all active:scale-[0.98]"
+            {/* Danger / Remove Action */}
+            <div className="mt-8 pt-4 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+              <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                Need to remove this unit from active stock?
+              </span>
+              <button
+                onClick={handleDelete}
+                className="bg-white dark:bg-neutral-900 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 font-medium py-1.5 px-4 rounded text-sm inline-flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
+              >
+                <Trash2 size={14} />
+                <span>Remove from Inventory</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col font-sans border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+            {/* Activity Log Header */}
+            <div className="px-4 py-2.5 bg-neutral-50 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-neutral-800 flex flex-wrap justify-between items-center gap-3 shrink-0">
+              <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Activity Log</h3>
+              <div className="flex flex-wrap gap-2 items-center">
+                <div className="relative">
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                  <input
+                    type="text"
+                    value={activitySearch}
+                    onChange={(e) => setActivitySearch(e.target.value)}
+                    placeholder="Search logs..."
+                    className="bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 pl-8 pr-3 py-1.5 text-sm text-neutral-800 dark:text-neutral-200 outline-none focus:border-blue-500 w-44 sm:w-52"
+                  />
+                </div>
+                <select
+                  value={activityFilter}
+                  onChange={(e) => setActivityFilter(e.target.value)}
+                  className="bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 px-3 py-1.5 text-sm text-neutral-800 dark:text-neutral-200 outline-none cursor-pointer"
                 >
-                  <Camera size={13} />
-                  <span>{device.image_url ? 'Change Photo' : 'Upload Photo'}</span>
+                  <option value="all">All Activities</option>
+                  {activityTypeOptions.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowNoteModal(true)}
+                  className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-3.5 text-sm transition-colors cursor-pointer active:scale-[0.98]"
+                >
+                  + Add Note
                 </button>
               </div>
-
-              {/* Right Column: Clean Borderless Specification Table & Action Buttons */}
-              <div className="flex-1 w-full flex flex-col gap-2">
-                <div className="bg-white dark:bg-black rounded-lg overflow-hidden">
-                  <table className="w-full text-[15px] font-mono border-collapse">
-                    <tbody>
-                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
-                          IMEI / Serial
-                        </td>
-                        <td className="py-0.5 px-2 font-mono font-bold text-blue-600 dark:text-blue-400">
-                          {device.imei}
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
-                          Model Name
-                        </td>
-                        <td className="py-0.5 px-2 font-bold text-black dark:text-white">
-                          {device.product_name}
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
-                          Specs (RAM / Storage)
-                        </td>
-                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100">
-                          {device.ram || '-'} RAM / {device.gb || '-'} Storage
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
-                          Condition
-                        </td>
-                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100">
-                          {device.condition || 'New'}
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
-                          Color
-                        </td>
-                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100">
-                          {device.color || '-'}
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
-                          Network / Unlocked
-                        </td>
-                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100">
-                          {device.unlocked || '-'} ({device.carrier || 'Unlocked'})
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
-                          Purchase Order #
-                        </td>
-                        <td className="py-0.5 px-2 font-mono text-neutral-900 dark:text-neutral-100">
-                          {device.po_number || 'Internal'}
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
-                          Cost Price
-                        </td>
-                        <td className="py-0.5 px-2 font-mono text-neutral-900 dark:text-neutral-100">
-                          €{Number(device.cost_price || 0).toFixed(2)}
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
-                          Selling Price
-                        </td>
-                        <td className="py-0.5 px-2 font-mono font-bold text-neutral-900 dark:text-neutral-100">
-                          €{Number(device.selling_price || device.price || 0).toFixed(2)}
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
-                          Branch
-                        </td>
-                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100">
-                          {device.branch_name || 'Main Branch'}
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
-                          Added By (Owner)
-                        </td>
-                        <td className="py-0.5 px-2 text-neutral-900 dark:text-neutral-100">
-                          {device.user_name || 'System'}
-                        </td>
-                      </tr>
-                      <tr className="hover:bg-neutral-50 dark:hover:bg-neutral-900/60 transition-colors">
-                        <td className="w-1/3 py-0.5 px-2 font-semibold text-neutral-500 dark:text-neutral-400">
-                          Date Added
-                        </td>
-                        <td className="py-0.5 px-2 font-mono text-neutral-600 dark:text-neutral-400">
-                          {new Date(device.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date(device.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Modern Action Buttons Under Details */}
-                <div className="flex flex-wrap items-center gap-2.5 pt-1.5 border-t border-neutral-100 dark:border-neutral-900">
-                  <button 
-                    onClick={handleEditClick}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-1.5 px-4 rounded-md transition-all flex items-center gap-2 cursor-pointer font-sans active:scale-[0.98]"
-                  >
-                    <Edit2 size={15} />
-                    <span>Edit</span>
-                  </button>
-                  <button 
-                    onClick={handlePrintLabel}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm py-1.5 px-4 rounded-md transition-all flex items-center gap-2 cursor-pointer font-sans active:scale-[0.98]"
-                  >
-                    <Printer size={15} />
-                    <span>Barcode Label Print</span>
-                  </button>
-                  <button 
-                    onClick={handleDelete}
-                    className="bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800 font-medium text-sm py-1.5 px-4 rounded-md transition-all flex items-center gap-2 cursor-pointer font-sans active:scale-[0.98]"
-                  >
-                    <Trash2 size={15} />
-                    <span>Remove from Inventory</span>
-                  </button>
-                </div>
-              </div>
             </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="p-2 bg-neutral-200 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-800 flex justify-between items-center shrink-0">
-                <h3 className="text-sm font-semibold text-black dark:text-white">History Log</h3>
-                <div className="flex gap-2 items-center">
-                  <select className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 px-2 py-0.5 text-xs text-neutral-900 dark:text-neutral-100 outline-none cursor-pointer">
-                    <option>All Activities</option>
-                  </select>
-                  <button 
-                    onClick={() => setShowNoteModal(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-0.5 px-3 text-xs rounded-md transition-all cursor-pointer font-sans active:scale-[0.98]"
-                  >
-                    + Add Note
-                  </button>
-                </div>
-              </div>
 
-              <div className="border border-neutral-300 dark:border-neutral-800 overflow-hidden">
-                <table className="w-full text-left text-[15px] font-mono border-collapse">
-                  <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-                    <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
-                      <th className="py-1.5 px-2 border-r border-neutral-300 dark:border-neutral-700 w-28 text-center">Date</th>
-                      <th className="py-1.5 px-2 border-r border-neutral-300 dark:border-neutral-700 w-24 text-center">Time</th>
-                      <th className="py-1.5 px-2 border-r border-neutral-300 dark:border-neutral-700 w-36 text-center">User</th>
-                      <th className="py-1.5 px-2 border-r border-neutral-300 dark:border-neutral-700 w-44 text-center">Activity</th>
-                      <th className="py-1.5 px-2 text-center">Details</th>
+            {/* Activity Log Table */}
+            <div className="overflow-auto max-h-[460px]">
+              <table className="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr className="bg-neutral-50/80 dark:bg-neutral-800/40 border-b border-neutral-200 dark:border-neutral-800 text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                    <th className="py-2.5 px-3 w-24">Date</th>
+                    <th className="py-2.5 px-3 w-24">Time</th>
+                    <th className="py-2.5 px-3 w-36">User</th>
+                    <th className="py-2.5 px-3 w-44">Activity</th>
+                    <th className="py-2.5 px-3">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/70">
+                  {filteredActivities.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-neutral-400 text-sm">
+                        No activities recorded for this device
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-200 dark:divide-neutral-900">
-                    {activities.length > 0 ? (
-                      activities.map((act, idx) => (
-                        <tr key={`${(act as any).source || 'act'}_${act.id}_${idx}`} className="hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors text-neutral-900 dark:text-neutral-100 text-[15px]">
-                          <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{new Date(act.created_at).toLocaleDateString('en-GB')}</td>
-                          <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{new Date(act.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</td>
-                          <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">{act.user_name && act.user_name.toLowerCase() !== 'null' ? act.user_name : 'System'}</td>
-                          <td className="py-0.5 px-1.5 border-r border-neutral-300 dark:border-neutral-800 font-semibold">{act.activity || (act as any).activity_type || 'Activity'}</td>
-                          <td className="py-0.5 px-1.5">{act.details}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={5} className="py-6 text-center text-neutral-500 italic text-sm">No activities recorded yet</td>
+                  ) : (
+                    filteredActivities.map((act, idx) => (
+                      <tr
+                        key={`${(act as any).source || 'act'}_${act.id}_${idx}`}
+                        className="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40 transition-colors"
+                      >
+                        <td className="py-2.5 px-3 text-neutral-500 dark:text-neutral-400 whitespace-nowrap tabular-nums">
+                          {new Date(act.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-')}
+                        </td>
+                        <td className="py-2.5 px-3 text-neutral-500 dark:text-neutral-400 whitespace-nowrap tabular-nums">
+                          {new Date(act.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase()}
+                        </td>
+                        <td className="py-2.5 px-3 text-neutral-700 dark:text-neutral-300 whitespace-nowrap">
+                          {act.user_name && act.user_name.toLowerCase() !== 'null' ? act.user_name : 'System'}
+                        </td>
+                        <td className="py-2.5 px-3 font-medium text-neutral-900 dark:text-neutral-100 whitespace-nowrap">
+                          {act.activity || (act as any).activity_type || 'Activity'}
+                        </td>
+                        <td className="py-2.5 px-3 text-neutral-700 dark:text-neutral-300 leading-relaxed">
+                          {act.details}
+                        </td>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
-        </div>
+
+            {/* Activity Log Footer */}
+            <div className="px-4 py-2 bg-neutral-50/50 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800 flex justify-between items-center text-xs text-neutral-500 dark:text-neutral-400 shrink-0">
+              <span>
+                {filteredActivities.length > 0 ? `1-${filteredActivities.length} of ${filteredActivities.length}` : '0 of 0'}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Note Modal */}
