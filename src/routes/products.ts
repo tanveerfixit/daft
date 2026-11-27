@@ -402,7 +402,32 @@ router.post('/import-csv', async (req: any, res, next) => {
         }
 
         if (isNewProduct) {
+          await recordAudit(req, {
+            conn,
+            business_id: businessId,
+            branch_id: branchId,
+            product_id: productId,
+            activity_type: ACTIVITY_TYPES.PRODUCT_IMPORTED,
+            description: `Product "${prodName}" imported via CSV with SKU ${effectiveSku}${qty > 0 ? ` (Initial Stock: ${qty})` : ''}`,
+            reference_type: 'product',
+            reference_id: productId,
+            reference_link: `/products/${productId}`,
+            metadata: { sku: effectiveSku, qty, selling_price: sellingPrice, cost_price: costPrice }
+          });
           imported++;
+        } else if (duplicateHandling === 'overwrite') {
+          await recordAudit(req, {
+            conn,
+            business_id: businessId,
+            branch_id: branchId,
+            product_id: productId,
+            activity_type: ACTIVITY_TYPES.PRODUCT_UPDATED,
+            description: `Product "${prodName}" updated via CSV import (SKU ${effectiveSku}${qty > 0 ? `, Stock: ${qty}` : ''})`,
+            reference_type: 'product',
+            reference_id: productId,
+            reference_link: `/products/${productId}`,
+            metadata: { sku: effectiveSku, qty, selling_price: sellingPrice, cost_price: costPrice, source: 'csv_import' }
+          });
         }
       } catch (rowErr: any) {
         console.error(`General row ${i + 1} error:`, rowErr.message);
@@ -477,6 +502,20 @@ router.get('/special/get-deposit-product', async (req: any, res, next) => {
         [productId, depositSkuCode, depositSkuCode, 0, 0]
       );
       const skuId = (sr as any).insertId;
+      await conn.execute(
+        'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [skuId, req.userId || null, ACTIVITY_TYPES.PRODUCT_CREATED, `Service product "Wallet Deposit" initialized with SKU ${depositSkuCode}`]
+      );
+      await recordAudit(req, {
+        conn,
+        business_id: businessId,
+        product_id: productId,
+        activity_type: ACTIVITY_TYPES.PRODUCT_CREATED,
+        description: `Service product "Wallet Deposit" initialized with SKU ${depositSkuCode}`,
+        reference_type: 'product',
+        reference_id: productId,
+        reference_link: `/products/${productId}`
+      });
       
       await conn.commit();
       
@@ -554,6 +593,21 @@ router.get('/special/get-repair-product', async (req: any, res, next) => {
         [productId, finalSku, finalSku, 0, 0]
       );
       const skuId = (sr as any).insertId;
+      await conn.execute(
+        'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [skuId, req.userId || null, ACTIVITY_TYPES.PRODUCT_CREATED, `Service product "Repair Service" initialized with SKU ${finalSku}`]
+      );
+      await recordAudit(req, {
+        conn,
+        business_id: businessId,
+        branch_id: branchId || null,
+        product_id: productId,
+        activity_type: ACTIVITY_TYPES.PRODUCT_CREATED,
+        description: `Service product "Repair Service" initialized with SKU ${finalSku}`,
+        reference_type: 'product',
+        reference_id: productId,
+        reference_link: `/products/${productId}`
+      });
       
       await conn.commit();
       
@@ -682,7 +736,7 @@ router.get('/serialized-models', async (req: any, res, next) => {
 router.get('/:id', async (req: any, res, next) => {
   try {
     const businessId = req.user.business_id;
-    const product = await queryOne(`
+    let product = await queryOne(`
       SELECT s.id, p.name as product_name, s.sku_code, s.barcode,
              s.selling_price, s.cost_price, p.product_type, p.allow_overselling,
              c.name as category_name, m.name as manufacturer_name,
@@ -693,14 +747,31 @@ router.get('/:id', async (req: any, res, next) => {
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
       WHERE s.id = ? AND p.business_id = ?
-    `, [req.params.id, businessId]);
+    `, [req.params.id, businessId]) as any;
+
+    if (!product) {
+      product = await queryOne(`
+        SELECT s.id, p.name as product_name, s.sku_code, s.barcode,
+               s.selling_price, s.cost_price, p.product_type, p.allow_overselling,
+               c.name as category_name, m.name as manufacturer_name,
+               p.id as product_id, p.category_id, p.manufacturer_id, p.supplier_id,
+               (SELECT COUNT(*) FROM devices d WHERE d.sku_id = s.id AND d.business_id = p.business_id AND d.status = 'in_stock') as in_stock_devices_count
+        FROM product_skus s
+        JOIN products p ON s.product_id = p.id
+        LEFT JOIN categories c ON p.category_id = c.id
+        LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+        WHERE p.id = ? AND p.business_id = ?
+        ORDER BY s.id ASC LIMIT 1
+      `, [req.params.id, businessId]) as any;
+    }
+
     if (!product) return res.status(404).json({ error: 'Product not found' });
     const stock = await query(`
       SELECT b.name as branch_name, b.id as branch_id, COALESCE(bs.quantity,0) as quantity
       FROM branches b
       LEFT JOIN branch_stock bs ON b.id = bs.branch_id AND bs.sku_id = ?
       WHERE b.business_id = ?
-    `, [req.params.id, businessId]);
+    `, [product.id, businessId]);
     res.json({ ...product, stock });
   } catch (e: any) { next(e); }
 });
@@ -844,6 +915,17 @@ async function syncNewProductToOtherBusinesses(
       );
       const targetSkuId = (insSku as any).insertId;
 
+      const syncDesc = `Product "${cleanName}" synced to catalog with SKU ${targetSkuCode}`;
+      await conn.execute(
+        'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [targetSkuId, null, ACTIVITY_TYPES.PRODUCT_CREATED, syncDesc]
+      );
+      await conn.execute(
+        `INSERT INTO activity_logs (business_id, branch_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link, created_at)
+         VALUES (?, ?, ?, NULL, 'System', ?, ?, 'product', ?, ?, NOW())`,
+        [targetBizId, defaultBranchId, targetProdId, ACTIVITY_TYPES.PRODUCT_CREATED, syncDesc, targetProdId, `/products/${targetProdId}`]
+      );
+
       // Initialize branch_stock with quantity = 0 for every branch in target business
       for (const bId of branchIds) {
         await conn.execute(
@@ -878,17 +960,40 @@ router.put('/:id', async (req: any, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const [skuRows] = await conn.execute(
-      'SELECT s.*, p.business_id, p.name as product_name FROM product_skus s JOIN products p ON s.product_id = p.id WHERE s.id = ? AND p.business_id = ?',
+    let [skuRows] = await conn.execute(
+      `SELECT s.*, p.business_id, p.name as product_name, p.category_id, p.manufacturer_id, p.supplier_id, p.product_type,
+              c.name as category_name, m.name as manufacturer_name, sup.name as supplier_name
+       FROM product_skus s
+       JOIN products p ON s.product_id = p.id
+       LEFT JOIN categories c ON p.category_id = c.id
+       LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+       LEFT JOIN suppliers sup ON p.supplier_id = sup.id
+       WHERE s.id = ? AND p.business_id = ?`,
       [skuId, businessId]
     );
-    const sku = (skuRows as any[])[0];
+    let sku = (skuRows as any[])[0];
+    if (!sku) {
+      [skuRows] = await conn.execute(
+        `SELECT s.*, p.business_id, p.name as product_name, p.category_id, p.manufacturer_id, p.supplier_id, p.product_type,
+                c.name as category_name, m.name as manufacturer_name, sup.name as supplier_name
+         FROM product_skus s
+         JOIN products p ON s.product_id = p.id
+         LEFT JOIN categories c ON p.category_id = c.id
+         LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+         LEFT JOIN suppliers sup ON p.supplier_id = sup.id
+         WHERE p.id = ? AND p.business_id = ?
+         ORDER BY s.id ASC LIMIT 1`,
+        [skuId, businessId]
+      );
+      sku = (skuRows as any[])[0];
+    }
     if (!sku) throw new Error('Product not found in your business catalog');
+    const targetSkuId = sku.id;
 
     const cleanNewName = String(product_name || sku.product_name).trim().replace(/\s+/g, ' ');
 
     await conn.execute('UPDATE product_skus SET sku_code=?,barcode=?,selling_price=?,cost_price=? WHERE id=?',
-      [sku_code ?? null, barcode ?? null, selling_price ?? 0, cost_price ?? 0, skuId]);
+      [sku_code ?? null, barcode ?? null, selling_price ?? 0, cost_price ?? 0, targetSkuId]);
     await conn.execute('UPDATE products SET name=?,category_id=?,manufacturer_id=?,supplier_id=COALESCE(?, supplier_id),product_type=? WHERE id=?',
       [cleanNewName, category_id ?? null, manufacturer_id ?? null, supplier_id ?? null, product_type || 'stock', sku.product_id]);
 
@@ -899,7 +1004,7 @@ router.put('/:id', async (req: any, res, next) => {
       const newSkuPrice = Number(selling_price || 0);
 
       let deviceFilterSql = "SELECT id, imei, selling_price FROM devices WHERE sku_id = ? AND business_id = ? AND status = 'in_stock'";
-      const deviceFilterParams: any[] = [skuId, businessId];
+      const deviceFilterParams: any[] = [targetSkuId, businessId];
 
       if (exclude_custom_priced_devices) {
         deviceFilterSql += ' AND (selling_price IS NULL OR ABS(selling_price - ?) < 0.005)';
@@ -911,7 +1016,7 @@ router.put('/:id', async (req: any, res, next) => {
 
       if (deviceList.length > 0) {
         let updateDevicesSql = "UPDATE devices SET selling_price = ? WHERE sku_id = ? AND business_id = ? AND status = 'in_stock'";
-        const updateDevicesParams: any[] = [newSkuPrice, skuId, businessId];
+        const updateDevicesParams: any[] = [newSkuPrice, targetSkuId, businessId];
 
         if (exclude_custom_priced_devices) {
           updateDevicesSql += ' AND (selling_price IS NULL OR ABS(selling_price - ?) < 0.005)';
@@ -951,24 +1056,67 @@ router.put('/:id', async (req: any, res, next) => {
       }
     }
     
+    let nextCategoryName = sku.category_name || null;
+    if (category_id !== undefined) {
+      if (!category_id) {
+        nextCategoryName = null;
+      } else if (Number(category_id) !== Number(sku.category_id)) {
+        const [cRow] = await conn.execute('SELECT name FROM categories WHERE id = ? LIMIT 1', [category_id]);
+        nextCategoryName = (cRow as any[])[0]?.name || String(category_id);
+      }
+    }
+
+    let nextManufacturerName = sku.manufacturer_name || null;
+    if (manufacturer_id !== undefined) {
+      if (!manufacturer_id) {
+        nextManufacturerName = null;
+      } else if (Number(manufacturer_id) !== Number(sku.manufacturer_id)) {
+        const [mRow] = await conn.execute('SELECT name FROM manufacturers WHERE id = ? LIMIT 1', [manufacturer_id]);
+        nextManufacturerName = (mRow as any[])[0]?.name || String(manufacturer_id);
+      }
+    }
+
+    let nextSupplierName = sku.supplier_name || null;
+    if (supplier_id !== undefined && supplier_id !== null) {
+      if (Number(supplier_id) !== Number(sku.supplier_id)) {
+        const [sRow] = await conn.execute('SELECT name FROM suppliers WHERE id = ? LIMIT 1', [supplier_id]);
+        nextSupplierName = (sRow as any[])[0]?.name || String(supplier_id);
+      }
+    }
+
     const prodDiff = diffFields(
       {
         name: sku.product_name,
         selling_price: sku.selling_price,
         cost_price: sku.cost_price,
-        sku_code: sku.sku_code
+        sku_code: sku.sku_code,
+        barcode: sku.barcode,
+        product_type: sku.product_type,
+        category_name: sku.category_name || null,
+        manufacturer_name: sku.manufacturer_name || null,
+        supplier_name: sku.supplier_name || null
       },
       {
         name: cleanNewName,
         selling_price,
         cost_price,
-        sku_code
+        sku_code,
+        barcode,
+        product_type,
+        category_name: nextCategoryName,
+        manufacturer_name: nextManufacturerName,
+        supplier_name: nextSupplierName
       },
       [
         { key: 'name', label: 'Name' },
         { key: 'selling_price', label: 'Price', currency: true },
         { key: 'cost_price', label: 'Cost', currency: true },
-        { key: 'sku_code', label: 'SKU' }
+        { key: 'sku_code', label: 'SKU' },
+        { key: 'barcode', label: 'Barcode' },
+        { key: 'product_type', label: 'Type' },
+        { key: 'category_name', label: 'Category' },
+        { key: 'manufacturer_name', label: 'Manufacturer' },
+        { key: 'supplier_name', label: 'Supplier' }
       ]
     );
     const changes = [...prodDiff.changes];
@@ -979,7 +1127,7 @@ router.put('/:id', async (req: any, res, next) => {
     const detailMsg = changes.length > 0 ? changes.join(', ') : 'Details updated';
 
     await conn.execute('INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)',
-      [skuId, req.userId, ACTIVITY_TYPES.PRODUCT_UPDATED, detailMsg]);
+      [targetSkuId, req.userId, ACTIVITY_TYPES.PRODUCT_UPDATED, detailMsg]);
     
     await recordAudit(req, {
       conn,
@@ -1183,6 +1331,23 @@ router.post('/quick-add', async (req: any, res, next) => {
         "INSERT INTO inventory_movements (business_id,branch_id,sku_id,movement_type,quantity,unit_cost,reference_type,reference_id) VALUES (?,?,?,?,?,?,?,?)",
         [businessId, activeBranchId, skuId, 'adjustment', stockQty, cost_price || 0, 'quick_add', skuId]
       );
+      const quickStockDesc = `Added ${stockQty} initial unit(s) of "${name}" via Quick Add (Unit Cost: €${Number(cost_price || 0).toFixed(2)})`;
+      await conn.execute(
+        'INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)',
+        [skuId, req.userId, ACTIVITY_TYPES.STOCK_ADDED, quickStockDesc]
+      );
+      await recordAudit(req, {
+        conn,
+        business_id: businessId,
+        branch_id: activeBranchId,
+        product_id: productId,
+        activity_type: ACTIVITY_TYPES.STOCK_ADDED,
+        description: quickStockDesc,
+        reference_type: 'product',
+        reference_id: productId,
+        reference_link: `/products/${productId}`,
+        metadata: { sku: finalSku, quantity: stockQty, unit_cost: Number(cost_price || 0), source: 'quick_add' }
+      });
     }
 
     // Auto-sync this quick-added product to all other businesses with 0 stock
@@ -1227,7 +1392,32 @@ router.post('/quick-add', async (req: any, res, next) => {
 router.delete('/:id', async (req: any, res, next) => {
   try {
     const businessId = req.user.business_id;
-    await execute('UPDATE products SET deleted_at=NOW() WHERE business_id=? AND id=(SELECT product_id FROM product_skus WHERE id=?)', [businessId, req.params.id]);
+    const resolved = await resolveProductAndSkus(req.params.id, businessId);
+    if (!resolved) return res.status(404).json({ error: 'Product not found' });
+
+    const prodRow = await queryOne(
+      'SELECT id, name FROM products WHERE id = ? AND business_id = ?',
+      [resolved.productId, businessId]
+    ) as any;
+
+    await execute('UPDATE products SET deleted_at=NOW() WHERE business_id=? AND id=?', [businessId, resolved.productId]);
+
+    const archiveDesc = `Product "${prodRow?.name || `#${resolved.productId}`}" archived`;
+    if (resolved.primarySkuId) {
+      await execute(
+        'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [resolved.primarySkuId, req.userId, ACTIVITY_TYPES.PRODUCT_ARCHIVED, archiveDesc]
+      );
+    }
+    await recordAudit(req, {
+      product_id: resolved.productId,
+      activity_type: ACTIVITY_TYPES.PRODUCT_ARCHIVED,
+      description: archiveDesc,
+      reference_type: 'product',
+      reference_id: resolved.productId,
+      reference_link: `/products/${resolved.productId}`
+    });
+
     res.json({ success: true });
   } catch (e: any) { next(e); }
 });
@@ -1266,8 +1456,16 @@ router.get('/:id/activity', async (req: any, res, next) => {
 
     const { productId, skuIds } = resolved;
     const skuPlaceholders = skuIds.length > 0 ? skuIds.map(() => '?').join(',') : 'NULL';
+    const isPaginated = req.query.page !== undefined || req.query.limit !== undefined || req.query.paginated === '1';
+    const pageNum = Math.max(1, Number(req.query.page) || 1);
+    const limitNum = Math.min(200, Math.max(1, Number(req.query.limit) || (isPaginated ? 50 : 200)));
+    const offset = (pageNum - 1) * limitNum;
+    const activityTypeFilter = typeof req.query.activity_type === 'string' && req.query.activity_type !== 'all'
+      ? req.query.activity_type.trim()
+      : '';
+    const searchFilter = typeof req.query.search === 'string' ? req.query.search.trim() : '';
 
-    const acts = await query(`
+    const unionSql = `
       SELECT 
         'log' as source,
         al.id,
@@ -1275,9 +1473,14 @@ router.get('/:id/activity', async (req: any, res, next) => {
         COALESCE(NULLIF(TRIM(al.activity_type), ''), 'Activity') as activity,
         COALESCE(al.description, '') as details,
         al.created_at,
-        COALESCE(NULLIF(NULLIF(TRIM(al.user_name), ''), 'null'), u.name, 'System') as user_name
+        COALESCE(NULLIF(NULLIF(TRIM(al.user_name), ''), 'null'), u.name, 'System') as user_name,
+        b.name as branch_name,
+        COALESCE(al.reference_type, IF(al.device_id IS NOT NULL, 'device', 'product')) as reference_type,
+        COALESCE(al.reference_id, al.device_id, al.product_id) as reference_id,
+        COALESCE(al.reference_link, IF(al.device_id IS NOT NULL, CONCAT('/devices/', al.device_id), CONCAT('/products/', al.product_id))) as reference_link
       FROM activity_logs al
       LEFT JOIN users u ON al.user_id = u.id
+      LEFT JOIN branches b ON al.branch_id = b.id
       WHERE al.product_id = ?
         AND COALESCE(al.business_id, u.business_id) = ?
 
@@ -1290,7 +1493,11 @@ router.get('/:id/activity', async (req: any, res, next) => {
         COALESCE(NULLIF(TRIM(a.activity), ''), 'Activity') as activity,
         COALESCE(a.details, '') as details,
         a.created_at,
-        COALESCE(u.name, 'System') as user_name
+        COALESCE(u.name, 'System') as user_name,
+        NULL as branch_name,
+        'product' as reference_type,
+        ? as reference_id,
+        CONCAT('/products/', ?) as reference_link
       FROM product_activity a
       LEFT JOIN users u ON a.user_id = u.id
       WHERE a.sku_id IN (${skuPlaceholders})
@@ -1311,10 +1518,15 @@ router.get('/:id/activity', async (req: any, res, next) => {
         COALESCE(NULLIF(TRIM(da.activity), ''), 'Activity') as activity,
         COALESCE(da.details, '') as details,
         da.created_at,
-        COALESCE(u.name, 'System') as user_name
+        COALESCE(u.name, 'System') as user_name,
+        b.name as branch_name,
+        'device' as reference_type,
+        d.id as reference_id,
+        CONCAT('/devices/', d.id) as reference_link
       FROM device_activity da
       JOIN devices d ON da.device_id = d.id
       LEFT JOIN users u ON da.user_id = u.id
+      LEFT JOIN branches b ON d.branch_id = b.id
       WHERE d.business_id = ?
         AND d.sku_id IN (${skuPlaceholders})
         AND NOT EXISTS (
@@ -1331,13 +1543,268 @@ router.get('/:id/activity', async (req: any, res, next) => {
             AND ABS(TIMESTAMPDIFF(SECOND, pa2.created_at, da.created_at)) <= 2
         )
 
-      ORDER BY created_at DESC
-    `, [
+      UNION ALL
+
+      SELECT
+        'sale' as source,
+        ii.id,
+        i.user_id,
+        IF(ii.device_id IS NOT NULL, 'Device Sold', 'Product Sold') as activity,
+        CONCAT(
+          'Sold ', ii.quantity, ' unit(s) on Invoice ', i.invoice_number,
+          ' (€', FORMAT(COALESCE(ii.total, 0), 2), ')',
+          IF(ii.notes IS NOT NULL AND TRIM(ii.notes) != '', CONCAT(' — ', ii.notes), '')
+        ) as details,
+        i.created_at,
+        COALESCE(u.name, 'System') as user_name,
+        b.name as branch_name,
+        'invoice' as reference_type,
+        i.id as reference_id,
+        CONCAT('/invoices/', i.id) as reference_link
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      LEFT JOIN users u ON i.user_id = u.id
+      LEFT JOIN branches b ON i.branch_id = b.id
+      WHERE i.business_id = ?
+        AND ii.sku_id IN (${skuPlaceholders})
+        AND COALESCE(i.type, 'sale') != 'credit_note'
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al4
+          WHERE al4.product_id = ?
+            AND al4.business_id = ?
+            AND al4.activity_type IN ('Product Sold', 'Device Sold')
+            AND (al4.reference_id = i.id OR ABS(TIMESTAMPDIFF(SECOND, al4.created_at, i.created_at)) <= 5)
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM product_activity pa4
+          WHERE pa4.sku_id = ii.sku_id
+            AND pa4.activity IN ('Product Sold', 'Device Sold')
+            AND ABS(TIMESTAMPDIFF(SECOND, pa4.created_at, i.created_at)) <= 5
+        )
+        AND NOT (
+          ii.device_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM device_activity da4
+            WHERE da4.device_id = ii.device_id
+              AND da4.activity = 'Device Sold'
+          )
+        )
+
+      UNION ALL
+
+      SELECT
+        'refund' as source,
+        ii.id,
+        i.user_id,
+        'Product Returned' as activity,
+        IF(
+          i.type = 'credit_note',
+          CONCAT('Returned ', ii.quantity, ' unit(s) via Credit Note ', i.invoice_number, ' (€', FORMAT(COALESCE(ii.total, 0), 2), ')'),
+          CONCAT('Returned ', COALESCE(ii.refunded_quantity, ii.quantity), ' unit(s) on Invoice ', i.invoice_number, ' (€', FORMAT(COALESCE(ii.price, 0) * COALESCE(ii.refunded_quantity, ii.quantity), 2), ')')
+        ) as details,
+        i.created_at,
+        COALESCE(u.name, 'System') as user_name,
+        b.name as branch_name,
+        'invoice' as reference_type,
+        COALESCE(i.parent_invoice_id, i.id) as reference_id,
+        CONCAT('/invoices/', COALESCE(i.parent_invoice_id, i.id)) as reference_link
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      LEFT JOIN users u ON i.user_id = u.id
+      LEFT JOIN branches b ON i.branch_id = b.id
+      WHERE i.business_id = ?
+        AND ii.sku_id IN (${skuPlaceholders})
+        AND (
+          i.type = 'credit_note'
+          OR (
+            COALESCE(ii.refunded_quantity, 0) > 0
+            AND NOT EXISTS (
+              SELECT 1 FROM invoices cn
+              WHERE cn.parent_invoice_id = i.id
+                AND cn.type = 'credit_note'
+            )
+          )
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al5
+          WHERE al5.product_id = ?
+            AND al5.business_id = ?
+            AND al5.activity_type = 'Product Returned'
+            AND (al5.reference_id = i.id OR al5.reference_id = i.parent_invoice_id OR ABS(TIMESTAMPDIFF(SECOND, al5.created_at, i.created_at)) <= 5)
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM product_activity pa5
+          WHERE pa5.sku_id = ii.sku_id
+            AND pa5.activity = 'Product Returned'
+            AND ABS(TIMESTAMPDIFF(SECOND, pa5.created_at, i.created_at)) <= 5
+        )
+
+      UNION ALL
+
+      SELECT
+        'movement' as source,
+        im.id,
+        im.created_by as user_id,
+        'Stock Added' as activity,
+        CONCAT(
+          'Added ', im.quantity, ' unit(s) to inventory',
+          IF(po.po_number IS NOT NULL, CONCAT(' via PO: ', po.po_number), IF(im.reference_type = 'quick_add', ' (Quick Add)', '')),
+          ' (Unit Cost: €', FORMAT(COALESCE(im.unit_cost, 0), 2), ')'
+        ) as details,
+        im.created_at,
+        COALESCE(u.name, 'System') as user_name,
+        b.name as branch_name,
+        'product' as reference_type,
+        ? as reference_id,
+        CONCAT('/products/', ?) as reference_link
+      FROM inventory_movements im
+      LEFT JOIN purchase_orders po ON im.reference_type = 'purchase_order' AND im.reference_id = po.id
+      LEFT JOIN users u ON im.created_by = u.id
+      LEFT JOIN branches b ON im.branch_id = b.id
+      WHERE im.business_id = ?
+        AND im.sku_id IN (${skuPlaceholders})
+        AND im.device_id IS NULL
+        AND im.movement_type IN ('purchase', 'adjustment')
+        AND im.quantity > 0
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al6
+          WHERE al6.product_id = ?
+            AND al6.business_id = ?
+            AND al6.activity_type IN ('Stock Added', 'Device Created')
+            AND ABS(TIMESTAMPDIFF(SECOND, al6.created_at, im.created_at)) <= 5
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM product_activity pa6
+          WHERE pa6.sku_id = im.sku_id
+            AND pa6.activity IN ('Stock Added', 'Device Created')
+            AND ABS(TIMESTAMPDIFF(SECOND, pa6.created_at, im.created_at)) <= 5
+        )
+
+      UNION ALL
+
+      SELECT
+        'transfer' as source,
+        dt.id,
+        dt.initiated_by as user_id,
+        CASE
+          WHEN dt.status = 'completed' THEN 'Transfer Received'
+          WHEN dt.status = 'cancelled' THEN 'Transfer Cancelled'
+          ELSE 'Transfer Dispatched'
+        END as activity,
+        CONCAT(
+          'Transfer #', dt.id, ': ',
+          COALESCE(dt.quantity, 1), ' unit(s) from ',
+          COALESCE(fb.name, 'Origin'), ' to ', COALESCE(tb.name, 'Destination'),
+          ' (Status: ', COALESCE(dt.status, 'pending'), ')'
+        ) as details,
+        COALESCE(dt.completed_at, dt.created_at) as created_at,
+        COALESCE(u.name, 'System') as user_name,
+        COALESCE(tb.name, fb.name) as branch_name,
+        'product' as reference_type,
+        ? as reference_id,
+        CONCAT('/products/', ?) as reference_link
+      FROM device_transfers dt
+      LEFT JOIN users u ON dt.initiated_by = u.id
+      LEFT JOIN branches fb ON dt.from_branch_id = fb.id
+      LEFT JOIN branches tb ON dt.to_branch_id = tb.id
+      WHERE dt.business_id = ?
+        AND dt.device_id IS NULL
+        AND dt.sku_id IN (${skuPlaceholders})
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al7
+          WHERE al7.product_id = ?
+            AND al7.business_id = ?
+            AND al7.activity_type IN ('Transfer Dispatched', 'Transfer Received', 'Transfer Cancelled')
+            AND ABS(TIMESTAMPDIFF(SECOND, al7.created_at, dt.created_at)) <= 5
+        )
+
+      UNION ALL
+
+      SELECT
+        'created' as source,
+        p.id,
+        NULL as user_id,
+        'Product Created' as activity,
+        CONCAT('Product "', p.name, '" initialized in catalog (SKU: ', COALESCE(ps.sku_code, 'N/A'), ')') as details,
+        p.created_at,
+        'System' as user_name,
+        NULL as branch_name,
+        'product' as reference_type,
+        p.id as reference_id,
+        CONCAT('/products/', p.id) as reference_link
+      FROM products p
+      LEFT JOIN product_skus ps ON ps.id = (SELECT id FROM product_skus WHERE product_id = p.id ORDER BY id ASC LIMIT 1)
+      WHERE p.id = ?
+        AND p.business_id = ?
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al8
+          WHERE al8.product_id = p.id
+            AND al8.business_id = p.business_id
+            AND al8.activity_type IN ('Product Created', 'Product Imported')
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM product_activity pa8
+          JOIN product_skus ps8 ON pa8.sku_id = ps8.id
+          WHERE ps8.product_id = p.id
+            AND pa8.activity IN ('Product Created', 'Product Imported')
+        )
+    `;
+
+    const baseParams: any[] = [
+      // Leg 1: activity_logs
       productId, businessId,
-      ...skuIds, productId, businessId,
-      businessId, ...skuIds, productId, businessId
+      // Leg 2: product_activity
+      productId, productId, ...skuIds, productId, businessId,
+      // Leg 3: device_activity
+      businessId, ...skuIds, productId, businessId,
+      // Leg 4: invoice_items (sales)
+      businessId, ...skuIds, productId, businessId,
+      // Leg 5: invoice_items (refunds / credit notes)
+      businessId, ...skuIds, productId, businessId,
+      // Leg 6: inventory_movements (PO / adjustments)
+      productId, productId, businessId, ...skuIds, productId, businessId,
+      // Leg 7: device_transfers (non-serialized stock transfers)
+      productId, productId, businessId, ...skuIds, productId, businessId,
+      // Leg 8: products (synthetic creation fallback)
+      productId, businessId
+    ];
+
+    const filterClauses: string[] = [];
+    const filterParams: any[] = [];
+    if (activityTypeFilter) {
+      filterClauses.push('feed.activity = ?');
+      filterParams.push(activityTypeFilter);
+    }
+    if (searchFilter) {
+      filterClauses.push('(feed.details LIKE ? OR feed.activity LIKE ? OR feed.user_name LIKE ? OR COALESCE(feed.branch_name, "") LIKE ?)');
+      const like = `%${searchFilter}%`;
+      filterParams.push(like, like, like, like);
+    }
+    const whereSql = filterClauses.length > 0 ? `WHERE ${filterClauses.join(' AND ')}` : '';
+
+    const acts = await query(`
+      SELECT * FROM (${unionSql}) as feed
+      ${whereSql}
+      ORDER BY feed.created_at DESC
+      LIMIT ${limitNum} OFFSET ${offset}
+    `, [...baseParams, ...filterParams]);
+
+    if (!isPaginated) {
+      return res.json(acts);
+    }
+
+    const [countRow, typeRows] = await Promise.all([
+      queryOne(`SELECT COUNT(*) as total FROM (${unionSql}) as feed ${whereSql}`, [...baseParams, ...filterParams]),
+      query(`SELECT DISTINCT feed.activity FROM (${unionSql}) as feed ORDER BY feed.activity ASC`, baseParams)
     ]);
-    res.json(acts);
+
+    res.json({
+      data: acts,
+      total: Number((countRow as any)?.total || 0),
+      page: pageNum,
+      limit: limitNum,
+      activityTypes: (typeRows as any[]).map(r => r.activity).filter(Boolean)
+    });
   } catch (e: any) { next(e); }
 });
 

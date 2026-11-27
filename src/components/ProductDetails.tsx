@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { 
   Trash2, 
   List, 
@@ -10,7 +11,11 @@ import {
   Settings, 
   ChevronDown, 
   Layers,
-  Copy
+  Copy,
+  Search,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { Product, ProductActivity } from '../types';
 import ProductFormModal from './ProductFormModal';
@@ -39,9 +44,16 @@ export default function ProductDetails({
   onViewDevices: (productId: number) => void;
   onCreateSimilar?: (product: Product) => void;
 }) {
+  const navigate = useNavigate();
+  const { branchSlug } = useParams<{ branchSlug?: string }>();
   const [product, setProduct] = useState<ProductWithStock | null>(null);
   const [activities, setActivities] = useState<ProductActivity[]>([]);
+  const [activityTotal, setActivityTotal] = useState(0);
+  const [activityPage, setActivityPage] = useState(1);
+  const [activityTypes, setActivityTypes] = useState<string[]>([]);
   const [activityFilter, setActivityFilter] = useState('all');
+  const [activitySearch, setActivitySearch] = useState('');
+  const [activityLoading, setActivityLoading] = useState(false);
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
@@ -51,6 +63,33 @@ export default function ProductDetails({
   const [isManageOpen, setIsManageOpen] = useState(false);
 
   const manageMenuRef = useRef<HTMLDivElement>(null);
+  const activityLimit = 50;
+
+  const fetchActivities = useCallback((page = activityPage, filter = activityFilter, search = activitySearch) => {
+    setActivityLoading(true);
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(activityLimit),
+      activity_type: filter,
+      search
+    });
+    fetch(`/api/products/${productId}/activity?${params.toString()}`)
+      .then(res => res.json())
+      .then(payload => {
+        if (Array.isArray(payload)) {
+          setActivities(payload);
+          setActivityTotal(payload.length);
+        } else {
+          setActivities(payload.data || []);
+          setActivityTotal(Number(payload.total || 0));
+          if (Array.isArray(payload.activityTypes)) {
+            setActivityTypes(payload.activityTypes);
+          }
+        }
+      })
+      .catch(err => console.error('Failed to fetch product activities:', err))
+      .finally(() => setActivityLoading(false));
+  }, [productId, activityPage, activityFilter, activitySearch]);
 
   const fetchProductData = () => {
     setLoading(true);
@@ -67,17 +106,20 @@ export default function ProductDetails({
   };
 
   useEffect(() => {
+    setActivityPage(1);
+    setActivityFilter('all');
+    setActivitySearch('');
     fetchProductData();
   }, [productId]);
 
   useEffect(() => {
     if (activeTab === 'activity') {
-      fetch(`/api/products/${productId}/activity`)
-        .then(res => res.json())
-        .then(setActivities)
-        .catch(err => console.error('Failed to fetch product activities:', err));
+      const timer = setTimeout(() => {
+        fetchActivities(activityPage, activityFilter, activitySearch);
+      }, activitySearch ? 200 : 0);
+      return () => clearTimeout(timer);
     }
-  }, [productId, activeTab]);
+  }, [productId, activeTab, activityPage, activityFilter, activitySearch, fetchActivities]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -103,10 +145,8 @@ export default function ProductDetails({
         setIsEditing(false);
         fetchProductData();
         if (activeTab === 'activity') {
-          fetch(`/api/products/${productId}/activity`)
-            .then(r => r.json())
-            .then(setActivities)
-            .catch(err => console.error('Failed to fetch product activities:', err));
+          fetchActivities(1, activityFilter, activitySearch);
+          setActivityPage(1);
         }
       }
     } catch (error) {
@@ -171,8 +211,8 @@ export default function ProductDetails({
       if (res.ok) {
         setNoteText('');
         setShowNoteInput(false);
-        const actsRes = await fetch(`/api/products/${productId}/activity`);
-        if (actsRes.ok) setActivities(await actsRes.json());
+        setActivityPage(1);
+        fetchActivities(1, activityFilter, activitySearch);
       }
     } catch (err) {
       console.error('Failed to add product note:', err);
@@ -181,13 +221,13 @@ export default function ProductDetails({
     }
   };
 
-  const activityTypeOptions = Array.from(
-    new Set(activities.map(a => a.activity || (a as any).activity_type || 'Activity').filter(Boolean))
-  ).sort();
+  const activityTypeOptions = activityTypes.length > 0
+    ? activityTypes
+    : Array.from(
+        new Set(activities.map(a => a.activity || (a as any).activity_type || 'Activity').filter(Boolean))
+      ).sort();
 
-  const filteredActivities = activityFilter === 'all'
-    ? activities
-    : activities.filter(a => (a.activity || (a as any).activity_type || 'Activity') === activityFilter);
+  const totalPages = Math.max(1, Math.ceil(activityTotal / activityLimit));
 
   return (
     <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm p-3 md:p-5 select-none w-full overflow-auto font-sans">
@@ -275,20 +315,24 @@ export default function ProductDetails({
                     <Copy size={15} className="text-[var(--brand-primary)]" />
                     <span>Create Similar Product</span>
                   </button>
-                  <button
-                    onClick={() => { setIsManageOpen(false); onAddInventory(product.id); }}
-                    className="w-full text-left px-3.5 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 flex items-center gap-2.5 cursor-pointer font-medium"
-                  >
-                    <Plus size={15} className="text-amber-500" />
-                    <span>Add Inventory</span>
-                  </button>
-                  <button
-                    onClick={() => { setIsManageOpen(false); onViewDevices(product.id); }}
-                    className="w-full text-left px-3.5 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 flex items-center gap-2.5 cursor-pointer font-medium"
-                  >
-                    <Layers size={15} className="text-neutral-500" />
-                    <span>View Devices / Stock</span>
-                  </button>
+                  {product.product_type !== 'service' && (
+                    <button
+                      onClick={() => { setIsManageOpen(false); onAddInventory(product.id); }}
+                      className="w-full text-left px-3.5 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 flex items-center gap-2.5 cursor-pointer font-medium"
+                    >
+                      <Plus size={15} className="text-amber-500" />
+                      <span>Add Inventory</span>
+                    </button>
+                  )}
+                  {product.product_type === 'serialized' && (
+                    <button
+                      onClick={() => { setIsManageOpen(false); onViewDevices(product.id); }}
+                      className="w-full text-left px-3.5 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 flex items-center gap-2.5 cursor-pointer font-medium"
+                    >
+                      <Layers size={15} className="text-neutral-500" />
+                      <span>View Devices / Stock</span>
+                    </button>
+                  )}
                   <div className="my-1 border-t border-neutral-200 dark:border-neutral-800" />
                   <button
                     onClick={() => { setIsManageOpen(false); handleArchive(); }}
@@ -447,12 +491,22 @@ export default function ProductDetails({
         {activeTab === 'activity' && (
           <div className="flex flex-col font-sans border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
             {/* Activity Log Header */}
-            <div className="px-4 py-2.5 bg-neutral-50 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center gap-3 shrink-0">
+            <div className="px-4 py-2.5 bg-neutral-50 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-neutral-800 flex flex-wrap justify-between items-center gap-3 shrink-0">
               <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Activity Log</h3>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-wrap gap-2 items-center">
+                <div className="relative">
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                  <input
+                    type="text"
+                    value={activitySearch}
+                    onChange={(e) => { setActivitySearch(e.target.value); setActivityPage(1); }}
+                    placeholder="Search logs..."
+                    className="bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 pl-8 pr-3 py-1.5 text-sm text-neutral-800 dark:text-neutral-200 outline-none focus:border-blue-500 w-44 sm:w-52"
+                  />
+                </div>
                 <select
                   value={activityFilter}
-                  onChange={(e) => setActivityFilter(e.target.value)}
+                  onChange={(e) => { setActivityFilter(e.target.value); setActivityPage(1); }}
                   className="bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 px-3 py-1.5 text-sm text-neutral-800 dark:text-neutral-200 outline-none cursor-pointer"
                 >
                   <option value="all">All Activities</option>
@@ -504,43 +558,93 @@ export default function ProductDetails({
               <table className="w-full text-left border-collapse text-sm">
                 <thead>
                   <tr className="bg-neutral-50/80 dark:bg-neutral-800/40 border-b border-neutral-200 dark:border-neutral-800 text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider text-center">
-                    <th className="py-2.5 px-3 w-28 text-center">Date</th>
-                    <th className="py-2.5 px-3 w-24 text-center">Time</th>
-                    <th className="py-2.5 px-3 w-40 text-center">User</th>
-                    <th className="py-2.5 px-3 w-48 text-center">Activity</th>
+                    <th className="py-2.5 px-3 w-24 text-center">Date</th>
+                    <th className="py-2.5 px-3 w-20 text-center">Time</th>
+                    <th className="py-2.5 px-3 w-36 text-center">User</th>
+                    <th className="py-2.5 px-3 w-32 text-center">Branch</th>
+                    <th className="py-2.5 px-3 w-44 text-center">Activity</th>
                     <th className="py-2.5 px-3 text-center">Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/70">
-                  {filteredActivities.length === 0 ? (
+                  {activityLoading && activities.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-neutral-400 text-sm">
+                      <td colSpan={6} className="py-8 text-center text-neutral-400 text-sm">
+                        Loading activity logs...
+                      </td>
+                    </tr>
+                  ) : activities.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-neutral-400 text-sm">
                         No activities recorded for this product
                       </td>
                     </tr>
                   ) : (
-                    filteredActivities.map((activity, idx) => (
-                      <tr 
-                        key={`${(activity as any).source || 'act'}_${activity.id}_${idx}`} 
-                        className="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40 transition-colors"
-                      >
-                        <td className="py-2.5 px-3 text-neutral-500 dark:text-neutral-400 whitespace-nowrap tabular-nums">
-                          {new Date(activity.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-')}
-                        </td>
-                        <td className="py-2.5 px-3 text-neutral-500 dark:text-neutral-400 whitespace-nowrap tabular-nums">
-                          {new Date(activity.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase()}
-                        </td>
-                        <td className="py-2.5 px-3 text-neutral-700 dark:text-neutral-300 whitespace-nowrap">
-                          {activity.user_name && activity.user_name.toLowerCase() !== 'null' ? activity.user_name : 'System'}
-                        </td>
-                        <td className="py-2.5 px-3 font-medium text-neutral-900 dark:text-neutral-100 whitespace-nowrap">
-                          {activity.activity || (activity as any).activity_type || 'Activity'}
-                        </td>
-                        <td className="py-2.5 px-3 text-neutral-700 dark:text-neutral-300 leading-relaxed">
-                          {activity.details}
-                        </td>
-                      </tr>
-                    ))
+                    activities.map((activity, idx) => {
+                      const actLabel = activity.activity || (activity as any).activity_type || 'Activity';
+                      const actLower = actLabel.toLowerCase();
+                      let badgeClass = 'bg-neutral-100 text-neutral-700 border-neutral-300 dark:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-700';
+                      if (actLower.includes('sold')) {
+                        badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60';
+                      } else if (actLower.includes('stock added') || actLower.includes('created') || actLower.includes('imported')) {
+                        badgeClass = 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/60';
+                      } else if (actLower.includes('returned') || actLower.includes('refund')) {
+                        badgeClass = 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60';
+                      } else if (actLower.includes('updated')) {
+                        badgeClass = 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/60';
+                      } else if (actLower.includes('transfer')) {
+                        badgeClass = 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/60';
+                      } else if (actLower.includes('archived') || actLower.includes('deleted')) {
+                        badgeClass = 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60';
+                      }
+
+                      const canNavigateRef = Boolean(
+                        activity.reference_link &&
+                        activity.reference_type &&
+                        activity.reference_type !== 'product' &&
+                        branchSlug
+                      );
+                      return (
+                        <tr 
+                          key={`${activity.source || 'act'}_${activity.id}_${idx}`} 
+                          className="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40 transition-colors"
+                        >
+                          <td className="py-2.5 px-3 text-neutral-500 dark:text-neutral-400 whitespace-nowrap tabular-nums">
+                            {new Date(activity.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-')}
+                          </td>
+                          <td className="py-2.5 px-3 text-neutral-500 dark:text-neutral-400 whitespace-nowrap tabular-nums">
+                            {new Date(activity.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase()}
+                          </td>
+                          <td className="py-2.5 px-3 text-neutral-700 dark:text-neutral-300 whitespace-nowrap">
+                            {activity.user_name && activity.user_name.toLowerCase() !== 'null' ? activity.user_name : 'System'}
+                          </td>
+                          <td className="py-2.5 px-3 text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
+                            {activity.branch_name || '—'}
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded border ${badgeClass}`}>
+                              {actLabel}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-neutral-700 dark:text-neutral-300 leading-relaxed">
+                            <div className="flex items-center justify-between gap-2">
+                              <span>{activity.details}</span>
+                              {canNavigateRef && (
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`/${branchSlug}${activity.reference_link}`)}
+                                  className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline shrink-0 cursor-pointer"
+                                  title={`Open ${activity.reference_type}`}
+                                >
+                                  <span className="capitalize">{activity.reference_type}</span>
+                                  <ExternalLink size={12} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -549,8 +653,31 @@ export default function ProductDetails({
             {/* Activity Log Footer */}
             <div className="px-4 py-2 bg-neutral-50/50 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800 flex justify-between items-center text-xs text-neutral-500 dark:text-neutral-400 shrink-0">
               <span>
-                {filteredActivities.length > 0 ? `1-${filteredActivities.length} of ${filteredActivities.length}` : '0 of 0'}
+                {activityTotal > 0
+                  ? `${(activityPage - 1) * activityLimit + 1}-${Math.min(activityPage * activityLimit, activityTotal)} of ${activityTotal}`
+                  : '0 of 0'}
               </span>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={activityPage <= 1}
+                    onClick={() => setActivityPage(p => Math.max(1, p - 1))}
+                    className="p-1 border border-neutral-300 dark:border-neutral-700 rounded disabled:opacity-40 cursor-pointer"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span>Page {activityPage} of {totalPages}</span>
+                  <button
+                    type="button"
+                    disabled={activityPage >= totalPages}
+                    onClick={() => setActivityPage(p => Math.min(totalPages, p + 1))}
+                    className="p-1 border border-neutral-300 dark:border-neutral-700 rounded disabled:opacity-40 cursor-pointer"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

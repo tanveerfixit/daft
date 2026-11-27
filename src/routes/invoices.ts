@@ -698,18 +698,18 @@ router.post('/', async (req: any, res, next) => {
     let productInfoMap = new Map();
     if (skuIds.length > 0) {
       const [allProductInfo] = await conn.query(`
-        SELECT s.id as sku_id, s.sku_code, s.cost_price, p.product_type, p.allow_overselling, p.name as product_name, p.business_id
+        SELECT s.id as sku_id, s.sku_code, s.cost_price, p.id as product_id, p.product_type, p.allow_overselling, p.name as product_name, p.business_id
         FROM product_skus s JOIN products p ON s.product_id=p.id 
         WHERE s.id IN (?)
       `, [skuIds]);
-      productInfoMap = new Map((allProductInfo as any[]).map(p => [p.sku_id, p]));
+      productInfoMap = new Map((allProductInfo as any[]).map(p => [Number(p.sku_id), p]));
     }
 
     // The server (not the client flag) decides what is a wallet deposit: only this
     // business's own DEPOSIT-WALLET SKU can credit a customer wallet.
     const ownDepositSku = `DEPOSIT-WALLET-${req.user.business_id}`.toUpperCase();
     for (const item of items as any[]) {
-      const info = productInfoMap.get(item.sku_id || item.id);
+      const info = productInfoMap.get(Number(item.sku_id || item.id));
       const isOwnDepositSku = Boolean(info && String(info.sku_code || '').toUpperCase() === ownDepositSku);
       // Legacy fallback: client-flagged deposit on a 'Wallet Deposit' service product of this business
       const isLegacyDepositProduct = Boolean(item.is_deposit && info && info.product_type === 'service'
@@ -858,7 +858,7 @@ router.post('/', async (req: any, res, next) => {
         }
       }
 
-      const productInfo = productInfoMap.get(skuId);
+      const productInfo = productInfoMap.get(Number(skuId));
       const itemCost = productInfo?.cost_price || item.cost || 0;
       const itemNote = item.notes || (item.is_repair_payment && item.repair_job_id ? `Repair Job #${item.repair_job_id}` : null);
       try {
@@ -878,6 +878,22 @@ router.post('/', async (req: any, res, next) => {
           INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,-?)
           ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)
         `, [effectiveBranchId, skuId, item.quantity]);
+        const soldDesc = `Sold ${item.quantity} unit(s) on Invoice ${invoiceNumber} (€${Number(item.total || 0).toFixed(2)})`;
+        await conn.execute(
+          'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+          [skuId, req.userId, ACTIVITY_TYPES.PRODUCT_SOLD, soldDesc]
+        );
+        await recordAudit(req, {
+          conn,
+          branch_id: effectiveBranchId,
+          product_id: productInfo.product_id,
+          activity_type: ACTIVITY_TYPES.PRODUCT_SOLD,
+          description: soldDesc,
+          reference_type: 'invoice',
+          reference_id: invoiceId,
+          reference_link: `/invoices/${invoiceId}`,
+          metadata: { invoice_number: invoiceNumber, sku_id: skuId, quantity: item.quantity, total: Number(item.total || 0) }
+        });
       } else if (item.device_id) {
         const [devUpd]: any = await conn.execute(
           `UPDATE devices SET status='sold' WHERE id=? AND business_id=? AND branch_id=? AND status IN ('in_stock', 'available')`,
@@ -896,6 +912,7 @@ router.post('/', async (req: any, res, next) => {
           conn,
           branch_id: effectiveBranchId,
           device_id: item.device_id,
+          product_id: productInfo?.product_id ?? null,
           activity_type: ACTIVITY_TYPES.DEVICE_SOLD,
           description: `Sold on Invoice ${invoiceNumber}`,
           reference_type: 'invoice',
@@ -907,6 +924,23 @@ router.post('/', async (req: any, res, next) => {
           INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,-1)
           ON DUPLICATE KEY UPDATE quantity=quantity-1
         `, [effectiveBranchId, skuId]);
+      } else if (productInfo?.product_id) {
+        const soldDesc = `Sold ${item.quantity} unit(s) on Invoice ${invoiceNumber} (€${Number(item.total || 0).toFixed(2)})`;
+        await conn.execute(
+          'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+          [skuId, req.userId, ACTIVITY_TYPES.PRODUCT_SOLD, soldDesc]
+        );
+        await recordAudit(req, {
+          conn,
+          branch_id: effectiveBranchId,
+          product_id: productInfo.product_id,
+          activity_type: ACTIVITY_TYPES.PRODUCT_SOLD,
+          description: soldDesc,
+          reference_type: 'invoice',
+          reference_id: invoiceId,
+          reference_link: `/invoices/${invoiceId}`,
+          metadata: { invoice_number: invoiceNumber, sku_id: skuId, quantity: item.quantity, total: Number(item.total || 0) }
+        });
       }
       
       if (item.is_deposit && finalCustomerId) {
@@ -1151,7 +1185,7 @@ router.post('/:id/refund', async (req: any, res, next) => {
     if (invoice.type === 'credit_note') throw new Error('Cannot refund a Credit Note document');
 
     const [itemRows] = await conn.execute(`
-      SELECT ii.*, p.name as product_name, s.sku_code, d.imei
+      SELECT ii.*, p.id as product_id, p.name as product_name, s.sku_code, d.imei
       FROM invoice_items ii
       JOIN product_skus s ON ii.sku_id = s.id
       JOIN products p ON s.product_id = p.id
@@ -1165,7 +1199,7 @@ router.post('/:id/refund', async (req: any, res, next) => {
 
     let totalRefundAmount = 0;
     const refundSummaries: string[] = [];
-    const itemsToProcess: Array<{ id: number; sku_id: number; device_id: number | null; imei?: string; sku_code?: string; qty: number; unitPrice: number; cost: number; name: string }> = [];
+    const itemsToProcess: Array<{ id: number; product_id?: number; sku_id: number; device_id: number | null; imei?: string; sku_code?: string; qty: number; unitPrice: number; cost: number; name: string }> = [];
 
     if (isDepositInvoice && currentItems.length === 0) {
       // Direct wallet deposit invoice (created via POST /api/customers/:id/payments without line items)
@@ -1187,6 +1221,7 @@ router.post('/:id/refund', async (req: any, res, next) => {
 
         itemsToProcess.push({
           id: item.id,
+          product_id: item.product_id,
           sku_id: item.sku_id,
           device_id: item.device_id,
           imei: item.imei,
@@ -1211,6 +1246,7 @@ router.post('/:id/refund', async (req: any, res, next) => {
 
         itemsToProcess.push({
           id: item.id,
+          product_id: item.product_id,
           sku_id: item.sku_id,
           device_id: item.device_id,
           imei: item.imei,
@@ -1541,6 +1577,45 @@ router.post('/:id/refund', async (req: any, res, next) => {
         restock: Boolean(restock)
       }
     });
+
+    for (const pItem of itemsToProcess) {
+      if (pItem.product_id) {
+        const itemRefundVal = round2(pItem.unitPrice * pItem.qty);
+        const imeiSuffix = pItem.imei ? ` [IMEI: ${pItem.imei}]` : '';
+        const returnDesc = `Returned ${pItem.qty} unit(s)${imeiSuffix} on Invoice ${invoice.invoice_number} (€${itemRefundVal.toFixed(2)}). ${restock ? 'Restocked to inventory.' : 'No restock.'}`;
+        if (pItem.sku_id) {
+          await conn.execute(
+            'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+            [pItem.sku_id, req.userId, ACTIVITY_TYPES.PRODUCT_RETURNED, returnDesc]
+          );
+        }
+        if (pItem.device_id) {
+          await conn.execute(
+            'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+            [pItem.device_id, req.userId, ACTIVITY_TYPES.PRODUCT_RETURNED, returnDesc]
+          );
+        }
+        await recordAudit(req, {
+          conn,
+          branch_id: invoice.branch_id ?? req.user.branch_id,
+          device_id: pItem.device_id || null,
+          product_id: pItem.product_id,
+          activity_type: ACTIVITY_TYPES.PRODUCT_RETURNED,
+          description: returnDesc,
+          reference_type: 'invoice',
+          reference_id: Number(req.params.id),
+          reference_link: `/invoices/${req.params.id}`,
+          metadata: {
+            invoice_number: invoice.invoice_number,
+            sku_id: pItem.sku_id,
+            device_id: pItem.device_id || null,
+            quantity: pItem.qty,
+            refund_amount: itemRefundVal,
+            restock: Boolean(restock)
+          }
+        });
+      }
+    }
 
     await conn.commit();
     res.json({ 

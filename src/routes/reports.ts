@@ -866,6 +866,14 @@ function buildActivityLogsQuery(req: any) {
       if (dateStart) { where += ' AND pa.created_at >= ?'; p.push(dateStart); }
       if (dateEnd) { where += ' AND pa.created_at <= ?'; p.push(dateEnd); }
       if (user_id && user_id !== 'all') { where += ' AND pa.user_id = ?'; p.push(Number(user_id)); }
+      where += ` AND NOT EXISTS (
+        SELECT 1 FROM activity_logs al2
+        WHERE al2.business_id = ?
+          AND (al2.product_id = p.id OR al2.product_id = ps.product_id)
+          AND al2.activity_type = pa.activity
+          AND ABS(TIMESTAMPDIFF(SECOND, al2.created_at, pa.created_at)) <= 2
+      )`;
+      p.push(businessId);
       sql = `
         SELECT 
           CONCAT('prod_', pa.id) as log_id,
@@ -894,6 +902,14 @@ function buildActivityLogsQuery(req: any) {
       if (dateStart) { where += ' AND da.created_at >= ?'; p.push(dateStart); }
       if (dateEnd) { where += ' AND da.created_at <= ?'; p.push(dateEnd); }
       if (user_id && user_id !== 'all') { where += ' AND da.user_id = ?'; p.push(Number(user_id)); }
+      where += ` AND NOT EXISTS (
+        SELECT 1 FROM activity_logs al3
+        WHERE al3.business_id = ?
+          AND al3.device_id = da.device_id
+          AND al3.activity_type = da.activity
+          AND ABS(TIMESTAMPDIFF(SECOND, al3.created_at, da.created_at)) <= 2
+      )`;
+      p.push(businessId);
       sql = `
         SELECT 
           CONCAT('dev_', da.id) as log_id,

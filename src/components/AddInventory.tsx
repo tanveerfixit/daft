@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { PageHeader } from './common/PageHeader';
 import { ArrowLeft, Plus, Trash2, Save, Smartphone, AlertTriangle, Check, Printer, CheckCircle2, RotateCcw, CheckSquare, Square, PackageCheck, Layers } from 'lucide-react';
 import { Product, Branch, Supplier } from '../types';
 import { invalidateCache } from '../utils/cache';
@@ -314,7 +315,7 @@ export default function AddInventory({
     }
 
     const payload = {
-      sku_id: productId,
+      sku_id: product?.id || productId,
       branch_id: parseInt(branchId),
       quantity: product?.product_type === 'serialized' ? validSerializedItems.length : parseInt(quantity),
       cost_price: parseFloat(costPrice) || 0,
@@ -781,39 +782,42 @@ export default function AddInventory({
   return (
     <div className="flex flex-col h-full bg-[#f2f2f2] text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-2 pb-2 pt-0 select-none w-full overflow-auto" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
       {/* Header bar */}
-      <div className="sticky top-0 z-40 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded shrink-0 flex justify-between items-center px-4 py-3 mb-2">
-        <div className="flex items-center gap-3">
-          <h1 className="font-medium text-black dark:text-white" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '24px' }}>Add Inventory</h1>
-          <span className="text-xs font-medium px-2.5 py-0.5 rounded border border-neutral-300 dark:border-neutral-700 uppercase bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300">
-            {product.product_type}
-          </span>
-          <span className="text-sm text-neutral-500 dark:text-neutral-400 hidden lg:inline">
-            {product.manufacturer_name && <span className="font-semibold text-neutral-700 dark:text-neutral-300">{product.manufacturer_name} • </span>}
-            {product.product_name} 
-            {product.sku_code && <span className="text-xs ml-1 text-neutral-400">({product.sku_code})</span>}
-          </span>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <button 
-            type="button"
-            disabled={isSaving}
-            onClick={() => handleSubmit()}
-            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer active:scale-[0.98]"
-          >
-            <Save size={15} className={isSaving ? 'animate-spin' : ''} />
-            <span>{isSaving ? 'Saving...' : 'Save Inventory'}</span>
-          </button>
-          <button 
-            type="button"
-            onClick={onBack}
-            className="bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
-          >
-            <ArrowLeft size={15} />
-            <span>Back</span>
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Add Inventory"
+        leftExtra={
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium px-2 py-0.5 border border-neutral-300 uppercase bg-neutral-100 text-neutral-700">
+              {product.product_type}
+            </span>
+            <span className="text-sm text-neutral-500 hidden lg:inline">
+              {product.manufacturer_name && <span className="font-medium text-neutral-700">{product.manufacturer_name} • </span>}
+              {product.product_name} 
+              {product.sku_code && <span className="text-xs ml-1 text-neutral-400">({product.sku_code})</span>}
+            </span>
+          </div>
+        }
+        actions={
+          <>
+            <button 
+              type="button"
+              disabled={isSaving}
+              onClick={() => handleSubmit()}
+              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 text-white font-medium py-1.5 px-3.5 text-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Save size={15} className={isSaving ? 'animate-spin' : ''} />
+              <span>{isSaving ? 'Saving...' : 'Save Inventory'}</span>
+            </button>
+            <button 
+              type="button"
+              onClick={onBack}
+              className="bg-white hover:bg-neutral-100 text-neutral-700 border border-neutral-300 font-medium py-1.5 px-3.5 text-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <ArrowLeft size={15} />
+              <span>Back</span>
+            </button>
+          </>
+        }
+      />
 
       <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded p-4">
         <form onSubmit={handleSubmit} className="space-y-4">

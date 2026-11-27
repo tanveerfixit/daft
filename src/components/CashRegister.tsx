@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { PageHeader } from './common/PageHeader';
 import { 
   ShoppingBag, 
   XCircle,
@@ -1108,21 +1109,23 @@ export default function CashRegister({ onViewCustomers, onSelectCustomer, preSel
   return (
     <div className="flex flex-col h-full bg-neutral-50 text-neutral-900 select-none w-full overflow-hidden font-sans">
       {/* Compact POS Header */}
-      <header className="flex items-center justify-between bg-white border-b border-neutral-200 px-4 py-2.5 shrink-0">
-        <div className="flex items-center gap-3">
-          <h1 className="text-neutral-900 font-semibold text-lg">Cash Register</h1>
-          {totalQty > 0 && (
+      <PageHeader
+        title="Cash Register"
+        leftExtra={
+          totalQty > 0 ? (
             <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 text-xs font-medium tabular-nums">
               {totalQty} {totalQty === 1 ? 'item' : 'items'}
             </span>
-          )}
-        </div>
-        <div className="hidden md:flex items-center gap-3 text-xs text-neutral-500">
-          <span><kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-300 text-neutral-700 font-mono">F2</kbd> Scan</span>
-          <span><kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-300 text-neutral-700 font-mono">F8</kbd> Quick Grid</span>
-          <span><kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-300 text-neutral-700 font-mono">F9</kbd> Pay</span>
-        </div>
-      </header>
+          ) : null
+        }
+        actions={
+          <div className="hidden md:flex items-center gap-3 text-xs text-neutral-500">
+            <span><kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-300 text-neutral-700 font-mono">F2</kbd> Scan</span>
+            <span><kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-300 text-neutral-700 font-mono">F8</kbd> Quick Grid</span>
+            <span><kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-300 text-neutral-700 font-mono">F9</kbd> Pay</span>
+          </div>
+        }
+      />
 
       {/* Non-blocking POS Notice */}
       {posNotice && (

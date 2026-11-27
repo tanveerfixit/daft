@@ -28,6 +28,11 @@ export const ACTIVITY_TYPES = {
   // Products & Stock
   PRODUCT_CREATED: 'Product Created',
   PRODUCT_UPDATED: 'Product Updated',
+  PRODUCT_ARCHIVED: 'Product Archived',
+  PRODUCT_IMPORTED: 'Product Imported',
+  STOCK_ADDED: 'Stock Added',
+  PRODUCT_SOLD: 'Product Sold',
+  PRODUCT_RETURNED: 'Product Returned',
 
   // Devices / Serialized Inventory
   DEVICE_CREATED: 'Device Created',

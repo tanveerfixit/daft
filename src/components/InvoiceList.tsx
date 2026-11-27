@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { PageHeader } from './common/PageHeader';
 import { Search, List, X, FileText, User } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Invoice } from '../types';
@@ -122,18 +123,17 @@ export default function InvoiceList({ onSelectInvoice, onSelectCustomer, isActiv
   return (
     <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-1.5 sm:px-2 pb-2 pt-0 select-none w-full" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-3 sm:px-4 py-2.5 sm:py-3 border-b border-neutral-200 dark:border-neutral-850">
-        <h2 className="font-medium text-black dark:text-white flex items-center gap-2" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>
-          <FileText size={22} className="text-[var(--brand-primary)] shrink-0" />
-          <span>Sales Invoices</span>
-        </h2>
-        <button 
-          onClick={() => navigate(`/${branchSlug || 'default'}/register`)}
-          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-3 sm:px-4 rounded text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer"
-        >
-          <span>Cash Register</span>
-        </button>
-      </div>
+      <PageHeader
+        title="Sales Invoices"
+        actions={
+          <button 
+            onClick={() => navigate(`/${branchSlug || 'default'}/register`)}
+            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-3.5 text-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <span>Cash Register</span>
+          </button>
+        }
+      />
 
       {/* Filters & Search */}
       <div className="p-2 sm:p-2.5 flex flex-col sm:flex-row flex-wrap gap-2 items-stretch sm:items-center bg-white dark:bg-black border-b border-neutral-200 dark:border-neutral-850 shrink-0">

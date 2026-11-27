@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { PageHeader } from './common/PageHeader';
 import { Search, ExternalLink, Download, ArrowLeft, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -299,33 +300,28 @@ export const ActivityReport: React.FC = () => {
   return (
     <div className="flex flex-col h-full bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-3 pb-3 pt-1 select-none w-full font-sans">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-white dark:bg-neutral-900 shrink-0 flex justify-between items-center px-4 py-3 border border-neutral-200 dark:border-neutral-800 rounded-t-md">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(`/${branchSlug}/home`)}
-            className="p-1 text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer"
-            title="Back to Home Menu"
-          >
-            <ArrowLeft size={18} />
-          </button>
-          <h2 className="font-medium text-lg text-neutral-900 dark:text-neutral-100">Activity Report</h2>
-        </div>
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={handleExportCSV}
-            className="bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 font-normal py-1.5 px-3 rounded text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-neutral-200 dark:border-neutral-700"
-          >
-            <Download size={14} />
-            <span>Export CSV</span>
-          </button>
-          <button 
-            onClick={() => navigate(`/${branchSlug}/register`)}
-            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-3.5 rounded text-xs flex items-center gap-2 transition-colors cursor-pointer"
-          >
-            <span>Cash Register</span>
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Activity Report"
+        onBack={() => navigate(`/${branchSlug}/home`)}
+        backTitle="Back to Home Menu"
+        actions={
+          <>
+            <button 
+              onClick={handleExportCSV}
+              className="bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium py-1.5 px-3 text-sm flex items-center gap-1.5 transition-colors cursor-pointer border border-neutral-200"
+            >
+              <Download size={14} />
+              <span>Export CSV</span>
+            </button>
+            <button 
+              onClick={() => navigate(`/${branchSlug}/register`)}
+              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-3.5 text-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <span>Cash Register</span>
+            </button>
+          </>
+        }
+      />
 
       {/* Filters & Search */}
       <div className="px-4 py-2.5 flex flex-wrap gap-2 items-center bg-white dark:bg-neutral-900 border-x border-b border-neutral-200 dark:border-neutral-800 shrink-0">

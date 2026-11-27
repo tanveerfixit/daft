@@ -65,6 +65,7 @@ export async function importProductsBatch(
         [businessId, p.product_name]
       );
       let productId: number;
+      let isNewProduct = false;
       if (pr.length > 0) {
         productId = pr[0].id;
         await conn.execute(
@@ -77,6 +78,7 @@ export async function importProductsBatch(
           [businessId, categoryId, manufacturerId, p.product_name, productType, allowOverselling]
         );
         productId = ins.insertId;
+        isNewProduct = true;
       }
 
       const costPrice = parseFloat(String(p.cost_price)) || 0;
@@ -105,6 +107,20 @@ export async function importProductsBatch(
       await conn.execute(
         'INSERT INTO branch_stock (sku_id,branch_id,quantity) VALUES (?,?,?) ON DUPLICATE KEY UPDATE quantity=VALUES(quantity)',
         [skuId, effectiveBranchId, quantity]
+      );
+
+      const actType = isNewProduct ? 'Product Imported' : 'Product Updated';
+      const actDesc = isNewProduct
+        ? `Product "${p.product_name}" imported with SKU ${p.sku}${quantity > 0 ? ` (Initial Stock: ${quantity})` : ''}`
+        : `Product "${p.product_name}" updated via batch import (SKU ${p.sku}, Stock: ${quantity})`;
+      await conn.execute(
+        'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, NULL, ?, ?)',
+        [skuId, actType, actDesc]
+      );
+      await conn.execute(
+        `INSERT INTO activity_logs (business_id, branch_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link, created_at)
+         VALUES (?, ?, ?, NULL, 'System', ?, ?, 'product', ?, ?, NOW())`,
+        [businessId, effectiveBranchId, productId, actType, actDesc, productId, `/products/${productId}`]
       );
     }
   });

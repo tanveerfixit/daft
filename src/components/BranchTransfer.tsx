@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { PageHeader } from './common/PageHeader';
 import { useRefetchOnActivate } from '../hooks/useRefetchOnActivate';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -596,18 +597,18 @@ export default function BranchTransfer({ isActive = true }: { isActive?: boolean
   return (
     <div className="flex flex-col h-full bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-sans text-sm select-none w-full">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-white dark:bg-neutral-900 shrink-0 flex justify-between items-center px-5 py-3 border-b border-neutral-200 dark:border-neutral-800">
-        <h2 className="font-semibold text-xl tracking-tight text-neutral-900 dark:text-neutral-100">
-          B2B & Branch Transfers
-        </h2>
-        <button
-          onClick={() => { loadTransfers(); loadDestinations(); }}
-          className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-2 px-4 text-sm flex items-center gap-2 transition-colors cursor-pointer"
-        >
-          <RefreshCw size={15} />
-          <span>Refresh</span>
-        </button>
-      </div>
+      <PageHeader
+        title="B2B & Branch Transfers"
+        actions={
+          <button
+            onClick={() => { loadTransfers(); loadDestinations(); }}
+            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-3.5 text-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <RefreshCw size={14} />
+            <span>Refresh</span>
+          </button>
+        }
+      />
 
       {/* Navigation Tabs */}
       <div className="flex bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 shrink-0 px-5 gap-1">

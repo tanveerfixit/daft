@@ -3362,6 +3362,11 @@ var init_activityLogger = __esm({
       // Products & Stock
       PRODUCT_CREATED: "Product Created",
       PRODUCT_UPDATED: "Product Updated",
+      PRODUCT_ARCHIVED: "Product Archived",
+      PRODUCT_IMPORTED: "Product Imported",
+      STOCK_ADDED: "Stock Added",
+      PRODUCT_SOLD: "Product Sold",
+      PRODUCT_RETURNED: "Product Returned",
       // Devices / Serialized Inventory
       DEVICE_CREATED: "Device Created",
       DEVICE_UPDATED: "Device Updated",
@@ -3487,6 +3492,16 @@ async function syncNewProductToOtherBusinesses(conn, sourceBusinessId, params) {
         ]
       );
       const targetSkuId = insSku.insertId;
+      const syncDesc = `Product "${cleanName}" synced to catalog with SKU ${targetSkuCode}`;
+      await conn.execute(
+        "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+        [targetSkuId, null, ACTIVITY_TYPES.PRODUCT_CREATED, syncDesc]
+      );
+      await conn.execute(
+        `INSERT INTO activity_logs (business_id, branch_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link, created_at)
+         VALUES (?, ?, ?, NULL, 'System', ?, ?, 'product', ?, ?, NOW())`,
+        [targetBizId, defaultBranchId, targetProdId, ACTIVITY_TYPES.PRODUCT_CREATED, syncDesc, targetProdId, `/products/${targetProdId}`]
+      );
       for (const bId of branchIds) {
         await conn.execute(
           "INSERT IGNORE INTO branch_stock (sku_id, branch_id, quantity) VALUES (?, ?, 0)",
@@ -3862,7 +3877,32 @@ var init_products = __esm({
               );
             }
             if (isNewProduct) {
+              await recordAudit(req, {
+                conn,
+                business_id: businessId,
+                branch_id: branchId,
+                product_id: productId,
+                activity_type: ACTIVITY_TYPES.PRODUCT_IMPORTED,
+                description: `Product "${prodName}" imported via CSV with SKU ${effectiveSku}${qty > 0 ? ` (Initial Stock: ${qty})` : ""}`,
+                reference_type: "product",
+                reference_id: productId,
+                reference_link: `/products/${productId}`,
+                metadata: { sku: effectiveSku, qty, selling_price: sellingPrice, cost_price: costPrice }
+              });
               imported++;
+            } else if (duplicateHandling === "overwrite") {
+              await recordAudit(req, {
+                conn,
+                business_id: businessId,
+                branch_id: branchId,
+                product_id: productId,
+                activity_type: ACTIVITY_TYPES.PRODUCT_UPDATED,
+                description: `Product "${prodName}" updated via CSV import (SKU ${effectiveSku}${qty > 0 ? `, Stock: ${qty}` : ""})`,
+                reference_type: "product",
+                reference_id: productId,
+                reference_link: `/products/${productId}`,
+                metadata: { sku: effectiveSku, qty, selling_price: sellingPrice, cost_price: costPrice, source: "csv_import" }
+              });
             }
           } catch (rowErr) {
             console.error(`General row ${i + 1} error:`, rowErr.message);
@@ -3921,6 +3961,20 @@ var init_products = __esm({
             [productId, depositSkuCode, depositSkuCode, 0, 0]
           );
           const skuId = sr.insertId;
+          await conn.execute(
+            "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [skuId, req.userId || null, ACTIVITY_TYPES.PRODUCT_CREATED, `Service product "Wallet Deposit" initialized with SKU ${depositSkuCode}`]
+          );
+          await recordAudit(req, {
+            conn,
+            business_id: businessId,
+            product_id: productId,
+            activity_type: ACTIVITY_TYPES.PRODUCT_CREATED,
+            description: `Service product "Wallet Deposit" initialized with SKU ${depositSkuCode}`,
+            reference_type: "product",
+            reference_id: productId,
+            reference_link: `/products/${productId}`
+          });
           await conn.commit();
           return res.json({
             sku_id: skuId,
@@ -3988,6 +4042,21 @@ var init_products = __esm({
             [productId, finalSku, finalSku, 0, 0]
           );
           const skuId = sr.insertId;
+          await conn.execute(
+            "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [skuId, req.userId || null, ACTIVITY_TYPES.PRODUCT_CREATED, `Service product "Repair Service" initialized with SKU ${finalSku}`]
+          );
+          await recordAudit(req, {
+            conn,
+            business_id: businessId,
+            branch_id: branchId || null,
+            product_id: productId,
+            activity_type: ACTIVITY_TYPES.PRODUCT_CREATED,
+            description: `Service product "Repair Service" initialized with SKU ${finalSku}`,
+            reference_type: "product",
+            reference_id: productId,
+            reference_link: `/products/${productId}`
+          });
           await conn.commit();
           return res.json({
             sku_id: skuId,
@@ -4102,7 +4171,7 @@ var init_products = __esm({
     router3.get("/:id", async (req, res, next) => {
       try {
         const businessId = req.user.business_id;
-        const product = await queryOne(`
+        let product = await queryOne(`
       SELECT s.id, p.name as product_name, s.sku_code, s.barcode,
              s.selling_price, s.cost_price, p.product_type, p.allow_overselling,
              c.name as category_name, m.name as manufacturer_name,
@@ -4114,13 +4183,28 @@ var init_products = __esm({
       LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
       WHERE s.id = ? AND p.business_id = ?
     `, [req.params.id, businessId]);
+        if (!product) {
+          product = await queryOne(`
+        SELECT s.id, p.name as product_name, s.sku_code, s.barcode,
+               s.selling_price, s.cost_price, p.product_type, p.allow_overselling,
+               c.name as category_name, m.name as manufacturer_name,
+               p.id as product_id, p.category_id, p.manufacturer_id, p.supplier_id,
+               (SELECT COUNT(*) FROM devices d WHERE d.sku_id = s.id AND d.business_id = p.business_id AND d.status = 'in_stock') as in_stock_devices_count
+        FROM product_skus s
+        JOIN products p ON s.product_id = p.id
+        LEFT JOIN categories c ON p.category_id = c.id
+        LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+        WHERE p.id = ? AND p.business_id = ?
+        ORDER BY s.id ASC LIMIT 1
+      `, [req.params.id, businessId]);
+        }
         if (!product) return res.status(404).json({ error: "Product not found" });
         const stock = await query(`
       SELECT b.name as branch_name, b.id as branch_id, COALESCE(bs.quantity,0) as quantity
       FROM branches b
       LEFT JOIN branch_stock bs ON b.id = bs.branch_id AND bs.sku_id = ?
       WHERE b.business_id = ?
-    `, [req.params.id, businessId]);
+    `, [product.id, businessId]);
         res.json({ ...product, stock });
       } catch (e) {
         next(e);
@@ -4146,16 +4230,39 @@ var init_products = __esm({
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
-        const [skuRows] = await conn.execute(
-          "SELECT s.*, p.business_id, p.name as product_name FROM product_skus s JOIN products p ON s.product_id = p.id WHERE s.id = ? AND p.business_id = ?",
+        let [skuRows] = await conn.execute(
+          `SELECT s.*, p.business_id, p.name as product_name, p.category_id, p.manufacturer_id, p.supplier_id, p.product_type,
+              c.name as category_name, m.name as manufacturer_name, sup.name as supplier_name
+       FROM product_skus s
+       JOIN products p ON s.product_id = p.id
+       LEFT JOIN categories c ON p.category_id = c.id
+       LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+       LEFT JOIN suppliers sup ON p.supplier_id = sup.id
+       WHERE s.id = ? AND p.business_id = ?`,
           [skuId, businessId]
         );
-        const sku = skuRows[0];
+        let sku = skuRows[0];
+        if (!sku) {
+          [skuRows] = await conn.execute(
+            `SELECT s.*, p.business_id, p.name as product_name, p.category_id, p.manufacturer_id, p.supplier_id, p.product_type,
+                c.name as category_name, m.name as manufacturer_name, sup.name as supplier_name
+         FROM product_skus s
+         JOIN products p ON s.product_id = p.id
+         LEFT JOIN categories c ON p.category_id = c.id
+         LEFT JOIN manufacturers m ON p.manufacturer_id = m.id
+         LEFT JOIN suppliers sup ON p.supplier_id = sup.id
+         WHERE p.id = ? AND p.business_id = ?
+         ORDER BY s.id ASC LIMIT 1`,
+            [skuId, businessId]
+          );
+          sku = skuRows[0];
+        }
         if (!sku) throw new Error("Product not found in your business catalog");
+        const targetSkuId = sku.id;
         const cleanNewName = String(product_name || sku.product_name).trim().replace(/\s+/g, " ");
         await conn.execute(
           "UPDATE product_skus SET sku_code=?,barcode=?,selling_price=?,cost_price=? WHERE id=?",
-          [sku_code ?? null, barcode ?? null, selling_price ?? 0, cost_price ?? 0, skuId]
+          [sku_code ?? null, barcode ?? null, selling_price ?? 0, cost_price ?? 0, targetSkuId]
         );
         await conn.execute(
           "UPDATE products SET name=?,category_id=?,manufacturer_id=?,supplier_id=COALESCE(?, supplier_id),product_type=? WHERE id=?",
@@ -4166,7 +4273,7 @@ var init_products = __esm({
           const oldSkuPrice = Number(sku.selling_price || 0);
           const newSkuPrice = Number(selling_price || 0);
           let deviceFilterSql = "SELECT id, imei, selling_price FROM devices WHERE sku_id = ? AND business_id = ? AND status = 'in_stock'";
-          const deviceFilterParams = [skuId, businessId];
+          const deviceFilterParams = [targetSkuId, businessId];
           if (exclude_custom_priced_devices) {
             deviceFilterSql += " AND (selling_price IS NULL OR ABS(selling_price - ?) < 0.005)";
             deviceFilterParams.push(oldSkuPrice);
@@ -4175,7 +4282,7 @@ var init_products = __esm({
           const deviceList = targetDevices;
           if (deviceList.length > 0) {
             let updateDevicesSql = "UPDATE devices SET selling_price = ? WHERE sku_id = ? AND business_id = ? AND status = 'in_stock'";
-            const updateDevicesParams = [newSkuPrice, skuId, businessId];
+            const updateDevicesParams = [newSkuPrice, targetSkuId, businessId];
             if (exclude_custom_priced_devices) {
               updateDevicesSql += " AND (selling_price IS NULL OR ABS(selling_price - ?) < 0.005)";
               updateDevicesParams.push(oldSkuPrice);
@@ -4209,24 +4316,64 @@ var init_products = __esm({
             }
           }
         }
+        let nextCategoryName = sku.category_name || null;
+        if (category_id !== void 0) {
+          if (!category_id) {
+            nextCategoryName = null;
+          } else if (Number(category_id) !== Number(sku.category_id)) {
+            const [cRow] = await conn.execute("SELECT name FROM categories WHERE id = ? LIMIT 1", [category_id]);
+            nextCategoryName = cRow[0]?.name || String(category_id);
+          }
+        }
+        let nextManufacturerName = sku.manufacturer_name || null;
+        if (manufacturer_id !== void 0) {
+          if (!manufacturer_id) {
+            nextManufacturerName = null;
+          } else if (Number(manufacturer_id) !== Number(sku.manufacturer_id)) {
+            const [mRow] = await conn.execute("SELECT name FROM manufacturers WHERE id = ? LIMIT 1", [manufacturer_id]);
+            nextManufacturerName = mRow[0]?.name || String(manufacturer_id);
+          }
+        }
+        let nextSupplierName = sku.supplier_name || null;
+        if (supplier_id !== void 0 && supplier_id !== null) {
+          if (Number(supplier_id) !== Number(sku.supplier_id)) {
+            const [sRow] = await conn.execute("SELECT name FROM suppliers WHERE id = ? LIMIT 1", [supplier_id]);
+            nextSupplierName = sRow[0]?.name || String(supplier_id);
+          }
+        }
         const prodDiff = diffFields(
           {
             name: sku.product_name,
             selling_price: sku.selling_price,
             cost_price: sku.cost_price,
-            sku_code: sku.sku_code
+            sku_code: sku.sku_code,
+            barcode: sku.barcode,
+            product_type: sku.product_type,
+            category_name: sku.category_name || null,
+            manufacturer_name: sku.manufacturer_name || null,
+            supplier_name: sku.supplier_name || null
           },
           {
             name: cleanNewName,
             selling_price,
             cost_price,
-            sku_code
+            sku_code,
+            barcode,
+            product_type,
+            category_name: nextCategoryName,
+            manufacturer_name: nextManufacturerName,
+            supplier_name: nextSupplierName
           },
           [
             { key: "name", label: "Name" },
             { key: "selling_price", label: "Price", currency: true },
             { key: "cost_price", label: "Cost", currency: true },
-            { key: "sku_code", label: "SKU" }
+            { key: "sku_code", label: "SKU" },
+            { key: "barcode", label: "Barcode" },
+            { key: "product_type", label: "Type" },
+            { key: "category_name", label: "Category" },
+            { key: "manufacturer_name", label: "Manufacturer" },
+            { key: "supplier_name", label: "Supplier" }
           ]
         );
         const changes = [...prodDiff.changes];
@@ -4236,7 +4383,7 @@ var init_products = __esm({
         const detailMsg = changes.length > 0 ? changes.join(", ") : "Details updated";
         await conn.execute(
           "INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)",
-          [skuId, req.userId, ACTIVITY_TYPES.PRODUCT_UPDATED, detailMsg]
+          [targetSkuId, req.userId, ACTIVITY_TYPES.PRODUCT_UPDATED, detailMsg]
         );
         await recordAudit(req, {
           conn,
@@ -4458,6 +4605,23 @@ var init_products = __esm({
             "INSERT INTO inventory_movements (business_id,branch_id,sku_id,movement_type,quantity,unit_cost,reference_type,reference_id) VALUES (?,?,?,?,?,?,?,?)",
             [businessId, activeBranchId, skuId, "adjustment", stockQty, cost_price || 0, "quick_add", skuId]
           );
+          const quickStockDesc = `Added ${stockQty} initial unit(s) of "${name}" via Quick Add (Unit Cost: \u20AC${Number(cost_price || 0).toFixed(2)})`;
+          await conn.execute(
+            "INSERT INTO product_activity (sku_id,user_id,activity,details) VALUES (?,?,?,?)",
+            [skuId, req.userId, ACTIVITY_TYPES.STOCK_ADDED, quickStockDesc]
+          );
+          await recordAudit(req, {
+            conn,
+            business_id: businessId,
+            branch_id: activeBranchId,
+            product_id: productId,
+            activity_type: ACTIVITY_TYPES.STOCK_ADDED,
+            description: quickStockDesc,
+            reference_type: "product",
+            reference_id: productId,
+            reference_link: `/products/${productId}`,
+            metadata: { sku: finalSku, quantity: stockQty, unit_cost: Number(cost_price || 0), source: "quick_add" }
+          });
         }
         await syncNewProductToOtherBusinesses(conn, businessId, {
           name,
@@ -4494,7 +4658,28 @@ var init_products = __esm({
     router3.delete("/:id", async (req, res, next) => {
       try {
         const businessId = req.user.business_id;
-        await execute("UPDATE products SET deleted_at=NOW() WHERE business_id=? AND id=(SELECT product_id FROM product_skus WHERE id=?)", [businessId, req.params.id]);
+        const resolved = await resolveProductAndSkus(req.params.id, businessId);
+        if (!resolved) return res.status(404).json({ error: "Product not found" });
+        const prodRow = await queryOne(
+          "SELECT id, name FROM products WHERE id = ? AND business_id = ?",
+          [resolved.productId, businessId]
+        );
+        await execute("UPDATE products SET deleted_at=NOW() WHERE business_id=? AND id=?", [businessId, resolved.productId]);
+        const archiveDesc = `Product "${prodRow?.name || `#${resolved.productId}`}" archived`;
+        if (resolved.primarySkuId) {
+          await execute(
+            "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [resolved.primarySkuId, req.userId, ACTIVITY_TYPES.PRODUCT_ARCHIVED, archiveDesc]
+          );
+        }
+        await recordAudit(req, {
+          product_id: resolved.productId,
+          activity_type: ACTIVITY_TYPES.PRODUCT_ARCHIVED,
+          description: archiveDesc,
+          reference_type: "product",
+          reference_id: resolved.productId,
+          reference_link: `/products/${resolved.productId}`
+        });
         res.json({ success: true });
       } catch (e) {
         next(e);
@@ -4507,7 +4692,13 @@ var init_products = __esm({
         if (!resolved) return res.status(404).json({ error: "Product not found" });
         const { productId, skuIds } = resolved;
         const skuPlaceholders = skuIds.length > 0 ? skuIds.map(() => "?").join(",") : "NULL";
-        const acts = await query(`
+        const isPaginated = req.query.page !== void 0 || req.query.limit !== void 0 || req.query.paginated === "1";
+        const pageNum = Math.max(1, Number(req.query.page) || 1);
+        const limitNum = Math.min(200, Math.max(1, Number(req.query.limit) || (isPaginated ? 50 : 200)));
+        const offset = (pageNum - 1) * limitNum;
+        const activityTypeFilter = typeof req.query.activity_type === "string" && req.query.activity_type !== "all" ? req.query.activity_type.trim() : "";
+        const searchFilter = typeof req.query.search === "string" ? req.query.search.trim() : "";
+        const unionSql = `
       SELECT 
         'log' as source,
         al.id,
@@ -4515,9 +4706,14 @@ var init_products = __esm({
         COALESCE(NULLIF(TRIM(al.activity_type), ''), 'Activity') as activity,
         COALESCE(al.description, '') as details,
         al.created_at,
-        COALESCE(NULLIF(NULLIF(TRIM(al.user_name), ''), 'null'), u.name, 'System') as user_name
+        COALESCE(NULLIF(NULLIF(TRIM(al.user_name), ''), 'null'), u.name, 'System') as user_name,
+        b.name as branch_name,
+        COALESCE(al.reference_type, IF(al.device_id IS NOT NULL, 'device', 'product')) as reference_type,
+        COALESCE(al.reference_id, al.device_id, al.product_id) as reference_id,
+        COALESCE(al.reference_link, IF(al.device_id IS NOT NULL, CONCAT('/devices/', al.device_id), CONCAT('/products/', al.product_id))) as reference_link
       FROM activity_logs al
       LEFT JOIN users u ON al.user_id = u.id
+      LEFT JOIN branches b ON al.branch_id = b.id
       WHERE al.product_id = ?
         AND COALESCE(al.business_id, u.business_id) = ?
 
@@ -4530,7 +4726,11 @@ var init_products = __esm({
         COALESCE(NULLIF(TRIM(a.activity), ''), 'Activity') as activity,
         COALESCE(a.details, '') as details,
         a.created_at,
-        COALESCE(u.name, 'System') as user_name
+        COALESCE(u.name, 'System') as user_name,
+        NULL as branch_name,
+        'product' as reference_type,
+        ? as reference_id,
+        CONCAT('/products/', ?) as reference_link
       FROM product_activity a
       LEFT JOIN users u ON a.user_id = u.id
       WHERE a.sku_id IN (${skuPlaceholders})
@@ -4551,10 +4751,15 @@ var init_products = __esm({
         COALESCE(NULLIF(TRIM(da.activity), ''), 'Activity') as activity,
         COALESCE(da.details, '') as details,
         da.created_at,
-        COALESCE(u.name, 'System') as user_name
+        COALESCE(u.name, 'System') as user_name,
+        b.name as branch_name,
+        'device' as reference_type,
+        d.id as reference_id,
+        CONCAT('/devices/', d.id) as reference_link
       FROM device_activity da
       JOIN devices d ON da.device_id = d.id
       LEFT JOIN users u ON da.user_id = u.id
+      LEFT JOIN branches b ON d.branch_id = b.id
       WHERE d.business_id = ?
         AND d.sku_id IN (${skuPlaceholders})
         AND NOT EXISTS (
@@ -4571,19 +4776,287 @@ var init_products = __esm({
             AND ABS(TIMESTAMPDIFF(SECOND, pa2.created_at, da.created_at)) <= 2
         )
 
-      ORDER BY created_at DESC
-    `, [
+      UNION ALL
+
+      SELECT
+        'sale' as source,
+        ii.id,
+        i.user_id,
+        IF(ii.device_id IS NOT NULL, 'Device Sold', 'Product Sold') as activity,
+        CONCAT(
+          'Sold ', ii.quantity, ' unit(s) on Invoice ', i.invoice_number,
+          ' (\u20AC', FORMAT(COALESCE(ii.total, 0), 2), ')',
+          IF(ii.notes IS NOT NULL AND TRIM(ii.notes) != '', CONCAT(' \u2014 ', ii.notes), '')
+        ) as details,
+        i.created_at,
+        COALESCE(u.name, 'System') as user_name,
+        b.name as branch_name,
+        'invoice' as reference_type,
+        i.id as reference_id,
+        CONCAT('/invoices/', i.id) as reference_link
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      LEFT JOIN users u ON i.user_id = u.id
+      LEFT JOIN branches b ON i.branch_id = b.id
+      WHERE i.business_id = ?
+        AND ii.sku_id IN (${skuPlaceholders})
+        AND COALESCE(i.type, 'sale') != 'credit_note'
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al4
+          WHERE al4.product_id = ?
+            AND al4.business_id = ?
+            AND al4.activity_type IN ('Product Sold', 'Device Sold')
+            AND (al4.reference_id = i.id OR ABS(TIMESTAMPDIFF(SECOND, al4.created_at, i.created_at)) <= 5)
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM product_activity pa4
+          WHERE pa4.sku_id = ii.sku_id
+            AND pa4.activity IN ('Product Sold', 'Device Sold')
+            AND ABS(TIMESTAMPDIFF(SECOND, pa4.created_at, i.created_at)) <= 5
+        )
+        AND NOT (
+          ii.device_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM device_activity da4
+            WHERE da4.device_id = ii.device_id
+              AND da4.activity = 'Device Sold'
+          )
+        )
+
+      UNION ALL
+
+      SELECT
+        'refund' as source,
+        ii.id,
+        i.user_id,
+        'Product Returned' as activity,
+        IF(
+          i.type = 'credit_note',
+          CONCAT('Returned ', ii.quantity, ' unit(s) via Credit Note ', i.invoice_number, ' (\u20AC', FORMAT(COALESCE(ii.total, 0), 2), ')'),
+          CONCAT('Returned ', COALESCE(ii.refunded_quantity, ii.quantity), ' unit(s) on Invoice ', i.invoice_number, ' (\u20AC', FORMAT(COALESCE(ii.price, 0) * COALESCE(ii.refunded_quantity, ii.quantity), 2), ')')
+        ) as details,
+        i.created_at,
+        COALESCE(u.name, 'System') as user_name,
+        b.name as branch_name,
+        'invoice' as reference_type,
+        COALESCE(i.parent_invoice_id, i.id) as reference_id,
+        CONCAT('/invoices/', COALESCE(i.parent_invoice_id, i.id)) as reference_link
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      LEFT JOIN users u ON i.user_id = u.id
+      LEFT JOIN branches b ON i.branch_id = b.id
+      WHERE i.business_id = ?
+        AND ii.sku_id IN (${skuPlaceholders})
+        AND (
+          i.type = 'credit_note'
+          OR (
+            COALESCE(ii.refunded_quantity, 0) > 0
+            AND NOT EXISTS (
+              SELECT 1 FROM invoices cn
+              WHERE cn.parent_invoice_id = i.id
+                AND cn.type = 'credit_note'
+            )
+          )
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al5
+          WHERE al5.product_id = ?
+            AND al5.business_id = ?
+            AND al5.activity_type = 'Product Returned'
+            AND (al5.reference_id = i.id OR al5.reference_id = i.parent_invoice_id OR ABS(TIMESTAMPDIFF(SECOND, al5.created_at, i.created_at)) <= 5)
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM product_activity pa5
+          WHERE pa5.sku_id = ii.sku_id
+            AND pa5.activity = 'Product Returned'
+            AND ABS(TIMESTAMPDIFF(SECOND, pa5.created_at, i.created_at)) <= 5
+        )
+
+      UNION ALL
+
+      SELECT
+        'movement' as source,
+        im.id,
+        im.created_by as user_id,
+        'Stock Added' as activity,
+        CONCAT(
+          'Added ', im.quantity, ' unit(s) to inventory',
+          IF(po.po_number IS NOT NULL, CONCAT(' via PO: ', po.po_number), IF(im.reference_type = 'quick_add', ' (Quick Add)', '')),
+          ' (Unit Cost: \u20AC', FORMAT(COALESCE(im.unit_cost, 0), 2), ')'
+        ) as details,
+        im.created_at,
+        COALESCE(u.name, 'System') as user_name,
+        b.name as branch_name,
+        'product' as reference_type,
+        ? as reference_id,
+        CONCAT('/products/', ?) as reference_link
+      FROM inventory_movements im
+      LEFT JOIN purchase_orders po ON im.reference_type = 'purchase_order' AND im.reference_id = po.id
+      LEFT JOIN users u ON im.created_by = u.id
+      LEFT JOIN branches b ON im.branch_id = b.id
+      WHERE im.business_id = ?
+        AND im.sku_id IN (${skuPlaceholders})
+        AND im.device_id IS NULL
+        AND im.movement_type IN ('purchase', 'adjustment')
+        AND im.quantity > 0
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al6
+          WHERE al6.product_id = ?
+            AND al6.business_id = ?
+            AND al6.activity_type IN ('Stock Added', 'Device Created')
+            AND ABS(TIMESTAMPDIFF(SECOND, al6.created_at, im.created_at)) <= 5
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM product_activity pa6
+          WHERE pa6.sku_id = im.sku_id
+            AND pa6.activity IN ('Stock Added', 'Device Created')
+            AND ABS(TIMESTAMPDIFF(SECOND, pa6.created_at, im.created_at)) <= 5
+        )
+
+      UNION ALL
+
+      SELECT
+        'transfer' as source,
+        dt.id,
+        dt.initiated_by as user_id,
+        CASE
+          WHEN dt.status = 'completed' THEN 'Transfer Received'
+          WHEN dt.status = 'cancelled' THEN 'Transfer Cancelled'
+          ELSE 'Transfer Dispatched'
+        END as activity,
+        CONCAT(
+          'Transfer #', dt.id, ': ',
+          COALESCE(dt.quantity, 1), ' unit(s) from ',
+          COALESCE(fb.name, 'Origin'), ' to ', COALESCE(tb.name, 'Destination'),
+          ' (Status: ', COALESCE(dt.status, 'pending'), ')'
+        ) as details,
+        COALESCE(dt.completed_at, dt.created_at) as created_at,
+        COALESCE(u.name, 'System') as user_name,
+        COALESCE(tb.name, fb.name) as branch_name,
+        'product' as reference_type,
+        ? as reference_id,
+        CONCAT('/products/', ?) as reference_link
+      FROM device_transfers dt
+      LEFT JOIN users u ON dt.initiated_by = u.id
+      LEFT JOIN branches fb ON dt.from_branch_id = fb.id
+      LEFT JOIN branches tb ON dt.to_branch_id = tb.id
+      WHERE dt.business_id = ?
+        AND dt.device_id IS NULL
+        AND dt.sku_id IN (${skuPlaceholders})
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al7
+          WHERE al7.product_id = ?
+            AND al7.business_id = ?
+            AND al7.activity_type IN ('Transfer Dispatched', 'Transfer Received', 'Transfer Cancelled')
+            AND ABS(TIMESTAMPDIFF(SECOND, al7.created_at, dt.created_at)) <= 5
+        )
+
+      UNION ALL
+
+      SELECT
+        'created' as source,
+        p.id,
+        NULL as user_id,
+        'Product Created' as activity,
+        CONCAT('Product "', p.name, '" initialized in catalog (SKU: ', COALESCE(ps.sku_code, 'N/A'), ')') as details,
+        p.created_at,
+        'System' as user_name,
+        NULL as branch_name,
+        'product' as reference_type,
+        p.id as reference_id,
+        CONCAT('/products/', p.id) as reference_link
+      FROM products p
+      LEFT JOIN product_skus ps ON ps.id = (SELECT id FROM product_skus WHERE product_id = p.id ORDER BY id ASC LIMIT 1)
+      WHERE p.id = ?
+        AND p.business_id = ?
+        AND NOT EXISTS (
+          SELECT 1 FROM activity_logs al8
+          WHERE al8.product_id = p.id
+            AND al8.business_id = p.business_id
+            AND al8.activity_type IN ('Product Created', 'Product Imported')
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM product_activity pa8
+          JOIN product_skus ps8 ON pa8.sku_id = ps8.id
+          WHERE ps8.product_id = p.id
+            AND pa8.activity IN ('Product Created', 'Product Imported')
+        )
+    `;
+        const baseParams = [
+          // Leg 1: activity_logs
+          productId,
+          businessId,
+          // Leg 2: product_activity
+          productId,
+          productId,
+          ...skuIds,
+          productId,
+          businessId,
+          // Leg 3: device_activity
+          businessId,
+          ...skuIds,
+          productId,
+          businessId,
+          // Leg 4: invoice_items (sales)
+          businessId,
+          ...skuIds,
+          productId,
+          businessId,
+          // Leg 5: invoice_items (refunds / credit notes)
+          businessId,
+          ...skuIds,
+          productId,
+          businessId,
+          // Leg 6: inventory_movements (PO / adjustments)
+          productId,
           productId,
           businessId,
           ...skuIds,
           productId,
           businessId,
+          // Leg 7: device_transfers (non-serialized stock transfers)
+          productId,
+          productId,
           businessId,
           ...skuIds,
+          productId,
+          businessId,
+          // Leg 8: products (synthetic creation fallback)
           productId,
           businessId
+        ];
+        const filterClauses = [];
+        const filterParams = [];
+        if (activityTypeFilter) {
+          filterClauses.push("feed.activity = ?");
+          filterParams.push(activityTypeFilter);
+        }
+        if (searchFilter) {
+          filterClauses.push('(feed.details LIKE ? OR feed.activity LIKE ? OR feed.user_name LIKE ? OR COALESCE(feed.branch_name, "") LIKE ?)');
+          const like = `%${searchFilter}%`;
+          filterParams.push(like, like, like, like);
+        }
+        const whereSql = filterClauses.length > 0 ? `WHERE ${filterClauses.join(" AND ")}` : "";
+        const acts = await query(`
+      SELECT * FROM (${unionSql}) as feed
+      ${whereSql}
+      ORDER BY feed.created_at DESC
+      LIMIT ${limitNum} OFFSET ${offset}
+    `, [...baseParams, ...filterParams]);
+        if (!isPaginated) {
+          return res.json(acts);
+        }
+        const [countRow, typeRows] = await Promise.all([
+          queryOne(`SELECT COUNT(*) as total FROM (${unionSql}) as feed ${whereSql}`, [...baseParams, ...filterParams]),
+          query(`SELECT DISTINCT feed.activity FROM (${unionSql}) as feed ORDER BY feed.activity ASC`, baseParams)
         ]);
-        res.json(acts);
+        res.json({
+          data: acts,
+          total: Number(countRow?.total || 0),
+          page: pageNum,
+          limit: limitNum,
+          activityTypes: typeRows.map((r) => r.activity).filter(Boolean)
+        });
       } catch (e) {
         next(e);
       }
@@ -5862,15 +6335,15 @@ var init_invoices = __esm({
         let productInfoMap = /* @__PURE__ */ new Map();
         if (skuIds.length > 0) {
           const [allProductInfo] = await conn.query(`
-        SELECT s.id as sku_id, s.sku_code, s.cost_price, p.product_type, p.allow_overselling, p.name as product_name, p.business_id
+        SELECT s.id as sku_id, s.sku_code, s.cost_price, p.id as product_id, p.product_type, p.allow_overselling, p.name as product_name, p.business_id
         FROM product_skus s JOIN products p ON s.product_id=p.id 
         WHERE s.id IN (?)
       `, [skuIds]);
-          productInfoMap = new Map(allProductInfo.map((p) => [p.sku_id, p]));
+          productInfoMap = new Map(allProductInfo.map((p) => [Number(p.sku_id), p]));
         }
         const ownDepositSku = `DEPOSIT-WALLET-${req.user.business_id}`.toUpperCase();
         for (const item of items) {
-          const info = productInfoMap.get(item.sku_id || item.id);
+          const info = productInfoMap.get(Number(item.sku_id || item.id));
           const isOwnDepositSku = Boolean(info && String(info.sku_code || "").toUpperCase() === ownDepositSku);
           const isLegacyDepositProduct = Boolean(item.is_deposit && info && info.product_type === "service" && info.product_name === "Wallet Deposit" && Number(info.business_id) === Number(req.user.business_id));
           item.is_deposit = isOwnDepositSku || isLegacyDepositProduct;
@@ -6000,7 +6473,7 @@ var init_invoices = __esm({
               skuId = sr.insertId;
             }
           }
-          const productInfo = productInfoMap.get(skuId);
+          const productInfo = productInfoMap.get(Number(skuId));
           const itemCost = productInfo?.cost_price || item.cost || 0;
           const itemNote = item.notes || (item.is_repair_payment && item.repair_job_id ? `Repair Job #${item.repair_job_id}` : null);
           try {
@@ -6019,6 +6492,22 @@ var init_invoices = __esm({
           INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,-?)
           ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)
         `, [effectiveBranchId, skuId, item.quantity]);
+            const soldDesc = `Sold ${item.quantity} unit(s) on Invoice ${invoiceNumber} (\u20AC${Number(item.total || 0).toFixed(2)})`;
+            await conn.execute(
+              "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+              [skuId, req.userId, ACTIVITY_TYPES.PRODUCT_SOLD, soldDesc]
+            );
+            await recordAudit(req, {
+              conn,
+              branch_id: effectiveBranchId,
+              product_id: productInfo.product_id,
+              activity_type: ACTIVITY_TYPES.PRODUCT_SOLD,
+              description: soldDesc,
+              reference_type: "invoice",
+              reference_id: invoiceId,
+              reference_link: `/invoices/${invoiceId}`,
+              metadata: { invoice_number: invoiceNumber, sku_id: skuId, quantity: item.quantity, total: Number(item.total || 0) }
+            });
           } else if (item.device_id) {
             const [devUpd] = await conn.execute(
               `UPDATE devices SET status='sold' WHERE id=? AND business_id=? AND branch_id=? AND status IN ('in_stock', 'available')`,
@@ -6038,6 +6527,7 @@ var init_invoices = __esm({
               conn,
               branch_id: effectiveBranchId,
               device_id: item.device_id,
+              product_id: productInfo?.product_id ?? null,
               activity_type: ACTIVITY_TYPES.DEVICE_SOLD,
               description: `Sold on Invoice ${invoiceNumber}`,
               reference_type: "invoice",
@@ -6049,6 +6539,23 @@ var init_invoices = __esm({
           INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,-1)
           ON DUPLICATE KEY UPDATE quantity=quantity-1
         `, [effectiveBranchId, skuId]);
+          } else if (productInfo?.product_id) {
+            const soldDesc = `Sold ${item.quantity} unit(s) on Invoice ${invoiceNumber} (\u20AC${Number(item.total || 0).toFixed(2)})`;
+            await conn.execute(
+              "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+              [skuId, req.userId, ACTIVITY_TYPES.PRODUCT_SOLD, soldDesc]
+            );
+            await recordAudit(req, {
+              conn,
+              branch_id: effectiveBranchId,
+              product_id: productInfo.product_id,
+              activity_type: ACTIVITY_TYPES.PRODUCT_SOLD,
+              description: soldDesc,
+              reference_type: "invoice",
+              reference_id: invoiceId,
+              reference_link: `/invoices/${invoiceId}`,
+              metadata: { invoice_number: invoiceNumber, sku_id: skuId, quantity: item.quantity, total: Number(item.total || 0) }
+            });
           }
           if (item.is_deposit && finalCustomerId) {
             await conn.execute("UPDATE customers SET wallet_balance=COALESCE(wallet_balance,0)+? WHERE id=? AND business_id=?", [round2(Number(item.total)), finalCustomerId, req.user.business_id]);
@@ -6262,7 +6769,7 @@ var init_invoices = __esm({
         if (invoice.status === "void") throw new Error("This invoice has already been fully refunded");
         if (invoice.type === "credit_note") throw new Error("Cannot refund a Credit Note document");
         const [itemRows] = await conn.execute(`
-      SELECT ii.*, p.name as product_name, s.sku_code, d.imei
+      SELECT ii.*, p.id as product_id, p.name as product_name, s.sku_code, d.imei
       FROM invoice_items ii
       JOIN product_skus s ON ii.sku_id = s.id
       JOIN products p ON s.product_id = p.id
@@ -6290,6 +6797,7 @@ var init_invoices = __esm({
             totalRefundAmount += itemRefundTotal;
             itemsToProcess.push({
               id: item.id,
+              product_id: item.product_id,
               sku_id: item.sku_id,
               device_id: item.device_id,
               imei: item.imei,
@@ -6310,6 +6818,7 @@ var init_invoices = __esm({
             totalRefundAmount += itemRefundTotal;
             itemsToProcess.push({
               id: item.id,
+              product_id: item.product_id,
               sku_id: item.sku_id,
               device_id: item.device_id,
               imei: item.imei,
@@ -6593,6 +7102,44 @@ var init_invoices = __esm({
             restock: Boolean(restock)
           }
         });
+        for (const pItem of itemsToProcess) {
+          if (pItem.product_id) {
+            const itemRefundVal = round2(pItem.unitPrice * pItem.qty);
+            const imeiSuffix = pItem.imei ? ` [IMEI: ${pItem.imei}]` : "";
+            const returnDesc = `Returned ${pItem.qty} unit(s)${imeiSuffix} on Invoice ${invoice.invoice_number} (\u20AC${itemRefundVal.toFixed(2)}). ${restock ? "Restocked to inventory." : "No restock."}`;
+            if (pItem.sku_id) {
+              await conn.execute(
+                "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+                [pItem.sku_id, req.userId, ACTIVITY_TYPES.PRODUCT_RETURNED, returnDesc]
+              );
+            }
+            if (pItem.device_id) {
+              await conn.execute(
+                "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+                [pItem.device_id, req.userId, ACTIVITY_TYPES.PRODUCT_RETURNED, returnDesc]
+              );
+            }
+            await recordAudit(req, {
+              conn,
+              branch_id: invoice.branch_id ?? req.user.branch_id,
+              device_id: pItem.device_id || null,
+              product_id: pItem.product_id,
+              activity_type: ACTIVITY_TYPES.PRODUCT_RETURNED,
+              description: returnDesc,
+              reference_type: "invoice",
+              reference_id: Number(req.params.id),
+              reference_link: `/invoices/${req.params.id}`,
+              metadata: {
+                invoice_number: invoice.invoice_number,
+                sku_id: pItem.sku_id,
+                device_id: pItem.device_id || null,
+                quantity: pItem.qty,
+                refund_amount: itemRefundVal,
+                restock: Boolean(restock)
+              }
+            });
+          }
+        }
         await conn.commit();
         res.json({
           success: true,
@@ -6953,6 +7500,14 @@ function buildActivityLogsQuery(req) {
         where += " AND pa.user_id = ?";
         p.push(Number(user_id));
       }
+      where += ` AND NOT EXISTS (
+        SELECT 1 FROM activity_logs al2
+        WHERE al2.business_id = ?
+          AND (al2.product_id = p.id OR al2.product_id = ps.product_id)
+          AND al2.activity_type = pa.activity
+          AND ABS(TIMESTAMPDIFF(SECOND, al2.created_at, pa.created_at)) <= 2
+      )`;
+      p.push(businessId);
       sql = `
         SELECT 
           CONCAT('prod_', pa.id) as log_id,
@@ -6993,6 +7548,14 @@ function buildActivityLogsQuery(req) {
         where += " AND da.user_id = ?";
         p.push(Number(user_id));
       }
+      where += ` AND NOT EXISTS (
+        SELECT 1 FROM activity_logs al3
+        WHERE al3.business_id = ?
+          AND al3.device_id = da.device_id
+          AND al3.activity_type = da.activity
+          AND ABS(TIMESTAMPDIFF(SECOND, al3.created_at, da.created_at)) <= 2
+      )`;
+      p.push(businessId);
       sql = `
         SELECT 
           CONCAT('dev_', da.id) as log_id,
@@ -8914,7 +9477,7 @@ var init_inventory = __esm({
       try {
         await conn.beginTransaction();
         const [piRows] = await conn.execute(`
-      SELECT p.id as product_id, p.name as product_name, p.product_type
+      SELECT p.id as product_id, p.name as product_name, p.product_type, s.cost_price as prev_cost, s.selling_price as prev_selling
       FROM product_skus s JOIN products p ON s.product_id=p.id WHERE s.id=? AND p.business_id=?
     `, [sku_id, req.user.business_id]);
         const productInfo = piRows[0];
@@ -9031,10 +9594,42 @@ var init_inventory = __esm({
             "INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,?) ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)",
             [activeBranchId, sku_id, quantity]
           );
+          const priceChanges = [];
+          const nextCost = cost_price !== void 0 && cost_price !== null ? Number(cost_price) : Number(productInfo.prev_cost || 0);
+          const nextSelling = selling_price !== void 0 && selling_price !== null ? Number(selling_price) : Number(productInfo.prev_selling || 0);
+          if (Math.abs(nextCost - Number(productInfo.prev_cost || 0)) > 1e-3) {
+            priceChanges.push(`Cost: \u20AC${Number(productInfo.prev_cost || 0).toFixed(2)} -> \u20AC${nextCost.toFixed(2)}`);
+          }
+          if (selling_price !== void 0 && selling_price !== null && Math.abs(nextSelling - Number(productInfo.prev_selling || 0)) > 1e-3) {
+            priceChanges.push(`Price: \u20AC${Number(productInfo.prev_selling || 0).toFixed(2)} -> \u20AC${nextSelling.toFixed(2)}`);
+          }
+          if (priceChanges.length > 0) {
+            await conn.execute(
+              "UPDATE product_skus SET cost_price = ?, selling_price = ? WHERE id = ?",
+              [nextCost, nextSelling, sku_id]
+            );
+          }
+          const priceSuffix = priceChanges.length > 0 ? ` [${priceChanges.join(", ")}]` : "";
+          const stockDesc = `Added ${actualQuantity} unit(s) of "${productInfo.product_name}" via PO: ${finalPoNumber} (Unit Cost: \u20AC${Number(cost_price || 0).toFixed(2)})${priceSuffix}`;
+          await conn.execute(
+            "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [sku_id, req.userId, ACTIVITY_TYPES.STOCK_ADDED, stockDesc]
+          );
+          await recordAudit(req, {
+            conn,
+            branch_id: activeBranchId,
+            product_id: productInfo.product_id,
+            activity_type: ACTIVITY_TYPES.STOCK_ADDED,
+            description: stockDesc,
+            reference_type: "product",
+            reference_id: productInfo.product_id,
+            reference_link: `/products/${productInfo.product_id}`,
+            metadata: { sku_id, po_id: poId, po_number: finalPoNumber, quantity: actualQuantity, unit_cost: Number(cost_price || 0), price_changes: priceChanges }
+          });
         }
         await conn.execute(
-          "INSERT INTO inventory_movements (business_id,branch_id,sku_id,movement_type,quantity,unit_cost,reference_type,reference_id) VALUES (?,?,?,?,?,?,?,?)",
-          [req.user.business_id, activeBranchId, sku_id, "purchase", quantity || items?.length || 0, cost_price || 0, "purchase_order", poId]
+          "INSERT INTO inventory_movements (business_id,branch_id,sku_id,movement_type,quantity,unit_cost,reference_type,reference_id,created_by) VALUES (?,?,?,?,?,?,?,?,?)",
+          [req.user.business_id, activeBranchId, sku_id, "purchase", quantity || items?.length || 0, cost_price || 0, "purchase_order", poId, req.userId || null]
         );
         await conn.commit();
         res.json({ success: true, devices: typeof insertedDevices !== "undefined" ? insertedDevices : [] });
@@ -9498,6 +10093,25 @@ var init_inventory = __esm({
               SET business_id = ?, branch_id = ?, user_id = COALESCE(user_id, ?), product_id = ?, sku_id = ?, gb = ?, color = ?, \`condition\` = ?, cost_price = ?, selling_price = ?, status = ?, imei_status = ?, carrier = ?
               WHERE id = ? AND business_id = ?
             `, [businessId, branchId, userId, productId, skuId, storage, color, condition, costPrice, sellingPrice, stockStatus, imeiStatus, carrier, existingId, businessId]);
+                const overwriteDesc = `[IMEI: ${serialNumber}] Overwritten via Standard CSV import`;
+                await conn.execute(
+                  "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+                  [existingId, userId, ACTIVITY_TYPES.DEVICE_UPDATED, overwriteDesc]
+                );
+                await recordAudit(req, {
+                  conn,
+                  business_id: businessId,
+                  branch_id: branchId,
+                  user_id: userId,
+                  device_id: existingId,
+                  product_id: productId,
+                  activity_type: ACTIVITY_TYPES.DEVICE_UPDATED,
+                  description: overwriteDesc,
+                  reference_type: "device",
+                  reference_id: existingId,
+                  reference_link: `/devices/${existingId}`,
+                  metadata: { imei: serialNumber, sku_id: skuId, source: "csv_import" }
+                });
                 updated++;
               } else {
                 skipped++;
@@ -9517,8 +10131,22 @@ var init_inventory = __esm({
               }
               await conn.execute(
                 "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
-                [deviceId, userId, "Device Created", "Imported via Standard CSV"]
+                [deviceId, userId, ACTIVITY_TYPES.DEVICE_CREATED, "Imported via Standard CSV"]
               );
+              await recordAudit(req, {
+                conn,
+                business_id: businessId,
+                branch_id: branchId,
+                user_id: userId,
+                device_id: deviceId,
+                product_id: productId,
+                activity_type: ACTIVITY_TYPES.DEVICE_CREATED,
+                description: `IMEI: ${serialNumber} (${productName}) imported via CSV`,
+                reference_type: "device",
+                reference_id: deviceId,
+                reference_link: `/devices/${deviceId}`,
+                metadata: { imei: serialNumber, sku_id: skuId, source: "csv_import" }
+              });
               imported++;
             }
           } catch (rowErr) {
@@ -10199,6 +10827,12 @@ var init_inventory = __esm({
               [dispatched.deviceId, req.userId, ACTIVITY_TYPES.TRANSFER_DISPATCHED, desc]
             );
           }
+          if (dispatched.skuId) {
+            await conn.execute(
+              "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+              [dispatched.skuId, req.userId, ACTIVITY_TYPES.TRANSFER_DISPATCHED, desc]
+            );
+          }
           await recordAudit(req, {
             conn,
             branch_id: sourceBranchId,
@@ -10559,6 +11193,12 @@ var init_inventory = __esm({
             [transfer.device_id, req.userId, ACTIVITY_TYPES.TRANSFER_RECEIVED, receiveDesc]
           );
         }
+        if (destSkuId) {
+          await conn.execute(
+            "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [destSkuId, req.userId, ACTIVITY_TYPES.TRANSFER_RECEIVED, receiveDesc]
+          );
+        }
         await recordAudit(req, {
           conn,
           business_id: destBusinessId,
@@ -10627,6 +11267,12 @@ var init_inventory = __esm({
           await conn.execute(
             "INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
             [transfer.device_id, req.userId, ACTIVITY_TYPES.TRANSFER_CANCELLED, cancelDesc]
+          );
+        }
+        if (transfer.sku_id) {
+          await conn.execute(
+            "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)",
+            [transfer.sku_id, req.userId, ACTIVITY_TYPES.TRANSFER_CANCELLED, cancelDesc]
           );
         }
         await recordAudit(req, {
@@ -11064,6 +11710,7 @@ async function importProductsBatch(businessId, branchId, products) {
         [businessId, p.product_name]
       );
       let productId;
+      let isNewProduct = false;
       if (pr.length > 0) {
         productId = pr[0].id;
         await conn.execute(
@@ -11076,6 +11723,7 @@ async function importProductsBatch(businessId, branchId, products) {
           [businessId, categoryId, manufacturerId, p.product_name, productType, allowOverselling]
         );
         productId = ins.insertId;
+        isNewProduct = true;
       }
       const costPrice = parseFloat(String(p.cost_price)) || 0;
       const sellingPrice = parseFloat(String(p.selling_price)) || 0;
@@ -11101,6 +11749,17 @@ async function importProductsBatch(businessId, branchId, products) {
       await conn.execute(
         "INSERT INTO branch_stock (sku_id,branch_id,quantity) VALUES (?,?,?) ON DUPLICATE KEY UPDATE quantity=VALUES(quantity)",
         [skuId, effectiveBranchId, quantity]
+      );
+      const actType = isNewProduct ? "Product Imported" : "Product Updated";
+      const actDesc = isNewProduct ? `Product "${p.product_name}" imported with SKU ${p.sku}${quantity > 0 ? ` (Initial Stock: ${quantity})` : ""}` : `Product "${p.product_name}" updated via batch import (SKU ${p.sku}, Stock: ${quantity})`;
+      await conn.execute(
+        "INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, NULL, ?, ?)",
+        [skuId, actType, actDesc]
+      );
+      await conn.execute(
+        `INSERT INTO activity_logs (business_id, branch_id, product_id, user_id, user_name, activity_type, description, reference_type, reference_id, reference_link, created_at)
+         VALUES (?, ?, ?, NULL, 'System', ?, ?, 'product', ?, ?, NOW())`,
+        [businessId, effectiveBranchId, productId, actType, actDesc, productId, `/products/${productId}`]
       );
     }
   });

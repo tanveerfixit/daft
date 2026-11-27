@@ -35,7 +35,7 @@ router.post('/add', async (req: any, res, next) => {
   try {
     await conn.beginTransaction();
     const [piRows] = await conn.execute(`
-      SELECT p.id as product_id, p.name as product_name, p.product_type
+      SELECT p.id as product_id, p.name as product_name, p.product_type, s.cost_price as prev_cost, s.selling_price as prev_selling
       FROM product_skus s JOIN products p ON s.product_id=p.id WHERE s.id=? AND p.business_id=?
     `, [sku_id, req.user.business_id]);
     const productInfo = (piRows as any[])[0];
@@ -154,10 +154,44 @@ router.post('/add', async (req: any, res, next) => {
         'INSERT INTO branch_stock (branch_id,sku_id,quantity) VALUES (?,?,?) ON DUPLICATE KEY UPDATE quantity=quantity+VALUES(quantity)',
         [activeBranchId, sku_id, quantity]
       );
+
+      const priceChanges: string[] = [];
+      const nextCost = cost_price !== undefined && cost_price !== null ? Number(cost_price) : Number(productInfo.prev_cost || 0);
+      const nextSelling = selling_price !== undefined && selling_price !== null ? Number(selling_price) : Number(productInfo.prev_selling || 0);
+      if (Math.abs(nextCost - Number(productInfo.prev_cost || 0)) > 0.001) {
+        priceChanges.push(`Cost: €${Number(productInfo.prev_cost || 0).toFixed(2)} -> €${nextCost.toFixed(2)}`);
+      }
+      if (selling_price !== undefined && selling_price !== null && Math.abs(nextSelling - Number(productInfo.prev_selling || 0)) > 0.001) {
+        priceChanges.push(`Price: €${Number(productInfo.prev_selling || 0).toFixed(2)} -> €${nextSelling.toFixed(2)}`);
+      }
+      if (priceChanges.length > 0) {
+        await conn.execute(
+          'UPDATE product_skus SET cost_price = ?, selling_price = ? WHERE id = ?',
+          [nextCost, nextSelling, sku_id]
+        );
+      }
+
+      const priceSuffix = priceChanges.length > 0 ? ` [${priceChanges.join(', ')}]` : '';
+      const stockDesc = `Added ${actualQuantity} unit(s) of "${productInfo.product_name}" via PO: ${finalPoNumber} (Unit Cost: €${Number(cost_price || 0).toFixed(2)})${priceSuffix}`;
+      await conn.execute(
+        'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [sku_id, req.userId, ACTIVITY_TYPES.STOCK_ADDED, stockDesc]
+      );
+      await recordAudit(req, {
+        conn,
+        branch_id: activeBranchId,
+        product_id: productInfo.product_id,
+        activity_type: ACTIVITY_TYPES.STOCK_ADDED,
+        description: stockDesc,
+        reference_type: 'product',
+        reference_id: productInfo.product_id,
+        reference_link: `/products/${productInfo.product_id}`,
+        metadata: { sku_id, po_id: poId, po_number: finalPoNumber, quantity: actualQuantity, unit_cost: Number(cost_price || 0), price_changes: priceChanges }
+      });
     }
     await conn.execute(
-      "INSERT INTO inventory_movements (business_id,branch_id,sku_id,movement_type,quantity,unit_cost,reference_type,reference_id) VALUES (?,?,?,?,?,?,?,?)",
-      [req.user.business_id, activeBranchId, sku_id, 'purchase', quantity || items?.length || 0, cost_price || 0, 'purchase_order', poId]
+      "INSERT INTO inventory_movements (business_id,branch_id,sku_id,movement_type,quantity,unit_cost,reference_type,reference_id,created_by) VALUES (?,?,?,?,?,?,?,?,?)",
+      [req.user.business_id, activeBranchId, sku_id, 'purchase', quantity || items?.length || 0, cost_price || 0, 'purchase_order', poId, req.userId || null]
     );
     await conn.commit();
     res.json({ success: true, devices: typeof insertedDevices !== 'undefined' ? insertedDevices : [] });
@@ -665,6 +699,25 @@ router.post('/devices/import-csv', async (req: any, res, next) => {
               SET business_id = ?, branch_id = ?, user_id = COALESCE(user_id, ?), product_id = ?, sku_id = ?, gb = ?, color = ?, \`condition\` = ?, cost_price = ?, selling_price = ?, status = ?, imei_status = ?, carrier = ?
               WHERE id = ? AND business_id = ?
             `, [businessId, branchId, userId, productId, skuId, storage, color, condition, costPrice, sellingPrice, stockStatus, imeiStatus, carrier, existingId, businessId]);
+            const overwriteDesc = `[IMEI: ${serialNumber}] Overwritten via Standard CSV import`;
+            await conn.execute(
+              'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+              [existingId, userId, ACTIVITY_TYPES.DEVICE_UPDATED, overwriteDesc]
+            );
+            await recordAudit(req, {
+              conn,
+              business_id: businessId,
+              branch_id: branchId,
+              user_id: userId,
+              device_id: existingId,
+              product_id: productId,
+              activity_type: ACTIVITY_TYPES.DEVICE_UPDATED,
+              description: overwriteDesc,
+              reference_type: 'device',
+              reference_id: existingId,
+              reference_link: `/devices/${existingId}`,
+              metadata: { imei: serialNumber, sku_id: skuId, source: 'csv_import' }
+            });
             updated++;
           } else {
             skipped++;
@@ -690,8 +743,22 @@ router.post('/devices/import-csv', async (req: any, res, next) => {
           // Add activity log
           await conn.execute(
             'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
-            [deviceId, userId, 'Device Created', 'Imported via Standard CSV']
+            [deviceId, userId, ACTIVITY_TYPES.DEVICE_CREATED, 'Imported via Standard CSV']
           );
+          await recordAudit(req, {
+            conn,
+            business_id: businessId,
+            branch_id: branchId,
+            user_id: userId,
+            device_id: deviceId,
+            product_id: productId,
+            activity_type: ACTIVITY_TYPES.DEVICE_CREATED,
+            description: `IMEI: ${serialNumber} (${productName}) imported via CSV`,
+            reference_type: 'device',
+            reference_id: deviceId,
+            reference_link: `/devices/${deviceId}`,
+            metadata: { imei: serialNumber, sku_id: skuId, source: 'csv_import' }
+          });
 
           imported++;
         }
@@ -1651,6 +1718,12 @@ router.post('/transfers', async (req: any, res, next) => {
           [dispatched.deviceId, req.userId, ACTIVITY_TYPES.TRANSFER_DISPATCHED, desc]
         );
       }
+      if (dispatched.skuId) {
+        await conn.execute(
+          'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+          [dispatched.skuId, req.userId, ACTIVITY_TYPES.TRANSFER_DISPATCHED, desc]
+        );
+      }
 
       await recordAudit(req, {
         conn,
@@ -2053,6 +2126,12 @@ router.put('/transfers/:id/complete', async (req: any, res, next) => {
         [transfer.device_id, req.userId, ACTIVITY_TYPES.TRANSFER_RECEIVED, receiveDesc]
       );
     }
+    if (destSkuId) {
+      await conn.execute(
+        'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [destSkuId, req.userId, ACTIVITY_TYPES.TRANSFER_RECEIVED, receiveDesc]
+      );
+    }
     await recordAudit(req, {
       conn,
       business_id: destBusinessId,
@@ -2130,6 +2209,12 @@ router.put('/transfers/:id/cancel', async (req: any, res, next) => {
       await conn.execute(
         'INSERT INTO device_activity (device_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
         [transfer.device_id, req.userId, ACTIVITY_TYPES.TRANSFER_CANCELLED, cancelDesc]
+      );
+    }
+    if (transfer.sku_id) {
+      await conn.execute(
+        'INSERT INTO product_activity (sku_id, user_id, activity, details) VALUES (?, ?, ?, ?)',
+        [transfer.sku_id, req.userId, ACTIVITY_TYPES.TRANSFER_CANCELLED, cancelDesc]
       );
     }
     await recordAudit(req, {

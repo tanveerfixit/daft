@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { PageHeader } from './common/PageHeader';
 import { useRefetchOnActivate } from '../hooks/useRefetchOnActivate';
 import { Search, Plus, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { PurchaseOrder, Supplier } from '../types';
@@ -65,13 +66,15 @@ export default function PurchaseOrderList({
   return (
     <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-2 pb-2 pt-0 select-none w-full" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-white dark:bg-black shrink-0 flex justify-between items-center px-4 py-3">
-        <h2 className="font-medium text-black dark:text-white" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '24px' }}>Purchase Orders</h2>
-        <button className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer">
-          <Plus size={16} />
-          <span>Create Purchase Order</span>
-        </button>
-      </div>
+      <PageHeader
+        title="Purchase Orders"
+        actions={
+          <button className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-3.5 text-sm flex items-center gap-1.5 transition-colors cursor-pointer">
+            <Plus size={15} />
+            <span>Create Purchase Order</span>
+          </button>
+        }
+      />
 
       {/* Filters & Search */}
       <div className="p-2 flex flex-wrap gap-2 items-center bg-white dark:bg-black border-b border-neutral-200 dark:border-neutral-850 shrink-0">

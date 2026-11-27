@@ -215,11 +215,16 @@ export interface Manufacturer {
 
 export interface ProductActivity {
   id: number;
-  sku_id: number;
+  source?: string;
+  sku_id?: number;
   user_id: number | null;
   user_name?: string;
+  branch_name?: string | null;
   activity: string;
   details: string;
+  reference_type?: string | null;
+  reference_id?: number | null;
+  reference_link?: string | null;
   created_at: string;
 }
 
