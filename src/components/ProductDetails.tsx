@@ -15,7 +15,8 @@ import {
   Search,
   ExternalLink,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Check
 } from 'lucide-react';
 import { Product, ProductActivity } from '../types';
 import ProductFormModal from './ProductFormModal';
@@ -61,6 +62,7 @@ export default function ProductDetails({
   const [activeTab, setActiveTab] = useState<Tab>('info');
   const [isEditing, setIsEditing] = useState(false);
   const [isManageOpen, setIsManageOpen] = useState(false);
+  const [copiedSku, setCopiedSku] = useState(false);
 
   const manageMenuRef = useRef<HTMLDivElement>(null);
   const activityLimit = 50;
@@ -253,20 +255,51 @@ export default function ProductDetails({
             </h1>
             
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 font-mono">
+              <button
+                type="button"
+                onClick={() => {
+                  const code = product.sku_code || product.barcode;
+                  if (!code) return;
+                  navigator.clipboard?.writeText(String(code)).then(() => {
+                    setCopiedSku(true);
+                    setTimeout(() => setCopiedSku(false), 1500);
+                  }).catch(() => {});
+                }}
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 font-mono hover:border-neutral-400 transition-colors cursor-pointer"
+                title="Copy SKU / Barcode"
+              >
                 <Barcode size={13} className="text-neutral-500" />
                 <span>{product.sku_code || product.barcode || 'N/A'}</span>
-              </span>
+                {copiedSku ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} className="text-neutral-400" />}
+              </button>
               
               {product.manufacturer_name && (
-                <span className="text-neutral-600 dark:text-neutral-400 font-medium">
-                  {product.manufacturer_name}
-                </span>
+                <>
+                  <span className="text-neutral-300 dark:text-neutral-700">•</span>
+                  <span className="text-neutral-600 dark:text-neutral-400 font-medium">
+                    {product.manufacturer_name}
+                  </span>
+                </>
+              )}
+
+              {product.category_name && (
+                <>
+                  <span className="text-neutral-300 dark:text-neutral-700">•</span>
+                  <span className="text-neutral-500 dark:text-neutral-400">
+                    {product.category_name}
+                  </span>
+                </>
               )}
             </div>
 
-            <div className="text-xs text-neutral-500 dark:text-neutral-400 font-medium mt-0.5">
-              Inventory &amp; Tracking Type : <span className="font-semibold text-neutral-800 dark:text-neutral-200 capitalize">{product.product_type || 'Stock'}</span>
+            <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+              Type: <span className="font-semibold text-neutral-800 dark:text-neutral-200 capitalize">{product.product_type || 'Stock'}</span>
+              {product.product_type !== 'service' && (
+                <>
+                  <span className="mx-2 text-neutral-300 dark:text-neutral-700">•</span>
+                  In Stock: <span className="font-semibold text-neutral-800 dark:text-neutral-200 tabular-nums">{totalStock}</span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -396,85 +429,130 @@ export default function ProductDetails({
         
         {/* TAB 1: Product Information */}
         {activeTab === 'info' && (
-          <div className="space-y-4 max-w-4xl text-[15px] md:text-[16px]">
-            {/* Need/Have/OnPO Row */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-bold text-neutral-900 dark:text-neutral-100 min-w-[200px]">
-                Need/Have/OnPO :
-              </span>
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={() => onViewDevices(product.id)}
-                  className="font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer bg-transparent border-0 p-0 text-[16px] inline-flex items-center gap-1.5"
-                >
-                  <span>0 / {totalStock} / 0</span>
-                  <LinkIcon size={16} className="text-blue-500 dark:text-blue-400" />
-                </button>
-                
-                <button 
-                  onClick={() => onAddInventory(product.id)}
-                  className="bg-[#f1c40f] hover:bg-[#f39c12] text-neutral-950 font-bold py-1 px-3.5 rounded text-[13px] transition-all cursor-pointer active:scale-[0.98] inline-flex items-center gap-1"
-                >
-                  <span>Add Inventory</span>
-                </button>
+          <div className="max-w-4xl">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Left Column: Catalog & Inventory */}
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 pb-2 mb-3 border-b border-neutral-200 dark:border-neutral-800">
+                  Catalog &amp; Stock
+                </h3>
+                <dl className="divide-y divide-neutral-100 dark:divide-neutral-800/70 text-[15px]">
+                  <div className="py-2.5 flex justify-between gap-4">
+                    <dt className="text-neutral-500 dark:text-neutral-400">SKU</dt>
+                    <dd className="font-mono font-semibold text-neutral-900 dark:text-white">{product.sku_code || '—'}</dd>
+                  </div>
+                  <div className="py-2.5 flex justify-between gap-4">
+                    <dt className="text-neutral-500 dark:text-neutral-400">Barcode</dt>
+                    <dd className="font-mono font-medium text-neutral-900 dark:text-neutral-100">{product.barcode || '—'}</dd>
+                  </div>
+                  <div className="py-2.5 flex justify-between gap-4">
+                    <dt className="text-neutral-500 dark:text-neutral-400">Category</dt>
+                    <dd className="font-medium text-neutral-900 dark:text-neutral-100">{product.category_name || '—'}</dd>
+                  </div>
+                  <div className="py-2.5 flex justify-between gap-4">
+                    <dt className="text-neutral-500 dark:text-neutral-400">Manufacturer</dt>
+                    <dd className="font-medium text-neutral-900 dark:text-neutral-100">{product.manufacturer_name || '—'}</dd>
+                  </div>
+                  {product.product_type !== 'service' && (
+                    <>
+                      <div className="py-2.5 flex justify-between items-center gap-4">
+                        <dt className="text-neutral-500 dark:text-neutral-400">Total Stock</dt>
+                        <dd className="flex items-center gap-2.5">
+                          {product.product_type === 'serialized' ? (
+                            <button
+                              onClick={() => onViewDevices(product.id)}
+                              className="font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer inline-flex items-center gap-1 tabular-nums"
+                            >
+                              <span>{totalStock} unit(s)</span>
+                              <ExternalLink size={13} />
+                            </button>
+                          ) : (
+                            <span className="font-semibold text-neutral-900 dark:text-white tabular-nums">{totalStock} unit(s)</span>
+                          )}
+                          <button
+                            onClick={() => onAddInventory(product.id)}
+                            className="bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 font-medium py-0.5 px-2.5 rounded text-xs transition-colors cursor-pointer"
+                          >
+                            + Add Stock
+                          </button>
+                        </dd>
+                      </div>
+                      <div className="py-2.5 flex justify-between gap-4">
+                        <dt className="text-neutral-500 dark:text-neutral-400">Minimum Stock</dt>
+                        <dd className="font-medium text-neutral-900 dark:text-neutral-100 tabular-nums">{product.min_stock_level ?? 0}</dd>
+                      </div>
+                    </>
+                  )}
+                </dl>
+              </div>
+
+              {/* Right Column: Pricing, Tax & Branch Stock */}
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 pb-2 mb-3 border-b border-neutral-200 dark:border-neutral-800">
+                    Pricing &amp; Tax
+                  </h3>
+                  <dl className="divide-y divide-neutral-100 dark:divide-neutral-800/70 text-[15px]">
+                    <div className="py-2.5 flex justify-between gap-4">
+                      <dt className="text-neutral-500 dark:text-neutral-400">Cost Price</dt>
+                      <dd className="font-medium text-neutral-900 dark:text-neutral-100 tabular-nums">
+                        €{(Number(product.cost_price) || 0).toFixed(2)}
+                      </dd>
+                    </div>
+                    <div className="py-2.5 flex justify-between gap-4">
+                      <dt className="text-neutral-500 dark:text-neutral-400">Selling Price</dt>
+                      <dd className="font-semibold text-neutral-900 dark:text-white tabular-nums">
+                        €{(Number(product.selling_price) || 0).toFixed(2)}
+                      </dd>
+                    </div>
+                    <div className="py-2.5 flex justify-between gap-4">
+                      <dt className="text-neutral-500 dark:text-neutral-400">Min Selling Price</dt>
+                      <dd className="font-medium text-neutral-900 dark:text-neutral-100 tabular-nums">
+                        €{(Number(product.min_sales_price) || 0).toFixed(2)}
+                      </dd>
+                    </div>
+                    <div className="py-2.5 flex justify-between gap-4">
+                      <dt className="text-neutral-500 dark:text-neutral-400">Taxable</dt>
+                      <dd className="font-medium text-neutral-900 dark:text-neutral-100">
+                        {product.is_taxable === false || product.is_taxable === 0 ? 'No' : 'Yes'}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                {product.product_type !== 'service' && Array.isArray(product.stock) && product.stock.length > 0 && (
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 pb-2 mb-3 border-b border-neutral-200 dark:border-neutral-800">
+                      Stock by Branch
+                    </h3>
+                    <dl className="divide-y divide-neutral-100 dark:divide-neutral-800/70 text-sm">
+                      {product.stock.map(s => (
+                        <div key={s.branch_id} className="py-2 flex justify-between gap-4">
+                          <dt className="text-neutral-600 dark:text-neutral-400">{s.branch_name}</dt>
+                          <dd className="font-semibold text-neutral-900 dark:text-neutral-100 tabular-nums">{s.quantity}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Minimum Stock */}
-            <div className="flex items-center">
-              <span className="font-bold text-neutral-900 dark:text-neutral-100 min-w-[200px]">
-                Minimum Stock :
-              </span>
-              <span className="text-neutral-800 dark:text-neutral-200 font-normal">
-                {product.min_stock_level ?? 0}
-              </span>
-            </div>
-
-            {/* Selling Price */}
-            <div className="flex items-center">
-              <span className="font-bold text-neutral-900 dark:text-neutral-100 min-w-[200px]">
-                Selling Price :
-              </span>
-              <span className="text-neutral-800 dark:text-neutral-200 font-normal">
-                €{(Number(product.selling_price) || 0).toFixed(2)}
-              </span>
-            </div>
-
-            {/* Minimum Selling Price */}
-            <div className="flex items-center">
-              <span className="font-bold text-neutral-900 dark:text-neutral-100 min-w-[200px]">
-                Minimum Selling Price :
-              </span>
-              <span className="text-neutral-800 dark:text-neutral-200 font-normal">
-                €{(Number(product.min_sales_price) || 0).toFixed(2)}
-              </span>
-            </div>
-
-            {/* Taxable */}
-            <div className="flex items-center">
-              <span className="font-bold text-neutral-900 dark:text-neutral-100 min-w-[200px]">
-                Taxable :
-              </span>
-              <span className="text-neutral-800 dark:text-neutral-200 font-normal">
-                {product.is_taxable === false || product.is_taxable === 0 ? 'No' : 'Yes'}
-              </span>
-            </div>
-
-            {/* Action Buttons directly under Taxable row */}
-            <div className="flex items-center gap-3 pt-6">
+            {/* Bottom Actions Bar */}
+            <div className="mt-8 pt-4 border-t border-neutral-200 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-3">
               <button 
                 onClick={() => setIsEditing(true)}
-                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-5 rounded text-[14px] flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
+                className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-5 rounded text-sm flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
               >
-                <Edit3 size={15} />
-                <span>Edit</span>
+                <Edit3 size={14} />
+                <span>Edit Product</span>
               </button>
               <button 
                 onClick={handleArchive}
-                className="bg-[var(--brand-danger)] hover:bg-rose-600 text-white font-medium py-1.5 px-5 rounded text-[14px] flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
+                className="bg-white dark:bg-neutral-900 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 font-medium py-1.5 px-4 rounded text-sm flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
               >
-                <Trash2 size={15} />
-                <span>Archive</span>
+                <Trash2 size={14} />
+                <span>Archive Product</span>
               </button>
             </div>
           </div>
@@ -482,8 +560,8 @@ export default function ProductDetails({
 
         {/* TAB 2: Special Pricing */}
         {activeTab === 'pricing' && (
-          <div className="p-8 text-center text-neutral-500 italic text-[15px] font-mono">
-            No current special pricing adjustment data available
+          <div className="py-12 text-center text-neutral-400 dark:text-neutral-500 text-sm">
+            No special pricing adjustments configured for this product.
           </div>
         )}
 
