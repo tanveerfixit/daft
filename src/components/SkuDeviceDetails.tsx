@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Search, Filter } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Search, ExternalLink } from 'lucide-react';
 
 interface DeviceDetail {
   id: number;
@@ -20,8 +21,11 @@ interface Props {
 }
 
 export default function SkuDeviceDetails({ skuId, onBack }: Props) {
+  const navigate = useNavigate();
+  const { branchSlug } = useParams<{ branchSlug?: string }>();
   const [devices, setDevices] = useState<DeviceDetail[]>([]);
   const [productName, setProductName] = useState('');
+  const [skuCode, setSkuCode] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -34,7 +38,10 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
     fetch(`/api/products/${skuId}`, { signal: controller.signal })
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
-        if (data) setProductName(data.product_name || data.name || '');
+        if (data) {
+          setProductName(data.product_name || data.name || '');
+          setSkuCode(data.sku_code || '');
+        }
       })
       .catch(err => {
         if (err?.name !== 'AbortError') console.error('Failed to fetch product name:', err);
@@ -65,118 +72,155 @@ export default function SkuDeviceDetails({ skuId, onBack }: Props) {
     return matchesStatus && matchesSearch;
   }) : [];
 
+  const inStockCount = devices.filter(d => d.status === 'in_stock' || d.status === 'available').length;
+  const soldCount = devices.filter(d => d.status === 'sold').length;
+
+  const formatStatus = (status: string) => {
+    const s = String(status || 'unknown').toLowerCase();
+    if (s === 'in_stock' || s === 'available') return 'In Stock';
+    if (s === 'sold') return 'Sold';
+    if (s === 'in_transfer' || s === 'transfer') return 'In Transfer';
+    if (s === 'repair') return 'In Repair';
+    if (s === 'returned') return 'Returned';
+    return s.replace(/_/g, ' ');
+  };
+
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-app)]">
-      {/* Header */}
-      <div className="p-4 bg-[var(--bg-card)] border-b border-[var(--border-base)] flex items-center gap-4">
-        <button 
-          onClick={onBack}
-          className="p-2 hover:bg-[var(--bg-hover)] rounded-full transition-colors text-[var(--text-muted)]"
-        >
-          <ArrowLeft size={20} />
-        </button>
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm p-3 md:p-5 select-none w-full overflow-auto font-sans">
+      {/* Top Summary Header */}
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md p-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
         <div>
-          <h2 className="font-medium text-[var(--text-main)]" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '22px' }}>{productName}</h2>
-          <p className="text-xs text-[var(--text-muted-more)] uppercase tracking-wider font-bold">Device History & Inventory</p>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="p-4 bg-[var(--bg-card)] border-b border-[var(--border-base)] flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <Filter size={16} className="text-[var(--text-muted-more)]" />
-          <select 
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-[var(--bg-input)] border border-[var(--border-header)] rounded px-3 py-1.5 text-sm text-[var(--text-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] w-48"
-          >
-            <option value="all">All Devices</option>
-            <option value="in_stock">Available (In Stock)</option>
-            <option value="sold">Sold</option>
-            <option value="transfer">In Transfer</option>
-            <option value="repair">In Repair</option>
-            <option value="returned">Returned</option>
-          </select>
-        </div>
-
-        <div className="relative flex-1 max-w-md ml-auto flex">
-          <input
-            type="text"
-            placeholder="Search IMEI in this list..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-3 pr-10 py-1.5 bg-[var(--bg-input)] border border-[var(--border-header)] rounded-l text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
-          />
-          <button className="px-3 bg-[var(--bg-accent-subtle)] border border-l-0 border-[var(--border-header)] rounded-r hover:bg-[var(--bg-hover)]">
-            <Search size={16} className="text-[var(--text-muted)]" />
-          </button>
-        </div>
-      </div>
-
-      {/* Table Content */}
-      <div className="flex-1 overflow-auto p-4">
-        {loading ? (
-          <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--brand-primary)]"></div>
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight">
+            {productName || 'SKU Devices'}
+          </h1>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+            {skuCode && <span className="font-mono text-neutral-700 dark:text-neutral-300">{skuCode}</span>}
+            {skuCode && <span className="text-neutral-300 dark:text-neutral-700">•</span>}
+            <span><strong className="text-neutral-800 dark:text-neutral-200">{devices.length}</strong> Total</span>
+            <span className="text-neutral-300 dark:text-neutral-700">•</span>
+            <span><strong className="text-emerald-600 dark:text-emerald-400">{inStockCount}</strong> In Stock</span>
+            <span className="text-neutral-300 dark:text-neutral-700">•</span>
+            <span><strong className="text-neutral-800 dark:text-neutral-200">{soldCount}</strong> Sold</span>
           </div>
-        ) : (
-          <div className="bg-[var(--bg-card)] border border-[var(--border-header)] rounded overflow-hidden">
-            <table className="w-full text-left border-collapse">
-              <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-                <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
-                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">IMEI Number</th>
-                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Color</th>
-                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">GB</th>
-                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Condition</th>
-                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Status</th>
-                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Branch</th>
-                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center whitespace-nowrap min-w-[110px]">Added By</th>
-                  <th className="px-2 py-1.5 border-r border-neutral-300 dark:border-neutral-700 text-center">Date Added</th>
-                  <th className="px-2 py-1.5 text-center">Invoice #</th>
+        </div>
+
+        <button
+          onClick={onBack}
+          className="bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-600 font-medium py-1.5 px-3.5 rounded text-sm inline-flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98] self-start sm:self-auto"
+        >
+          <ArrowLeft size={15} />
+          <span>Back</span>
+        </button>
+      </div>
+
+      {/* Main Devices Table Card */}
+      <div className="flex-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md flex flex-col overflow-hidden">
+        {/* Filters Bar */}
+        <div className="px-4 py-2.5 bg-neutral-50 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-neutral-800 flex flex-wrap justify-between items-center gap-3 shrink-0">
+          <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+            Serialized Units
+          </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+              <input
+                type="text"
+                placeholder="Search IMEI..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 pl-8 pr-3 py-1.5 text-sm text-neutral-800 dark:text-neutral-200 outline-none focus:border-blue-500 w-44 sm:w-56"
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 px-3 py-1.5 text-sm text-neutral-800 dark:text-neutral-200 outline-none cursor-pointer"
+            >
+              <option value="all">All Statuses</option>
+              <option value="in_stock">In Stock</option>
+              <option value="sold">Sold</option>
+              <option value="transfer">In Transfer</option>
+              <option value="repair">In Repair</option>
+              <option value="returned">Returned</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Table Content */}
+        <div className="flex-1 overflow-auto">
+          {loading ? (
+            <div className="flex items-center justify-center h-32 text-neutral-400 text-sm">
+              Loading devices...
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-neutral-50/80 dark:bg-neutral-800/40 border-b border-neutral-200 dark:border-neutral-800 text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                  <th className="py-2.5 px-4">IMEI / Serial</th>
+                  <th className="py-2.5 px-3">Specs</th>
+                  <th className="py-2.5 px-3">Condition</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3">Branch</th>
+                  <th className="py-2.5 px-3">Added By</th>
+                  <th className="py-2.5 px-3">Date Added</th>
+                  <th className="py-2.5 px-4">Invoice #</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/70">
                 {filteredDevices.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-[var(--text-muted-more)] italic">
+                    <td colSpan={8} className="px-4 py-10 text-center text-neutral-400 text-sm">
                       No devices found matching the filter.
                     </td>
                   </tr>
                 ) : (
-                  filteredDevices.map((device, idx) => (
-                    <tr key={device.id} className={`border-b border-[var(--border-base)] text-sm hover:bg-[var(--bg-hover)] transition-colors ${idx % 2 === 1 ? 'bg-[var(--bg-zebra)]' : ''}`}>
-                      <td className="px-4 py-3 border-r border-[var(--border-base)] font-mono text-[var(--text-main)] font-bold">{device.imei}</td>
-                      <td className="px-4 py-3 border-r border-[var(--border-base)] text-center text-[var(--text-muted)]">{device.color || '-'}</td>
-                      <td className="px-4 py-3 border-r border-[var(--border-base)] text-center text-[var(--text-muted)]">{device.gb || '-'}</td>
-                      <td className="px-4 py-3 border-r border-[var(--border-base)] text-center text-[var(--text-muted)]">{device.condition || '-'}</td>
-                      <td className="px-4 py-3 border-r border-[var(--border-base)] text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          device.status === 'in_stock' ? 'bg-[var(--brand-success)]/10 text-[var(--brand-success)]' :
-                          device.status === 'sold' ? 'bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]' :
-                          'bg-[var(--brand-warning)]/10 text-[var(--brand-warning)]'
-                        }`}>
-                          {(device.status || 'unknown').replace(/_/g, ' ')}
+                  filteredDevices.map((device) => (
+                    <tr
+                      key={device.id}
+                      onClick={() => branchSlug && navigate(`/${branchSlug}/devices/${device.id}`)}
+                      className={`hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40 transition-colors ${branchSlug ? 'cursor-pointer' : ''}`}
+                    >
+                      <td className="py-2.5 px-4 font-mono font-semibold text-neutral-900 dark:text-white whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span>{device.imei}</span>
+                          {branchSlug && <ExternalLink size={12} className="text-neutral-400" />}
                         </span>
                       </td>
-                      <td className="px-4 py-3 border-r border-[var(--border-base)] text-center text-xs text-[var(--text-muted)]">
-                        {device.branch_name || '-'}
+                      <td className="py-2.5 px-3 text-neutral-600 dark:text-neutral-300 whitespace-nowrap">
+                        {[device.gb, device.color].filter(Boolean).join(' • ') || '—'}
                       </td>
-                      <td className="px-4 py-3 border-r border-[var(--border-base)] text-center text-xs text-[var(--text-muted)]">
-                        {device.user_name || '-'}
+                      <td className="py-2.5 px-3 text-neutral-600 dark:text-neutral-300 whitespace-nowrap">
+                        {device.condition || '—'}
                       </td>
-                      <td className="px-4 py-3 border-r border-[var(--border-base)] text-[var(--text-muted-more)]">
-                        {new Date(device.created_at).toLocaleDateString()}
+                      <td className="py-2.5 px-3 font-medium text-neutral-900 dark:text-neutral-100 whitespace-nowrap">
+                        {formatStatus(device.status)}
                       </td>
-                      <td className="px-4 py-3 text-center text-[var(--text-muted)] font-bold">
-                        {device.invoice_number || '-'}
+                      <td className="py-2.5 px-3 text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
+                        {device.branch_name || '—'}
+                      </td>
+                      <td className="py-2.5 px-3 text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
+                        {device.user_name || 'System'}
+                      </td>
+                      <td className="py-2.5 px-3 text-neutral-500 dark:text-neutral-400 whitespace-nowrap tabular-nums">
+                        {new Date(device.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-')}
+                      </td>
+                      <td className="py-2.5 px-4 font-mono text-neutral-700 dark:text-neutral-300 whitespace-nowrap">
+                        {device.invoice_number || '—'}
                       </td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 py-2 bg-neutral-50/50 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800 flex justify-between items-center text-xs text-neutral-500 dark:text-neutral-400 shrink-0">
+          <span>
+            {filteredDevices.length > 0 ? `Showing ${filteredDevices.length} of ${devices.length} device(s)` : '0 devices'}
+          </span>
+        </div>
       </div>
     </div>
   );

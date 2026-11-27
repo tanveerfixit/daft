@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PageHeader } from './common/PageHeader';
 import { ArrowLeft, Plus, Trash2, Save, Smartphone, AlertTriangle, Check, Printer, CheckCircle2, RotateCcw, CheckSquare, Square, PackageCheck, Layers } from 'lucide-react';
 import { Product, Branch, Supplier } from '../types';
 import { invalidateCache } from '../utils/cache';
@@ -581,19 +580,19 @@ export default function AddInventory({
   };
 
   if (loading) return (
-    <div className="flex items-center justify-center h-full bg-neutral-100 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 p-8 text-base" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <div className="border border-neutral-300 dark:border-neutral-800 p-6 text-center bg-white dark:bg-black w-64">
-        <div className="text-sm font-bold uppercase tracking-widest animate-pulse">Loading...</div>
-        <div className="text-[10px] mt-2 text-neutral-500">Retrieving system data</div>
+    <div className="flex items-center justify-center h-full bg-neutral-100 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 p-8 text-sm font-sans">
+      <div className="border border-neutral-200 dark:border-neutral-800 rounded-md p-6 text-center bg-white dark:bg-neutral-900 w-64">
+        <div className="text-sm font-semibold uppercase tracking-wider animate-pulse">Loading...</div>
+        <div className="text-xs mt-1.5 text-neutral-500">Retrieving product data</div>
       </div>
     </div>
   );
   
   if (!product) return (
-    <div className="flex items-center justify-center h-full bg-neutral-100 dark:bg-neutral-950 text-red-500 p-8 text-base" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <div className="border border-red-500 p-6 text-center bg-white dark:bg-black">
-        <div className="text-sm font-bold uppercase tracking-widest">Product Not Found</div>
-        <div className="text-[10px] mt-2 text-red-400">The requested product does not exist</div>
+    <div className="flex items-center justify-center h-full bg-neutral-100 dark:bg-neutral-950 text-rose-600 p-8 text-sm font-sans">
+      <div className="border border-rose-200 dark:border-rose-800 rounded-md p-6 text-center bg-white dark:bg-neutral-900">
+        <div className="text-sm font-semibold uppercase tracking-wider">Product Not Found</div>
+        <div className="text-xs mt-1.5 text-rose-500">The requested product does not exist</div>
       </div>
     </div>
   );
@@ -616,163 +615,133 @@ export default function AddInventory({
     };
 
     return (
-      <div className="flex flex-col h-full bg-[#f2f2f2] text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-2 pb-2 pt-0 select-none w-full overflow-auto" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
-        {/* Header bar */}
-        <div className="sticky top-0 z-40 bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded shrink-0 flex justify-between items-center px-4 py-3 mb-2">
+      <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm p-3 md:p-5 select-none w-full overflow-auto font-sans">
+        {/* Top Summary Header */}
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md p-4 mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-3">
-            <h1 className="font-medium text-black dark:text-white flex items-center gap-2" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '24px' }}>
-              <PackageCheck className="text-emerald-600 dark:text-emerald-400" size={26} />
-              Inventory Added
-            </h1>
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-              {savedBatch.length} {savedBatch.length === 1 ? 'Unit' : 'Units'} Added
-            </span>
+            <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
+              <PackageCheck size={22} />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight">
+                Inventory Added ({savedBatch.length} {savedBatch.length === 1 ? 'Unit' : 'Units'})
+              </h1>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                {product.manufacturer_name ? `${product.manufacturer_name} • ` : ''}{product.product_name}
+                {poNumber ? ` • PO: ${poNumber}` : ''}
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button 
               type="button"
               onClick={() => handleBatchPrintLabels(selectedDevices)}
               disabled={selectedDevices.length === 0}
-              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer active:scale-[0.98]"
+              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium py-1.5 px-3.5 rounded text-sm flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
               title="Print barcode labels for all selected devices"
             >
-              <Printer size={16} />
+              <Printer size={15} />
               <span>Print {selectedDevices.length === savedBatch.length ? 'All Labels' : `Selected (${selectedDevices.length})`}</span>
             </button>
             <button 
               type="button"
               onClick={handleAddMore}
-              className="bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer"
+              className="bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-600 font-medium py-1.5 px-3.5 rounded text-sm flex items-center gap-1.5 transition-all cursor-pointer"
             >
               <Plus size={15} />
-              <span>Add More Stock</span>
+              <span>Add More</span>
             </button>
             <button 
               type="button"
               onClick={onSuccess}
-              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-2 transition-all cursor-pointer active:scale-[0.98]"
+              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-medium py-1.5 px-3.5 rounded text-sm flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
             >
-              <span>View Product Details</span>
-              <ArrowLeft className="rotate-180" size={15} />
+              <span>Product Details</span>
+              <ArrowLeft className="rotate-180" size={14} />
             </button>
           </div>
         </div>
 
-        {/* Content Box */}
-        <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded p-4 space-y-4">
-          <div className="p-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 shrink-0 mt-0.5">
-                <CheckCircle2 size={22} />
-              </div>
-              <div>
-                <h3 className="font-bold text-neutral-900 dark:text-white text-base">
-                  {savedBatch.length} Serialized Units Added to Inventory
-                </h3>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5">
-                  Product: <span className="font-semibold text-neutral-800 dark:text-neutral-200">{product.manufacturer_name ? `${product.manufacturer_name} ` : ''}{product.product_name}</span> {poNumber ? `• PO Ref: ${poNumber}` : ''}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 self-end md:self-auto">
-              <button
-                type="button"
-                onClick={() => handleBatchPrintLabels(savedBatch)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded text-sm flex items-center gap-2 cursor-pointer transition-all active:scale-95"
-              >
-                <Printer size={16} />
-                <span>Print All {savedBatch.length} Labels</span>
-              </button>
-            </div>
+        {/* Table of added serialized devices */}
+        <div className="flex-1 overflow-auto bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md flex flex-col">
+          <div className="px-4 py-2.5 bg-neutral-50 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center shrink-0">
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:text-black dark:hover:text-white cursor-pointer"
+            >
+              {allSelected ? <CheckSquare size={15} className="text-emerald-600" /> : <Square size={15} />}
+              <span>{allSelected ? 'Deselect All' : 'Select All'} ({selectedDevices.length}/{savedBatch.length})</span>
+            </button>
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">
+              Ready for barcode label printing
+            </span>
           </div>
 
-          {/* Table of added serialized devices */}
-          <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded overflow-hidden">
-            <div className="p-2.5 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={toggleSelectAll}
-                  className="flex items-center gap-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:text-black dark:hover:text-white cursor-pointer"
-                >
-                  {allSelected ? <CheckSquare size={16} className="text-emerald-600" /> : <Square size={16} />}
-                  <span>{allSelected ? 'Deselect All' : 'Select All'} ({selectedDevices.length}/{savedBatch.length})</span>
-                </button>
-              </div>
-              <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                Ready for barcode label printing
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[15px]">
-                <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-                  <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
-                    <th className="py-2 px-2 w-10 text-center border-r border-neutral-300 dark:border-neutral-700">
-                      <input 
-                        type="checkbox" 
-                        checked={allSelected} 
-                        onChange={toggleSelectAll}
-                        className="cursor-pointer"
-                      />
-                    </th>
-                    <th className="py-2 px-2 w-12 text-center border-r border-neutral-300 dark:border-neutral-700">#</th>
-                    <th className="py-2 px-4 text-left border-r border-neutral-300 dark:border-neutral-700">IMEI / Serial Number</th>
-                    <th className="py-2 px-3 w-36 text-center border-r border-neutral-300 dark:border-neutral-700">Price</th>
-                    <th className="py-2 px-3 w-28 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                  {savedBatch.map((dev, idx) => {
-                    const isSelected = dev.selected !== false;
-                    const isEvenRow = idx % 2 === 1;
-                    return (
-                      <tr 
-                        key={dev.id || idx}
-                        className={`text-[15px] transition-colors ${
-                          isSelected
-                            ? isEvenRow 
-                              ? 'bg-[#f8f9fa] dark:bg-neutral-900/40 hover:bg-neutral-100 dark:hover:bg-neutral-800/60' 
-                              : 'bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900'
-                            : 'opacity-50 bg-neutral-100 dark:bg-neutral-950'
-                        }`}
-                      >
-                        <td className="py-2 px-2 text-center align-middle border-r border-neutral-300 dark:border-neutral-800">
-                          <input 
-                            type="checkbox" 
-                            checked={isSelected}
-                            onChange={() => toggleSelectDevice(idx)}
-                            className="cursor-pointer"
-                          />
-                        </td>
-                        <td className="py-2 px-2 text-center text-neutral-500 text-[15px] font-medium align-middle border-r border-neutral-300 dark:border-neutral-800">
-                          {idx + 1}
-                        </td>
-                        <td className="py-2 px-4 align-middle border-r border-neutral-300 dark:border-neutral-800 font-mono font-bold text-neutral-900 dark:text-neutral-100">
-                          {dev.imei}
-                        </td>
-                        <td className="py-2 px-3 text-center align-middle border-r border-neutral-300 dark:border-neutral-800 font-semibold text-neutral-900 dark:text-neutral-100">
-                          €{Number(dev.selling_price || sellingPrice || product.selling_price || 0).toFixed(2)}
-                        </td>
-                        <td className="py-2 px-3 text-center align-middle">
-                          <button
-                            type="button"
-                            onClick={() => handleBatchPrintLabels([dev])}
-                            className="text-xs font-semibold px-2 py-1 bg-neutral-100 dark:bg-neutral-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-neutral-700 dark:text-neutral-200 hover:text-emerald-600 rounded border border-neutral-300 dark:border-neutral-700 flex items-center justify-center gap-1 mx-auto cursor-pointer transition-colors"
-                            title="Print single label for this device"
-                          >
-                            <Printer size={13} />
-                            <span>Print</span>
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+          <div className="overflow-auto flex-1">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-neutral-50/80 dark:bg-neutral-800/40 border-b border-neutral-200 dark:border-neutral-800 text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                  <th className="py-2.5 px-3 w-10 text-center">
+                    <input 
+                      type="checkbox" 
+                      checked={allSelected} 
+                      onChange={toggleSelectAll}
+                      className="cursor-pointer"
+                    />
+                  </th>
+                  <th className="py-2.5 px-3 w-12 text-center">#</th>
+                  <th className="py-2.5 px-4">IMEI / Serial Number</th>
+                  <th className="py-2.5 px-3 w-36 text-right">Price</th>
+                  <th className="py-2.5 px-3 w-28 text-center">Label</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/70">
+                {savedBatch.map((dev, idx) => {
+                  const isSelected = dev.selected !== false;
+                  return (
+                    <tr 
+                      key={dev.id || idx}
+                      className={`transition-colors ${
+                        isSelected
+                          ? 'hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40'
+                          : 'opacity-50 bg-neutral-50 dark:bg-neutral-950'
+                      }`}
+                    >
+                      <td className="py-2.5 px-3 text-center align-middle">
+                        <input 
+                          type="checkbox" 
+                          checked={isSelected}
+                          onChange={() => toggleSelectDevice(idx)}
+                          className="cursor-pointer"
+                        />
+                      </td>
+                      <td className="py-2.5 px-3 text-center text-neutral-500 font-medium align-middle tabular-nums">
+                        {idx + 1}
+                      </td>
+                      <td className="py-2.5 px-4 align-middle font-mono font-semibold text-neutral-900 dark:text-neutral-100">
+                        {dev.imei}
+                      </td>
+                      <td className="py-2.5 px-3 text-right align-middle font-medium text-neutral-900 dark:text-neutral-100 tabular-nums">
+                        €{Number(dev.selling_price || sellingPrice || product.selling_price || 0).toFixed(2)}
+                      </td>
+                      <td className="py-2.5 px-3 text-center align-middle">
+                        <button
+                          type="button"
+                          onClick={() => handleBatchPrintLabels([dev])}
+                          className="text-xs font-medium px-2.5 py-1 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 rounded border border-neutral-300 dark:border-neutral-700 inline-flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Print single label for this device"
+                        >
+                          <Printer size={13} />
+                          <span>Print</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -780,186 +749,175 @@ export default function AddInventory({
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#f2f2f2] text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm px-2 pb-2 pt-0 select-none w-full overflow-auto" style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '16px' }}>
-      {/* Header bar */}
-      <PageHeader
-        title="Add Inventory"
-        leftExtra={
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium px-2 py-0.5 border border-neutral-300 uppercase bg-neutral-100 text-neutral-700">
-              {product.product_type}
-            </span>
-            <span className="text-sm text-neutral-500 hidden lg:inline">
-              {product.manufacturer_name && <span className="font-medium text-neutral-700">{product.manufacturer_name} • </span>}
-              {product.product_name} 
-              {product.sku_code && <span className="text-xs ml-1 text-neutral-400">({product.sku_code})</span>}
+    <div className="flex flex-col h-full bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 text-sm p-3 md:p-5 select-none w-full overflow-auto font-sans">
+      {/* Top Product Summary Header */}
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md p-4 mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight">
+              Add Inventory
+            </h1>
+            <span className="text-xs font-medium px-2 py-0.5 rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 capitalize">
+              {product.product_type || 'stock'}
             </span>
           </div>
-        }
-        actions={
-          <>
-            <button 
-              type="button"
-              disabled={isSaving}
-              onClick={() => handleSubmit()}
-              className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 text-white font-medium py-1.5 px-3.5 text-sm flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Save size={15} className={isSaving ? 'animate-spin' : ''} />
-              <span>{isSaving ? 'Saving...' : 'Save Inventory'}</span>
-            </button>
-            <button 
-              type="button"
-              onClick={onBack}
-              className="bg-white hover:bg-neutral-100 text-neutral-700 border border-neutral-300 font-medium py-1.5 px-3.5 text-sm flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <ArrowLeft size={15} />
-              <span>Back</span>
-            </button>
-          </>
-        }
-      />
+          <div className="text-sm text-neutral-600 dark:text-neutral-400">
+            {product.manufacturer_name && <span className="font-medium text-neutral-800 dark:text-neutral-200">{product.manufacturer_name} • </span>}
+            <span className="font-semibold text-neutral-900 dark:text-white">{product.product_name}</span>
+            {product.sku_code && <span className="ml-2 font-mono text-xs text-neutral-500">({product.sku_code})</span>}
+          </div>
+        </div>
 
-      <div className="flex-1 overflow-auto bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded p-4">
+        <div className="flex items-center gap-2">
+          <button 
+            type="button"
+            disabled={isSaving}
+            onClick={() => handleSubmit()}
+            className="bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 text-white font-medium py-1.5 px-4 rounded text-sm flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
+          >
+            <Save size={15} className={isSaving ? 'animate-spin' : ''} />
+            <span>{isSaving ? 'Saving...' : 'Save Inventory'}</span>
+          </button>
+          <button 
+            type="button"
+            onClick={onBack}
+            className="bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-600 font-medium py-1.5 px-3.5 rounded text-sm flex items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
+          >
+            <ArrowLeft size={15} />
+            <span>Back</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-auto">
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Specification Style Configuration Table */}
-          <div className="bg-white dark:bg-black overflow-hidden rounded border border-neutral-200 dark:border-neutral-800">
-            <table className="w-full border-none text-[15px]">
-              <tbody>
-                {/* Product Info Description */}
-                <tr className="bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
-                  <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
-                    Product To Increase
-                  </td>
-                  <td className="py-2 px-3 font-semibold text-black dark:text-white uppercase">
-                    {product.manufacturer_name && `${product.manufacturer_name} - `}{product.product_name} {product.sku_code && `(${product.sku_code})`}
-                  </td>
-                </tr>
+          {/* Two-Column Stock & Pricing Configuration Card */}
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md p-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Left Column: Branch, Supplier, PO */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 pb-2 border-b border-neutral-200 dark:border-neutral-800">
+                  Destination &amp; Supplier
+                </h3>
 
-                {/* Branch Selection */}
-                <tr className="bg-[#f8f9fa] dark:bg-neutral-900/40 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 transition-colors">
-                  <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
-                    Select Branch *
-                  </td>
-                  <td className="py-2 px-3">
-                    <select 
-                      required
-                      value={branchId}
-                      onChange={(e) => setBranchId(e.target.value)}
-                      className="w-full max-w-md bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded px-2.5 py-1 text-sm font-normal text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-blue-500 cursor-pointer h-8"
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                    Branch *
+                  </label>
+                  <select 
+                    required
+                    value={branchId}
+                    onChange={(e) => setBranchId(e.target.value)}
+                    className="w-full bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 rounded px-3 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-blue-500 cursor-pointer h-9"
+                  >
+                    <option value="">Choose Branch</option>
+                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                      Supplier *
+                    </label>
+                    <button 
+                      type="button" 
+                      onClick={() => setShowNewSupplierModal(true)}
+                      className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-medium inline-flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer"
                     >
-                      <option value="">Choose Branch</option>
-                      {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                    </select>
-                  </td>
-                </tr>
+                      <Plus size={13} /> Quick Add
+                    </button>
+                  </div>
+                  <select 
+                    required
+                    value={supplierId}
+                    onChange={(e) => setSupplierId(e.target.value)}
+                    className="w-full bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 rounded px-3 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-blue-500 cursor-pointer h-9"
+                  >
+                    <option value="">Select Supplier *</option>
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
 
-                {/* Supplier */}
-                <tr className="bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
-                  <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
-                    Select Supplier *
-                  </td>
-                  <td className="py-2 px-3">
-                    <div className="flex items-center gap-3">
-                      <select 
-                        required
-                        value={supplierId}
-                        onChange={(e) => setSupplierId(e.target.value)}
-                        className="w-full max-w-md bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded px-2.5 py-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-blue-500 cursor-pointer h-8"
-                      >
-                        <option value="">Select Supplier *</option>
-                        {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                      </select>
-                      <button 
-                        type="button" 
-                        onClick={() => setShowNewSupplierModal(true)}
-                        className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-medium flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer whitespace-nowrap"
-                      >
-                        <Plus size={14} /> Quick Add
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-
-                {/* PO Reference */}
-                <tr className="bg-[#f8f9fa] dark:bg-neutral-900/40 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 transition-colors">
-                  <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-300">
                     PO Reference
-                  </td>
-                  <td className="py-2 px-3">
-                    <input 
-                      type="text"
-                      value={poNumber}
-                      onChange={(e) => setPoNumber(e.target.value)}
-                      placeholder="e.g. PO-12345"
-                      className="w-full max-w-md bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded px-2.5 py-1 text-sm font-normal text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-blue-500 h-8"
-                    />
-                  </td>
-                </tr>
+                  </label>
+                  <input 
+                    type="text"
+                    value={poNumber}
+                    onChange={(e) => setPoNumber(e.target.value)}
+                    placeholder="Auto-generated if left blank (e.g. PO-12345)"
+                    className="w-full bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 rounded px-3 py-1.5 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-blue-500 h-9"
+                  />
+                </div>
+              </div>
 
-                {/* Cost Price */}
-                <tr className="bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
-                  <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
-                    Cost Price (€)
-                  </td>
-                  <td className="py-2 px-3">
+              {/* Right Column: Pricing & Quantity */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 pb-2 border-b border-neutral-200 dark:border-neutral-800">
+                  Pricing &amp; Quantity
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                      Cost Price (€)
+                    </label>
                     <input 
                       type="number"
                       step="0.01"
                       value={costPrice}
                       onChange={(e) => setCostPrice(e.target.value)}
-                      className="w-full max-w-[160px] bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded px-2.5 py-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-blue-500 h-8"
+                      className="w-full bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 rounded px-3 py-1.5 text-sm font-medium text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-blue-500 h-9 tabular-nums"
                     />
-                  </td>
-                </tr>
+                  </div>
 
-                {/* Selling Price */}
-                <tr className="bg-[#f8f9fa] dark:bg-neutral-900/40 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 transition-colors">
-                  <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
-                    Selling Price (€)
-                  </td>
-                  <td className="py-2 px-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                      Selling Price (€)
+                    </label>
                     <input 
                       type="number"
                       step="0.01"
                       value={sellingPrice}
                       onChange={(e) => setSellingPrice(e.target.value)}
-                      className="w-full max-w-[160px] bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded px-2.5 py-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-blue-500 h-8"
+                      className="w-full bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 rounded px-3 py-1.5 text-sm font-medium text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-blue-500 h-9 tabular-nums"
                     />
-                  </td>
-                </tr>
+                  </div>
+                </div>
 
-                {/* Non-Serialized Quantity */}
                 {product.product_type !== 'serialized' && (
-                  <tr className="bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors">
-                    <td className="w-1/3 py-2 px-3 text-neutral-500 dark:text-neutral-400 font-medium">
-                      Quantity to Add
-                    </td>
-                    <td className="py-2 px-3">
-                      <input 
-                        type="number"
-                        min="1"
-                        value={quantity}
-                        onChange={(e) => setQuantity(e.target.value)}
-                        className="w-full max-w-[160px] bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded px-2.5 py-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-blue-500 h-8"
-                      />
-                    </td>
-                  </tr>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                      Quantity to Add *
+                    </label>
+                    <input 
+                      type="number"
+                      min="1"
+                      required
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      className="w-full sm:max-w-[180px] bg-white dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-700 rounded px-3 py-1.5 text-sm font-semibold text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-blue-500 h-9 tabular-nums"
+                    />
+                  </div>
                 )}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
 
           {/* Serialized Items Table */}
           {product.product_type === 'serialized' && (
-            <div className="bg-white dark:bg-black border border-neutral-300 dark:border-neutral-800 rounded overflow-hidden mt-4">
-              <div className="p-2.5 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-300 dark:border-neutral-800 flex justify-between items-center">
+            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md overflow-hidden">
+              <div className="px-4 py-2.5 bg-neutral-50 dark:bg-neutral-800/60 border-b border-neutral-200 dark:border-neutral-800 flex flex-wrap justify-between items-center gap-2">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-sm font-semibold text-black dark:text-white uppercase tracking-wider flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-white flex items-center gap-2">
                     <Smartphone size={16} className="text-[var(--brand-primary)]" />
-                    Serialized Items
+                    <span>Serialized Items</span>
                   </h3>
-                  <span className="text-xs text-neutral-500 dark:text-neutral-400 bg-white dark:bg-black px-2.5 py-0.5 rounded border border-neutral-300 dark:border-neutral-700 font-normal">
-                    Scan barcode & press Enter to auto-advance
+                  <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Scan barcode &amp; press Enter to auto-advance
                   </span>
                 </div>
                 <button 
@@ -972,34 +930,31 @@ export default function AddInventory({
                 </button>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-[15px]">
-                  <thead style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-                    <tr className="bg-[var(--bg-header)] dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 text-[14px] font-semibold text-black dark:text-white text-center">
-                      <th className="py-2 px-3 w-14 text-center border-r border-neutral-300 dark:border-neutral-700">#</th>
-                      <th className="py-2 px-4 text-left border-r border-neutral-300 dark:border-neutral-700">IMEI / Serial Number</th>
-                      <th className="py-2 px-3 w-48 text-center border-r border-neutral-300 dark:border-neutral-700">Status</th>
-                      <th className="py-2 px-2 w-14 text-center"></th>
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-neutral-50/80 dark:bg-neutral-800/40 border-b border-neutral-200 dark:border-neutral-800 text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                      <th className="py-2.5 px-3 w-12 text-center">#</th>
+                      <th className="py-2.5 px-4">IMEI / Serial Number</th>
+                      <th className="py-2.5 px-3 w-44">Status</th>
+                      <th className="py-2.5 px-3 w-12 text-center"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/70">
                     {items.map((item, idx) => {
                       const hasError = !!item.duplicateError;
-                      const isEvenRow = idx % 2 === 1;
                       return (
                         <tr 
                           key={idx} 
-                          className={`text-[15px] transition-colors ${
+                          className={`transition-colors ${
                             hasError 
-                              ? 'bg-rose-50/70 dark:bg-rose-950/40 text-rose-900 dark:text-rose-200' 
-                              : isEvenRow 
-                                ? 'bg-[#f8f9fa] dark:bg-neutral-900/40 hover:bg-neutral-100 dark:hover:bg-neutral-800/60' 
-                                : 'bg-white dark:bg-black hover:bg-neutral-50 dark:hover:bg-neutral-900'
+                              ? 'bg-rose-50/50 dark:bg-rose-950/30' 
+                              : 'hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40'
                           }`}
                         >
-                          <td className="py-2 px-3 text-center text-neutral-500 text-[15px] font-medium align-middle">
+                          <td className="py-2.5 px-3 text-center text-neutral-500 font-medium align-middle tabular-nums">
                             {idx + 1}
                           </td>
-                          <td className="py-2 px-4 align-middle">
+                          <td className="py-2.5 px-4 align-middle">
                             <div className="relative">
                               <input 
                                 ref={el => { imeiInputRefs.current[idx] = el; }}
@@ -1010,51 +965,51 @@ export default function AddInventory({
                                 onKeyDown={(e) => handleImeiKeyDown(e, idx)}
                                 onBlur={() => checkImeiDuplicate(item.imei, idx, items)}
                                 placeholder="Scan or type IMEI (Press Enter for next line)..."
-                                className={`w-full px-3 py-1.5 text-base font-mono border rounded focus:outline-none transition-colors h-9 ${
+                                className={`w-full px-3 py-1.5 text-sm font-mono border rounded focus:outline-none transition-colors h-9 ${
                                   hasError 
-                                    ? 'border-rose-500 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 font-bold focus:ring-1 focus:ring-rose-500' 
-                                    : 'border-neutral-300 dark:border-neutral-700 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 focus:border-blue-500'
+                                    ? 'border-rose-500 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 font-semibold' 
+                                    : 'border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 focus:border-blue-500'
                                 }`}
                               />
                               {item.isChecking && (
-                                <span className="absolute right-3 top-2 text-xs text-neutral-400 animate-pulse">
+                                <span className="absolute right-3 top-2.5 text-xs text-neutral-400 animate-pulse">
                                   checking...
                                 </span>
                               )}
                             </div>
                             {item.duplicateError && (
-                              <div className="flex items-start gap-1.5 text-xs text-rose-600 dark:text-rose-400 font-semibold mt-1.5 bg-rose-100/60 dark:bg-rose-950/80 p-1.5 rounded border border-rose-300 dark:border-rose-800">
-                                <AlertTriangle size={14} className="shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
+                              <div className="flex items-start gap-1.5 text-xs text-rose-600 dark:text-rose-400 font-medium mt-1.5">
+                                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
                                 <span>{item.duplicateError}</span>
                               </div>
                             )}
                           </td>
 
-                          {/* Verification Status Badge */}
-                          <td className="py-2 px-3 text-center align-middle border-l border-neutral-300 dark:border-neutral-700">
+                          {/* Clean Plain-Text Status */}
+                          <td className="py-2.5 px-3 align-middle whitespace-nowrap">
                             {hasError ? (
-                              <span className="text-xs font-semibold px-2.5 py-1 rounded bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300">
+                              <span className="text-xs font-semibold text-rose-600 dark:text-rose-400">
                                 Duplicate / Invalid
                               </span>
                             ) : item.imei.trim() ? (
-                              <span className="text-xs font-semibold px-2.5 py-1 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1">
+                              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
                                 <Check size={13} /> Ready
                               </span>
                             ) : (
-                              <span className="text-xs text-neutral-400 font-normal">Awaiting input</span>
+                              <span className="text-xs text-neutral-400">Awaiting input</span>
                             )}
                           </td>
 
                           {/* Remove button */}
-                          <td className="py-2 px-2 text-center align-middle border-l border-neutral-300 dark:border-neutral-700">
+                          <td className="py-2.5 px-3 text-center align-middle">
                             {items.length > 1 && (
                               <button 
                                 type="button"
                                 onClick={() => handleRemoveItem(idx)}
-                                className="text-neutral-400 hover:text-rose-600 transition-colors cursor-pointer bg-transparent border-none p-1.5"
+                                className="text-neutral-400 hover:text-rose-600 transition-colors cursor-pointer bg-transparent border-none p-1"
                                 title="Remove row"
                               >
-                                <Trash2 size={16} />
+                                <Trash2 size={15} />
                               </button>
                             )}
                           </td>
@@ -1064,22 +1019,21 @@ export default function AddInventory({
                   </tbody>
                 </table>
               </div>
-              <div className="p-2.5 bg-neutral-50 dark:bg-neutral-900 border-t border-neutral-300 dark:border-neutral-800 flex justify-between items-center text-sm">
+              <div className="px-4 py-2.5 bg-neutral-50/70 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800 flex justify-between items-center text-xs">
                 <div>
                   {items.some(i => i.duplicateError) ? (
                     <span className="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1.5">
-                      <AlertTriangle size={15} />
+                      <AlertTriangle size={14} />
                       Duplicate / existing IMEI detected in table
                     </span>
                   ) : (
-                    <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 font-semibold">
-                      <Check size={15} /> Ready to save
+                    <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 font-medium">
+                      <Check size={14} /> Ready to save
                     </span>
                   )}
                 </div>
-                <div>
-                  <span className="font-medium text-neutral-500 uppercase mr-2 text-xs">Total Items:</span>
-                  <span className="font-semibold text-neutral-900 dark:text-neutral-100 text-sm">{items.length}</span>
+                <div className="text-neutral-500 dark:text-neutral-400">
+                  Total Items: <span className="font-semibold text-neutral-900 dark:text-neutral-100 tabular-nums">{items.length}</span>
                 </div>
               </div>
             </div>
