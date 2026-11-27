@@ -581,23 +581,6 @@ export default function ProductDetails({
                     </tr>
                   ) : (
                     activities.map((activity, idx) => {
-                      const actLabel = activity.activity || (activity as any).activity_type || 'Activity';
-                      const actLower = actLabel.toLowerCase();
-                      let badgeClass = 'bg-neutral-100 text-neutral-700 border-neutral-300 dark:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-700';
-                      if (actLower.includes('sold')) {
-                        badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60';
-                      } else if (actLower.includes('stock added') || actLower.includes('created') || actLower.includes('imported')) {
-                        badgeClass = 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/60';
-                      } else if (actLower.includes('returned') || actLower.includes('refund')) {
-                        badgeClass = 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60';
-                      } else if (actLower.includes('updated')) {
-                        badgeClass = 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/60';
-                      } else if (actLower.includes('transfer')) {
-                        badgeClass = 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/60';
-                      } else if (actLower.includes('archived') || actLower.includes('deleted')) {
-                        badgeClass = 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60';
-                      }
-
                       const canNavigateRef = Boolean(
                         activity.reference_link &&
                         activity.reference_type &&
@@ -621,10 +604,8 @@ export default function ProductDetails({
                           <td className="py-2.5 px-3 text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
                             {activity.branch_name || '—'}
                           </td>
-                          <td className="py-2.5 px-3 whitespace-nowrap">
-                            <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded border ${badgeClass}`}>
-                              {actLabel}
-                            </span>
+                          <td className="py-2.5 px-3 font-medium text-neutral-900 dark:text-neutral-100 whitespace-nowrap">
+                            {activity.activity || (activity as any).activity_type || 'Activity'}
                           </td>
                           <td className="py-2.5 px-3 text-neutral-700 dark:text-neutral-300 leading-relaxed">
                             <div className="flex items-center justify-between gap-2">
